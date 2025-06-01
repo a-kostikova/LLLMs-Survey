@@ -1,0 +1,1522 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SQUARE: Automatic Question Answering Evaluation using Multiple Positive and Negative References</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Matteo</forename><surname>Gabburo</surname></persName>
+							<email>matteo.gabburo@unitn.it</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Trento</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Siddhant</forename><surname>Garg</surname></persName>
+							<email>sidgarg@amazon.com</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Amazon Alexa AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Rik</forename><forename type="middle">Koncel</forename><surname>Kedziorski</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">Kensho Technologies, Inc</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">Amazon Alexa AI</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SQUARE: Automatic Question Answering Evaluation using Multiple Positive and Negative References</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2311377A7CA3398651713C15D4321955</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:58+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Evaluation of QA systems is very challenging and expensive, with the most reliable approach being human annotations of correctness of answers for questions. Recent works (AVA, BEM) have shown that transformer LM encoder based similarity metrics transfer well for QA evaluation, but they are limited by the usage of a single correct reference answer. We propose a new evaluation metric: SQuArE (Sentence-level QUestion AnsweRing Evaluation), using multiple reference answers (combining multiple correct and incorrect references) for sentence-form QA. We evaluate SQuArE on both sentencelevel extractive (Answer Selection) and generative (GenQA) QA systems, across multiple academic and industrial datasets, and show that it outperforms previous baselines and obtains the highest correlation with human annotations.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Automatic evaluation of Question Answering systems to gauge correctness of an answer for a question is a challenging task. This task is important for preserving a quick velocity in evaluating and development of new QA systems, and creating large high quality training corpora for LLM-based QA systems. The most common approach for this task is to obtain human annotations of correctness of answers for questions, which is slow, expensive, and challenging (annotating complete answer sentences for questions has been shown to achieve poor inter-annotator agreement).</p><p>Span extraction (MR) based QA systems are typically evaluated using token matching metrics such as EM (Exact Match) or F1, however, these cannot be extended for evaluating complete sentence-form answers coming from Answer Sentence Selection (AS2) systems <ref type="bibr" target="#b10">(Garg et al., 2020;</ref><ref type="bibr" target="#b7">Di Liello et al., 2022</ref><ref type="bibr">, 2023)</ref>. Token/segment-level similarity metrics such as EM, F1, BLEU, etc. fail to capture the semantic coherence between entities/concepts of the answer sentence and the question. Recently, AVA <ref type="bibr" target="#b26">(Vu and Moschitti, 2021)</ref> and BEM <ref type="bibr" target="#b2">(Bulian et al., 2022)</ref> have proposed transformer LM encoder based similarity metrics for sentence-form extractive QA evaluation by encoding the question, target answer (which needs to be evaluated) and a reference answer (which is treated as a gold standard (GS)).</p><p>One of the major limitations of AVA/BEM is the use of a single reference answer. There are several types of questions that have multiple diverse correct answers, other questions that have relevant information spread across multiple reference answers, and other ambiguous/under-specified or opinion seeking questions that may have several possible answers (we motivate this with examples in Section 3). Additionally, AVA/BEM only use information from a correct reference answer for evaluating a target answer, but information and semantics from an incorrect reference answer (which are readily available for several datasets) can also help refine the accuracy of the prediction. Motivated by the above shortcomings of AVA/BEM, we propose SQuArE (Sentence-level QUestion AnsweRing Evaluation), a supervised transformer LM encoder based automatic QA evaluation metric that uses multiple reference answers by combining multiple correct and incorrect answers to assign a correctness score for an answer to a question. We evaluate SQuArE on four sentencelevel extractive QA datasets, and show that it outperforms previous baselines and achieves the highest correlation with human annotations.</p><p>The last few years have seen several research works <ref type="bibr" target="#b12">(Hsu et al., 2021;</ref><ref type="bibr" target="#b18">Muller et al., 2021;</ref><ref type="bibr" target="#b9">Gabburo et al., 2022)</ref> transition from extractive sentence-form QA towards generating natural sounding sentence-form answers. This paradigm (termed GenQA) synthesizes information using different pieces of information spread across many relevant candidates (while suppressing any irrelevant information) to improve the answering accuracy and style suitability. AVA/BEM have only been evaluated on extractive QA, and not for GenQA, so it is unclear if a transformer encoder based semantic matching metric will correlate with human annotations on a sentence-form generated answer. We strengthen the generality of SQuArE as a QA evaluation metric by showing that it outperforms the AVA/BEM baselines for GenQA systems in addition to extractive QA systems. We will release the code and trained model checkpoints for SQuArE at https: //github.com/amazon-science/square for the NLP and QA community to use our automatic QA evaluation metric.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Automatic Text Similarity Evaluation: Token/Ngrams level similarity metrics like BLEU <ref type="bibr" target="#b19">(Papineni et al., 2001)</ref> and ROUGE <ref type="bibr" target="#b16">(Lin, 2004)</ref> are not suitable for QA evaluation, and have been shown to achieve poor correlation with human judgements <ref type="bibr" target="#b22">(Reiter, 2018;</ref><ref type="bibr" target="#b9">Gabburo et al., 2022)</ref>. <ref type="bibr" target="#b14">Kusner et al. (2015)</ref> propose using a distance function between word embeddings for text similarity. Other research works <ref type="bibr" target="#b14">(Kusner et al., 2015;</ref><ref type="bibr" target="#b5">Clark et al., 2019)</ref> have proposed evaluation metrics based on Wasserstein distance. Recent years have seen a number of automatic evaluation metrics being proposed for Neural Machine Translation (MNT) and summarization tasks like BERT-Score <ref type="bibr">(Zhang et al., 2020-02-24)</ref>, BLEURT <ref type="bibr" target="#b23">(Sellam et al., 2020)</ref>, COMET <ref type="bibr" target="#b21">(Rei et al., 2020)</ref>, etc. that use contextual embeddings from transformer encoders. Similar approaches extend for text style <ref type="bibr" target="#b28">(Wegmann and Nguyen, 2021)</ref> and summarization <ref type="bibr" target="#b3">(Cao et al., 2020;</ref><ref type="bibr" target="#b32">Zeng et al., 2021)</ref>. QA Evaluation: For entity level span-extraction MR tasks, <ref type="bibr">Yang et al. (2018)</ref> adapt BLEU, ROUGE for answer comparison, with a focus on "yes-no" and "entity" questions. <ref type="bibr" target="#b24">Si et al. (2021)</ref> mine entities from KBs to use them as additional gold answers for MR tasks, our approach shares this intuition of using multiple diverse reference answers for evaluation. <ref type="bibr" target="#b4">Chen et al. (2019)</ref> propose a modification of BERTScore for QA by using the question and the paragraph context along with the answer. Empirically however, they demonstrate that for extractive MR tasks, F1 works as a reasonable metric, but this does not transfer well for generative QA. <ref type="bibr" target="#b17">(Min et al., 2021)</ref> uses human annotations to evaluate correct answers that are not contained in the GS answer. For sentence-level extractive QA (AS2), AVA <ref type="bibr" target="#b26">(Vu and Moschitti, 2021)</ref> and BEM <ref type="bibr" target="#b2">(Bulian et al., 2022)</ref> are two recently proposed learned metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methodology</head><p>Being a knowledge-intensive task, automatic QA evaluation typically requires leveraging knowledge from external sources to evaluate correctness of answer (e.g., Knowledge Bases, Gold standard reference answers). We can formalize automatic QA evaluation with the notation: f (q, a, c)-→p , where f is the automatic evaluation function applied to question q, target answer a and reference context c, and outputs a correctness score p ∈ [0, 1].</p><p>Previous works (AVA, BEM) show that using a single GS reference answer as the context c achieves higher correlation with human annotations that only using q and a. In this paper, we propose a supervised learned metric SQuArE that enriches the reference context c for QA evaluation using: (i) multiple gold standard references, and (ii) negatively annotated answers as negative references. Multiple Reference Answers In AVA/ BEM, using a single correct reference limits the evaluation scope of QA system predictions.</p><p>• Several types of questions may have multiple and diverse correct answers: for example "What is a band?" is correctly answered by both "A flat, thin strip or loop of material, used as a fastener" and "A band is a group of people who perform instrumental and/or vocal music"</p><p>• Knowledge seeking questions may have pieces of relevant information spread across multiple references: for example "Who is Barack Obama" can be answered by combining information across multiple answers "He served as the 44th president of the U.S. from 2009-2017", "He was a member of the Democratic Party, and served as a U.S. senator from 2005-2008", etc. • For ambiguous/under-specified questions that do not have a single correct answer or opinion seeking questions, using a single GS reference answer can be limiting and provide an incorrect evaluation of the answering capability of a QA system. Consider the question "When is the next world cup" for which both the answers "The next FIFA football world cup is in 2026" and "The next ICC cricket world cup is in 2023 in India" are correct as the questions fails to specify the name of the sport (many more possible answers).</p><p>Negative Reference Answers An automatic QA evaluation system can use the information and semantics from an incorrect answer to help refine the accuracy of its prediction. Consider the question "Which movies of Dwayne Johnson released in 2017" with the positive reference "Dwayne 'The Rock' Johnson starrer Baywatch premiered in 2017". Only using this reference, both the answers "Baywatch and Jungle Cruise" and "The Fate of the Furious and Baywatch" appear to be equally correct for this question. However when we add in an incorrect reference for the question "Jungle Cruise is a movie starring the Rock and Emily Blunt that released in 2021", the automatic QA evaluation can identify that the second answer is probably more correct than the first one. Several sentenceform extractive QA datasets such as ASNQ <ref type="bibr" target="#b10">(Garg et al., 2020)</ref>, WikiQA, TREC-QA, etc. have a large number of negatively labeled answer candidates for each question, which can be exploited for automatic evaluation of QA systems for these datasets.</p><p>SQuArE Motivated by the above reasons, we modify the context c of automatic evaluation f (q, a, c)→p to include a combination of n + correct and n -incorrect reference answers, i.e, c :</p><formula xml:id="formula_0">c + ={c + 1 , ..., c + n + } ∪ c -={c - 1 , ..., c - n -}.</formula><p>During supervised learning, SQuArE learns to minimize the semantic distance between a correct target answer from the set of correct references c + and maximizing the semantic distance from the set of incorrect references c -. We prefix a prompt (Pos_Ref / Neg_Ref ) to each reference to indicate the correct-ness/incorrectness of the reference to the model. Specifically, a (q, a, c + , c -) input for SQuArE is encoded as "Question: q Target: a</p><formula xml:id="formula_1">Pos_Ref: c + 1 • • • Pos_Ref: c + n + Neg_Ref: c - 1 • • • Neg_Ref: c - n -" as illustrated in Figure 1.</formula><p>The choice of reference answers can create biases in automatic QA evaluation. For a given question, collecting a set of diverse reference answers and ensuring they exhaustively cover all the concepts needed to answer the question is challenging and very expensive. In this paper, we utilize existing annotated answer candidates (both positive and negative) in high-quality labeled datasets as references. Extending automatic QA evaluation to previously unseen questions (without any references) is a challenging open problem in NLP QA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments and Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>WQA Web Question Answers (WQA) is a public dataset <ref type="bibr" target="#b34">(Zhang et al., 2021)</ref> containing 149,513 questions, each associated with ∼15 answer candidates retrieved from a large-scale web index with human annotations. WikiQA A small AS2 dataset <ref type="bibr" target="#b31">(Yang et al., 2015)</ref> with questions from Bing search, and answers extracted from Wikipedia. We use the most popular clean setting (questions having at least one positive and one negative answer). TREC-QA A small AS2 dataset <ref type="bibr" target="#b27">(Wang et al., 2007)</ref> containing factoid questions. We only retain questions with at least one positive and one negative answer in the development and test sets. IQAD A large scale Industrial QA Dataset containing non-representative de-identified user questions from a commercial personal assistant. IQAD contains 10k questions, and ∼200 answer candidates retrieved for each question using a large scale web index that contains over 100M web documents. Results on IQAD are presented relative to a baseline to comply with company policies. GenQA-MTURK This dataset is composed of 3k questions from 3 datasets (1k each): MS-MARCO <ref type="bibr" target="#b1">(Bajaj et al., 2018)</ref>, WikiQA and TREC-QA using GenQA models evaluated in <ref type="bibr" target="#b12">(Hsu et al., 2021;</ref><ref type="bibr" target="#b9">Gabburo et al., 2022)</ref>. For each question we generate an answer using 8 different GenQA models (details in Appendix B) based on T5-Large. We annotate all the answers of this dataset for their correctness, using MTurk using 5 independent annotations for each QA pair. We use majority voting over the 5 annotations for each QA pair.</p><p>Answer Equivalence (AE): A question answering dataset released by <ref type="bibr" target="#b2">Bulian et al. (2022)</ref> where each sample contains a question, a candidate answer (typically short answers), and a positive reference (typically entity-based) carefully selected to avoid the candidate-reference exact match (EM).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Models and Baselines</head><p>We use DeBERTaV3-Large <ref type="bibr" target="#b11">(He et al., 2021)</ref> for SQuArE, and compare with three baselines (proposed in AVA/BEM): QT: Question-Target that takes input a question and the target answer, TR: Target-Reference that takes input a reference GS answer and the target answer, and TQR: Target-Question-Reference that takes as input a question, the target answer and a reference GS answer. For our experiments, we set the total number of reference (n + )+(n -)=5 per question. We also compare SQuArE against two additional baselines: (i) BEM <ref type="bibr" target="#b2">(Bulian et al., 2022)</ref>, a recently released reference-based automatic evaluation metric (trained on the AE dataset), and (ii) a large language model (LLM) based approach using two versions of the Falcon <ref type="bibr" target="#b0">(Almazrouei et al., 2023)</ref> model. For fair comparison with the baselines, we perform evaluation in the zero-shot setting for the WikiQA and TrecQA datasets, and after fine-tuning on the AE dataset. For more details on the implementation of these baselines, refer to Appendix A.2.  Comparison with text similarity metrics: We also compare SQuArE with learned text similarity metrics: BLEURT and BERTScore in Table <ref type="table" target="#tab_3">4</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>We present results comparing SQuArE with the baselines on large datasets (from both extractive</head><p>Results show that SQuARe achieves a higher correlation with manual annotations than BLEURT and BERTScore. For complete details, see Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Ablation studies</head><p>To assess the improvements from different design choices used in SQuArE, we conduct ablation studies to show how the use of negative and multiple references improves the performance and correlation with human annotations. To perform these studies we pick one dataset (WQA) and present comparisons in Tab. 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Usage of Negative references:</head><p>To support our claim that using negative references can improve the automatic QA evaluation, we compare two additional models/baselines: (i) AVA-TQR(-) which refers to an AVA baseline which only uses a sin- . This validates our intuition on the importance of negative references. SQuArE(+) outperforms the AVA-TQR baseline, but performs inferior to the SQuArE using a combination of both positive and negative references, thereby validating our claim that the combination of positive and negative references improves the accuracy and the generalizability of SQuArE. Number of references: We hypothesize that higher number of labeled references help with improved correlation of SQuArE with human evaluation. To support this intuition, we present an ablation study where we vary the total number of references from 5 per question to: (i) using 3 references per question, and (ii) randomly sampling ∈[1, 5] references per question. We observe that SQuArE using 5 references outperforms SQuArE using 3 references (0.833 v/s 0.821 in accuracy), while SQuArE using a random sample of ∈[1, 5] references (0.820 accuracy) performed comparable to SQuArE using 3 references.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this paper, we propose SQuArE transformer LM encoder-based learned metric that uses multiple reference answers (positive + negative) for automatically evaluating sentence-level QA systems.</p><p>We evaluate sentence-level extractive QA: AS2 and answer generation (GenQA) systems across multiple academic and industrial datasets and show that SQuArE achieves the highest correlation with human annotations beating previous baselines.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Our approach of training QA evaluation metrics requires access to large GPU resources for training large transformer encoders such as DeBERTa, etc. For the experiments in this paper, we only consider datasets from the English language, however we conjecture that our techniques should work similarly for languages with a similar morphology. Since SQuArE is a learned evaluation metric based on large transformers, it might be challenging to effectively learn in a scarce-data setting. While we have shown impressive zero-shot evaluation results in Table <ref type="table" target="#tab_1">2</ref>, extending to a completely new data domain/new language might be challenging for SQuArE to adapt to without access to any labeled data. As visible from Tables <ref type="table">1</ref> and<ref type="table" target="#tab_1">2</ref>, SQuArE's accuracy on human annotations is in the range of 80-90%, highlighting that there is still a gap with respect to human evaluation. For safety critical applications, human evaluation still remains the best means to evaluate Question Answering systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Correlation with Similarity Metrics</head><p>In Section 4, we study the correlation of SQuArE with other learned metrics as BLEURT and BERTScore. Table <ref type="table">6</ref> contains results for each metric broken down based on different GenQA models trained using techniques from <ref type="bibr" target="#b12">(Hsu et al., 2021;</ref><ref type="bibr" target="#b9">Gabburo et al., 2022)</ref>. The results show that despite the good performance of the BLEURT and BERTScore metrics, SQuArE has a better correlation with human evaluation. In addition, since our approach can use negative references, it can obtain higher performance than similarity metrics for datasets having a scarce number of positive references. Table <ref type="table">6</ref>: System-wise evaluation done on three datasets (MS-MARCO, WikiQA, TrecQA) using 6 different systems based on generative question answering models trained on MS-MARCO. The accuracy column is computed using the manual annotations done by professional annotators, while the three remaining columns are the results computed using SQuArE, BLEURT and BERTScore.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An illustration of SQuArE: an automatic question answering evaluation metric that uses multiple references: positive and negative to evaluate the correctness of a target answer for a particular question.</figDesc><graphic coords="1,306.14,212.60,218.26,177.83" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Zero-shot evaluation using QA evaluation models trained on WQA. Same metrics used as Table1.</figDesc><table><row><cell>Dataset</cell><cell cols="4">Technique Accuracy AUROC Correlation</cell></row><row><cell></cell><cell cols="3">Answer Sentence Selection (AS2)</cell><cell></cell></row><row><cell></cell><cell>AVA-TR</cell><cell>0.701</cell><cell>0.633</cell><cell>0.532</cell></row><row><cell>WikiQA</cell><cell>AVA-QT AVA-TQR</cell><cell>0.900 0.903</cell><cell>0.804 0.805</cell><cell>0.637 0.632</cell></row><row><cell></cell><cell>SQuArE</cell><cell>0.919</cell><cell>0.851</cell><cell>0.676</cell></row><row><cell></cell><cell>AVA-TR</cell><cell>0.911</cell><cell>0.913</cell><cell>0.816</cell></row><row><cell>TrecQA</cell><cell>AVA-QT AVA-TQR</cell><cell>0.885 0.906</cell><cell>0.927 0.972</cell><cell>0.737 0.797</cell></row><row><cell></cell><cell>SQuArE</cell><cell>0.924</cell><cell>0.969</cell><cell>0.842</cell></row><row><cell></cell><cell cols="3">Answer Generation (GenQA)</cell><cell></cell></row><row><cell></cell><cell>AVA-TR</cell><cell>0.843</cell><cell>0.683</cell><cell>0.587</cell></row><row><cell>MS-MARCO</cell><cell>AVA-QT AVA-TQR</cell><cell>0.772 0.839</cell><cell>0.693 0.738</cell><cell>0.580 0.601</cell></row><row><cell></cell><cell>SQuArE</cell><cell>0.845</cell><cell>0.773</cell><cell>0.620</cell></row><row><cell></cell><cell>AVA-TR</cell><cell>0.692</cell><cell>0.670</cell><cell>0.602</cell></row><row><cell>WikiQA</cell><cell>AVA-QT AVA-TQR</cell><cell>0.627 0.671</cell><cell>0.798 0.811</cell><cell>0.667 0.678</cell></row><row><cell></cell><cell>SQuArE</cell><cell>0.694</cell><cell>0.819</cell><cell>0.690</cell></row><row><cell></cell><cell>AVA-TR</cell><cell>0.847</cell><cell>0.784</cell><cell>0.615</cell></row><row><cell>TrecQA</cell><cell>AVA-QT AVA-TQR</cell><cell>0.709 0.779</cell><cell>0.816 0.857</cell><cell>0.612 0.647</cell></row><row><cell></cell><cell>SQuArE</cell><cell>0.890</cell><cell>0.818</cell><cell>0.671</cell></row><row><cell cols="5">SQuArE significantly outperforms the baselines</cell></row><row><cell cols="5">and achieves the highest accuracy and AUROC</cell></row><row><cell cols="3">with human annotations.</cell><cell></cell><cell></cell></row><row><cell cols="5">Zero-shot Setting: To show strong generalization</cell></row><row><cell cols="5">to out-of-distribution datasets (zero-shot setting),</cell></row><row><cell cols="5">we train SQuArE and the other baselines on the</cell></row><row><cell cols="5">WQA dataset, and use this for evaluation on other</cell></row><row><cell cols="5">datasets. Specifically, we use two small datasets:</cell></row><row><cell cols="5">WikiQA and TREC-QA (exploring both extractive:</cell></row><row><cell cols="5">AS2 and generative settings), and one large dataset</cell></row><row><cell cols="5">MS-MARCO. Results presented in Table 2 high-</cell></row><row><cell cols="5">light that SQuArE achieves the highest accuracy</cell></row><row><cell cols="4">and correlation with human annotations.</cell><cell></cell></row><row><cell cols="5">Comparison with BEM and LLMs: We present</cell></row><row><cell cols="5">comparison with BEM and LLM baselines in Ta-</cell></row><row><cell cols="5">ble 3 on WikiQA, TrecQA and Answer Equiva-</cell></row><row><cell cols="5">lence (AE) datasets. On the WikiQA and TrecQA</cell></row><row><cell cols="5">datasets, the results show that SQuArE outperforms</cell></row><row><cell cols="5">both the baselines, which stems from (i) the usage</cell></row><row><cell cols="5">of multiple references, and (ii) the references for</cell></row><row><cell cols="5">these datasets being complete sentences in com-</cell></row><row><cell cols="5">parison to entities/short-answers which are used</cell></row><row><cell cols="5">for training BEM. On the AE dataset, zero-shot</cell></row><row><cell cols="5">SQuArE (which is trained on the WQA dataset) per-</cell></row><row><cell cols="5">forms inferior (0.572 vs 0.897 in accuracy) to the</cell></row></table><note><p><p><p>QA: AS2 and generative QA: GenQA) in Table</p>1</p>. Using GS human annotations for each dataset, we compute accuracy, Area Under the Curve (AU-ROC), and Pearson Correlation of each automatic QA metric. We observe that on all datasets,</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Comparing SQuArE against BEM and LLM baselines on the WikiQA, TrecQA and AE datasets. The BEM baseline is trained on the AE dataset. We use the same metrics as Table1.BEM baseline (which is trained on the AE dataset). This drop in zero-shot performance of SQuArE compared to BEM can be attributed to (i) the lack of multiple references, and (ii) the references in AE being of a different style/format than those used for training SQuArE (entities/short answers v/s complete sentences). On fair comparison (when SQuArE(AE) is fine-tuned on the AE dataset), it is able to beat the BEM baseline in both accuracy (0.908 vs 0.897) and AUROC (0.966 vs 0.859).</figDesc><table><row><cell>Dataset</cell><cell cols="3">SQuArE BLEURT BERTScore</cell></row><row><cell>MS-MARCO</cell><cell>0.238</cell><cell>0.142</cell><cell>0.168</cell></row><row><cell>WikiQA</cell><cell>0.425</cell><cell>0.219</cell><cell>0.233</cell></row><row><cell>TrecQA</cell><cell>0.862</cell><cell>0.341</cell><cell>0.646</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 4 :</head><label>4</label><figDesc>Pearson Correlation of evaluation metrics with human annotations on GenQA-MTURK.</figDesc><table /></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Experiment Details</head><p>In this section we describe the parameters used to train and reproduce our models, and the computational environment we used to compute the results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 SQuArE Training</head><p>We train SQuArE train our models starting from DeBERTaV3-Large model <ref type="bibr" target="#b11">(He et al., 2021)</ref>, similar to <ref type="bibr" target="#b8">(Gabburo et al., 2023)</ref>. We experimented with different parameters, and we found the best combination of parameters training the model for 20 epochs on every dataset using a batch size of 32, f p32 and Adam <ref type="bibr" target="#b13">(Kingma and Ba, 2015)</ref> as optimizer with a learning rate of 1e -06. At the beginning of each epoch we shuffle the train set. We select the best checkpoint by selecting the best AUROC (Area Under the Curve) on the validation set. We train the QT, TQR, and TR using the parameters described in <ref type="bibr" target="#b26">(Vu and Moschitti, 2021)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 BEM and LLM Baselines</head><p>For BEM, we use the evaluation script and checkpoints from the original paper 1 , while for the LLMbased Falcon experiments, we consider the originally released checkpoints 23 . For both the approaches (BEM and LLM) we use the AVA-TQR data setting, by providing the question and a positive reference, and asking the model to evaluate the correctness of the target answer. To fine-tune SQuArE on the AE dataset, we use the same parameters as for WQA, described in Section A.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Computational Environment</head><p>We trained our models using 8 Nvidia V100 with 32Gb each. Our code is written in PyTorch <ref type="bibr" target="#b20">(Paszke et al., 2019)</ref> using Hugging Face <ref type="bibr" target="#b15">(Lhoest et al., 2021;</ref><ref type="bibr" target="#b29">Wolf et al., 2020)</ref>. We compute results using metrics developed in Scipy <ref type="bibr">(Virtanen et al., 2020)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B GenQA-MTURK details</head><p>We designed this dataset starting from a reduced sample of the MS-MARCO NLG development set, the test set of WikiQA and the TrecQA test set proposed from <ref type="bibr">(Zhang et al.,</ref> 1 https://github.com/google-research-datasets/ answer-equivalence-dataset 2 https://huggingface.co/tiiuae/ falcon-7b-instruct 3 https://huggingface.co/tiiuae/ falcon-40b-instruct 2022). Specifically, we trained 8 different T5-Large models (on MS-MARCO) using training techniques from <ref type="bibr" target="#b12">(Hsu et al., 2021) and</ref><ref type="bibr" target="#b9">(Gabburo et al., 2022)</ref>: (i) Supervised GenQA, (ii) Weak Supervision (WS), (iii) WS+Loss Weighting (LW), (iv) WS+Score-conditioned Input (SCI), (v) WS+Score-conditioned Output (SCO), (vi) WS+SCI+SCO, (vii) WS+LW+SCI+SCO, (viii) Supervised GenQA+WS+LW+SCI+SCO.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ebtesam</forename><surname>Almazrouei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamza</forename><surname>Alobeidli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdulaziz</forename><surname>Alshamsi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Cappelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruxandra</forename><surname>Cojocaru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Merouane</forename><surname>Debbah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Etienne</forename><surname>Goffinet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Heslow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Launay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Malartic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Badreddine</forename><surname>Noune</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baptiste</forename><surname>Pannier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guilherme</forename><surname>Penedo</surname></persName>
+		</author>
+		<title level="m">Falcon-40B: an open large language model</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note>with state-of-the-art performance</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Ms marco: A human generated machine reading comprehension dataset</title>
+		<author>
+			<persName><forename type="first">Payal</forename><surname>Bajaj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Campos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Craswell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rangan</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Mcnamara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhaskar</forename><surname>Mitra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tri</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mir</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xia</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alina</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Tiwary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Wang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Tomayto, tomahto. beyond token-level answer equivalence for question answering evaluation</title>
+		<author>
+			<persName><forename type="first">Jannis</forename><surname>Bulian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Buck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Gajewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Boerschinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Schuster</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2202.07654</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Factual error correction for abstractive summarization models</title>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiapeng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jackie</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kit</forename><surname>Cheung</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.506</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6251" to="6258" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Evaluating question answering evaluation</title>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Stanovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-5817</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Machine Reading for Question Answering</title>
+		<meeting>the 2nd Workshop on Machine Reading for Question Answering<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="119" to="124" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Sentence mover&apos;s similarity: Automatic evaluation for multi-sentence texts</title>
+		<author>
+			<persName><forename type="first">Elizabeth</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asli</forename><surname>Celikyilmaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1264</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2748" to="2760" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Context-aware transformer pre-training for answer sentence selection</title>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Di Liello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhant</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-short.40</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="458" to="468" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Pre-training transformer models with sentence-level objectives for answer sentence selection</title>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Di Liello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhant</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Soldaini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.emnlp-main.810</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="11806" to="11816" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Learning answer generation using supervision from automatic question answering evaluators</title>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Gabburo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhant</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rik</forename><surname>Koncel-Kedziorski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.467</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="8389" to="8403" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Knowledge transfer from answer ranking to answer generation</title>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Gabburo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rik</forename><surname>Koncel-Kedziorski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhant</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Soldaini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.emnlp-main.645</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="9481" to="9495" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Tanda: Transfer and adapt pre-trained transformer models for answer sentence selection</title>
+		<author>
+			<persName><forename type="first">Siddhant</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thuy</forename><surname>Vu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v34i05.6282</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="7780" to="7788" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Debertav3: Improving deberta using electra-style pretraining with gradient-disentangled embedding sharing</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Answer generation for retrievalbased question answering systems</title>
+		<author>
+			<persName><surname>Chao-Chun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Lind</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Soldaini</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-acl.374</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4276" to="4282" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Learning Representations</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">From word embeddings to document distances</title>
+		<author>
+			<persName><forename type="first">Matt</forename><forename type="middle">J</forename><surname>Kusner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><forename type="middle">I</forename><surname>Kolkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<ptr target="JMLR.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd International Conference on International Conference on Machine Learning</title>
+		<meeting>the 32nd International Conference on International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="957" to="966" />
+		</imprint>
+	</monogr>
+	<note>ICML&apos;15</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Datasets: A community library for natural language processing</title>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Villanova Del Moral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Thakur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suraj</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lewis</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Tunstall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gunjan</forename><surname>Šaško</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavitvya</forename><surname>Chhablani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Malik</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Brandeis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Teven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angelina</forename><surname>Patry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Mcmillan-Major</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Théo</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Matussière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stas</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Bekman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Goehringer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Mustar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lagunas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wolf</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-demo.21</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing: System Demonstrations<address><addrLine>Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="175" to="184" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">ROUGE: A package for automatic evaluation of summaries</title>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Text Summarization Branches Out</title>
+		<meeting><address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="74" to="81" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Neurips 2020 efficientqa competition: Systems, analyses and lessons learned</title>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennimaria</forename><surname>Palomaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heinrich</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linqing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pasquale</forename><surname>Minervini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pontus</forename><surname>Stenetorp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sohee</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><forename type="middle">De</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ikuya</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonse</forename><surname>Shimaoka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Masatoshi</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shumpei</forename><surname>Miyawaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shun</forename><surname>Sato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryo</forename><surname>Takahashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Fajcik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Docekal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karel</forename><surname>Ondrej</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavel</forename><surname>Smrz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xilun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stan</forename><surname>Peshterliev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmytro</forename><surname>Okhonko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Schlichtkrull</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonal</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yashar</forename><surname>Mehdad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the NeurIPS 2020 Competition and Demonstration Track</title>
+		<meeting>the NeurIPS 2020 Competition and Demonstration Track</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">133</biblScope>
+			<biblScope unit="page" from="86" to="111" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of Machine Learning Research</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Cross-lingual genqa: A language-agnostic generative question answering approach for opendomain question answering</title>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Muller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Soldaini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rik</forename><surname>Koncel-Kedziorski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Lind</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno>CoRR, abs/2110.07150</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">BLEU: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting on Association for Computational Linguistics -ACL &apos;02</title>
+		<meeting>the 40th Annual Meeting on Association for Computational Linguistics -ACL &apos;02</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2001">2001</date>
+			<biblScope unit="page">311</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Pytorch: An imperative style, high-performance deep learning library</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Massa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Lerer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregory</forename><surname>Chanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Killeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeming</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Natalia</forename><surname>Gimelshein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Antiga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alban</forename><surname>Desmaison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Kopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Devito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Raison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alykhan</forename><surname>Tejani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sasank</forename><surname>Chilamkurthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benoit</forename><surname>Steiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soumith</forename><surname>Chintala</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="8024" to="8035" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">COMET: A neural framework for MT evaluation</title>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Rei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Stewart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><forename type="middle">C</forename><surname>Farinha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.213</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2685" to="2702" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">A Structured Review of the Validity of BLEU</title>
+		<author>
+			<persName><forename type="first">Ehud</forename><surname>Reiter</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/coli_a_00322</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">44</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="393" to="401" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">BLEURT: Learning robust metrics for text generation</title>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.704</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7881" to="7892" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">What&apos;s in a name? answer equivalence for opendomain question answering</title>
+		<author>
+			<persName><forename type="first">Chenglei</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.757</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="9623" to="9629" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<author>
+			<persName><forename type="first">Pauli</forename><surname>Virtanen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ralf</forename><surname>Gommers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Travis</forename><forename type="middle">E</forename><surname>Oliphant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Haberland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tyler</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Cournapeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evgeni</forename><surname>Burovski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pearu</forename><surname>Peterson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Warren</forename><surname>Weckesser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Bright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Stéfan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Van Der Walt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Brett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Wilson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolay</forename><surname>Jarrod Millman</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mayorov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Nelson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Kern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C J</forename><surname>Larson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">İlhan</forename><surname>Carey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Polat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">W</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jake</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denis</forename><surname>Vanderplas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josef</forename><surname>Laxalde</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Perktold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Cimrman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">A</forename><surname>Henriksen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><forename type="middle">R</forename><surname>Quintero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anne</forename><forename type="middle">M</forename><surname>Harris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antônio</forename><forename type="middle">H</forename><surname>Archibald</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ribeiro</surname></persName>
+		</author>
+		<idno type="DOI">10.1038/s41592-019-0686-2</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Fabian Pedregosa, Paul van Mulbregt, and SciPy 1.0 Contributors. 2020. SciPy 1.0: Fundamental Algorithms for Scientific Computing in Python</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="page" from="261" to="272" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">AVA: an automatic eValuation approach for question answering systems</title>
+		<author>
+			<persName><forename type="first">Thuy</forename><surname>Vu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.412</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5223" to="5233" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">What is the jeopardy model? a quasisynchronous grammar for qa</title>
+		<author>
+			<persName><forename type="first">Mengqiu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teruko</forename><surname>Mitamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning (EMNLP-CoNLL)</title>
+		<meeting>the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning (EMNLP-CoNLL)</meeting>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="22" to="32" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Does it capture STEL? a modular, similarity-based linguistic style evaluation framework</title>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Wegmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Nguyen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.569</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7109" to="7130" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Adaptations of ROUGE and BLEU to better evaluate machine reading comprehension task</title>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yajuan</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-2611</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Machine Reading for Question Answering</title>
+		<meeting>the Workshop on Machine Reading for Question Answering<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="98" to="104" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Wikiqa: A challenge dataset for open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Meek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 conference on empirical methods in natural language processing</title>
+		<meeting>the 2015 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="2013" to="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Gradient-based adversarial factual consistency evaluation for abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaze</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.337</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4102" to="4108" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Kishore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.09675</idno>
+		<title level="m">BERTScore: Evaluating text generation with BERT</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Joint models for answer verification in question answering systems</title>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thuy</forename><surname>Vu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.252</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3252" to="3262" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Double retrieval and ranking for accurate question answering</title>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thuy</forename><surname>Vu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno>CoRR, abs/2201.05981</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

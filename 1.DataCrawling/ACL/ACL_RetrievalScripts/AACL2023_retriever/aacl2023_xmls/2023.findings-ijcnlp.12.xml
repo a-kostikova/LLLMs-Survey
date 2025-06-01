@@ -1,0 +1,1541 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Predicting Terms in IS-A Relations with Pre-trained Transformers</title>
+				<funder ref="#_JjVFkrK">
+					<orgName type="full">unknown</orgName>
+				</funder>
+				<funder ref="#_b6Akv4T #_BzPys9X">
+					<orgName type="full">DFG</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Irina</forename><surname>Nikishina</surname></persName>
+							<email>irina.nikishina@uni-hamburg.de</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Universität Hamburg</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Polina</forename><surname>Chernomorchenko</surname></persName>
+							<email>pvchernomorchenko@edu.hse.ru</email>
+							<affiliation key="aff1">
+								<orgName type="institution">HSE University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Anastasiia</forename><surname>Demidova</surname></persName>
+							<email>anastasiia.demidova@skol.tech</email>
+							<affiliation key="aff2">
+								<orgName type="institution">Skolkovo Institute of Science and Technology</orgName>
+								<address>
+									<addrLine>4 AIRI</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+							<email>a.panchenko@skol.tech</email>
+							<affiliation key="aff2">
+								<orgName type="institution">Skolkovo Institute of Science and Technology</orgName>
+								<address>
+									<addrLine>4 AIRI</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Chris</forename><surname>Biemann</surname></persName>
+							<email>chris.biemann@uni-hamburg.de</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Universität Hamburg</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Predicting Terms in IS-A Relations with Pre-trained Transformers</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">0ECAD6FA8CFD72B751C7E2C68E43E1D6</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:45+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>In this paper, we explore the ability of the generative transformers to predict objects in IS-A (hypo-hypernym) relations. We solve the task for both directions of the relations: we learn to predict hypernyms given the input word and hyponyms, given the input concept and its neighbourhood from the taxonomy. To the best of our knowledge, this is the first paper which provides a comprehensive analysis of transformerbased models for the task of hypernymy extraction. Apart from the standard finetuning of various generative models, we experiment with different input formats and prefixes, zeroand few-shot learning strategies, and generation parameters. Results show that higher performance on both subtasks can be achieved by generative transformers with no additional data (like definitions or lemma names). Such models have phenomenally high abilities at the task given a little training and proper prompts in comparison to specialized rule-based and statistical methods as well as encoder-based transformer models.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Nowadays, pre-trained transofmers including Chat-GPT 1 and other transformer-based models with instructions <ref type="bibr" target="#b25">(Ouyang et al., 2022)</ref> demonstrate high performance on most NLP tasks <ref type="bibr" target="#b5">(Chowdhery et al., 2022;</ref><ref type="bibr" target="#b24">OpenAI, 2023)</ref>. However, it is not clear, how well they understand the inner structure of a language and could be applied to purely linguistic tasks, e.g. identification of semantic relations. Those tasks have always been important benchmarks for measuring linguistic capabilities of natural language processing approaches, including neural networks <ref type="bibr" target="#b16">(Jawahar et al., 2019;</ref><ref type="bibr" target="#b33">Rogers et al., 2020)</ref>. They demonstrate whether the models can comprehend language structure and semantic relations between words: synonymy (Wijesiriwardene et al., 2022), hypernymy <ref type="bibr" target="#b31">(Ravichander et al., 2020)</ref>, negation <ref type="bibr" target="#b10">(Ettinger, 2020)</ref>, etc. Applying modern transformers for identifying IS-A relations would allow not only to check the capacities of large language models (LLMs) in linguistics, but also to perform automatic extension of the lexical taxonomic structures with such kinds of relations to alleviate the manual annotation process. Taxonomies play a central role in evaluation tasks, e.g. word-in-context <ref type="bibr" target="#b0">(Armendariz et al., 2020)</ref>, and are also used for downstream tasks, e.g. (dynamic) entity typing <ref type="bibr" target="#b8">(Del Corro et al., 2015)</ref>, or for Knowledge Graph Questing Answering <ref type="bibr" target="#b14">(Huang et al., 2019)</ref>.</p><p>There exist several probing experiments for IS-A relation prediction with transformer-based encoder BERT <ref type="bibr" target="#b9">(Devlin et al., 2019;</ref><ref type="bibr" target="#b10">Ettinger, 2020;</ref><ref type="bibr" target="#b12">Hanna and Mareček, 2021)</ref>. However, to the best of our knowledge, there is no such work on generative transformer models: decoders, e.g. GPT-2 <ref type="bibr" target="#b29">(Radford et al., 2019)</ref>, or encoder-decoders, e.g. T5 <ref type="bibr" target="#b30">(Raffel et al., 2020)</ref>.</p><p>In this paper, we evaluate generative transformer architectures for two existing Taxonomy Enrichment task formulations (see Figure <ref type="figure" target="#fig_0">1</ref>). First, we test zero-and few-shot setups as well as finetuning on the SemEval-2018 Task 9 <ref type="bibr" target="#b3">(Camacho-Collados et al., 2018)</ref> dataset on hypernym prediction for English language. We experiment with different prompt formats and the amount of information provided on each hypernym node. Then we evaluate the same models on the hyponym prediction dataset <ref type="bibr">(Nikishina et al., 2022b)</ref>. Finally, we perform error analysis on the manually selected nodes for hyponym prediction. Thus, we understand the capacities of models for predicting taxonomic relations in both directions.</p><p>The main contribution of our work is the first study on using generative transformers for IS-A relationship prediction. We test them in various setups, as it might not be clear, what is the best way to do that: via natural or artificial patterns, fewshot learning or proper fine-tuning, with decoder or encoder-decoder models. We show that prior work based on <ref type="bibr" target="#b13">Hearst (1992)</ref> patterns with machine learning classifiers, and encoder-based transformers, are largely outperformed by generative transformers.</p><p>Moreover, our approach presents the way for linearization of the context subgraph for using them in LLMs, which can be applied to any task with lexical elements (e.g. synonyms, antonyms, partof). The methodology may be also generalized to various types of relations available in Knowledge Graphs, such as "capital-of", allowing us to "mine" large pre-trained LMs for new relations.</p><p>We also make the code<ref type="foot" target="#foot_0">2</ref> and the models<ref type="foot" target="#foot_1">3</ref> available.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>In this section, we overview the task of Taxonomy Enrichment and previous approaches for predicting IS-A relations. We start with a short description of WordNet<ref type="foot" target="#foot_2">4</ref> , which is the main data source for most taxonomy-related tasks.</p><p>WordNet <ref type="bibr" target="#b21">(Miller, 1995)</ref> is a large lexical database of English. Nouns, verbs, adjectives and adverbs are grouped into sets of cognitive synonyms (synsets), each expressing a distinct concept. In this paper, we limit our experiments to nouns represented in 82,115 synsets and 117,798 lemmas. We do not consider other part-of-speech subsets as their hierarchical structure is mostly flat.</p><p>Taxonomy Enrichment <ref type="bibr" target="#b17">(Jurgens and Pilehvar, 2016)</ref> and Hypernym Discovery <ref type="bibr" target="#b3">(Camacho-Collados et al., 2018)</ref> are two main tasks for identifying hypernyms given the input words. The goal of the first task is to attach new words to the correct place in the taxonomy. The second task aims at discovering suitable hypernyms for the input term using a large corpus. Most approaches use static word vector representations like word2vec or fastText <ref type="bibr" target="#b35">(Schlichtkrull and Martínez Alonso, 2016;</ref><ref type="bibr" target="#b1">Bernier-Colborne and Barrière, 2018)</ref>.</p><p>There exist several recent papers on Taxonomy Enrichment that make use of word vector representations and/or large pre-trained language models. For instance, <ref type="bibr">(Nikishina et al., 2022a)</ref> present an approach applying numerous of text and graph embeddings as well as their combinations; <ref type="bibr" target="#b37">(Takeoka et al., 2021)</ref> solves the same problem, but for the low-resource scenario using BERT-based classifier, while <ref type="bibr" target="#b34">Roller et al. (2018)</ref> revise Hearst Patterns for the task. <ref type="bibr" target="#b4">Cho et al. (2020)</ref>, view taxonomy enrichment as a sequence-to-sequence problem and the authors train an LSTM model on the WordNet data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Hypernymy and Hyponymy Prediction</head><p>In this section, we introduce two tasks for predicting terms in IS-A relations. We provide formal descriptions for each task and describe the datasets we use for evaluation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Hypernym Prediction Task</head><p>SemEval-2018 Task 9 is the acknowledged benchmark for Hypernym Discovery covering several languages and knowledge domains. <ref type="bibr" target="#b3">Camacho-Collados et al. (2018)</ref> define the task as finding the appropriate hypernyms {h 1 , ..., h n } for a target input term t. At the time of the competition phase, most of the participants of the shared task used Hearst patterns and static word embeddings <ref type="bibr" target="#b1">(Bernier-Colborne and Barrière, 2018;</ref><ref type="bibr" target="#b18">Maldonado and Klubička, 2018;</ref><ref type="bibr" target="#b28">Qiu et al., 2018)</ref>. A follow-up study <ref type="bibr" target="#b12">(Hanna and Mareček, 2021)</ref> analyzes the performance of the BERT model and shows that the encoder-based transformers cannot outperform the state-of-the-art results. To the best of our knowledge, there are no recent studies on large generative transformers like T5 or GPT for this setup.</p><p>We use the SemEval-2018 Task 9 <ref type="bibr" target="#b3">(Camacho-Collados et al., 2018)</ref> dataset for the hypernym prediction subtask. It consists of a source corpus and input terms with gold hypernyms extracted from WordNet <ref type="bibr" target="#b21">(Miller, 1995)</ref>, Wikidata<ref type="foot" target="#foot_3">5</ref> , Multi-WiBi <ref type="bibr" target="#b11">(Flati et al., 2016)</ref>, and Yago <ref type="bibr" target="#b32">(Rebele et al., 2016)</ref>. In this paper, we focus on the English general domain dataset (subtask 1A), with 3,000 labelled terms (1,500 in both train and test).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Hyponym Prediction Setup</head><p>Hyponym prediction (generation) is a less studied lexical semantic task. To the best of our knowledge, there exists only one paper where the authors predict hyponyms at the specific place of the taxonomy <ref type="bibr">(Nikishina et al., 2022b)</ref>. To solve the task, they combine graph representations with the pretrained BERT model. In this paper, we compare their approach to generative transformers in Section 4.2. The task of Hyponym Prediction is formulated as following. Given subgraph S = (V, E) from a taxonomy T , and a leaf node v leaf ∈ V , the goal is to predict new leaves l 1 , ..., l n , which relate to v leaf as hyponyms. Edges E denote the closest (hop= 2) IS-A relations between v leaf : its hypernyms and hyperhypernyms. In this task formulation, we provide local context, as this information can be used for disambiguation of the synset that can have different meanings, e.g. "table" or "rock". Each synset represents only one meaning: if we anticipated children of all meanings at the same time, we would not be able to differentiate, which hyponyms belong to which meanings.</p><p>We experiment with following setups: zero-shot, few-shot and model finetuning. We describe the input patterns for zero-and few-shot learning as well as parameters used at the generation step. In this paper, we limit the experiments to the leaf nodes only, as masking and deleting nodes in the middle of the graph needs additional careful study of the graph in order to avoid data leakage. That is why we leave other cases for further experiments.</p><p>For this task, we use dataset from <ref type="bibr">Nikishina et al. (2022b)</ref>. The authors randomly select 1,000 nodes out of 15,646 nodes which children are leaves, i.e., the children do not have hyponyms of their own. They also take into consideration the distance length from the root to the leaf, which should be more than 5 hops. This allows them to exclude the case of predicting very abstract or broad concepts. For each "parental" hypernym all its hyponyms (leaves) were replaced by a single "masked" node and all of the hyponyms are considered as the true answer. All in all, there are 4,376 masked leaves to predict for 1000 synsets.</p><p>However, the automatic way of the construction of the CHSP dataset results in occurrence of narrow-field words in the dataset (e.g. "expurgation", "butcherbird", "dot matrix printer"), which hyponyms are too specific for the model to predict. On the other hand, the structure of the WordNet might differ from the pragmatic usage of words in the discourse, so the model would have a different encoded linguistic structure. For instance, according to WordNet, "rottweiler.n.01" is a "shep-herd_dog.n.01", which is a "working_dog.n.01" which is a "dog.n.01". At the same time, it is common knowledge that "rottweiler is a dog", therefore, we might expect that models predict "dog" which would not be considered as the correct answer.</p><p>To analyse the models performance on common knowledge data, we manually select 22 nodes with hyponyms from the general domain in the English WordNet. Our main guidelines are: (i) to avoid too abstract or general concepts; (ii) to selects ones with numerous instances, subtypes or subclasses, (iii) all the descendants from any level of the chosen node are considered as correct. We are also aware that this dataset is more subjective, however, it is created for additional analysis and not to replace the original dataset. As a result, the selected synsets on average are 7 hops away from the root node and the longest path to a leaf is on average 3. The full list of concepts can be found in Appendix A in Table <ref type="table" target="#tab_5">7</ref>. In this paper, we limit the experiments to the leaf nodes only, as masking and deleting nodes in the middle of the graph needs additional careful study of the graph in order to avoid data leakage.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Methodology</head><p>The current section presents methodology for zeroand few-shot experiments and the fine-tuning process. It also discusses possible input formats as well as models used in each setup. Figure <ref type="figure" target="#fig_1">2</ref> depicts the strategy for both tasks. The main idea for the hyponym prediction is to transform the input subgraph to the linear form so it can be processed by large language models. For the hypernym prediction task, we do not have a subgraph as input, that is why we provide the input word only. We use the transformers library <ref type="bibr" target="#b40">(Wolf et al., 2020)</ref> for all experiments as well as pre-trained models from the same source.</p><p>Considering potential data leakage, one may raise a concern about the WordNet being exposed in the LLMs during their pre-training phase. To the best of our knowledge, pre-trained transformers were not trained on the IS-A relationship tasks and WordNet, however, it is quite clear that the model has already seen most of the words from Word-Net, which we assume might help to understand the meaning of the input word while predicting hypernyms or retain relevant words from the memory when predicting hyponyms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Zero-and Few-shot Learning</head><p>To conduct zero-shot experiments with pre-trained generative transformers, we utilize numerous Hearst patterns (14 for hypernym prediction and 26 patterns for hyponym prediction) that naturally precede the generation of hyponyms from <ref type="bibr" target="#b12">(Hanna and Mareček, 2021;</ref><ref type="bibr" target="#b13">Hearst, 1992)</ref>. We evaluate both decoder (GPT <ref type="bibr" target="#b29">(Radford et al., 2019)</ref>, OPT <ref type="bibr" target="#b41">(Zhang et al., 2022)</ref>), and encoder-decoder (T5 <ref type="bibr" target="#b30">(Raffel et al., 2020)</ref>) architectures. We use topk sampling (k = 20), and restrict the generation length to up to 10 new tokens in addition to the input pattern. The list of the patterns used can be seen in Tables <ref type="table" target="#tab_6">8</ref> and<ref type="table">9</ref> (as well as the results for each pattern). Additionally, we sample the results multiple times and sort the answers according to their frequency. As a postprocessing step, we lemmatize the output and keep only nouns.</p><p>The next step of our experiments is few-shot learning: we design longer prompts to provide the models with more examples. Each of the extended input contains three patterns completed with the correct answers; examples are separated by a line break. Then the prompt is concatenated with a pattern for a test hypernym node.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Fine-tuning Model</head><p>Since our main goal is to evaluate the ability of generative models to acquire semantic relationships, we utilize commonly known models such as GPT2 and T5. We finetune them on different versions of the input data: default and processed, described below. We also present the results for bigger recent architectures like Flan-T5 (Chung et al., 2022), GPT-J <ref type="bibr" target="#b38">(Wang and Komatsuzaki, 2021)</ref> and Dolly <ref type="bibr" target="#b7">(Conover et al., 2023)</ref> to define further result boundaries for LLMs.</p><p>To conduct several experiments with model finetuning, we do not use patterns from the previous step. From the linguistic perspective, by forcing model to predict hyponyms or hypernyms embodied in a certain context (e.g. "My favourite [PAR-ENT] is <ref type="bibr">[CHILD]</ref>."), we do not teach it to solve a new task. Instead, we make it guess which specific words should be used. From the taxonomy perspective, such patterns do not allow to insert additional information from the taxonomy for the hyponymy Method MAP MRR Pr@1 Pr@2 Pr@5 Pr@10 word2vec k-NN, k = 20 0.0050 0.0210 0.0010 0.0070 0.0109 0.0109 fastText k-NN, k = 20 0.0600 0.0190 0.0000 0.0030 0.0090 0.0090 GloVe k-NN, k = 20 0.0100 0.0370 0.0000 0.0085 0.0212 0.0208</p><p>WebIsaDB (top-20) <ref type="bibr" target="#b36">(Seitner et al., 2016)</ref> 0.0222 0.0609 0.0639 0.0460 0.0435 0.0354 TAXIDB (top-20) <ref type="bibr" target="#b26">(Panchenko et al., 2016)</ref>  prediction task.</p><p>We design the input formats as (1) for hypernym prediction and (2) for hyponym prediction.</p><p>(1) hyponym: l i , hypernyms: h 1-k .</p><p>Here we have only an input word l i , with no additional context or definition and expect the model to predict a list of possible hypernyms h 1-k .</p><p>(2) hyperhypernyms:</p><formula xml:id="formula_0">h 1-n | hypernyms: h 1-m | synset: s | hyponyms: l 1-k .</formula><p>In this example, h 1-n and h 1-m refer to the synset name lists of a certain level, s denotes the target "parental" synset name, and l 1-k refers to the output list of lemmas collected from all the descendants of the "parental" synset.</p><p>The input &amp; output processed version of the dataset is created with respect to the fact that the output list of correct predictions (both hypernyms and hyponyms) does not have a specific order. Therefore, we can add permutations to the output of the dataset. For each hypernym node, we select 10 random hyponyms and repeat this n times, where n is the total number of hyponyms. Thus, we build a larger dataset of 170,000 examples. As for the input extension, we add three additional examples before the input data. As can be later seen from Tables 2, 3, and 4, such data augmentation improves the results significantly for some models.</p><p>All models are trained for three epochs with a batch size of 16. The results are collected as follows: we generate 50 sequences, setting the maximum number of new tokens to 15 and the top-k sampling value to 20. Then we split the output n-grams with a comma (as all models correctly learn the expected output format) and sort the results by frequency. Examples of input and output data are presented in Table 10 in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Baselines</head><p>To compare with other approaches, we implement several baselines: Hearst (1992) patterns, Contextualized Hidden State Projection Method <ref type="bibr">(Nikishina et al., 2022b)</ref>, which is based on BERT, and k-Nearest Neighbours (k = 20) on three different embeddings: word2vec <ref type="bibr" target="#b20">(Mikolov et al., 2013)</ref>, fast-Text <ref type="bibr" target="#b2">(Bojanowski et al., 2017)</ref>, and GloVe <ref type="bibr" target="#b27">(Pennington et al., 2014)</ref>. We also fine-tune recent large architectures like GPT-J <ref type="bibr" target="#b38">(Wang and Komatsuzaki, 2021)</ref> and Dolly <ref type="bibr" target="#b7">(Conover et al., 2023)</ref> to understand further capacities of large language models. However, because of the limitation of computational resources, we finetune Dolly and GPT-J using low-rank adaptation for language models and restrict the model to the 8-bit format. We also ask ChatGPT to list possible hyponyms, using its web interface<ref type="foot" target="#foot_5">6</ref> on the common knowledge dataset for hyponym prediction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method</head><p>MAP MRR Pr@1 Pr@2 P@5 Pr@10 word2vec k-NN, k = 20 0.0400 0.1900 0.0454 0.0681 0.1090 0.1227 fastText k-NN, k = 20 0.0200 0.0700 0.0000 0.0227 0.0363 0.0500 GloVe k-NN, k = 20 0.0500 0.1900 0.0000 0.0681 0.1363 0.1727</p><p>WebIsaDB (top-20) <ref type="bibr" target="#b36">(Seitner et al., 2016)</ref>   <ref type="bibr">et al., 2018)</ref>. Transformer-based models are compared against the top-2 participant results. Standard deviation for both GPT-2-large and T5 models is not more than ±0.001 on 5 runs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Evaluation Metrics</head><p>Generated candidates are compared against the true hypernyms or hyponyms from the taxonomy. We utilize several metrics for both tasks. First, we apply Precision@k (Pr@k) metric. Pr@k is the ratio of the correct answers measured at the fixed rank k. It allows to understand how many correct answers present in the top-k results. Another metric used for retrieval tasks is Mean Reciprocal Rank (MRR). This metric is more relaxed as it is takes into account the multiplicative inverse of the rank of the first correct answer, but does not reflect coverage. Therefore, we also use the Mean Average Precision (MAP) score which takes into account the total number of gold answers and their rank in the candidate list.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Discussion of the Results</head><p>Precision scores for all tested models in zero-shot setup are presented in Table <ref type="table" target="#tab_0">1</ref>. The second and the fourth columns demonstrate the average scores for all 26 patterns for hyponym prediction and 15 options for hypernym one, whereas the third and the fifth show the best results on both datasets. As one can see, no pattern in the zero-shot setting yields acceptable results for hypernymy prediction, while for the hyponym prediction, the best results are shown by "other [PARENT] such as [CHILD]", which is has the highest average MRR score of 0.3. As it can be seen from Table <ref type="table" target="#tab_0">1</ref>, the few-shot hyponym prediction scores are improved over the zero-shot results. For this task, the best score is reached with the prompt "I know such types of [PARENT] as". It is quite unexpected, since it is not in the top-5 of the best prompts according to average precision scores for the zero-shot setup.</p><p>Considering the hypernym prediction few-shot setup, we achieve the best results with the pattern "[CHILD] is a type of [PARENT]". However, the results are increased only with GPT-2. Other models, in their turn, do not produce significantly improved scores. From the T5 model, we obtain lower results over the zero-shot setup. Also, for OPT-1.3b model, almost identical results were received. Thus, as we show later, zero-and few-shot setups lag far behind the finetuning experiments. We explain the low scores for the results by task complexity and unawareness of the WordNet structure by the model. The fine-tuning results for the Hypernym Prediction task are displayed in Table <ref type="table">4</ref>. Tables <ref type="table" target="#tab_1">2</ref> and<ref type="table">(</ref> 3 denote the results on CHSP and small common knowledge datasets, respectively. As we can see, the best performing models are different for two tasks. Interestingly, the results for GPT-J and Dolly on the Hypernym Prediction dataset are not much higher (or even lower) than smaller and older models like GPT-2 and T5. Moreover, they perform on par with the best approaches from SemEval-2018 Task 9. At the same time, both GPT-J and Dolly demonstrate the best performance on the Hyponym Prediction datasets. In comparison to the baselines and previous approaches with transformer encoders, we can see that generative transformers outperform them by a large margin on both datasets. As for ChatGPT, it demonstrates very high results on the small hyponym prediction dataset, however, we cannot compare it with other models directly, as it is used in the zero-shot setup and not finetuned for the task.</p><p>When comparing decoders and encoder-decoder architectures, we also see controversial results. On the CHSP dataset, decoders perform better, while the second-best results for the common knowledge dataset are achieved by T5 and Flan-T5. Moreover, those models also perform better for hypernym prediction, outperforming GPT-J and Dolly. By looking at the predictions generated by decoder and encoder-decoder models, we discover that GPT-based approaches predict fewer candidates, whereas the answers of T5-like models are longer. This explains the higher results for P r@1 and P r@2 of both GPT-based approaches and the lower score of T5-large on P r@10. Examples are presented in Table <ref type="table" target="#tab_0">11</ref> in Appendix A.</p><p>Another observation is that very high scores are achieved by the same models on the common knowledge dataset in comparison to the automatically constructed CSHP dataset. Even though we cannot draw any conclusion from their comparison, as the datasets are of different size, we still can see that common domain words are easy to predict, as they come numerous descendants and relaxed evaluation setup (all descendants are considered to be the correct answer).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Error Analysis</head><p>In order to understand the main difficulties of the models while solving both tasks, we perform both quantitative and manual error analysis.</p><p>As for hypernym prediction, we first calculate the scores for entities and concepts separately, as it was done in <ref type="bibr" target="#b3">(Camacho-Collados et al., 2018)</ref>. The results are displayed in Table <ref type="table" target="#tab_3">5</ref>. We can see that entities are easier to predict than concepts across all models. Camacho-Collados et al. ( <ref type="formula">2018</ref>) argue that entities are specific instances of concepts, which are easier to comprehend compared to abstract ideas or categories. As we can see from the data, entities that contain frequently occurring hypernyms like "person" and "city" are easier to guess and to memorize for the models.</p><p>We also analyse which words are easier / more difficult to find hyponyms for, even though there is not such word types split in the dataset for the hyponym prediction task. In order to do that, we select top-10 input words according to the MAP and Pr@5 metrics for different models to check, whether there are any common linguistic features. Table <ref type="table" target="#tab_6">8</ref> demonstrates the top-10 words for the bestperforming models. From the obtained lists we can conclude that high MAP scores are achieved for synsets with a small number of hyponyms (often including words from the synset, for example, the only hyponym of the synset "mousse" is "chocolate mousse"), whereas high Pr@5 scores are achieved for more frequent and general concepts. Then we also calculate the average distance from the top-100 and bottom-100 words to the root word. According to our hypothesis, more general (common) words achieve larger scores than very specific ones. The results confirm that the distance to the root for the top-100 words is on average smaller than for bottom-100 (6.65 hops against 7.82 hops).</p><p>We also compute some statistical tests in order to understand the main features of input words or the predicted ones that influence the score. We consider the following features for hyponym prediction: input word ambiguity (in how many other senses this word appears in taxonomy), number of words in the input (is input multi-word expression or not), amount of multi-word expressions in hyponyms, number of hyponyms in nodes, number of hyponym in lemmas (one hyponym node can have different lemma names), distance from the root in hops. For hypernym prediction, we consider only the number of hypernyms to predict, multi-word input and multi-word hypernyms output. We cannot use the same features as for hyponym prediction, as the hypernym prediction data is not related to Word-Net. Then we calculate the correlation between the listed features with the average Pr@1, MAP and MRR for all fine-tuned models. We display the result correlation matrices in Figure <ref type="figure">3</ref>. It is calculated with pandas <ref type="bibr" target="#b19">(McKinney et al., 2010)</ref>; figures are generated using matplotlib <ref type="bibr" target="#b15">(Hunter, 2007)</ref>.</p><p>The obtained results indicate that most of our hypotheses have not been confirmed for hyponym prediction, see 3b. A weak positive correlation (0.29) is observed only for number of hyponyms and Pr@1 and number of hyponyms and MRR (0.29). We also see a very weak negative correlation of MRR score and root distance, which is -0.13. Other correlation scores do not exceed 0.1. As for hypernym prediction task, we received a weak positive correlation for multi-word input factor among all scores (0.24 and 0.26). Moreover, we observed a very weak negative effect of the number of hypernyms (-0.11) and multi-word hypernyms (-0.18) on the MAP score. Also, attribute the number of hypernyms has a very weak positive influence on the MRR and Pr@1, which are around 0.1. No other correlation scores surpass 0.1.</p><p>As for hypernym prediction correlation scores, we can see a weak correlation between the number of input words and MAP, MRR and Pr@1 metrics, see 3b. We assume that having more words in the predicted hypernym can provide additional examples for the training process, potentially leading to more accurate predictions. Additionally, multiword input can provide more contextual information and connections between different parts of a phrase, which can help to predict hypernyms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we explore the practical utility of generative transformer-based models for hyponym and hypernym prediction. We show that promising results can be obtained in both tasks without any additional data, like word definitions or corpora with input term occurrences. Medium-size decoders, and encoder-decoder models yield amazing results after a few epochs of fine-tuning, outperforming other previous baselines by a large margin.</p><p>We notice that the fine-tuned sequence-tosequence outputs contain more plausible candidates, whereas decoders generate fewer candidates with higher quality. Moreover, we cannot conclude which model is the best for both tasks, as the result differ across different datasets. Error analysis of the results shows that there are no specific features like number of senses of the input word in WordNet or number of words to predict that are difficult for the model. Therefore, we assume that generative transformer models demonstrate decent knowledge of IS-A relationships and could be further used for the taxonomy enrichment applications. As the outcome of our research, we also notice that large generative models can not only predict next words (do language modelling), conditioned to some input, but also capture relations between words. Our research further confirms the utility of methodology where information extraction is not directly done on text corpora but on an LLM as a proxy. This new paradigm is useful for several reasons: there is no need to access the original corpus which may be huge and inaccessible, it also allows for certain generalisations required for mining of relations of rare lexical items, and it does not require an explicitly encoded lexical database like WordNet/BabelNet. Our work shows that the very same information may be more compactly stored in the weight of a neural network and explicitly retrieved if needed. This may provide additional computational gain as storage and accessing of large resources like BabelNet featuring millions of nodes and hundreds of millions of relations (hypernyms) between them may be not practical.</p><p>As future work, we plan to work with other subtasks for adding new words into taxonomies: insertion of additional nodes in the middle of the graph, crossing two nodes, moving nodes, etc. We also want to solve the tasks for multiple languages using multilingual models and adapters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>We find the main limitation of our work as follows:</p><p>• We expect that it is possible to further push quality reported in our work if larger versions of large pre-trained transformers are used, such as T5-3b and T5-11b, as it was the case for multiple other tasks. However, the general trend shall be clear from our experiments.</p><p>• We did not test multilingual setting of our approach, which is possible if multilingual version of sequence-to-sequence models are used, such as mT5 or mBERT. This is an important additional experiment to further validation of the method explored in our work.</p><p>• Nowadays, dozens of large pre-trained generative models exist and we report results only on a few of them. It may be that, some other base models used could further push the results.</p><p>Our goal however was to show an example how similar models and not perform and exhaustive search of all models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>We use in our work large neural models, such as T5, pre-trained on real texts including user-generated content. While authors of the models made an effort to filter obviously toxic or biased content, the model itself still can contain certain biases and as a consequence outputs of our methods may render such biases. Methodologically it is however straighforward to apply our techniques on other pretrained models which were debiased in a required way. Otherwise, we do not see any other ethical concern in our work to the best of our knowledge. Table <ref type="table" target="#tab_1">12</ref>: Top-10 synsets with the true hyponyms (at most 3) and predictions (at most 3) according to the Pr@5 metric.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>1Figure 1 :</head><label>1</label><figDesc>Figure 1: Two formulations of taxonomy enrichment task: attaching new candidates to the existing nodes (red) and generating new candidates at the specified place in the taxonomy (blue).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: Pipelines for predicting IS-A relations for both directions. For hypernym prediction we use the input word in the specific prompt structure, while for the hyponym prediction we linearize the graph structure to feed it to the model as textual input.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Figure 3: Pearson correlation scores for the data characteristics of the input and output against MAP, MRR and Pr@1 scores. The colour denotes the correlation strength: the darker the colour is, the stronger the correlation.</figDesc><graphic coords="7,82.21,70.86,430.87,121.39" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>MRR scores for pre-trained models on zero-shot and few-shot setups for predicting hypernyms and hyponyms. Average is average MRR on all 26 Hearst patterns, Best denotes the best MRR score.</figDesc><table><row><cell>Model</cell><cell cols="2">Hypernym Prediction Average Best</cell><cell cols="2">Hyponym Prediction Average Best</cell></row><row><cell></cell><cell cols="2">Zero-shot</cell><cell></cell><cell></cell></row><row><cell>GPT-2-large</cell><cell>0.0351±0.0345</cell><cell>0.0708</cell><cell>0.2677±0.016</cell><cell>0.5280</cell></row><row><cell>OPT-1.3b</cell><cell>0.0568±0.0563</cell><cell>0.1140</cell><cell>0.3081±0.013</cell><cell>0.5310</cell></row><row><cell>T5-large</cell><cell>0.0602±0.0591</cell><cell>0.1215</cell><cell>0.1168±0.001</cell><cell>0.1690</cell></row><row><cell></cell><cell cols="2">Few-shot</cell><cell></cell><cell></cell></row><row><cell>GPT-2-large</cell><cell>0.0610±0.0595</cell><cell>0.1234</cell><cell>0.4557±0.005</cell><cell>0.5940</cell></row><row><cell>OPT-1.3b</cell><cell>0.0585±0.0577</cell><cell>0.1177</cell><cell>0.4623±0.005</cell><cell>0.6030</cell></row><row><cell>T5-large</cell><cell>0.0058±0.0013</cell><cell>0.0161</cell><cell>0.1144±0.001</cell><cell>0.1920</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Results for Hyponym Prediction after fine-tuning on CHSP dataset(Nikishina et al., 2022b).</figDesc><table><row><cell></cell><cell cols="3">0.0129 0.0398 0.0425 0.0300 0.0275 0.0198</cell></row><row><cell>CHSP (Nikishina et al., 2022b)</cell><cell>-</cell><cell>0.0215 0.0228 0.0160</cell><cell>-0.0074</cell></row><row><cell>GPT-2</cell><cell cols="3">0.0390 0.1720 0.1100 0.1040 0.0910 0.0740</cell></row><row><cell>GPT-2 (input &amp; output proc.)</cell><cell cols="3">0.0620 0.2320 0.1950 0.1650 0.1190 0.0910</cell></row><row><cell>T5</cell><cell cols="3">0.0480 0.1889 0.1230 0.1150 0.0962 0.0764</cell></row><row><cell>T5 (input &amp; output proc.)</cell><cell cols="3">0.0500 0.1710 0.1130 0.1070 0.0890 0.0690</cell></row><row><cell>Flan-T5</cell><cell cols="3">0.0330 0.1330 0.0870 0.0750 0.0630 0.0510</cell></row><row><cell>Flan-T5 (input &amp; output proc.)</cell><cell cols="3">0.0390 0.1410 0.0940 0.0860 0.0710 0.0570</cell></row><row><cell>GPT-J 8-bit LoRa</cell><cell cols="3">0.1080 0.3230 0.2250 0.1970 0.1620 0.1230</cell></row><row><cell>Dolly 8-bit LoRa</cell><cell cols="3">0.1110 0.3240 0.2260 0.2020 0.1640 0.1220</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Fine-tuning results for the small common knowledge dataset for Hyponym Prediction.</figDesc><table><row><cell></cell><cell></cell><cell>0.2837 0.5834 0.4500 0.5000 0.4300 0.3600</cell></row><row><cell cols="3">TAXIDB (top-20) (Panchenko et al., 2016) 0.2240 0.4917 0.4000 0.4250 0.3600 0.2800</cell></row><row><cell cols="2">CHSP (Nikishina et al., 2022b)</cell><cell>0.0818 0.3377 0.3182 0.2045 0.0818 0.0500</cell></row><row><cell>GPT-2-large</cell><cell></cell><cell>0.1270 0.6460 0.5000 0.5000 0.4730 0.4500</cell></row><row><cell cols="2">GPT-2-large (input &amp; output proc.)</cell><cell>0.3030 0.7320 0.6360 0.6820 0.6450 0.5820</cell></row><row><cell>T5-large</cell><cell></cell><cell>0.1460 0.8480 0.7730 0.6590 0.6360 0.5360</cell></row><row><cell cols="2">T5-large (input &amp; output proc.)</cell><cell>0.1970 0.8200 0.6820 0.7050 0.6180 0.5230</cell></row><row><cell>Flan-T5-large</cell><cell></cell><cell>0.1170 0.7220 0.5910 0.6360 0.4910 0.4000</cell></row><row><cell>Flan-T5-large (i&amp;o)</cell><cell></cell><cell>0.1990 0.7720 0.6820 0.6590 0.5820 0.5450</cell></row><row><cell>GPT-J 8-bit LoRa</cell><cell></cell><cell>0.1780 0.9120 0.8640 0.7500 0.6360 0.5500</cell></row><row><cell>Dolly 8-bit LoRa</cell><cell></cell><cell>0.1830 0.9320 0.8640 0.8410 0.7000 0.5680</cell></row><row><cell>ChatGPT</cell><cell></cell><cell>0.3424 0.7150 0.6363 0.6363 0.6000 0.5091</cell></row><row><cell>Method</cell><cell cols="2">MAP MRR Pr@5</cell></row><row><cell cols="3">Bernier-Colborne and Barrière (2018) 19.78 36.10 19.03</cell></row><row><cell>MSCG-SANITY</cell><cell cols="2">11.83 24.79 11.60</cell></row><row><cell>Hanna and Mareček (2021)</cell><cell cols="2">20.17 12.65 10.49</cell></row><row><cell>GPT-2-large</cell><cell cols="2">13.89 37.56 11.95</cell></row><row><cell>GPT-2-large (input &amp; output proc.)</cell><cell cols="2">19.70 35.14 19.18</cell></row><row><cell>T5-large</cell><cell cols="2">25.68 42.40 23.03</cell></row><row><cell>T5-large (input &amp; output proc.)</cell><cell cols="2">18.67 31.19 17.66</cell></row><row><cell>Flan-T5</cell><cell cols="2">22.97 45.22 21.74</cell></row><row><cell>Flan-T5 (input &amp; output proc.)</cell><cell cols="2">23.07 42.03 22.19</cell></row><row><cell>GPT-J-6B 8-bit</cell><cell cols="2">19.93 38.75 18.45</cell></row><row><cell>Dolly LoRa 8-bit</cell><cell cols="2">18.54 37.89 17.21</cell></row><row><cell cols="3">Table 4: Results for Hypernym Prediction on SemEval-</cell></row><row><cell cols="2">2018 Task 9 subtask 1A: English (Camacho-Collados</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 5 :</head><label>5</label><figDesc>Results for Hypernym Prediction on SemEval-2018 Task 9 with Entity and Concept splits.</figDesc><table><row><cell>Method</cell><cell cols="2">MAP MRR Pr@5</cell></row><row><cell>Entities</cell><cell></cell><cell></cell></row><row><cell cols="2">Bernier-Colborne and Barrière (2018) 29.21 51.82</cell><cell>27.74</cell></row><row><cell>MSCG-SANITY</cell><cell>17.72 38.85</cell><cell>16.91</cell></row><row><cell>GPT-2-large</cell><cell>25.26 46.75</cell><cell>23.82</cell></row><row><cell>T5-large</cell><cell>33.76 62.35</cell><cell>32.29</cell></row><row><cell>Flan-T5</cell><cell>29.82 62.75</cell><cell>27.71</cell></row><row><cell>GPT-J-6B 8-bit</cell><cell>32.09 60.19</cell><cell>29.66</cell></row><row><cell>Dolly LoRa 8-bit</cell><cell>28.04 57.00</cell><cell>25.79</cell></row><row><cell>Concepts</cell><cell></cell><cell></cell></row><row><cell cols="2">Bernier-Colborne and Barrière (2018) 16.08 30.04</cell><cell>15.41</cell></row><row><cell>MSCG-SANITY</cell><cell>09.36 18.90</cell><cell>09.38</cell></row><row><cell>GPT-2-large</cell><cell>15.61 28.65</cell><cell>15.12</cell></row><row><cell>T5-large</cell><cell>20.71 38.77</cell><cell>20.07</cell></row><row><cell>Flan-T5</cell><cell>19.68 37.10</cell><cell>18.73</cell></row><row><cell>GPT-J-6B 8-bit</cell><cell>14.83 29.76</cell><cell>13.74</cell></row><row><cell>Dolly LoRa 8-bit</cell><cell>14.55 29.87</cell><cell>13.61</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 6 :</head><label>6</label><figDesc>Top-10 synsets with the true hyponyms (at most 3) and predictions (at most 3) according to MAP score.</figDesc><table><row><cell>Top-10 words</cell><cell>True hyponyms</cell><cell>Predicted hyponyms</cell></row><row><cell>mousse</cell><cell>chocolate mousse</cell><cell>chocolate mousse, lemon mousse,</cell></row><row><cell></cell><cell></cell><cell>coffee mousse</cell></row><row><cell>bull</cell><cell>bullock</cell><cell>bulldog, stud, bullock</cell></row><row><cell>eclipse</cell><cell>partial eclipse, lunar eclipse,</cell><cell>solar eclipse, lunar eclipse, transit</cell></row><row><cell></cell><cell>solar eclipse</cell><cell></cell></row><row><cell>trace</cell><cell>footprint</cell><cell>footprint, trail, track</cell></row><row><cell>wick</cell><cell>candlewick</cell><cell>candlewick, taper, wax wick</cell></row><row><cell>learning disorder</cell><cell cols="2">dyscalculia, dyslexia, dysgraphia dyslexia, dysgraphia, dyscalculia</cell></row><row><cell>nitrite</cell><cell>sodium nitrite</cell><cell>sodium nitrite, nitroglycerin, nitrocellulose</cell></row><row><cell cols="2">reproductive system male reproductive system,</cell><cell>male reproductive system,</cell></row><row><cell></cell><cell>female reproductive system</cell><cell>sexual system, female reproductive system</cell></row><row><cell>retinopathy</cell><cell>diabetic retinopathy</cell><cell>diabetic retinopathy, macular degeneration,</cell></row><row><cell></cell><cell></cell><cell>age-related macular degeneration</cell></row><row><cell>eclair</cell><cell>chocolate eclair</cell><cell>mille-feuille, chocolate eclair,</cell></row><row><cell></cell><cell></cell><cell>vanilla eclair</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 7 :</head><label>7</label><figDesc>Manually selected test synsets for Hyponym Prediction.</figDesc><table><row><cell>Synset</cell><cell>Lemmas</cell><cell></cell><cell></cell><cell></cell></row><row><cell>coin.n.01</cell><cell>coin</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">chromatic color.n.01 chromatic color, chromatic colour, spectral color, spectral colour</cell></row><row><cell>coat.n.01</cell><cell>coat</cell><cell></cell><cell></cell><cell></cell></row><row><cell>jewelry.n.01</cell><cell>jewelry, jewellery</cell><cell></cell><cell></cell><cell></cell></row><row><cell>furniture.n.01</cell><cell cols="3">furniture, piece of furniture, article of furniture</cell><cell></cell></row><row><cell>pasta.n.02</cell><cell>pasta, alimentary paste</cell><cell></cell><cell></cell><cell></cell></row><row><cell>cheese.n.01</cell><cell>cheese</cell><cell></cell><cell></cell><cell></cell></row><row><cell>room.n.01</cell><cell>room</cell><cell></cell><cell></cell><cell></cell></row><row><cell>meat.n.01</cell><cell>meat</cell><cell></cell><cell></cell><cell></cell></row><row><cell>wine.n.01</cell><cell>wine, vino</cell><cell></cell><cell></cell><cell></cell></row><row><cell>dinosaur.n.01</cell><cell>dinosaur</cell><cell></cell><cell></cell><cell></cell></row><row><cell>candy.n.01</cell><cell>candy, confect</cell><cell></cell><cell></cell><cell></cell></row><row><cell>beverage.n.01</cell><cell cols="2">beverage, drink, drinkable, potable</cell><cell></cell><cell></cell></row><row><cell>cloak.n.02</cell><cell>cloak</cell><cell></cell><cell></cell><cell></cell></row><row><cell>doll.n.01</cell><cell>doll, dolly</cell><cell></cell><cell></cell><cell></cell></row><row><cell>pie.n.01</cell><cell>pie</cell><cell></cell><cell></cell><cell></cell></row><row><cell>drum.n.01</cell><cell cols="2">drum, membranophone, tympan</cell><cell></cell><cell></cell></row><row><cell>makeup.n.01</cell><cell>makeup, make-up, war paint</cell><cell></cell><cell></cell><cell></cell></row><row><cell>movie.n.01</cell><cell cols="5">movie, film, picture, moving_picture, moving-picture_show, motion_picture, motion-picture_show, picture_show, pic, flick</cell></row><row><cell>child's game.n.01</cell><cell>child's game</cell><cell></cell><cell></cell><cell></cell></row><row><cell>trouser.n.01</cell><cell>trouser, pant</cell><cell></cell><cell></cell><cell></cell></row><row><cell>guitar.n.01</cell><cell>guitar</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Pattern</cell><cell cols="5">GPT-2-large OPT-1.3b T5-large Average</cell></row><row><cell cols="2">Other [PARENT] such as</cell><cell>0.528</cell><cell>0.531</cell><cell>0.114</cell><cell>0.391</cell></row><row><cell cols="2">There are a lot of [PARENT] such as</cell><cell>0.454</cell><cell>0.457</cell><cell>0.208</cell><cell>0.373</cell></row><row><cell cols="2">There are a lot of [PARENT] here such as</cell><cell>0.455</cell><cell>0.459</cell><cell>0.163</cell><cell>0.359</cell></row><row><cell cols="2">There were a lot of [PARENT] such as</cell><cell>0.469</cell><cell>0.434</cell><cell>0.155</cell><cell>0.353</cell></row><row><cell cols="2">There were a lot of [PARENT] here such as</cell><cell>0.452</cell><cell>0.438</cell><cell>0.166</cell><cell>0.352</cell></row><row><cell cols="2">I know such types of [PARENT] as</cell><cell>0.416</cell><cell>0.451</cell><cell>0.118</cell><cell>0.328</cell></row><row><cell>[PARENT] such as</cell><cell></cell><cell>0.411</cell><cell>0.396</cell><cell>0.115</cell><cell>0.307</cell></row><row><cell cols="2">which includes various [PARENT] such as</cell><cell>0.323</cell><cell>0.430</cell><cell>0.146</cell><cell>0.300</cell></row><row><cell cols="2">I know such kinds of [PARENT] as</cell><cell>0.283</cell><cell>0.456</cell><cell>0.104</cell><cell>0.281</cell></row><row><cell cols="2">My favorite [PARENT] is</cell><cell>0.326</cell><cell>0.415</cell><cell>0.100</cell><cell>0.280</cell></row><row><cell cols="2">which includes various [PARENT] like</cell><cell>0.282</cell><cell>0.329</cell><cell>0.169</cell><cell>0.260</cell></row><row><cell>[PARENT] e.g.</cell><cell></cell><cell>0.296</cell><cell>0.346</cell><cell>0.118</cell><cell>0.253</cell></row><row><cell cols="2">Other [PARENT] especially</cell><cell>0.325</cell><cell>0.309</cell><cell>0.077</cell><cell>0.237</cell></row><row><cell cols="2">My favorite [PARENT] is either</cell><cell>0.246</cell><cell>0.320</cell><cell>0.118</cell><cell>0.228</cell></row><row><cell cols="2">I know many types of [PARENT] for example</cell><cell>0.228</cell><cell>0.266</cell><cell>0.170</cell><cell>0.221</cell></row><row><cell>[PARENT] including</cell><cell></cell><cell>0.202</cell><cell>0.318</cell><cell>0.059</cell><cell>0.193</cell></row><row><cell>[PARENT] namely</cell><cell></cell><cell>0.208</cell><cell>0.311</cell><cell>0.051</cell><cell>0.190</cell></row><row><cell cols="2">I know many kinds of [PARENT] for example</cell><cell>0.181</cell><cell>0.227</cell><cell>0.153</cell><cell>0.187</cell></row><row><cell cols="2">which includes various [PARENT] for example</cell><cell>0.141</cell><cell>0.28</cell><cell>0.139</cell><cell>0.187</cell></row><row><cell cols="2">Other [PARENT] for example</cell><cell>0.181</cell><cell>0.193</cell><cell>0.103</cell><cell>0.159</cell></row><row><cell>[PARENT] like</cell><cell></cell><cell>0.140</cell><cell>0.192</cell><cell>0.095</cell><cell>0.142</cell></row><row><cell cols="2">There are a lot of [PARENT] here for example</cell><cell>0.157</cell><cell>0.140</cell><cell>0.126</cell><cell>0.141</cell></row><row><cell cols="2">There are a lot of [PARENT] for example</cell><cell>0.091</cell><cell>0.130</cell><cell>0.083</cell><cell>0.101</cell></row><row><cell>[PARENT] especially</cell><cell></cell><cell>0.103</cell><cell>0.068</cell><cell>0.047</cell><cell>0.073</cell></row><row><cell>[PARENT] for example</cell><cell></cell><cell>0.034</cell><cell>0.060</cell><cell>0.065</cell><cell>0.053</cell></row><row><cell>[PARENT] for instance</cell><cell></cell><cell>0.027</cell><cell>0.054</cell><cell>0.075</cell><cell>0.052</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 8 :</head><label>8</label><figDesc>MRR scores for zero-shot hyponyms generation on small common knowledge dataset.</figDesc><table><row><cell>Top-10 words</cell><cell>True hyponyms</cell><cell>Predicted hyponyms</cell></row><row><cell>vegetable</cell><cell>pinto bean, artichoke, globe artichoke</cell><cell>beet, broccoli, cabbage</cell></row><row><cell>whale</cell><cell>vaquita, Phocoena sinus, right whale</cell><cell>beaked whale, baleen whale, blue whale</cell></row><row><cell>military unit</cell><cell>division, naval division, Praetorian Guard</cell><cell>company, airborne unit, artillery unit</cell></row><row><cell>court game</cell><cell>tennis, lawn tennis, jai alai</cell><cell>volleyball, basketball, tennis</cell></row><row><cell>dwelling</cell><cell cols="2">bed and breakfast, bed-and-breakfast, shooting lodge cabin, farmhouse, chalet</cell></row><row><cell>beverage</cell><cell>Burton, Saint Emilion, red wine</cell><cell>ale, beer, alcohol</cell></row><row><cell cols="2">wheeled vehicle minicar, lorry, camion</cell><cell>carriage, cart, car</cell></row><row><cell>bread</cell><cell>limpa, baking-powder biscuit, simnel</cell><cell>bun, bap, brioche</cell></row><row><cell cols="2">natural science statics, cytology, urology</cell><cell>chemistry, biology, botany</cell></row><row><cell>citrus</cell><cell>grapefruit, citrange, key lime</cell><cell>orange, grapefruit, lemon</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>https://github.com/orgs/uhh-lt/hypernymgeneration</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>3 https://huggingface.co/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>okamifawkes 4 https://wordnet.princeton.edu</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>https://www.wikidata.org</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>ExperimentsIn this section we describe the evaluations metrics, present the result for zero-shot, few-shot and finetuning experiments, and compare performance with different data inputs. We also perform the error analysis for both tasks and explain why certain words or phrases are easier or harder to predict.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>6 Version from 13.04.2023</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work was supported by the <rs type="funder">DFG</rs> through the project "<rs type="projectName">ACQuA: Answering Comparative Questions with Arguments</rs>" (grants <rs type="grantNumber">BI 1544/7-1</rs> and <rs type="grantNumber">HA 5851/2-1</rs>) as part of the <rs type="programName">priority program</rs> "<rs type="projectName">RATIO: Robust Argumentation Machines</rs>" (<rs type="grantNumber">SPP 1999</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_b6Akv4T">
+					<idno type="grant-number">BI 1544/7-1</idno>
+					<orgName type="project" subtype="full">ACQuA: Answering Comparative Questions with Arguments</orgName>
+				</org>
+				<org type="funded-project" xml:id="_BzPys9X">
+					<idno type="grant-number">HA 5851/2-1</idno>
+					<orgName type="project" subtype="full">RATIO: Robust Argumentation Machines</orgName>
+					<orgName type="program" subtype="full">priority program</orgName>
+				</org>
+				<org type="funding" xml:id="_JjVFkrK">
+					<idno type="grant-number">SPP 1999</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Pattern</head><p>GPT-2-large OPT-1.3b T5-large Average  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">SemEval-2020 task 3: Graded word similarity in context</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Santos Armendariz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Purver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Senja</forename><surname>Pollak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Ljubešić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matej</forename><surname>Ulčar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Taher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pilehvar</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.semeval-1.3</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourteenth Workshop on Semantic Evaluation</title>
+		<meeting>the Fourteenth Workshop on Semantic Evaluation<address><addrLine>Barcelona (online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="36" to="49" />
+		</imprint>
+	</monogr>
+	<note>International Committee for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">CRIM at SemEval-2018 task 9: A hybrid approach to hypernym discovery</title>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Bernier-Colborne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caroline</forename><surname>Barrière</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S18-1116</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th International Workshop on Semantic Evaluation</title>
+		<meeting>the 12th International Workshop on Semantic Evaluation<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="725" to="731" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Enriching word vectors with subword information</title>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00051</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="135" to="146" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">SemEval-2018 task 9: Hypernym discovery</title>
+		<author>
+			<persName><forename type="first">Jose</forename><surname>Camacho-Collados</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claudio</forename><forename type="middle">Delli</forename><surname>Bovi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luis</forename><surname>Espinosa-Anke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergio</forename><surname>Oramas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tommaso</forename><surname>Pasini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enrico</forename><surname>Santus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vered</forename><surname>Shwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Navigli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Horacio</forename><surname>Saggion</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S18-1115</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th International Workshop on Semantic Evaluation</title>
+		<meeting>the 12th International Workshop on Semantic Evaluation<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="712" to="724" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Leveraging WordNet paths for neural hypernym prediction</title>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Rodriguez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katrin</forename><surname>Erk</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.268</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3007" to="3018" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">PaLM: Scaling language modeling with pathways</title>
+		<author>
+			<persName><forename type="first">Aakanksha</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2204.02311</idno>
+		<idno>CoRR, abs/2204.02311</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Scaling instruction-finetuned language models</title>
+		<author>
+			<persName><forename type="first">Chung</forename><surname>Hyung Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shayne</forename><surname>Longpre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Fedus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhartha</forename><surname>Brahma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Webson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shane</forename><surname>Shixiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuyun</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirac</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyun</forename><surname>Suzgun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aakanksha</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaurav</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adams</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><forename type="middle">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanping</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongkun</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slav</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wei</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2210.11416</idno>
+		<idno>CoRR, abs/2210.11416</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Conover</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankit</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangrui</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwei</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Ghodsi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Wendell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zaharia</forename><surname>Matei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reynold</forename><surname>Xin</surname></persName>
+		</author>
+		<ptr target="https://www.databricks.com/blog/2023/04/12/dolly-first-open-commercially-viable-instruction-tuned-llm" />
+		<title level="m">Free Dolly: Introducing the World&apos;s First Truly Open Instruction-Tuned LLM</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">FINET: Context-aware fine-grained named entity typing</title>
+		<author>
+			<persName><forename type="first">Luciano</forename><surname>Del Corro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdalghani</forename><surname>Abujabal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rainer</forename><surname>Gemulla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1103</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="868" to="878" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">What BERT is not: Lessons from a new suite of psycholinguistic diagnostics for language models</title>
+		<author>
+			<persName><forename type="first">Allyson</forename><surname>Ettinger</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00298</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="34" to="48" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">MultiWiBi: The multilingual Wikipedia bitaxonomy project</title>
+		<author>
+			<persName><forename type="first">Tiziano</forename><surname>Flati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniele</forename><surname>Vannella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tommaso</forename><surname>Pasini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Navigli</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.artint.2016.08.004</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">241</biblScope>
+			<biblScope unit="page" from="66" to="102" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Analyzing BERT&apos;s knowledge of hypernymy via prompting</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Hanna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Mareček</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.blackboxnlp-1.20</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth BlackboxNLP Workshop on Analyzing and Interpreting Neural Networks for NLP</title>
+		<meeting>the Fourth BlackboxNLP Workshop on Analyzing and Interpreting Neural Networks for NLP<address><addrLine>Punta Cana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="275" to="282" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Automatic acquisition of hyponyms from large text corpora</title>
+		<author>
+			<persName><forename type="first">Marti</forename><forename type="middle">A</forename><surname>Hearst</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">14th International Conference on Computational Linguistics, COLING</title>
+		<meeting><address><addrLine>Nantes, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1992">1992</date>
+			<biblScope unit="page" from="539" to="545" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Knowledge graph embedding based question answering</title>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingyuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dingcheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ping</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3289600.3290956</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twelfth ACM International Conference on Web Search and Data Mining, WSDM &apos;19</title>
+		<meeting>the Twelfth ACM International Conference on Web Search and Data Mining, WSDM &apos;19<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="105" to="113" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Matplotlib: A 2d graphics environment</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Hunter</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/MCSE.2007.55</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computing in Science &amp; Engineering</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="90" to="95" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">What does BERT learn about the structure of language?</title>
+		<author>
+			<persName><forename type="first">Ganesh</forename><surname>Jawahar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benoît</forename><surname>Sagot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Djamé</forename><surname>Seddah</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1356</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3651" to="3657" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">SemEval-2016 task 14: Semantic taxonomy enrichment</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Jurgens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Taher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pilehvar</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S16-1169</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Workshop on Semantic Evaluation (SemEval-2016)</title>
+		<meeting>the 10th International Workshop on Semantic Evaluation (SemEval-2016)<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1092" to="1102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">ADAPT at SemEval-2018 task 9: Skip-gram word embeddings for unsupervised hypernym discovery in specialised corpora</title>
+		<author>
+			<persName><forename type="first">Alfredo</forename><surname>Maldonado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Filip</forename><surname>Klubička</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S18-1151</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th International Workshop on Semantic Evaluation</title>
+		<meeting>the 12th International Workshop on Semantic Evaluation<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="924" to="927" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Data structures for statistical computing in python</title>
+		<author>
+			<persName><forename type="first">Wes</forename><surname>Mckinney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th Python in Science Conference</title>
+		<meeting>the 9th Python in Science Conference<address><addrLine>Austin, TX</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="volume">445</biblScope>
+			<biblScope unit="page" from="51" to="56" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName><forename type="first">Tomás</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregory</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems 2013. Proceedings of a meeting held</title>
+		<meeting><address><addrLine>Lake Tahoe, Nevada, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013">2013. 2013</date>
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">WordNet: A lexical database for English</title>
+		<author>
+			<persName><forename type="first">George</forename><forename type="middle">A</forename><surname>Miller</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/219717.219748</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Commun. ACM</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="39" to="41" />
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">2022a. Taxonomy enrichment with text and graph vector representations</title>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Nikishina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikhail</forename><surname>Tikhomirov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuriy</forename><surname>Nazarov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Natalia</forename><forename type="middle">V</forename><surname>Loukachevitch</surname></persName>
+		</author>
+		<idno type="DOI">10.3233/SW-212955</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Semantic Web</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="441" to="475" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">2022b. Cross-modal contextualized hidden state projection method for expanding of taxonomic graphs</title>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Nikishina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alsu</forename><surname>Vakhitova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Tutubalina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TextGraphs-16: Graph-based Methods for Natural Language Processing</title>
+		<meeting>TextGraphs-16: Graph-based Methods for Natural Language Processing<address><addrLine>Gyeongju, Republic of Korea</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="11" to="24" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">GPT-4 technical report</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2303.08774</idno>
+		<idno>CoRR, abs/2303.08774</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><forename type="middle">L</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fraser</forename><surname>Kelton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maddie</forename><surname>Simens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Welinder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">F</forename><surname>Christiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2203.02155</idno>
+		<idno>CoRR, abs/2203.02155</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">TAXI at SemEval-2016 task 13: a taxonomy induction method based on lexico-syntactic patterns, substrings and focused crawling</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Faralli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eugen</forename><surname>Ruppert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steffen</forename><surname>Remus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hubert</forename><surname>Naets</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cédrick</forename><surname>Fairon</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S16-1206</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Workshop on Semantic Evaluation (SemEval-2016)</title>
+		<meeting>the 10th International Workshop on Semantic Evaluation (SemEval-2016)<address><addrLine>San Diego</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1320" to="1327" />
+		</imprint>
+	</monogr>
+	<note>Simone Paolo Ponzetto, and Chris Biemann</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">GloVe: Global vectors for word representation</title>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/d14-1162</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing, EMNLP 2014</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing, EMNLP 2014<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACL</publisher>
+			<date type="published" when="2014-10-25">2014. October 25-29, 2014</date>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+	<note>A meeting of SIGDAT, a Special Interest Group of the ACL</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">NLP_HZ at SemEval-2018 task 9: a nearest neighbor approach</title>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mosha</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linlin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luo</forename><surname>Si</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S18-1148</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th International Workshop on Semantic Evaluation</title>
+		<meeting>the 12th International Workshop on Semantic Evaluation<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="909" to="913" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI blog</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">140</biblScope>
+			<biblScope unit="page" from="1" to="67" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">On the systematicity of probing contextualized word representations: The case of hypernymy in BERT</title>
+		<author>
+			<persName><forename type="first">Abhilasha</forename><surname>Ravichander</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaheer</forename><surname>Suleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jackie</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kit</forename><surname>Cheung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Ninth Joint Conference on Lexical and Computational Semantics</title>
+		<meeting>the Ninth Joint Conference on Lexical and Computational Semantics<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Online). Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="88" to="102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">YAGO: A multilingual knowledge base from Wikipedia, WordNet, and Geonames</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Rebele</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabian</forename><forename type="middle">M</forename><surname>Suchanek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Hoffart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joanna</forename><surname>Biega</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erdal</forename><surname>Kuzey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-319-46547-0_19</idno>
+	</analytic>
+	<monogr>
+		<title level="m">15th International Semantic Web Conference ISWC Proceedings, Part II</title>
+		<title level="s">Lecture Notes in Computer Science</title>
+		<meeting><address><addrLine>Kobe, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">9982</biblScope>
+			<biblScope unit="page" from="177" to="185" />
+		</imprint>
+	</monogr>
+	<note>The Semantic Web</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">A primer in BERTology: What we know about how BERT works</title>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Rogers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Kovaleva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Rumshisky</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00349</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="842" to="866" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Hearst patterns revisited: Automatic hypernym detection from large text corpora</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Roller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-2057</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="358" to="363" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">MSejrKu at SemEval-2016 task 14: Taxonomy enrichment by evidence ranking</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Schlichtkrull</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Héctor</forename><surname>Martínez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alonso</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S16-1209</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Workshop on Semantic Evaluation (SemEval-2016)</title>
+		<meeting>the 10th International Workshop on Semantic Evaluation (SemEval-2016)<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1337" to="1341" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">A large DataBase of hypernymy relations extracted from the web</title>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Seitner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Bizer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Eckert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Faralli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Meusel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heiko</forename><surname>Paulheim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simone</forename><surname>Paolo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ponzetto</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)</title>
+		<meeting>the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)<address><addrLine>Portorož, Slovenia</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="360" to="367" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Low-resource taxonomy enrichment with pretrained language models</title>
+		<author>
+			<persName><forename type="first">Kunihiro</forename><surname>Takeoka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kosuke</forename><surname>Akimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Masafumi</forename><surname>Oyamada</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.217</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2747" to="2758" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">GPT-J-6B: A 6 Billion Parameter Autoregressive Language Model</title>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aran</forename><surname>Komatsuzaki</surname></persName>
+		</author>
+		<ptr target="https://github.com/kingoflolz/mesh-transformer-jax" />
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">UBERT: A novel language model for synonymy prediction at scale in the UMLS metathesaurus</title>
+		<author>
+			<persName><forename type="first">Thilini</forename><surname>Wijesiriwardene</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Goonmeet</forename><surname>Bajaj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Yung Yip</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishesh</forename><surname>Javangula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kin</forename><forename type="middle">Wah</forename><surname>Fung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Srinivasan</forename><surname>Parthasarathy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amit</forename><forename type="middle">P</forename><surname>Sheth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bodenreider</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2204.12716</idno>
+		<idno>CoRR, abs/2204.12716</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">OPT: Open pre-trained transformer language models</title>
+		<author>
+			<persName><forename type="first">Susan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Roller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moya</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuohui</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Dewan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><forename type="middle">T</forename><surname>Diab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Victoria Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todor</forename><surname>Mihaylov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kurt</forename><surname>Shuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Simig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Punit</forename><surname>Singh Koura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anjali</forename><surname>Sridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianlu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2205.01068</idno>
+		<idno>CoRR, abs/2205.01068</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

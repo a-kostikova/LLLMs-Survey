@@ -1,0 +1,1363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A Neighbourhood-Aware Differential Privacy Mechanism for Static Word Embeddings</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+							<email>danushka@liverpool.ac.uk</email>
+						</author>
+						<author>
+							<persName><forename type="first">Shuichi</forename><surname>Otake</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">International Professional University of Technology</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Tomoya</forename><surname>Machide</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Ken-Ichi</forename><surname>Kawarabayashi</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">International Professional University of Technology</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Liverpool 1</orgName>
+								<address>
+									<addrLine>Amazon 2</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">National Institute of Informatics</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">A Neighbourhood-Aware Differential Privacy Mechanism for Static Word Embeddings</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9B8D80F0AFC63C48C0863F96B033F330</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:38+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We propose a Neighbourhood-Aware Differential Privacy (NADP) mechanism considering the neighbourhood of a word in a pretrained static word embedding space to determine the minimal amount of noise required to guarantee a specified privacy level. We first construct a nearest neighbour graph over the words using their embeddings, and factorise it into a set of connected components (i.e. neighbourhoods). We then separately apply different levels of Gaussian noise to the words in each neighbourhood, determined by the set of words in that neighbourhood. Experiments show that our proposed NADP mechanism consistently outperforms multiple previously proposed DP mechanisms such as Laplacian, Gaussian, and Mahalanobis in multiple downstream tasks, while guaranteeing higher levels of privacy.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Increasingly more NLP models have been trained on private data such as medical conversations, social media posts and personal emails <ref type="bibr" target="#b1">(Abdalla et al., 2020;</ref><ref type="bibr">Lyu et al., 2020b;</ref><ref type="bibr" target="#b41">Song and Shmatikov, 2019)</ref>. However, we must ensure that sensitive information related to user privacy is not leaked during any stage of the model training process. To protect user privacy, Differential Privacy (DP) mechanisms add random noise to the training data <ref type="bibr" target="#b18">(Feyisetan and Kasiviswanathan, 2021;</ref><ref type="bibr" target="#b31">Krishna et al., 2021;</ref><ref type="bibr">Feyisetan et al., 2020)</ref>. However, it remains a challenging task to balance the trade-off between user privacy vs. performance in downstream NLP tasks.</p><p>We propose Neighbourhood-Aware Differential Privacy (NADP) mechanism, which consists of three steps. First, given a set of words, we compute a nearest neighbour graph considering the similarity between the words (represented by In the sparse neighbourhood, NADP adds a higher level of perturbation noise z to the target word embedding x in order to protect its privacy by disguising it among its neighbours, while in a dense neighbourhood it adds less noise.</p><p>the vertices of the nearest neighbour graph) computed using their word embeddings. Second, we compute the connected components in the nearest neighbour graph to find the neighbourhoods of words. Third, we apply Gaussian noise to all words in each neighbourhood, such that the variance of the noise is determined by the words in that neighbourhood.</p><p>As illustrated in Figure <ref type="figure" target="#fig_0">1</ref>, if all words in a neighbourhood are highly similar to each other (i.e. a dense neighbourhood), it would require less perturbation noise to anonymise a word because the addition of small noise can easily hide the corresponding word embedding among its neighbours. On the other hand, if the words in a neighbourhood are not very similar to each other (i.e. a sparse neighbourhood) we must add higher levels of perturbation noise to a word embedding because its nearest neighbour would be further away in the embedding space. Because words in a language is a discrete set (unlike images for example), there does not exist a word corresponding to all points in the embedding space. Therefore, if we do not add sufficient amount of noise in a sparse neighbourhood, we run the risk of easily discovering the target word via a simple nearest neighbour search. Instead of adding the same level of noise to all words in a vocabulary as done in prior DP mechanisms, NADP attempts to minimise the total amount of noise by assigning low noise in dense neighbourhoods and high noise in sparse neighbourhoods. NADP has provable DP guarantees as shown by our theoretical analysis. Moreover, NADP has the following desirable properties that makes it attractive when used for NLP tasks.</p><p>(a) In NADP, noise vectors are sampled from the Gaussian distribution. Many static word embedding algorithms <ref type="bibr" target="#b39">(Pennington et al., 2014;</ref><ref type="bibr" target="#b4">Arora et al., 2016;</ref><ref type="bibr" target="#b37">Mikolov et al., 2013)</ref> learn embeddings in the ℓ 2 space. Moreover, the squared ℓ 2 norm of a word embedding is known to positively correlate with the frequency of the word in the training corpus <ref type="bibr" target="#b4">(Arora et al., 2016)</ref>, while the joint co-occurrence probability of a set of words positively correlates with the squared ℓ 2 norm of the sum of the corresponding word embeddings <ref type="bibr" target="#b11">(Bollegala et al., 2018)</ref>. Therefore, it is natural to consider Gaussian noise, which corresponds to the ℓ 2 embedding space used by many static word embedding learning methods rather than the more widely-used Laplacian noise, which relates to the ℓ 1 norm.</p><p>(b) Unlike previously proposed DP mechanisms for word embeddings <ref type="bibr">(Feyisetan et al., 2020;</ref><ref type="bibr" target="#b18">Feyisetan and Kasiviswanathan, 2021;</ref><ref type="bibr" target="#b31">Krishna et al., 2021;</ref><ref type="bibr" target="#b47">Xu et al., 2020)</ref>, NADP dynamically adjusts the level of noise added to a word embedding considering its neighbourhood. This enables us to optimally allocate a fixed noise budget over a vocabulary.</p><p>(c) NADP adds noise directly to the word embeddings and does not perform decoding after the noise addition step <ref type="bibr" target="#b31">(Krishna et al., 2021)</ref>. Decoding is a deterministic process and does not affect DP. Many NLP applications such as text classification, clustering etc. require the input text to be represented in some vector space, and we can use the noise-added input text representations straightaway in such applications without requiring to first decode it back to text. In situations where users train word embeddings on private data on their own and only send/release the embeddings to external machine learning services, we only need to anonymise the word embeddings <ref type="bibr" target="#b18">(Feyisetan and Kasiviswanathan, 2021)</ref>. Results: Utility experiments ( § 5.1) conducted over four downstream NLP tasks show that NADP consistently outperforms previously proposed Laplacian, Gaussian and Mahalanobis mechanisms in downstream tasks. We conduct privacy experiments ( § 5.2) to evaluate the level of privacy guaranteed by a DP mechanism for word embeddings. Specifically, we estimate the probability of correctly predicting a word from its perturbed word embedding using the overlap between nearest neighbour sets. To evaluate the level of privacy protected for the entire set of word embeddings, we compute the skewness of the distribution of prediction probabilities. We find that NADP reports near-zero skewness values across a broad range of privacy levels, ϵ, which indicates significantly stronger privacy guarantees compared to other DP mechanisms. Source code implementation of our NADP is publicly available.<ref type="foot" target="#foot_0">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Learning models from data with DP guarantees has been studied under private learning <ref type="bibr" target="#b30">(Kasiviswanathan et al., 2008)</ref>. <ref type="bibr" target="#b0">Abadi et al. (2016)</ref> proposed a DP stochastic gradient descent by adding Gaussian noise to the gradient of the loss function. <ref type="bibr" target="#b40">Rogers et al. (2016)</ref> combined multiple DP algorithms using adaptive parameters. However, compared to continuous input spaces such as in computer vision <ref type="bibr" target="#b49">(Zhu et al., 2020)</ref>, DP mechanisms for the discrete inputs such as text remain understudied. <ref type="bibr" target="#b45">Wang et al. (2021)</ref> proposed WordDP to achieve certified robustness against word substitution attacks in text classification. However, WordDP does not seek DP protection for the training data as we consider here, and uses DP randomness for certified robustness during inference time with respect to a testing input. <ref type="bibr" target="#b31">Krishna et al. (2021)</ref> proposed AdePT, an autoencoder-based approach to generate differentially private text transformations. However, <ref type="bibr" target="#b23">Habernal (2021)</ref> showed that AdePT is not differentially private as claimed and proved weaker privacy guarantees. DPText <ref type="bibr" target="#b2">(Alnasser et al., 2021;</ref><ref type="bibr" target="#b7">Beigi et al., 2019)</ref> uses an autoencoder to obtain a text representation and adds Laplacian noise to create private representations. However, <ref type="bibr" target="#b24">Habernal (2022)</ref> proved that the use of reparametrisation trick for the inverse continuous density function in DPText is inaccurate and that DPText violates the DP guarantees. Such prior attempts show the difficulty in developing theoretically correct DP mechanisms for NLP. <ref type="bibr">Lyu et al. (2020a)</ref> proposed DP Neural Representation (DPNR) to preserve the privacy of text representations by first randomly masking words from the input texts and then adding Laplacian noise. However, unlike NADP DPNR uses a neighbourhood insensitive fixed Laplacian noise distribution. <ref type="bibr">Feyisetan et al. (2020)</ref> proposed a DP mechanism where they first add Laplacian noise to word embeddings and then return the nearest neighbour to the noise-added embedding as the output. However, the ℓ 2 norm of the noise vector scales almost linearly with the dimensionality of the embedding space. To address this issue, in their subsequent work <ref type="bibr" target="#b18">(Feyisetan and Kasiviswanathan, 2021)</ref>, they projected the word embeddings to a lower-dimensional space before adding Laplacian noise. <ref type="bibr" target="#b47">Xu et al. (2020)</ref> proposed Mahalanobis DP mechanism, which adds elliptical noise considering the covariance structure in the embedding space. Unlike the Gaussian or Laplacian mechanisms, Mahalanobis mechanism adds heterogeneous noise along different directions such that words in sparse regions in the embedding space have sufficient likelihood of replacement without sacrificing the overall utility. They show that Mahalanobis mechanism to be superior to Laplacian mechanism. Mahalanobis mechanism is a special instance of metric (Lipschitz) DP originated in privacy-preserving geolocation studies <ref type="bibr" target="#b3">(Andrés et al., 2013)</ref>, where Euclidean distance was used as the distance metric. Although metric DP considers the distance between two data points, it does not consider all of the nearest neighbours for each data point when deciding the level of noise that must be applied to a particular data point, unlike our NADP mechanism. <ref type="bibr" target="#b33">Li et al. (2018)</ref> used adversarial learning to build NLP models such as part-of-speech (PoS) taggers that cannot predict the writer's age or sex, while can accurately predict the PoS tags. Despite their empirical success, this approach does not have any formal DP guarantees. In contrast, our focus is provably DP mechanisms with formal guarantees.</p><p>All of the prior work described thus far, except DPNR and AdePT, focus on static word embeddings as we do in this paper. A natural future ex-tension of this work is DP mechanisms for the contextualised embeddings. However, computational and practical properties of static word embeddings such as, being lightweight to both compute and store, are attractive for resource (e.g. GPU and RAM) limited mobile devices. Considering that such personal mobile devices are used by billions of users and contain highly private data, DP mechanisms for static word embeddings remains an important research topic. Moreover, <ref type="bibr" target="#b22">Gupta and Jaggi (2021)</ref> showed that it is possible to distil static word embeddings from pretrained language models that have comparable performance to contextualised word embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">DP for Word Embeddings</head><p>Let us denote the d-dimensional embedding of a word x in a vocabulary X by a vector x ∈ R d . We can consider a word embedding algorithm as a function f : X → R d that maps the words in a discrete vocabulary space X to a d-dimensional continuous space R d . We can use a distance metric, Γ, defined in the embedding space to measure the distance Γ(x i , x j ) between two words x i and x j such as the Euclidean distance. We can then find the set of top-m nearest neighbours, S m (x), from X using Γ such that for any y ∈ S m (x) and y ′ / ∈ S m (x), Γ(x, y) ≤ Γ(x, y ′ ) holds. The Jaccard similarity, Jaccard(x, y), between two words x and y is defined using their neighbourhoods as in (1).</p><formula xml:id="formula_0">Jaccard(x, y) = |S m (x) ∩ S m (y)| |S m (x) ∪ S m (y)|<label>(1)</label></formula><p>We define two words x, y ∈ X to be in a symmetric neighbouring relation, x ≃ y, if the following two conditions are jointly satisfied:</p><formula xml:id="formula_1">(a) x ∈ S m (y) or y ∈ S m (x),<label>and</label></formula><formula xml:id="formula_2">(b) Jaccard(x, y) ≥ τ for a given threshold τ ∈ [0, 1].</formula><p>One could use conjunction instead of disjuction in condition (a) to enforce a mutual nearest neighbour relation. However, doing so results in a large number of small isolated neighbourhoods because two words might not be mutual nearest neighbours unless they are synonyms (or highly related). Relaxing the condition (a) to a disjunction would form neighbourhoods where one word might be a neighbour of another but not the inverse such as in hypernym-hyponym pairs. For example, colour could be a top nearest neighbour of crimson, but crimson might not be a top nearest neighbour of colour, because there are other prototypical colours such as red, green, blue, etc. than crimson.</p><p>Let us formally define DP for word embeddings. Because each word is assigned a vector by the word embedding learning algorithm, we can add noise to the embedding vectors to disguise a word among its nearest neighbours in the embedding space. However, in doing so we will be perturbing the semantics in the embeddings, thus potentially hurting downstream task performance. Therefore, there exists a trade-off between the amount of privacy that can be guaranteed by adding random noise to the embeddings vs. the performance of a downstream NLP task that use those embeddings. A random mechanism operating on word embeddings is said to be DP if Definition 1 holds.</p><p>Definition 1 (Differential Privacy). A random mechanism M that takes in a vector in the embedding space X and maps into a space Y (i.e.</p><formula xml:id="formula_3">M : X → Y) is (ϵ, δ)-DP with ϵ ≥ 0 and δ ∈ [0, 1],</formula><p>if for every pair of neighbouring inputs x, x ′ ∈ X and every possible measurable output set T ∈ Y the relationship given by (2) holds:</p><formula xml:id="formula_4">Pr[M (x) ∈ T ] ≤ exp(ϵ)Pr[M (x ′ ) ∈ T ] + δ (2)</formula><p>Here, ϵ represents the level of privacy ensured by M and smaller ϵ values result in stronger privacy guarantees. The global ℓ 2 sensitivity of the embedding space is defined as</p><formula xml:id="formula_5">∆ = sup x,x ′ ∈X ,x≃x ′ ||x -x ′ ||.</formula><p>Given a set of word embeddings, ∆ can be estimated empirically by computing the maximum Euclidean distance between a word x and its most distant neighbour x ′ in S m (x). As an extreme case, let us consider the smallest possible neighbourhood size corresponding to m = 2. Estimating ∆ in this case would amount to finding the maximum Euclidean distance between any pair of neighboring words x, x ′ ∈ V. Moreover, the ∆ estimated for m = 2 will be larger than the ∆ estimated for any other m(&gt; 2) neighbourhood sizes. Therefore, ∆ is independent of m and can be estimated via a deterministic process (i.e. measuring all pairwise Euclidean distances) from a given set of word embeddings. </p><formula xml:id="formula_6">G(V, E) 3 Initialise V = {x 1 , . . . , x n }, E = {} 4 for i = 1, . . . , n do 5 for x j ∈ S m (x i ) do 6 if Jaccard(x i , x j ) ≥ τ then 7 E = E + {(i, j)} 8 Return G(V, E)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Gaussian Mechanism</head><p>Gaussian mechanism uses ℓ 2 norm for estimating the sensitivity due to perturbation and is a more natural fit for word embeddings than, for example, the Laplace mechanism, which is associated with the ℓ 1 norm. Therefore, we use the Gaussian mechanism as the basis for our proposal.</p><p>Let us consider a multivariate zero-mean isotropic Gaussian noise distribution, N (0, σ<ref type="foot" target="#foot_1">2</ref> I d ), where I d is the unit matrix in the d-dimensional real space and σ is the standard deviation. For each word, x ∈ X , we sample a random vector z ∼ N (0, σI d ) and create a noise-added embedding M g (x) for x as given by (3).</p><formula xml:id="formula_7">M g (x) = x + z (3)</formula><p>This Gaussian mechanism uses the same σ for all words in the vocabulary and is (ϵ, δ)-DP as claimed in in Theorem 1. 2</p><p>Theorem 1. For any ϵ, δ ∈ (0, 1), the Gaussian mechanism with σ = ∆ 2 log(1.25/δ)/ϵ is (ϵ, δ)-DP.</p><p>The proof of Theorem 1 can be found in the Appendix A in <ref type="bibr" target="#b15">(Dwork and Roth, 2014)</ref>.</p><p>4 Neighbourhood-Aware Differential Privacy (NADP) three main steps. First, we create a nearest neighbour graph where vertices represent the words as described in § 4.1. Next, we factorise this nearest neighbour graph into a set of mutually exclusive neighbourhoods by finding its connected components as described in § 4.2. Finally, for the words that belong to each connected component, we add random noise sampled from Gaussian distributions with zero mean and different standard deviations, determined according to the neighbourhood associated with the corresponding connected component. We prove that the proposed NADP mechanism is DP in § 4.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Nearest Neighbour Graph Construction</head><p>To represent the nearest neighbours of a set X of words, we construct a nearest neighbour graph,</p><formula xml:id="formula_8">G = G(X , ≃) with the symmetric neighbouring relation ≃, vertex set V(G) = X and edge set E(G) = {(x, x ′ ) | x ≃ x ′ }.</formula><p>Given the one-toone mapping between words and the vertices in the graph, for notational simplicity we denote the i-th vertex of the graph by x i (∈ X ). Two vertices x i and x j are connected by an edge e ij (∈ E), if x i ≃ x j holds between the corresponding words x i and x j . As already explained in § 3, we define two words x i , x j ∈ X to be in a symmetric neighbouring relation, x i ≃ x j if the following two conditions are jointly satisfied: (a) x i ∈ S m (x j ) or x j ∈ S m (x i ), and (b) Jaccard(x i , x j ) ≥ τ for a predefined similarity threshold τ ∈ [0, 1].</p><p>The pseudo code for constructing the nearest neighbour graph is shown in Algorithm 1. In our experiments, we set m = 2, which considers only the top-2 neighbours (i.e. S 2 ) to ensure only the highly similar neighbours are connected by edges in the nearest neighbour graph. τ can be used to remove neighbours that have less similarity to a target word across the graph. For example, by setting τ = 0.8, we can ensure that no two words with neighbourhood similarity (measured using the Jaccard coefficient) less than 0.8 will be connected by an edge in G. We empirically study the effect of varying τ on NADP later in our experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Finding Connected Components</head><p>Once a nearest neighbour graph G is constructed for X , next we identify the regions of neighbours, which we refer to as the neighbourhoods. To consider tightly connected neighbourhoods, we propose to factorise G into a set of mutually exclu-Algorithm 2: Finding Connected Components</p><formula xml:id="formula_9">1 Inputs: Nearest neighbour graph G(V, E) 2 Outputs: Connected components {X 1 , . . . , X k } 3 Define k = 0 4 Define H k = {} 5 while X \ H k ̸ = ∅ do 6 Choose x ∈ X \ H k 7 k = k + 1 8 X k = {x} 9 Define X ′ = {x ′ |x ′ ≃ x} \ X k 10 X k = X k ∪ X ′ 11 H k = H k ∪ X k 12 while X ′ ̸ = ∅ do 13 X ′ = {x ′ |x ′ ≃ x for some x ∈ X k } \ X k 14 X k = X k ∪ X ′ 15 H k = H k ∪ X k 16 Return {X 1 , . . . , X k }</formula><p>sive connected components following the procedure described in Algorithm 2. We start by randomly selecting a word x from X and creating a neighbourhood X 1 consisting all of x's neighbours. We then remove the words in X 1 from X , and repeat this process until all words in X are included in some neighbourhood. The procedure described in Algorithm 2 for obtaining connected components from G is simple, efficient and obtains good DP performance in our experiments. Moreover, it does not require the number of neighbourhoods, k, to be specified in advance as it would be the case for many clustering-based approaches for graph partitioning such as spectral clustering <ref type="bibr" target="#b44">(von Luxburg, 2007)</ref>. There is a possibility of obtaining long chains when computing connected components using Algorithm 2. However, we did not encounter this issue in our experiments. This is because the nearest neighbour relation that is defined in § 3 requires both mutual nearest neighbourhood and high Jaccard similarity to be satisfied, which reduces the likelihood of forming long chains. Exploring alternative methods for factorising a given graph into a set of mutually exclusive connected components is deferred to future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Perturbation of Word Embeddings</head><p>In this section, we will first prove that NADP satisfies the DP conditions, and then present an al-gorithm that can be used to add perturbation noise to the words in each neighbourhood. First note that the trivial relation x ≃ x implies the set {||x -y|| | x ≃ y} is nonempty and hence we can consider the global L 2 sensitivity, ∆ = sup x≃y ||x -y||, for any two neighbouring words x and y in the given set of words X . <ref type="bibr" target="#b6">Balle and Wang (2018)</ref> proved Theorem 2 that shows a set of word embeddings can be made differentially private by adding Gaussian noise sampled according to ∆, where Φ(t) the Cumulative Density Function (CDF) of the standard univariate Gaussian distribution, given by (4).</p><formula xml:id="formula_10">Φ(t) = 1 √ 2π t -∞ e -y 2 /2 dy. (<label>4</label></formula><formula xml:id="formula_11">)</formula><p>Theorem 2 (Balle and Wang ( <ref type="formula">2018</ref>)). Let f : X → R d be a function with global L 2 sensitivity ∆ &gt; 0. For any ε ≥ 0 and δ ∈ [0, 1], the Gaussian output perturbation mechanism</p><formula xml:id="formula_12">M (x) = x + z with z ∼ N (0, σ 2 I d ) (σ &gt; 0) is (ε, δ)-DP if and only if Φ ∆ 2σ - εσ ∆ -e ε Φ - ∆ 2σ - εσ ∆ ≤ δ.<label>(5)</label></formula><p>The original proof of Theorem 2 is provided in <ref type="bibr" target="#b6">(Balle and Wang, 2018)</ref>. However, in § C.1 we provide an alternative proof, which is more concise and can be directly extended to the case of multiple neighbourhoods represented by the connected components in the nearest neighbour graph.</p><p>Theorem 3 (see § C.2 for proof) states that NADP satisfies DP conditions. Theorem 3 (main). Let {X 1 , • • • , X k } be the connected components of the graph G(X , ≃) and let σ i (1 ≤ i ≤ k) be non-negative real numbers such that σ i &gt; 0 whenever</p><formula xml:id="formula_13">∆ i = sup x≃y,x,y∈X i ||x -y|| &gt; 0. For any x ∈ X , let i(x) (1 ≤ i(x) ≤ k) be the index such that x ∈ X i(x) . Then, for any ε ≥ 0 and δ ∈ [0, 1], the Gaussian output perturbation mecha- nism M (x) = x + z with z ∼ N (0, σ 2 i(x) I d ) is (ε, δ)-DP if Φ ∆ i(x) 2σ i(x) - εσ i(x) ∆ i(x) -e ε Φ - ∆ i(x) 2σ i(x) - εσ i(x) ∆ i(x) ≤ δ (6)</formula><p>for any x ∈ X satisfying ∆ i(x) &gt; 0.</p><p>Remark 1. We have ∆ i(x) = 0 iff the connected component X i(x) consists of only one word x.</p><p>Theorem 3 guarantees that the NADP mechanism described in Algorithm 3 for perturbing a set Algorithm 3: Neighbourhood-Aware Differential Privacy</p><formula xml:id="formula_14">1 Inputs: Connected components {X 1 , . . . , X k }, ϵ ≥ 0, δ ∈ [0, 1] 2 Outputs: Perturbed word embeddings X = {x 1 , . . . , xn } 3 Define g(u) = Φ 1 2u -εu -e ε Φ -1 2u -εu 4 Compute u * = min {u ∈ R &gt;0 | g(u) ≤ δ} 5 Define X = {} 6 for i = 0, . . . , k do 7 Compute ∆ i = sup x≃y,x,y∈X i ||x -y|| 8 Define σ i = u * ∆ i 9 for x ∈ X i do 10 Sample z ∼ N (0, σ 2 i I d ) 11 x = x + z 12 X = X + {x}</formula><p>13 Return X of word embeddings satisfies DP. Specifically, we can first compute u * globally for all neighbourhoods (Line 4) as the minimiser of g(u) (given by ( <ref type="formula" target="#formula_17">7</ref>)) such that the DP-condition in ( <ref type="formula" target="#formula_12">5</ref>) is satisfied. We can then determine the standard deviation, σ i , corresponding to each neighbourhood, using u * and the local sensitivity, ∆ i , computed from that neighbourhood. Finally, we sample noise vectors from N (0, σ 2 i I d ) and add to all word embeddings in each X i .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We use the pretrained<ref type="foot" target="#foot_2">3</ref> 300-dimensional GloVe embeddings <ref type="bibr" target="#b39">(Pennington et al., 2014)</ref> for 2.8M words, which have also been used in much prior work <ref type="bibr" target="#b47">(Xu et al., 2020;</ref><ref type="bibr" target="#b18">Feyisetan and Kasiviswanathan, 2021)</ref> as the static word embeddings.</p><p>We build a nearest neighbour graph using the top-1000 frequent words in the English Wikipedia, which resulted in a 73,404 vertex graph. It takes less than 5 minutes to find all connected components of a graph containing 73,404 words used in the paper. Moreover, this is a task independent pre-processing step. Building the neighbourhood graph in a brute force manner requires 3.5  hours, while approximate nearest neighbour methods such as SCANN <ref type="bibr" target="#b21">(Guo et al., 2020)</ref> an be used to do the same in less than 1 minute with over 95% recall.</p><p>In our experiments, we compare NADP against the following DP mechanisms: Gaussian mechanism described in § 3.1, Laplacian mechanism, where noise vectors are sampled from the Laplace distribution with zero location parameter and with different values of the ϵ scale parameter, Mahalanobis mechanism with the recommended parameter values by <ref type="bibr" target="#b47">Xu et al. (2020)</ref> (i.e. the Mahalanobis norm λ = 1 and ϵ ∈ (0, 40] are used), which is the current SoTA DP mechanism for static word embeddings. All of the above mentioned DP-mechanisms apply the same level of random noise to all word embeddings. Therefore, to understand the importance of assigning different levels of noise to different words, we consider a baseline DP mechanism, which we call the Jaccard mechanism. We define the density, η(x), of the neighbourhood, S k (x), of a word x as the average Euclidean distance between x and its nearest neighbours (i.e.</p><formula xml:id="formula_15">η(x) = 1 k x ′ ∈S k (x) ||x -x ′ ||).</formula><p>Next, we categorise words into two density categories: dense (X 1 = {x|x ∈ X , η(x) &lt; η 0 }) vs. sparse (X 2 = {x|x ∈ X , η(x) ≥ η 0 }), based on a density threshold η 0 . Our preliminary experiments showed that splitting into more than two categories did not result in significant performance gains. For a word x ∈ X i , we sample a random vector n(x) ∼ N (0, σ i I d ), for i ∈ {1, 2} and add to x. Jaccard is a DP mechanism (see § C.3 for the proof). Note that the density threshold is used only by the Jaccard mechanism and is not required by NADP. It is determined automatically such that we get approximately similar numbers of words in the dense and sparse sets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Utility Experiments</head><p>To evaluate the semantic information preserved in word embeddings, we use the following standard tasks that have been used in much prior work for this purpose <ref type="bibr" target="#b9">(Bollegala, 2022;</ref><ref type="bibr" target="#b10">Bollegala and O'Neill, 2022;</ref><ref type="bibr" target="#b43">Tsvetkov et al., 2015;</ref><ref type="bibr" target="#b16">Faruqui et al., 2015)</ref>: word similarity measurement, semantic textual similarity (STS), Text Classification, Odd-man-out <ref type="bibr" target="#b42">(Stanovsky and Hopkins, 2018)</ref>. Due to space limitations, we detail the tasks, datasets and evaluation metrics in Appendix A. Results: Figure <ref type="figure" target="#fig_2">2</ref> shows the performance obtained on utility experiments with noise-added word embeddings for different values of the privacy parameter ϵ, where we use τ = 0.5. The total set of words used in the datasets for all utility experiments is n = 73404. Therefore, we set δ = 1/73404 ≈ 0.000013623 in all experiments reported in the paper. We repeat each experiment five times and plot the mean and the standard error. Recall that smaller ϵ values provide stronger DP guarantees. From Figure <ref type="figure" target="#fig_2">2</ref>, we see that NADP reports the best performance on all four tasks among the methods compared across all ϵ values. Among the other methods, Mahalanobis performs second best to NADP in word-pair similarity prediction, text classification and odd-man-out, but performs worst in STS. In word-pair similarity prediction, text classification and odd-man-out tasks, we see the performance of NADP as well as the other methods increase with ϵ due to less noise being added to the word embeddings.</p><p>The performance in STS is comparatively less affected by ϵ because it is a sentence-level comparison task, which considers all perturbed word embeddings in a sentence, whereas the other three are word-level tasks. We see that Jaccard and Gaussian mechanisms perform similarly in all tasks. This is not surprising given that the Jaccard mechanism is drawing the noise vectors from two independent Gaussian distributions. In particular for high ϵ values, we see that Gaussian outperforms Laplacian in word-pair similarity prediction, text classification and odd-man-out tasks. This re- sult implies that for making word embeddings differentially private, the L 2 sensitivity considered in the Gaussian mechanism is more appropriate than the L 1 sensitivity considered in the Laplacian mechanism.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Privacy Experiments</head><p>To empirically measure the level of privacy protected by a DP mechanism, we consider, p(x|M (x)), the probability of predicting the word x using its noise-added embedding M (x), as a metric of privacy provided by a DP mechanism. However, it is difficult to accurately estimate probability densities in discrete spaces due to data sparseness. Therefore, we approximate p(x|M (x)) by |Sm(x)∩Sm(M (x))| |Sm(x)∪Sm(M (x))| , using the nearest neighbour sets. It is noteworthy that this is a conservative estimate of p(x|M (x)) because, even if all of the nearest neighbours of x and M (x) fully overlap , there will still be a 1/m uncertainty ensuring a nonzero level of privacy.</p><p>Due to the differences in neighbourhood densities, some words are likely to be influenced more than the others by a DP mechanism. From a DP point of view we are interested in protecting the privacy of all words in the vocabulary and not just for a subset of it. Therefore, to empirically quantify the global effect on privacy of a DP mechanism, we compute the skewness of the distribution of the estimated p(x|M (x)) values. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Investigating the Nearest Neighbours</head><p>To obtain qualitative insights into the levels of privacy provided by NADP, for a given word, we compare its top-3 neighbours in the original embedding space (no-noise added), when Mahalanobis and NADP mechanisms are used to add random noise. Table <ref type="table" target="#tab_1">1</ref> shows the results for some randomly selected set of words. We see that for the words such as police, hitler, wikileaks and fbi, even after applying the Mahalanobis mechanism (λ = 1), we still retrieve the original word as a nearest neighbour. This indicates that Mahalanobis mechanism is unable to anonymise the target words in these cases. Although not reported here due to space limitations, this problem persists even in Jaccard, Gaussian and Laplace mechanisms, which were under performing to the Mahalanobis mechanism in utility and privacy experiments. In the case of misogynist, Mahalanobis mechanism retrieves highly similar neighbours such as sexist. On the other hand, the neighbours retrieved from the word embeddings anonymised using NADP are semantically less similar to the target word, thus could be considered to be better preserving the privacy of the target word.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We proposed NADP to make word embeddings indistinguishable from their nearest neighbours with theoretical DP guarantees. We compared NADP against existing DP mechanisms in multiple downstream utility experiments which showed its superior performance. Moreover, we evaluated the level of privacy protection provided by NADP against other DP mechanisms. We found NADP to provide stronger privacy guarantees over a broad range of ϵ values. In our future work, we plan to extend NADP to sentence/document embeddings and evaluate for languages other than English.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Ethical Considerations</head><p>We do not annotate or release any datasets as part of this research. However, the GloVe word embeddings that we use in our experiments are known to contain various types of unfair social biases such as gender and racial biases <ref type="bibr" target="#b48">(Zhao et al., 2018;</ref><ref type="bibr"></ref> tains 1379 test sentence-pairs and show the official score (i.e. class-weighted geometric mean of Spearman and Pearson correlation) in Figure <ref type="figure" target="#fig_2">2b</ref>.</p><p>Text Classification: We train a binary classifier to predict the sentiment (positive vs. negative) of a short review text. Similar to the STS task, we represent a review using the centroid of the word embeddings of the words included in that review. We train a binary logistic regression model to predict sentiment in a review and in Figure <ref type="figure" target="#fig_2">2c</ref> report the averaged classification accuracy on the balanced test sets in three standard datasets: Movie reviews dataset <ref type="bibr" target="#b38">(Pang and Lee, 2005)</ref>, customer reviews dataset <ref type="bibr" target="#b26">(Hu and Liu, 2004</ref>) and opinion polarity dataset <ref type="bibr" target="#b46">(Wiebe et al., 2005)</ref>.</p><p>Odd-man-out: Stanovsky and Hopkins <ref type="bibr" target="#b42">(Stanovsky and Hopkins, 2018)</ref> proposed the odd-man-out task, where given a set of five or more words, a system is required to choose the one which does not belong with the others. They annotated a dataset containing 843 sets via crowd sourcing. Pretrained word embeddings can be used to identify the odd-man in a set by repeatedly excluding one word at a time and measuring the average cosine similarity between all remaining pairs of words. Finally, the word when excluded resulting in the highest pairwise similarity is chosen as the odd-man. Unlike previously described tasks, odd-man-out can be carried out in an unsupervised manner, at word-level, and has higher human agreement between the annotators because it does not require numerical ratings. The percentage of correctly solved sets is shown in Figure <ref type="figure" target="#fig_2">2d</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Skewness and Privacy</head><p>Skewness is a measure of the asymmetry of p(x|M (x)) about its mean and can be positive, negative or zero depending on whether p(x|M (x)) has respectively a longer left tail, right tail, or perfectly symmetric around the mean (e.g. as in the case of the standard Normal distribution) <ref type="bibr" target="#b27">(Joanes and Gill, 1998)</ref>. Specifically, if we denote the probability of predicting i-th word x i by p i = p(x i |M (x i )), the skewness of the distribution of p i over n words is given by n</p><formula xml:id="formula_16">(n-1)(n-2) n i=1 p i -p i s 3</formula><p>, where pi and s are respectively the mean and standard deviation of {p i } n i=1 . We study the relationship between the level of privacy protected by the noise added using a particular DP mechanism, M and the skewness of the distribution of p(x|M (x)) for the words w in a vocabulary X . For this purpose, we use the Gaussian mechanism described in § 3.1 in the paper where we sample noise vectors z ∈ R d from the d-dimensional spherical Gaussian N (0, σI d ) with zero-mean and standard deviation σ, and add this noise to the word embedding, x ∈ R d , representing the word x. Specifically, M (x) = x+z. Next, we gradually increase σ ∈ [0, 1] in step size of 0.05 and compute the histograms of p(x|M (x)) values for the words in X . The histograms and their skewness values are shown in Figure <ref type="figure" target="#fig_4">4</ref>.</p><p>From Figure <ref type="figure" target="#fig_4">4</ref>, we see that when no-noise is being added (i.e. σ = 0), the histogram peaks at 1, indicating that all words can be trivially discovered from their word embeddings because the closest neighbour of any target word in the embedding space will be itself. Because the distribution is symmetric around this peak, we have a zero skewness. Overall, we see that when we add increasingly high noise, the histograms start shifting towards to the left because less words will be perfectly discovered from the noise added embeddings. Moreover, we see that more probability mass is distributed towards the right side of the mode (peak), resulting in a longer right tail. Consequently, we see skewness values also continuously increase (except at σ = 0.05, where the distribution has split into two parts) with σ. This trend stems from the definition of skewness and is independent of the DP mechanism used to generate noise. This result shows that when there are many words with smaller p(x|M (x)) values (i.e. distribution has a longer left tail), the skewness values will be smaller, indicating that the privacy is preserved for many words in X .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Proofs of Theorems</head><p>C.1 Proof of Theorem 2 Proof. For any ε ≥ 0 and δ ∈ (0, 1), put</p><formula xml:id="formula_17">g(u) = Φ 1 2u -εu -e ε Φ - 1 2u -εu<label>(7)</label></formula><p>and u * = min {u ∈ R &gt;0 | g(u) ≤ δ}.</p><p>We will prove the following three statements:  To prove (a) Put</p><formula xml:id="formula_18">h(u) = √ 2πg(u) = √ 2π Φ 1 2u -εu -e ε Φ - 1 2u -εu .</formula><p>Then,</p><formula xml:id="formula_19">h ′ (u) = exp - 1 2 1 2u -εu 2 • - 1 2u 2 -ε -exp(ε) • exp - 1 2 - 1 2u -εu 2 • 1 2u 2 -ε = exp - 1 2 1 2u -εu 2 • - 1 2u 2 -ε -exp - 1 2 1 2u -εu 2 • 1 2u 2 -ε = - 1 u 2 • exp - 1 2 1 2u -εu 2 &lt; 0</formula><p>for any u &gt; 0. Therefore, g(u) = (1/ √ 2π)h(u) is strictly decreasing on (0, ∞). The latter half of the statement is clear from the definition of g(u). Next, to prove (b) observe that since g(u) is a continuous function on (0, ∞) satisfying lim u→+0 g(u) = 1 and lim u→∞ g(u) = 0, g(u) = δ has a solution u ′ for any δ ∈ (0, 1), which must be unique and satisfy u ′ = u * because of the monotonicity of g(u). </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Anonymizing a target word (shown in red) in a dense (left) vs. a sparse (right) neighbourhoods of words (shown in blue).In the sparse neighbourhood, NADP adds a higher level of perturbation noise z to the target word embedding x in order to protect its privacy by disguising it among its neighbours, while in a dense neighbourhood it adds less noise.</figDesc><graphic coords="1,311.02,212.60,208.52,113.39" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>(a) Word-pair similarity prediction. (b) Semantic textual similarity measurement. (c) Text classification. (d) Odd-man-out.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Performance on utility experiments ( § 5.1) shown in sub-figures (a)-(d). Accuracy and correlation (with human ratings) not decreasing with high privacy (ϵ) levels (corresponding to stronger noise levels by DP mechanisms) is desirable. Performance obtained without adding any noise is shown by the horizontal dotted lines.</figDesc><graphic coords="7,114.86,269.21,181.42,181.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Skewness values for predicting words using their noise-added embeddings. Low skewness values are desirable, and indicate that the prediction probability distribution is similar to the Normal distribution and is not skewed towards a subset of the words.</figDesc><graphic coords="8,313.23,70.86,204.09,204.09" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Histogram of p i values when zero-mean and σ standard deviation Gaussian noise is added to the word embeddings. Skewness values (skew) are shown in each histogram alongside with the σ.</figDesc><graphic coords="14,70.87,70.86,453.56,362.84" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>(a) g(u) is strictly decreasing on (0, ∞) with lim u→+0 g(u) = 1, lim u→∞ g(u) = 0. (b) The equation g(u) = δ has the unique solution u * . (c) Put σ = u * ∆. Then, the Gaussian output perturbation mechanism M (x) = x + z with z ∼ N (0, σ 2 I d ) is (ε, δ)-DP.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>Finally, to prove (c) let σ = u * ∆. We then have εu * -e ε Φ -1 2u * -εu * = g(u * ) ≤ δ,which implies the mechanism M (x) = x + z with z ∼ N (0, σ 2 I d ) is (ε, δ)-DP as stated in Theorem 2.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Algorithm 1: Nearest Neighbour Graph Construction 1 Inputs: Word embeddings X = {x 1 , . . . , x n }, top-m for selecting neighbours, and similarity threshold τ ∈ [0, 1].</figDesc><table /><note><p>2 Outputs: Nearest neighbour graph</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Top 3 neighbours for words without noise addition to the embeddings (no-noise), with SoTA Mahalanobis mechanism and the proposed NADP mechanism. Mahalanobis mechanism sometimes discloses the original word, whereas NADP mechanism never does.x i has lower p i = p(x i |M (x i )) values, the probability mass of the p i distribution will be shifted to the left of the mean, resulting in smaller skewness values (see Appendix B for further explanations).</figDesc><table><row><cell>If most words</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/shuichiotake/NADP</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>As a direct extension, we could set a different standard deviations for each dimension of the embedding space. However, doing so did not result in significant performance gains in our preliminary investigations despite the increased parameters.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>We used</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_3"><p>42B token Common Crawl trained embeddings available at https://nlp.stanford.edu/projects/glove/</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"> <ref type="bibr">Kaneko and</ref><ref type="bibr">Bollegala, 2019, 2021;</ref><ref type="bibr" target="#b20">Gonen and Goldberg, 2019)</ref><p>. It is possible that these biases could get further amplified during the neighbourhood computation and noise-addition processes we perform in this work. Therefore, such social biases must be properly evaluated before the noise-added word embeddings produced by our proposed method are used in real-world NLP applications that are used by users.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Limitations</head><p>Our investigations in this paper was limited to GloVe embeddings, which is one the many avaulable pre-trained static word embeddings. There are other alternative word embeddings such as Skip-Gram with Negative Sampling (SGNS) <ref type="bibr" target="#b37">(Mikolov et al., 2013)</ref>, PMI-based word embeddings <ref type="bibr" target="#b4">(Arora et al., 2016)</ref>, fastText embeddings <ref type="bibr" target="#b8">(Bojanowski et al., 2017)</ref> etc. that could be used in place of GloVe. However, contextualised word embeddings, obtained using pre-trained Masked Language Models (MLMs) such as BERT <ref type="bibr" target="#b14">(Devlin et al., 2019)</ref>, RoBERTa <ref type="bibr" target="#b34">(Liu et al., 2019)</ref>, AL-BERT <ref type="bibr" target="#b32">(Lan et al., 2020)</ref>, etc. have reported superior performance in various downstream tasks, surpassing that by static word embeddings. Therefore, we consider it to be a natural next step to extend our proposed method to anonymise contextualised word embeddings. The theoretical tools that we develop in this paper should be helpful in proving DP conditions for contextualised word embeddings as well.</p><p>All the downstream datasets and word embeddings we considered in this work are limited to the English language, which is known to be a morphologically limited language. Therefore, it is important to evaluate our proposed method on other languages using multilingual word embeddings to verify its effectiveness for the languages other than English.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Supplementary Materials</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Downstream Tasks, Datasets and Evaluation Metrics</head><p>Word Similarity: The cosine similarity between two words, computed using their word embeddings, is compared against the human similarity ratings using the Spearman correlation coefficient. High degree of correlation with human similarity ratings implies that the word embeddings accurately encode the word-level semantics. We aggregate all of the word-pairs and their human similarity ratings in MEN <ref type="bibr" target="#b12">(Bruni et al., 2014)</ref>, SimLex <ref type="bibr" target="#b25">(Hill et al., 2015)</ref> and SimVerb <ref type="bibr" target="#b19">(Gerz et al., 2016)</ref> benchmark datasets and report the overall Spearman correlation in Figure <ref type="figure">2a</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Semantic Textual Similarity (STS):</head><p>In STS, we are provided with sentence-pairs and the human similarity ratings between the two sentences in each pair. Using the word embeddings, we first create an embedding for each sentence and then compute the cosine similarity between the sentence embeddings. The correlation between the predicted sentence similarities and the human ratings is used as the evaluation metric. We represent each sentence by the centroid of the word embeddings corresponding to the words included in that sentence. Although this is a simple method for creating sentence embeddings from word embeddings, it is known to be a strong unsupervised baseline <ref type="bibr" target="#b5">(Arora et al., 2017)</ref>, and enables us to directly attribute any differences in performance to the word embeddings -the focus in this work. We use the STS Benchmark dataset <ref type="bibr" target="#b13">(Cer et al., 2017)</ref>, which con-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 Proof of Theorem 3</head><p>Proof. For any i (1 ≤ i ≤ k), let ≃ i be the symmetric neighbouring relation obtained by restricting the relation ≃ on X i . Then, ∆ i equals to the global L 2 sensitivity of (X i , ≃ i ) and</p><p>for any x ∈ X i by Theorem 2. Let x, x ′ ∈ X be words such that x ≃ x ′ and i (= i(x) = i(x ′ )) be the index such that x, x ′ ∈ X i , that is, x ≃ i x ′ . Now, suppose ∆ i &gt; 0 and (6) holds for any x ∈ X i . Then, the mechanism M i is (ε, δ)-DP and hence, we have</p><p>Then, we have x = x ′ and hence</p><p>for any measurable set E ⊂ R, which implies the mechanism M is (ε, δ)-DP if the condition (6) holds for any x ∈ X satisfying ∆ i(x) &gt; 0.</p><p>Corollary 1. For any ε ≥ 0 and δ ∈ (0, 1), put</p><p>Proof. Suppose ∆ i(x) &gt; 0. Then, by definition, we have</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 Jaccard Mechanism is DP</head><p>Theorem 4 claims that the above-mentioned Jaccard mechanism is (ϵ, δ)-DP.</p><p>Theorem 4 (Jaccard mechanism is DP). Jaccard mechanism with σ i = ∆α i 2 log(1.25/δ)/ϵ is (ϵ, δ)-DP. Here, α i is a constant that depends only on the density category of a word and ∆ is the global sensitivity over the vocabulary.</p><p>Proof. Note that under the Jaccard mechanism, noise vectors, n(x), are sampled from either one of the two Gaussians N (0, σ 1 I d ) or N (0, σ 2 I d ) depending on respectively whether x ∈ X 1 or x ∈ X 2 . Moreover, because α i depends only on X i , from σ i = ∆α i 2 log(1.25/δ)/ϵ and from Theorem 1 we see that each of these underlying Gaussian mechanisms are (ϵ, δ)-DP. Because X 1 ∩ X 2 = ∅ by their definitions, it follows from the compositionality property of DP that the overall Jaccard process is also (0, δ)-DP. This proof can be easily extended to more than two density categories by mathematical induction.</p><p>In our experiments, we use η 0 = 6.0 such that approximately equal numbers of words in X belong to each category, corresponding to α 1 = 1.835 and α 2 = 1.276 for m = 10. Global sensitivity ∆ is computed as the average Euclidean distance between a word and its furthermost neighbour.</p><p>The ability to guarantee the mean overlap between neighbourhoods before and after the noise addition is important from the point-of-view of NLP tasks that depend on the neighbourhood information such as semantic similarity measurement, bag-of-words representations-based information retrieval and word/text classification tasks, etc. Unlike in the Gaussian mechanism, in the Jaccard mechanism we have a direct relationship between the level of noise and the performance obtained using the anonymised embeddings in the downstream tasks. Moreover, the Jaccard mechanism allows us to set different noise levels to sparse vs. dense regions in the embedding space, which is not possible with other DP mechanisms.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Deep learning with differential privacy</title>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">Brendan</forename><surname>Mcmahan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Mironov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kunal</forename><surname>Talwar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CCS. Association for Computing Machinery</title>
+		<meeting><address><addrLine>New York, NY, USA, CCS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="308" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Exploring the privacypreserving properties of word embeddings: Algorithmic validation study</title>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Abdalla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moustafa</forename><surname>Abdalla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graeme</forename><surname>Hirst</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Rudzicz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">JMIR</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page">18055</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Privacy preserving text representation learning using bert</title>
+		<author>
+			<persName><forename type="first">Walaa</forename><surname>Alnasser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ghazaleh</forename><surname>Beigi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Social, Cultural, and Behavioral Modeling: 14th International Conference, SBP-BRiMS 2021, Virtual Event</title>
+		<meeting><address><addrLine>Berlin, Heidelberg</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer-Verlag</publisher>
+			<date type="published" when="2021-07-06">2021. July 6-9, 2021</date>
+			<biblScope unit="page" from="91" to="100" />
+		</imprint>
+	</monogr>
+	<note>Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Geo-indistinguishability: Differential privacy for location-based systems</title>
+		<author>
+			<persName><forename type="first">Miguel</forename><forename type="middle">E</forename><surname>Andrés</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolás</forename><forename type="middle">E</forename><surname>Bordenabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Konstantinos</forename><surname>Chatzikokolakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Catuscia</forename><surname>Palamidessi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CCS</title>
+		<meeting><address><addrLine>New York, NY, USA, CCS</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="901" to="914" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A latent variable model approach to pmi-based word embeddings</title>
+		<author>
+			<persName><forename type="first">Sanjeev</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingyu</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengyu</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrej</forename><surname>Risteski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">TACL</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="385" to="399" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A simple but tough-to-beat baseline for sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Sanjeev</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingyu</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengyu</forename><surname>Ma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICLR</title>
+		<meeting>of ICLR</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Improving the Gaussian mechanism for differential privacy: Analytical calibration and optimal denoising</title>
+		<author>
+			<persName><forename type="first">Borja</forename><surname>Balle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Xiang</forename><surname>Wang</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">80</biblScope>
+			<biblScope unit="page" from="394" to="403" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Privacy preserving text representation learning</title>
+		<author>
+			<persName><forename type="first">Ghazaleh</forename><surname>Beigi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruocheng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suhang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th ACM Conference on Hypertext and Social Media</title>
+		<meeting>the 30th ACM Conference on Hypertext and Social Media<address><addrLine>New York, NY, USA, HT &apos;19</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="275" to="276" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Enriching word vectors with subword information</title>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="135" to="146" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Learning meta word embeddings by unsupervised weighted concatenation of source embeddings</title>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 31st International Joint Conference on Artificial Intelligence (IJCAI-ECAI)</title>
+		<meeting>of the 31st International Joint Conference on Artificial Intelligence (IJCAI-ECAI)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">A survey on word meta-embedding learning</title>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O'</forename><surname>James</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Neill</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 31st International Joint Conference on Artificial Intelligence (IJCAI-ECAI)</title>
+		<meeting>of the 31st International Joint Conference on Artificial Intelligence (IJCAI-ECAI)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Using k-way Co-occurrences for Learning Word Embeddings</title>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuichi</forename><surname>Yoshida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ken-Ichi</forename><surname>Kawarabayashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of AAAI</title>
+		<meeting>of AAAI</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="5037" to="5044" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Multimodal distributional semantics</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Bruni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">K</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Baroni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">JAIR</title>
+		<imprint>
+			<biblScope unit="volume">49</biblScope>
+			<biblScope unit="page" from="1" to="47" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">SemEval-2017 task 1: Semantic textual similarity multilingual and crosslingual focused evaluation</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Diab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Lopez-Gazpio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SemEval. Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1" to="14" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL-HLT</title>
+		<meeting>of NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<author>
+			<persName><forename type="first">Cynthia</forename><surname>Dwork</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Algorithmic Foundations of Differential Privacy</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="volume">9</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Retrofitting word vectors to semantic lexicons</title>
+		<author>
+			<persName><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Dodge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujay</forename><surname>Kumar Jauhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Denver, Colorado</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1606" to="1615" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Privacy-and utility-preserving textual analysis via calibrated multivariate perturbations</title>
+		<author>
+			<persName><forename type="first">Borja</forename><surname>Oluwaseyi Feyisetan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Balle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Drake</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Diethe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">WSDM. Association for Computing Machinery</title>
+		<meeting><address><addrLine>New York, NY, USA, WSDM &apos;20</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="178" to="186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Private release of text embedding vectors</title>
+		<author>
+			<persName><forename type="first">Oluwaseyi</forename><surname>Feyisetan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiva</forename><surname>Kasiviswanathan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">TrustNLP. Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="15" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">SimVerb-3500: A largescale evaluation set of verb similarity</title>
+		<author>
+			<persName><forename type="first">Daniela</forename><surname>Gerz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roi</forename><surname>Reichart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<meeting><address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2173" to="2182" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Lipstick on a pig: Debiasing methods cover up systematic gender biases in word embeddings but do not remove them</title>
+		<author>
+			<persName><forename type="first">Hila</forename><surname>Gonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="609" to="614" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Accelerating large-scale inference with anisotropic vector quantization</title>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erik</forename><surname>Lindgren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quan</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Simcha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Chern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjiv</forename><surname>Kumar</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Machine Learning</title>
+		<editor>
+			<persName><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Iii</forename></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Aarti</forename><surname>Singh</surname></persName>
+		</editor>
+		<meeting>the 37th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">119</biblScope>
+			<biblScope unit="page" from="3887" to="3896" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Obtaining better static word embeddings using contextual embedding models</title>
+		<author>
+			<persName><forename type="first">Prakhar</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Jaggi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5241" to="5253" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">When differential privacy meets NLP: The devil is in the detail</title>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Habernal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<meeting><address><addrLine>Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1522" to="1528" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">How reparametrization trick broke differentially-private text representation learning</title>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Habernal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="771" to="777" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Simlex-999: Evaluating semantic models with (genuine) similarity estimation</title>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roi</forename><surname>Reichart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">41</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="665" to="695" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Mining and summarizing customer reviews</title>
+		<author>
+			<persName><forename type="first">Minqing</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">KDD 2004</title>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="168" to="177" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Comparing measures of sample skewness and kurtosis</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">N</forename><surname>Joanes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">A</forename><surname>Gill</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Royal Statistical Society: Series D (The Statistician)</title>
+		<imprint>
+			<biblScope unit="volume">47</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="183" to="189" />
+			<date type="published" when="1998">1998</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Gender-preserving debiasing for pre-trained word embeddings</title>
+		<author>
+			<persName><forename type="first">Masahiro</forename><surname>Kaneko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1641" to="1650" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Dictionary-based debiasing of pre-trained word embeddings</title>
+		<author>
+			<persName><forename type="first">Masahiro</forename><surname>Kaneko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="212" to="223" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">What can we learn privately?</title>
+		<author>
+			<persName><forename type="first">Shiva</forename><surname>Prasad Kasiviswanathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Homin</forename><forename type="middle">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kobbi</forename><surname>Nissim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sofya</forename><surname>Raskhodnikova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">FOCS</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ADePT: Auto-encoder based differentially private text transformation</title>
+		<author>
+			<persName><forename type="first">Satyapriya</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahul</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christophe</forename><surname>Dupuy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EACL. Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2435" to="2439" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Albert: A lite bert for self-supervised learning of language representations</title>
+		<author>
+			<persName><forename type="first">Zhenzhong</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingda</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Goodman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piyush</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radu</forename><surname>Soricut</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICLR</title>
+		<meeting>of ICLR</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Towards robust and privacy-preserving text representations</title>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="25" to="30" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<title level="m">RoBERTa: A Robustly Optimized BERT Pretraining Approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Differentially private representation for NLP: Formal guarantee and an empirical study on privacy and fairness</title>
+		<author>
+			<persName><forename type="first">Lingjuan</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanli</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<meeting><address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2355" to="2365" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Towards differentially private text representations</title>
+		<author>
+			<persName><forename type="first">Lingjuan</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanli</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Xiao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SIGIR. Association for Computing Machinery</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1813" to="1816" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Efficient estimation of word representation in vector space</title>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+	<note>In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Seeing stars: Exploiting class relationships for sentiment categorization with respect to rating scales</title>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lillian</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="115" to="124" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Glove: global vectors for word representation</title>
+		<author>
+			<persName><forename type="first">Jeffery</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Privacy odometers and filters: Pay-as-you-go composition</title>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Ryan M Rogers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salil</forename><surname>Ullman</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vadhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPS</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">29</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Auditing data provenance in text-generation models</title>
+		<author>
+			<persName><forename type="first">Congzheng</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vitaly</forename><surname>Shmatikov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">KDD &apos;19</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="196" to="206" />
+		</imprint>
+	</monogr>
+	<note>KDD</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Spot the odd man out: Exploring the associative power of lexical resources</title>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Stanovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Hopkins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP. Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1533" to="1542" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Evaluation of word vector representations by subspace alignment</title>
+		<author>
+			<persName><forename type="first">Yulia</forename><surname>Tsvetkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics, Lisbon, Portugal</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics, Lisbon, Portugal</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="2049" to="2054" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">A tutorial on spectral clustering</title>
+		<author>
+			<persName><forename type="first">Ulrike</forename><surname>Von</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luxburg</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Statistics and Computing</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="395" to="416" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Certified robustness to word substitution attack with differential privacy</title>
+		<author>
+			<persName><forename type="first">Wenjie</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Xiong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL. Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1102" to="1112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Annotating expressions of opinions and emotions in language</title>
+		<author>
+			<persName><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Theresa</forename><surname>Wilson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">LREC</title>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">A differentially private text perturbation method using regularized mahalanobis metric</title>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Aggarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oluwaseyi</forename><surname>Feyisetan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Teissier</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="7" to="17" />
+			<pubPlace>Online</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Learning gender-neutral word embeddings</title>
+		<author>
+			<persName><forename type="first">Jieyu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4847" to="4853" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Private-knn: Practical differential privacy for computer vision</title>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manmohan</forename><surname>Chandraker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Xiang</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="11851" to="11859" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

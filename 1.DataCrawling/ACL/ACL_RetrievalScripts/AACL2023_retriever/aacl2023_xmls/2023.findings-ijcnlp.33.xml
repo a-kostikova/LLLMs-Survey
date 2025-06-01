@@ -1,0 +1,1166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A Text-to-Text Model for Multilingual Offensive Language Identification</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Tharindu</forename><surname>Ranasinghe</surname></persName>
+							<email>t.ranasinghe@aston.ac.uk</email>
+						</author>
+						<author>
+							<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+							<email>mzampier@gmu.edu</email>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Aston University Birmingham</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">George Mason University</orgName>
+								<address>
+									<settlement>Fairfax</settlement>
+									<region>VA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">A Text-to-Text Model for Multilingual Offensive Language Identification</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">A27B005FB4C56E1F0443B8994D7899CB</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:54+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The ubiquity of offensive content on social media is a growing cause for concern among companies and government organizations. Recently, transformer-based models such as BERT, XL-NET, and XLM-R have achieved state-of-theart performance in detecting various forms of offensive content (e.g. hate speech, cyberbullying, and cyberaggression). However, the majority of these models are limited in their capabilities due to their encoder-only architecture, which restricts the number and types of labels in downstream tasks. Addressing these limitations, this study presents the first pretrained model with encoder-decoder architecture for offensive language identification with text-to-text transformers (T5) trained on two large offensive language identification datasets; SOLID and CCTK. We investigate the effectiveness of combining two datasets and selecting an optimal threshold in semi-supervised instances in SOLID in the T5 retraining step. Our pre-trained T5 model outperforms other transformer-based models fine-tuned for offensive language detection, such as fBERT and HateBERT, in multiple English benchmarks. Following a similar approach, we also train the first multilingual pre-trained model for offensive language identification using mT5 and evaluate its performance on a set of six different languages (German, Hindi, Korean, Marathi, Sinhala, and Spanish). The results demonstrate that this multilingual model achieves a new state-of-the-art on all the above datasets, showing its usefulness in multilingual scenarios. Our proposed T5-based models will be made freely available to the community.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The widespread of offensive posts on social media platforms can have detrimental effects on users' mental health among other undesirable consequences. The relation between offensive language and mental health along with potential risks of self harm and depression has been widely addressed by previous studies <ref type="bibr" target="#b4">(Bonanno and Hymel, 2013;</ref><ref type="bibr" target="#b1">Bannink et al., 2014;</ref><ref type="bibr" target="#b6">Bucur et al., 2021)</ref>. To address this important issue, one of the most commonly employed strategies is to train systems to identify offensive content <ref type="bibr">(Pavlopoulos et al., 2021a)</ref> mitigating its spread on social media platforms. By proactively identifying potentially harmful content, social media platforms aim to establish a safer and more inclusive environment for all users.</p><p>Early approaches to identifying offensive language ranged from classical machine learning models, such as support vector machines <ref type="bibr">(Malmasi and</ref><ref type="bibr">Zampieri, 2017, 2018)</ref>, to deep learning models based on word embeddings <ref type="bibr" target="#b12">(Hettiarachchi and Ranasinghe, 2019)</ref>. With the introduction of BERT <ref type="bibr" target="#b10">(Devlin et al., 2019)</ref>, transformer models have shown excellent results in offensive language identification <ref type="bibr" target="#b39">(Zia et al., 2022)</ref>. More recently, domainspecific language models for offensive language identification, such as fBERT <ref type="bibr">(Sarkar et al., 2021)</ref>, HateBERT <ref type="bibr" target="#b7">(Caselli et al., 2021)</ref>, and ToxicBERT<ref type="foot" target="#foot_0">1</ref> . have provided state-of-the-art in multiple offensive language identification benchmarks.</p><p>The aforementioned models can be grouped into two main categories following their training strategies. Models such as ToxicBERT have been trained using a classification objective by adding a classification layer on top of a BERT model and training on a large offensive language dataset. A clear limitation of this approach is that the trained model can only predict the classes that appear on the dataset. On the other hand, models such as fBERT <ref type="bibr">(Sarkar et al., 2021)</ref> and HateBERT <ref type="bibr" target="#b7">(Caselli et al., 2021)</ref> have been trained with a masked language modelling (MLM) objective. fBERT <ref type="bibr">(Sarkar et al., 2021)</ref> has been trained on the offensive tweets in the SOLID <ref type="bibr" target="#b30">(Rosenthal et al., 2021)</ref> dataset, while HateBERT <ref type="bibr" target="#b7">(Caselli et al., 2021)</ref> has been trained on banned posts from Reddit Abusive Language dataset. The MLM strategy is not dependent on the number of classes present in the dataset. However, it is not possible to concatenate two datasets annotated with different annotation taxonomies under this strategy without mapping them into a common label (e.g. a general offensive class). This is a critical issue in offensive language identification as different datasets use different annotation schemes and problem formulations (e.g. hate speech, offensive, toxic, profanity). As a result, MLM based models are only trained on one dataset, which can limit their capabilities.</p><p>To address this important shortcoming, we introduce FT5, a pre-trained T5 model <ref type="bibr" target="#b25">(Raffel et al., 2020)</ref> trained on two large-scale offensive language identification datasets. Since T5 follows a text-totext approach, it does not rely on a classification layer. Therefore T5 <ref type="bibr" target="#b25">(Raffel et al., 2020)</ref> can be used to train an offensive language identification model using different datasets without relying on the number of classes. We show that the proposed FT5 outperforms the plain T5 implementation as well as HateBERT <ref type="bibr" target="#b7">(Caselli et al., 2021)</ref> and fBERT <ref type="bibr">(Sarkar et al., 2021)</ref> on various offensive and hate speech detection tasks. To the best of our knowledge, this is the first pre-trained offensive language identification model based on T5.</p><p>All the previous models, such as ToxicBERT, HateBERT <ref type="bibr" target="#b7">(Caselli et al., 2021)</ref> and fBERT <ref type="bibr">(Sarkar et al., 2021)</ref> only supports English and training a large language model using similar approaches in low-resource languages can be difficult due to data scarcity. In this paper, we address this limitation by training a multilingual offensive language model, mFT5, which uses mT5 <ref type="bibr">(Xue et al., 2021)</ref> as the base model. the results confirm that fine-tuned mFT5 produces state-of-the-art results in six languages, outperforming strong transformer-based models. To the best of our knowledge, mFT5 is the first multilingual model on offensive language opening exciting avenues for a multitude of languages.</p><p>The contributions of this paper are as follows:</p><p>1. An empirical evaluation of semi-supervised learning techniques that can be applied to train text-to-text models such as T5 <ref type="bibr" target="#b25">(Raffel et al., 2020)</ref> and mT5 <ref type="bibr">(Xue et al., 2021)</ref> in offensive language identification 2. A comprehensive evaluation of the effect of combining different datasets in pre-training text-to-text models.</p><p>3. The first-ever cross-lingual evaluation of mT5 <ref type="bibr">(Xue et al., 2021)</ref> model in both high-resource and low-resource language settings.</p><p>4. The release of the FT5 and mFT5 made freely available to the research community, which are high-performing, state-of-the-art pre-trained models based on T5 for English and multilingual offensive language identification<ref type="foot" target="#foot_1">2</ref> .</p><p>2 Related Work</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Offensive Language Identification</head><p>The use of large pre-trained transformer models has become prevalent in NLP. This includes the development of various offensive language identification systems, which are based on transformer architectures, such as BERT <ref type="bibr" target="#b10">(Devlin et al., 2019)</ref>. These systems have demonstrated top performance in well-known competitions such as HASOC <ref type="bibr" target="#b18">(Mandl et al., 2019</ref><ref type="bibr">), HatEval (Basile et al., 2019)</ref>, Offen-sEval <ref type="bibr" target="#b36">(Zampieri et al., 2019b</ref><ref type="bibr" target="#b38">(Zampieri et al., , 2020))</ref>, TRAC <ref type="bibr" target="#b14">(Kumar et al., 2018)</ref>, and TSD <ref type="bibr">(Pavlopoulos et al., 2021b)</ref>. Many of these competitions feature multilingual datasets opening opportunities for the use of cross-lingual models <ref type="bibr">(Ranasinghe and</ref><ref type="bibr">Zampieri, 2020, 2021;</ref><ref type="bibr" target="#b21">Nozza, 2021)</ref>. The outstanding results achieved by these systems provide concrete evidence that pre-trained transformer models are well-suited for detecting offensive content in both monolingual and multilingual settings. User-generated content and offensive language online possess unique characteristics that are often not adequately captured by models trained on standard texts. Consequently, research has focused on the task of fine-tuning pre-trained models specifically for this challenging domain. There are several transformer models such as Hate-BERT <ref type="bibr" target="#b7">(Caselli et al., 2021)</ref>, fBERT <ref type="bibr">(Sarkar et al., 2021)</ref> built for this purpose. In this study, we address the aforementioned limitations of fine-tuned transformer-based models. We propose the first multilingual domain-specific pre-trained offensive language identification model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">T5 Models</head><p>T5 models introduced by <ref type="bibr" target="#b25">Raffel et al. (2020)</ref> have been widely used in many NLP tasks such as text classification <ref type="bibr" target="#b3">(Bird et al., 2023)</ref>, semantic similarity <ref type="bibr" target="#b20">(Ni et al., 2022)</ref> and named entity recognition <ref type="bibr" target="#b33">(Tavan and Najafi, 2022)</ref>. As the T5 architecture follows a text-to-text approach, multi task learning can be used to improve the results with t5 <ref type="bibr" target="#b25">(Raffel et al., 2020)</ref>. Following the initial T5 model, multilingual T5 (mT5) models have also been proposed by <ref type="bibr">Xue et al. (2021)</ref> which has provided excellent results in multilingual benchmarks. Several studies have used T5 in offensive language identification <ref type="bibr" target="#b31">(Sabry et al., 2022;</ref><ref type="bibr" target="#b0">Adewumi et al., 2022)</ref>. However, these studies only fine-tune the general T5 models for offensive language identification. To the best of our knowledge, this paper presents the first pre-trained domain specific T5 model for offensive language identification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methodology</head><p>Training Data In this study, we use two large offensive language identification datasets to retrain the T5 models; SOLID <ref type="bibr" target="#b30">(Rosenthal et al., 2021)</ref> with over 9 million English tweets and CCTK with over 1.8 million posts from the civil comments platform. SOLID was the official dataset of SemEval-2020 Task 12 (OffensEval) <ref type="bibr" target="#b38">(Zampieri et al., 2020</ref>). SOLID's annotation follows the OLID taxonomy <ref type="bibr">(Zampieri et al., 2019a)</ref>, which uses its level A (offensive vs non-offensive). Each instance in SOLID has been annotated semi-automatically with the mean and the standard deviation (STD) of the value for offensiveness predicted by four different machine learning models. CCTK was released for the Jigsaw Unintended Bias in Toxicity Classification Kaggle competition<ref type="foot" target="#foot_2">3</ref> . Each instance in CCTK has been annotated with one of the binary labels (toxic vs not toxic). Finally, we used multiple datasets for testing presented in Sections 4 and 5.</p><p>Retraining T5 We select the t5-large<ref type="foot" target="#foot_3">4</ref>  <ref type="bibr" target="#b25">(Raffel et al., 2020)</ref> and train it using the instances from SOLID <ref type="bibr" target="#b30">(Rosenthal et al., 2021)</ref> and CCTK. For the instances in SOLID, the input texts to the model were tweets, and the output texts were "OFF" if the mean value in SOLID is above 0.5 and "NOT" otherwise. We used different thresholds (0.05, 0.1, For each threshold, we consider appending/ not appending the CCTK dataset. For the instances in CCTK, the input texts to the model were the posts, and the output texts were "TOX" if the text is toxic and "NOT" if they are not toxic. As shown in Figure <ref type="figure" target="#fig_0">1</ref> we use "OLID_A" prefix for SOLID instances and "CCTK" prefix for CCTK instances. To create mFT5, we select mt5-large <ref type="bibr">(Xue et al., 2021)</ref> <ref type="foot" target="#foot_4">5</ref> and repeat the same process. For both models, we use the same configurations; a batch-size of 16, Adam optimiser with learning rate 1e-4, and a linear learning rate warm-up over 10% of the training data and trained the models over ten epochs. We use a cluster of four GeForce RTX 3090 GPUs to train the models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">English Experiments and Results</head><p>To determine the effectiveness and portability of the trained FT5, we conducted a series of experiments using benchmark datasets in English and compared our model with a general-purpose T5 model. We used the same set of configurations for all the datasets evaluated in order to ensure consistency between all the experiments. This also provides a good starting configuration for researchers who intend to use FT5 on a new dataset. For the sentence-level tasks; the input to the model is the text and the output is the related label. For the token level tasks the input to the model is the text and the output is the text with "[OFF]" placeholders infront of the offensive tokens as shown in Figure <ref type="figure" target="#fig_1">2</ref>.</p><p>For each dataset, we used different task spe- cific prefixes (OLID_A for OLID, TSD for toxic spans detection etc.). We used a batch-size of eight, Adam optimizer with learning rate 1e-4, and a linear learning rate warm-up over 10% of the training data. During the training process, the parameters of the transformer model were updated. The models were trained using only training data. Furthermore, they were evaluated while training using an evaluation set that had one fifth of the rows in training data. We performed early stopping if the evaluation loss did not improve over ten evaluation steps. All the models were trained for three epochs. These experiments were also conducted in a GeForce RTX 3090 GPU. All the experiments were conducted for ten times and we report the mean and standard deviation for each experiment. TRAC TRAC was released for TRAC shared task 2020 <ref type="bibr" target="#b15">(Kumar et al., 2020)</ref>. The dataset has 4200 training and 1200 test instances with three classes: overtly aggressive, covertly aggressive and non-aggressive. TRAC is the most heterogeneous dataset we used in terms of data sources containing posts from Facebook, Twitter, and YouTube.</p><p>TSD For token-level prediction we use TSD, released within the scope of SemEval-2021 Task 5: Toxic Spans Detection for English <ref type="bibr">(Pavlopoulos et al., 2021a)</ref>. The dataset contains 10,000 posts (comments) from the publicly available Civil Comments dataset <ref type="bibr" target="#b5">(Borkan et al., 2019)</ref>. If a post is toxic, it has been annotated for its toxic spans.</p><p>HateX HateXplain dataset <ref type="bibr" target="#b19">(Mathew et al., 2021)</ref> was also for offensive language identification at the token level. The dataset contains 11535 training and 3844 testing instances from GAB and twitter.</p><p>We only used the word level annotations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Sentence-level Offensive Language Identification</head><p>To evaluate the sentence-level tasks, we used the macro F1 score computed on predicted sentence labels and gold sentence labels. We present the results for the SOLID data selection thresholds and data augmentation with CCTK in Table <ref type="table">1</ref> in terms of F 1 Macro. For most of the datasets tested, the 0.1 STD SOLID threshold combined with the CCTK provided the best results. Having a large number of training instances provides better results up to a certain STD threshold in SOLID, and results do not improve with adding further training instances. Furthermore, the results show that the combination of CCTK and SOLID provides better results than having one dataset in the training set. This confirms our previous assumption that T5 can take advantage of multiple datasets via text to text transfer learning.</p><p>We select the T5 model retrained on SOLID filtered with 0.1 STD combined with the CCTK dataset as the FT5 model, which provided the best result in most of the datasets. We then compare the performance of FT5 with fBERT and HateBERT. As can be seen in Table <ref type="table" target="#tab_1">2</ref>, FT5 outperforms fBERT and HateBERT in all of the datasets. Since the datasets contain offensive language identification, fine grained offensive language identification and fine-grained aggression identification, we can validate the effectiveness of the proposed FT5 model for offensive and aggressive language sentencelevel classification tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Sentence-level</head><p>Token-level </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Token-level Offensive Language Identification</head><p>Multiple studies on token-level offensive language identification has discussed the need for accurate token-level predictions for improved model explainability <ref type="bibr" target="#b19">(Mathew et al., 2021;</ref><ref type="bibr" target="#b37">Zampieri et al., 2023)</ref>. Motivated by recent studies, we investigate our model performance on token-level offensive language identification. The token-level tasks were evaluated using the macro F1 score computed on predicted character offsets and gold character offsets <ref type="bibr" target="#b8">(Da San Martino et al., 2019)</ref>. FT5 outperforms fBERT and HateBERT in all of the token-level offensive language identification datasets too as can be seen in clear improvement with the TSD dataset where the FT5 model outperforms the fBERT model by 0.11 macro F1 score which is over a 20% boost.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Multilingual Experiments and Results</head><p>To determine the effectiveness and portability of our multilingual model; mFT5, we conducted a series of experiments using benchmark datasets covering high-resource, mid-resource and lowresource languages. These datasets are summarised in Table <ref type="table" target="#tab_4">4</ref>. We used the same set of configurations we used for English experiments. The models were trained using the training set and evaluated on the test sets of each dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Sentence-level Offensive Language Identification</head><p>For sentence-level offensive language identification, we mapped the labels of each dataset to its closet annotation scheme as we did for English benchmarks; OLID level A (offensive, not offensive) or CCTK (toxic, non toxic). Following this, Spanish, Hindi, Korean, Sinhala and Marathi labels were mapped to OLID level A, and German labels were mapped to CCTK as shown in sentence-level column in Table <ref type="table" target="#tab_4">4</ref>. We use "OLID_A" prefix for Spanish, Hindi, Korean, Sinhala and Marathi instances and "CCTK" prefix for German instances.</p><p>In the training process, we started with different pre-trained models on the configurations described in Section 3. The input to the model is the text preceded by the relevant prefix, and the output is the related label. We performed individual experiments for each language separately.</p><p>We present the results for the SOLID data selection thresholds and data augmentation with CCTK in Table <ref type="table" target="#tab_5">5</ref> in terms of F 1 Macro for each test set.</p><p>For most of the datasets tested, the 0.1 STD SOLID threshold combined with the CCTK provided the best results. Having a large number of training instances provides better results up to a certain STD threshold in SOLID, and results do not improve with adding further training instances. Furthermore, the results show that the combination of CCTK and SOLID provides better results than having one dataset in the training set. This confirms our previous assumption that T5 can take advantage of multiple datasets via text to text transfer learning. We select the T5 model retrained on SOLID filtered with 0.1 STD combined with the CCTK dataset as the FT5 model, which provided the best result in five out of six datasets.</p><p>We then compare the performance of mFT5 with mBERT and XLM-R base models. These models are trained on the training set of each dataset by adding a classification layer on top of the transformer model. As shown in Table <ref type="table" target="#tab_6">6</ref>, mFT5 outperforms mBERT and XLM-R in all of the datasets. Since these datasets contain high-resource and lowresource languages as well as data from different social media platforms, we can validate the effectiveness of the proposed mFT5 model for offensive language identification in multiple languages and platforms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset Model</head><p>Macro F1 Zero-shot Offensive Language Identification -We also experimented with zero-shot cross-lingual offensive language identification with the mFT5 model. With this setting, we did not train the mFT5 on the language-specific training data. The results are shown in mFT5* rows in Table <ref type="table" target="#tab_6">6</ref>. While zeroshot cross-lingual experiments did not provide the best results, they provided very competitive results compared to the baselines. The results confirm the strong cross-lingual nature of the pre-trained mFT5 model in detecting offensive language. It should also be noted that an MLM approach similar to fBERT and HateBERT needs labelled data to fine-tune and will not be able to provide zeroshot offensive language identification. Therefore, mFT5 is useful for low-resource languages where the training data is scarce.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Token-level Offensive Language Identification</head><p>We also experimented with token-level offensive language identification in the datasets where the token-level labels are available; Korean and Sinhala. The input to the model is the text, and the output is the text with "[OFF]" placeholders in front of the offensive tokens. To evaluate the models, we used the macro F1 score computed on predicted offensive tokens and gold offensive tokens. We compared the results with token classification architecture in mBERT and XLM-R large models. As shown in Table <ref type="table" target="#tab_7">7</ref>, mFT5 outperforms mBERT and XLM-R in all of the token-level offensive language identification datasets too. It should be noted that pre-trained models with task-specific heads such as toxic-bert will not be able to perform tokenlevel tasks. However, our text-to-text approach in mFT5 provided state-of-the-art results at tokenlevel too.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Future Work</head><p>Neural transformer models have outperformed previous state-of-the-art deep learning models across different NLP tasks including offensive language identification. Following impressive results in international benchmark competitions, domainspecific pre-trained neural transformers such as ToxicBERT, fBERT and HateBERT have been proposed for offensive language identification. As discussed in this paper, these models have limitations which makes it difficult extend them in to different datasets. We address these limitations by proposing FT5, a t5-large model that has been trained using over 2 million instances from the SOLID and CCTK datasets. The FT5 model achieves better results in both sentence-level and token-level tasks across different offensive language identification benchmarks. This paper also introduced mFT5. To the best of our knowledge, mFT5 is the first pre-trained multilingual offensive language detection model. The model uses the mt5-large and is trained using the same data used to train FT5. We show that the proposed FmT5 model achieves better results in both sentence-level and token-level tasks compared to the mBERT, XLM-R, and the vanilla mT5 model across different offensive language identification benchmark datasets. We show that the model performs consistently well across different languages and platforms. Furthermore, the model showed strong zero-shot cross-lingual results opening exciting new avenues for multilingual offensive language detection.</p><p>In future work, we would like to extend the proposed FT5 model to the identification of offensive spans along with their targets using the recently released TBO dataset <ref type="bibr" target="#b37">(Zampieri et al., 2023)</ref>. We believe that modelling targets and offensive expressions jointly is an important step towards improving explainability in offensive language identification systems. Another important direction we have been exploring is the computational efficiency. We have recently experimented with teacher-student architectures using knowledge distillation (KD) and we have shown that the use of KD results in lightweight models that are more computationally efficient and perform on par with larger models <ref type="bibr" target="#b37">(Ranasinghe and Zampieri, 2023)</ref>. We would like to investigate teacher-student architectures using the proposed FT5 model. Finally, we are interested in the application of multilingual models to low-resource scenarios. Thousands of languages and dialects are spoken in the world, but research on offensive language identification is still (mostly) restricted to English and a few other high-resource languages. We believe that the release of mT5 will encourage research on offensive language identification models for low-resource languages, dialects, and other challenging linguistic scenarios such as code-mixed texts.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Training a T5 model requires a large amount of computing resources. We noted that training a T5 model can take more GPU resources than training a BERT model such as fBERT <ref type="bibr">(Sarkar et al., 2021)</ref>. Therefore, we did not experiment with large T5 models such as T5-XL and T5-XXL. While these models might perform better than T5-Large models we experimented with, they would consume more resources, limiting their potential use cases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>FT5 and mFT5 are essentially T5 models for offensive language identification, which is trained on multiple publicly available datasets. We used multiple datasets referenced in this paper which were previously collected and annotated to evaluate the models. No new data collection has been carried out as part of this work. We have not collected or processed writers'/users' information, nor have we carried out any form of user profiling to protect users' privacy and identity.</p><p>We believe that content moderation should be a trustworthy and transparent process applied to clearly harmful content so it does not hinder individual freedom of expression rights. We encourage research in automatically detecting offensive content on the web trough a trustworthy and transparent process. Using our proposed models for this purpose will alleviate the psychological burden for social media moderators who are exposed to large amounts offensive content while ensuring a more transparent moderation process.</p><p>The computational experiments in this paper were conducted on an Aston EPS Machine Learning Server, funded by the EPSRC Core Equipment Fund, Grant EP/V036106/1.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: T5/ MT5 pre-training process</figDesc><graphic coords="3,311.40,70.87,207.76,144.16" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: FT5 fine-tuning process for different tasks.</figDesc><graphic coords="4,79.60,70.87,200.80,96.80" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table><row><cell cols="2">Train Dataset(s) STD Inst.</cell><cell></cell><cell>AHSD</cell><cell>OLID</cell><cell>TRAC</cell><cell>TSD</cell><cell>HateX</cell></row><row><cell></cell><cell cols="2">0.05 18,169</cell><cell cols="4">0.832 ±0.009 0.807±0.006 0.849 ±0.005 0.542 ±0.004 0.801 ±0.006</cell></row><row><cell>SOLID</cell><cell cols="6">0.1 215,602 0.15 1,282,474 0.870 ±0.005 0.813±0.003 0.870 ±0.002 0.591 ±0.008 0.801 ±0.006 0.846 ±0.005 0.819±0.002 0.854 ±0.003 0.601 ±0.005 0.816 ±0.005</cell></row><row><cell></cell><cell cols="6">0.2 6,595,397 0.859 ±0.003 0.805±0.005 0.865 ±0.005 0.561 ±0.005 0.795 ±0.006</cell></row><row><cell></cell><cell cols="6">0.05 1,823,043 0.865 ±0.004 0.819±0.003 0.859 ±0.007 0.609 ±0.004 0.815 ±0.004</cell></row><row><cell>SOLID+CCTK</cell><cell cols="6">0.1 2,020,476 0.886 ±0.004 0.823 ±0.002 0.869 ±0.005 0.648 ±0.005 0.825 ±0.004 0.15 3,087,348 0.872 ±0.005 0.816±0.004 0.864 ±0.005 0.605 ±0.006 0.812 ±0.007</cell></row><row><cell></cell><cell cols="6">0.2 8,400,271 0.868 ±0.005 0.809±0.006 0.858 ±0.006 0.589 ±0.012 0.808 ±0.009</cell></row><row><cell>CCTK</cell><cell cols="6">NA 1,804,874 0.832 ±0.009 0.813±0.006 0.842 ±0.005 0.595±0.004 0.809 ±0.006</cell></row><row><cell cols="7">Table 1: FT5 results for different sentence-level and token-level offensive language detection</cell></row><row><cell cols="2">Dataset Model</cell><cell cols="2">Macro F1</cell><cell></cell><cell></cell></row><row><cell></cell><cell>FT5</cell><cell cols="2">0.886±0.004</cell><cell></cell><cell></cell></row><row><cell>AHSD</cell><cell cols="3">fBERT HateBERT 0.846±0.009 0.878±0.005</cell><cell></cell><cell></cell></row><row><cell></cell><cell>T5</cell><cell cols="2">0.821±0.012</cell><cell></cell><cell></cell></row><row><cell></cell><cell>FT5</cell><cell cols="2">0.823±0.002</cell><cell></cell><cell></cell></row><row><cell>OLID</cell><cell cols="3">fBERT HateBERT 0.803±0.009 0.810±0.005</cell><cell></cell><cell></cell></row><row><cell></cell><cell>T5</cell><cell cols="2">0.775±0.006</cell><cell></cell><cell></cell></row><row><cell></cell><cell>FT5</cell><cell cols="2">0.869±0.003</cell><cell></cell><cell></cell></row><row><cell>TRAC</cell><cell cols="3">fBERT HateBERT 0.848±0.006 0.859±0.005</cell><cell></cell><cell></cell></row><row><cell></cell><cell>T5</cell><cell cols="2">0.846±0.010</cell><cell></cell><cell></cell></row></table><note><p>The test set macro F 1 scores for sentence-level datasets and models. Results are ordered by performance. Best results are shown in bold font.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 .</head><label>3</label><figDesc>There is a</figDesc><table><row><cell cols="2">Dataset Model</cell><cell>Macro F1</cell></row><row><cell></cell><cell>FT5</cell><cell>0.648±0.012</cell></row><row><cell>TSD</cell><cell>fBERT T5</cell><cell>0.530±0.021 0.421±0.019</cell></row><row><cell></cell><cell cols="2">HateBERT 0.410±0.027</cell></row><row><cell></cell><cell>FT5</cell><cell>0.825±0.008</cell></row><row><cell>HateX</cell><cell cols="2">fBERT HateBERT 0.792±0.016 0.812±0.009</cell></row><row><cell></cell><cell>T5</cell><cell>0.775±0.025</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table /><note><p>The test set macro F 1 scores for sentence-level datasets and models. Results are ordered by performance. Best results are shown in bold font.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Datasets that were used to evaluate mFt5 model. Source column displays the platform data extracted,Train, dev, test size column shows the number of instances of the train, dev and test sets. Label column shows the original labels and Sentence-level column show the output label in sentence-level experimenst discussed in Section 5. Token-level column shows the availability of the token-level data.</figDesc><table><row><cell></cell><cell>Language</cell><cell></cell><cell cols="2">Source(s) Train, dev, test size</cell><cell cols="2">Labels</cell><cell cols="2">Sentence-level Token-level</cell></row><row><cell cols="2">German (Risch et al., 2021)</cell><cell></cell><cell>Facebook</cell><cell>2076, 519, 649</cell><cell>Toxic Not-toxic</cell><cell></cell><cell>TOX, NOT</cell><cell>NA</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Offensive individual target</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>Twitter</cell><cell></cell><cell cols="2">Offensive group target</cell><cell></cell></row><row><cell cols="3">Spanish (Plaza-del Arco et al., 2021)</cell><cell>Instagram</cell><cell>30163, 7540, 9425</cell><cell cols="2">Offensive other target</cell><cell>OFF, NOT</cell><cell>NA</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Youtube</cell><cell></cell><cell cols="2">Expletive language</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Non-offensive</cell><cell></cell><cell></cell></row><row><cell cols="2">Hindi (Mandl et al., 2019)</cell><cell></cell><cell>Twitter</cell><cell>5120, 1280, 1600</cell><cell>Offensive Not offensive</cell><cell></cell><cell>OFF, NOT</cell><cell>NA</cell></row><row><cell cols="2">Korean (Jeong et al., 2022)</cell><cell></cell><cell>Naver YouTube</cell><cell>25876, 6468, 8085</cell><cell>Offensive Not offensive</cell><cell></cell><cell>OFF, NOT</cell><cell>Available</cell></row><row><cell cols="2">Sinhala (Ranasinghe et al., 2022)</cell><cell></cell><cell>Twitter</cell><cell>6000, 1500, 2500</cell><cell>Offensive Not offensive</cell><cell></cell><cell>OFF, NOT</cell><cell>Available</cell></row><row><cell cols="2">Marathi (Gaikwad et al., 2021)</cell><cell></cell><cell>Twitter</cell><cell>2889, 722, 510</cell><cell>Offensive Not offensive</cell><cell></cell><cell>OFF, NOT</cell><cell>NA</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">High Resource</cell><cell cols="2">Mid Resource</cell><cell cols="2">Low Resource</cell></row><row><cell>Train Dataset(s)</cell><cell>STD Inst.</cell><cell></cell><cell>German</cell><cell>Spanish</cell><cell>Hindi</cell><cell>Korean</cell><cell>Sinhala</cell><cell>Marathi</cell></row><row><cell></cell><cell>0.05 18,169</cell><cell cols="7">0.567 ±0.010 0.832 ±0.009 0.799 ±0.005 0.735 ±0.004 0.748 ±0.008 0.789 ±0.016</cell></row><row><cell>SOLID</cell><cell cols="8">0.1 215,602 0.15 1,282,474 0.598 ±0.007 0.870 ±0.005 0.839 ±0.002 0.781 ±0.008 0.784 ±0.007 0.858 ±0.006 0.601 ±0.002 0.846 ±0.005 0.807 ±0.003 0.776 ±0.005 0.756 ±0.008 0.825 ±0.009</cell></row><row><cell></cell><cell cols="8">0.2 6,595,397 0.588 ±0.006 0.859 ±0.003 0.825 ±0.005 0.757 ±0.005 0.766 ±0.008 0.844 ±0.010</cell></row><row><cell></cell><cell cols="8">0.05 1,823,043 0.611 ±0.004 0.852±0.005 0.859 ±0.007 0.769 ±0.004 0.812±0.016 0.835 ±0.009</cell></row><row><cell>SOLID</cell><cell cols="8">0.1 2,020,476 0.653±0.031 0.886 ±0.004 0.845 ±0.005 0.799±0.004 0.856±0.007 0.854±0.006</cell></row><row><cell>+CCTK</cell><cell cols="8">0.15 3,087,348 0.642±0.005 0.872 ±0.005 0.822 ±0.005 0.778 ±0.006 0.856 ±0.006 0.849±0.008</cell></row><row><cell></cell><cell cols="8">0.2 8,400,271 0.611 ±0.005 0.843±0.012 0.818 ±0.006 0.765 ±0.012 0.836 ±0.006 0.811±0.005</cell></row><row><cell>CCTK</cell><cell cols="8">NA 1,804,874 0.628 ±0.009 0.829±0.006 0.825 ±0.005 0.775±0.004 0.796 ±0.005 0.801 ±0.003</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>mFT5 results for different multilingual offensive language detection benchmarks.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>The test set macro F 1 scores for coarse-grained offensive language detection. Results are ordered by performance. The best results are shown in bold font.</figDesc><table><row><cell></cell><cell>mFT5</cell><cell>0.653±0.031</cell></row><row><cell>German</cell><cell cols="2">XLM-R 0.621±0.023 mBERT 0.572±0.013</cell></row><row><cell></cell><cell cols="2">mFT5* 0.438±0.015</cell></row><row><cell></cell><cell>mT5</cell><cell>0.398±0.016</cell></row><row><cell></cell><cell>mFT5</cell><cell>0.886±0.004</cell></row><row><cell>Spanish</cell><cell cols="2">XLM-R 0.853±0.005 mBERT 0.821±0.008</cell></row><row><cell></cell><cell cols="2">mFT5* 0.785±0.005</cell></row><row><cell></cell><cell>mT5</cell><cell>0.626±0.027</cell></row><row><cell></cell><cell>mFT5</cell><cell>0.845±0.003</cell></row><row><cell>Hindi</cell><cell cols="2">XLM-R 0.811±0.007 mBERT 0.798±0.006</cell></row><row><cell></cell><cell cols="2">mFT5* 0.745±0.007</cell></row><row><cell></cell><cell>mT5</cell><cell>0.612±0.012</cell></row><row><cell></cell><cell>mFT5</cell><cell>0.799±0.004</cell></row><row><cell>Korean</cell><cell cols="2">XLM-R 0.765±0.006 mBERT 0.755±0.008</cell></row><row><cell></cell><cell cols="2">mFT5* 0.736±0.008</cell></row><row><cell></cell><cell>mT5</cell><cell>0.715±0.005</cell></row><row><cell></cell><cell>mFT5</cell><cell>0.856±0.007</cell></row><row><cell>Sinhala</cell><cell cols="2">XLM-R 0.834±0.005 mFT5* 0.746±0.009</cell></row><row><cell></cell><cell>mT5</cell><cell>0.538±0.029</cell></row><row><cell></cell><cell cols="2">mBERT 0.531±0.013</cell></row><row><cell></cell><cell>mFT5</cell><cell>0.854±0.006</cell></row><row><cell>Marathi</cell><cell cols="2">XLM-R 0.843±0.003 mBERT 0.821±0.006</cell></row><row><cell></cell><cell cols="2">mFT5* 0.708±0.012</cell></row><row><cell></cell><cell>mT5</cell><cell>0.421±0.017</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 7 :</head><label>7</label><figDesc>The test set macro F 1 scores for token-level offensive language detection. Results are ordered by performance. The best results are shown in bold font.</figDesc><table><row><cell cols="2">Dataset Model</cell><cell>Macro F1</cell></row><row><cell></cell><cell>mFT5</cell><cell>0.489±0.004</cell></row><row><cell>Korean</cell><cell cols="2">XLM-R 0.466±0.009 mBERT 0.453±0.013</cell></row><row><cell></cell><cell>mT5</cell><cell>0.311±0.016</cell></row><row><cell></cell><cell>mFT5</cell><cell>0.743±0.009</cell></row><row><cell>Sinhala</cell><cell cols="2">XLM-R 0.723±0.013 mT5 0.316±0.023</cell></row><row><cell></cell><cell>mBERT</cell><cell>0.00</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>ToxicBERT is available at https://huggingface.co/ unitary/toxic-bert</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://github.com/TharinduDR/FT5</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://www.kaggle.com/c/ jigsaw-unintended-bias-in-toxicity-classification</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>t5-large model is available in HuggingFace at https: //huggingface.co/t5-large</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>mt5-large model is available in HuggingFace at https: //huggingface.co/google/mt5-large</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>We would like to thank the anonymous AACL-IJCNLP reviewers for their insightful feedback. We further thank the creators of the datasets used in this paper for making the datasets publicly available for our research.</p></div>
+			</div>			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tosin</forename><surname>Adewumi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sana</forename><forename type="middle">Sabah</forename><surname>Sabry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nosheen</forename><surname>Abid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Foteini</forename><surname>Liwicki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Liwicki</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.05480</idno>
+		<title level="m">T5 for hate speech, augmented data and ensemble</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Cyber and Traditional Bullying Victimization as a Risk Factor for Mental Health Problems and Suicidal Ideation in Adolescents</title>
+		<author>
+			<persName><forename type="first">Rienke</forename><surname>Bannink</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suzanne</forename><surname>Broeren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Petra</forename><forename type="middle">M</forename><surname>Van De Looij-Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frouwkje</forename><forename type="middle">G</forename><surname>De Waart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hein</forename><surname>Raat</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">PloS one</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Semeval-2019 task 5: Multilingual detection of hate speech against immigrants and women in twitter</title>
+		<author>
+			<persName><forename type="first">Cristina</forename><surname>Valerio Basile</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elisabetta</forename><surname>Bosco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Debora</forename><surname>Fersini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Viviana</forename><surname>Nozza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Patti</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Manuel Rangel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paolo</forename><surname>Pardo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuela</forename><surname>Rosso</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sanguinetti</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Chatbot interaction with artificial intelligence: human data augmentation with t5 and language transformer ensemble for text classification</title>
+		<author>
+			<persName><forename type="first">Jordan</forename><forename type="middle">J</forename><surname>Bird</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anikó</forename><surname>Ekárt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><forename type="middle">R</forename><surname>Faria</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Ambient Intelligence and Humanized Computing</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="3129" to="3144" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Cyber bullying and internalizing difficulties: Above and beyond the impact of traditional forms of bullying</title>
+		<author>
+			<persName><forename type="first">Rina</forename><forename type="middle">A</forename><surname>Bonanno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shelley</forename><surname>Hymel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of youth and adolescence</title>
+		<imprint>
+			<biblScope unit="volume">42</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="685" to="697" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Nuanced metrics for measuring unintended bias with real data for text classification</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Borkan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Sorensen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nithum</forename><surname>Thain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><surname>Vasserman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of WWW</title>
+		<meeting>WWW</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">An exploratory analysis of the relation between offensive language and mental health</title>
+		<author>
+			<persName><forename type="first">Ana-Maria</forename><surname>Bucur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liviu</forename><forename type="middle">P</forename><surname>Dinu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of ACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Hatebert: Retraining bert for abusive language detection in english</title>
+		<author>
+			<persName><forename type="first">Tommaso</forename><surname>Caselli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valerio</forename><surname>Basile</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jelena</forename><surname>Mitrović</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Granitzer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of WOAH</title>
+		<meeting>WOAH</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Fine-grained analysis of propaganda in news article</title>
+		<author>
+			<persName><forename type="first">Giovanni</forename><surname>Da</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">San</forename><surname>Martino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seunghak</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Barrón-Cedeño</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rostislav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Automated hate speech detection and the problem of offensive language</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Davidson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dana</forename><surname>Warmsley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">W</forename><surname>Macy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ingmar</forename><surname>Weber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICWSM</title>
+		<meeting>ICWSM</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Cross-lingual offensive language identification for low resource languages: The case of Marathi</title>
+		<author>
+			<persName><forename type="first">Sampatrao</forename><surname>Saurabh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tharindu</forename><surname>Gaikwad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Ranasinghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Zampieri</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Homan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of RANLP</title>
+		<meeting>RANLP</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Emoji powered capsule network to detect type and target of offensive posts in social media</title>
+		<author>
+			<persName><forename type="first">Hansi</forename><surname>Hettiarachchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tharindu</forename><surname>Ranasinghe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of RANLP</title>
+		<meeting>RANLP</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Kold: Korean offensive language dataset</title>
+		<author>
+			<persName><forename type="first">Younghoon</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juhyun</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaimeen</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jongwon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jihyung</forename><surname>Mon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungjoon</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alice</forename><surname>Oh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the ACL</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Benchmarking Aggression Identification in Social Media</title>
+		<author>
+			<persName><forename type="first">Ritesh</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Atul</forename><surname>Kr Ojha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shervin</forename><surname>Malmasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TRAC</title>
+		<meeting>TRAC</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Evaluating aggression identification in social media</title>
+		<author>
+			<persName><forename type="first">Ritesh</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Atul</forename><surname>Kr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shervin</forename><surname>Ojha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Malmasi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TRAC</title>
+		<meeting>TRAC</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Detecting hate speech in social media</title>
+		<author>
+			<persName><forename type="first">Shervin</forename><surname>Malmasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of RANLP</title>
+		<meeting>RANLP</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Challenges in discriminating profanity from hate speech</title>
+		<author>
+			<persName><forename type="first">Shervin</forename><surname>Malmasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Experimental &amp; Theoretical Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="187" to="202" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Overview of the hasoc track at fire 2019: Hate speech and offensive content identification in indo-european languages</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Mandl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandip</forename><surname>Modha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prasenjit</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daksh</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohana</forename><surname>Dave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chintak</forename><surname>Mandlia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Patel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of FIRE</title>
+		<meeting>FIRE</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">HateXplain: A Benchmark Dataset for Explainable Hate Speech Detection</title>
+		<author>
+			<persName><forename type="first">Binny</forename><surname>Mathew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Punyajoy</forename><surname>Saha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seid</forename><surname>Muhie Yimam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Biemann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pawan</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Animesh</forename><surname>Mukherjee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Sentence-t5: Scalable sentence encoders from pretrained text-to-text models</title>
+		<author>
+			<persName><forename type="first">Jianmo</forename><surname>Ni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gustavo</forename><surname>Hernandez Abrego</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keith</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the ACL</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Exposing the limits of zero-shot cross-lingual hate speech detection</title>
+		<author>
+			<persName><forename type="first">Debora</forename><surname>Nozza</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Léo Laugier, and Ion Androutsopoulos. 2021a. SemEval-2021 task 5: Toxic spans detection</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Pavlopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Sorensen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Léo Laugier, and Ion Androutsopoulos. 2021b. SemEval-2021 task 5: Toxic spans detection</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Pavlopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Sorensen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">OffendES: A new corpus in Spanish for offensive language research</title>
+		<author>
+			<persName><forename type="first">Flor</forename><surname>Miriam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Plaza-Del</forename><surname>Arco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arturo</forename><surname>Montejo-Ráez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Alfonso Ureña-López</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">María-Teresa</forename><surname>Martín-Valdivia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of RANLP</title>
+		<meeting>RANLP</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="page" from="1" to="67" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tharindu</forename><surname>Ranasinghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isuri</forename><surname>Anuradha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Damith</forename><surname>Premasiri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kanishka</forename><surname>Silva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hansi</forename><surname>Hettiarachchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lasitha</forename><surname>Uyangodage</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.00851</idno>
+		<title level="m">Sold: Sinhala offensive language dataset</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Multilingual Offensive Language Identification with Cross-lingual Embeddings</title>
+		<author>
+			<persName><forename type="first">Tharindu</forename><surname>Ranasinghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Multilingual offensive identification for lowresource languages</title>
+		<author>
+			<persName><forename type="first">Tharindu</forename><surname>Ranasinghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Tharindu Ranasinghe and Marcos Zampieri. 2023. Teacher and student models of offensive language in social media. In Findings of the ACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="page" from="1" to="13" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Overview of the GermEval 2021 shared task on the identification of toxic, engaging, and fact-claiming comments</title>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Risch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anke</forename><surname>Stoll</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lena</forename><surname>Wilms</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Wiegand</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the GermEval</title>
+		<meeting>the GermEval</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">SOLID: A Large-Scale Weakly Supervised Dataset for Offensive Language Identification</title>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Rosenthal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pepa</forename><surname>Atanasova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georgi</forename><surname>Karadzhov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the ACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sana Sabah</forename><surname>Sabry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tosin</forename><surname>Adewumi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nosheen</forename><surname>Abid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">György</forename><surname>Kovács</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Foteini</forename><surname>Liwicki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Liwicki</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.05690</idno>
+		<title level="m">Hat5: Hate language identification using text-to-text transfer transformer</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Tharindu Ranasinghe, and Alexander Ororbia. 2021. fbert: A neural transformer for identifying offensive content</title>
+		<author>
+			<persName><forename type="first">Diptanu</forename><surname>Sarkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of EMNLP</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">MarSan at SemEval-2022 task 11: Multilingual complex named entity recognition using t5 and transformer encoder</title>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Tavan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maryam</forename><surname>Najafi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Aditya Barua, and Colin Raffel. 2021. mT5: A massively multilingual pre-trained text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">2019a. Predicting the type and target of offensive posts in social media</title>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shervin</forename><surname>Malmasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Rosenthal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noura</forename><surname>Farra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ritesh</forename><surname>Kumar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Task 6: Identifying and Categorizing Offensive Language in Social Media (Of-fensEval)</title>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shervin</forename><surname>Malmasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Rosenthal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noura</forename><surname>Farra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ritesh</forename><surname>Kumar</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019b. SemEval-2019</date>
+		</imprint>
+	</monogr>
+	<note>In Proceedings of SemEval</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Targetbased offensive language identification</title>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Skye</forename><surname>Morgan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>North</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tharindu</forename><surname>Ranasinghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Austin</forename><surname>Simmmons</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paridhi</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Rosenthal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Zeses Pitenis, and Çagrı Çöltekin. 2020. SemEval-2020 Task 12: Multilingual Offensive Language Identification in Social Media (Offen-sEval</title>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Rosenthal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pepa</forename><surname>Atanasova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georgi</forename><surname>Karadzhov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamdy</forename><surname>Mubarak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leon</forename><surname>Derczynski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Improving zero-shot crosslingual hate speech detection with pseudo-label finetuning of transformer language models</title>
+		<author>
+			<persName><forename type="first">Zia</forename><surname>Haris Bin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ignacio</forename><surname>Castro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arkaitz</forename><surname>Zubiaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gareth</forename><surname>Tyson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICWSM</title>
+		<meeting>ICWSM</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

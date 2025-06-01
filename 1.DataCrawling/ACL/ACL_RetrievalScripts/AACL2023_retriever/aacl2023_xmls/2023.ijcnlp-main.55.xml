@@ -1,0 +1,2264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Implicit Affordance Acquisition via Causal Action-Effect Modeling in the Video Domain</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Hsiu-Yu</forename><surname>Yang</surname></persName>
+							<email>hsiu-yu.yang@ims.uni-stuttgart.de</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Stuttgart</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Carina</forename><surname>Silberer</surname></persName>
+							<email>carina.silberer@ims.uni-stuttgart.de</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Stuttgart</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Implicit Affordance Acquisition via Causal Action-Effect Modeling in the Video Domain</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">CDF18C112F17AC006A811F75FE01DE8F</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:46+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Affordance knowledge is a fundamental aspect of commonsense knowledge. Recent findings indicate that world knowledge emerges through large-scale self-supervised pretraining, motivating our exploration of acquiring affordance knowledge from the visual domain. To this end, we augment an existing instructional video resource to create the new Causal Action-Effect (CAE) dataset 1 and design two novel pretraining tasks-Masked Action Modeling (MAM) and Masked Effect Modeling (MEM)promoting the acquisition of two affordance properties in models: behavior and entity equivalence, respectively. We empirically demonstrate the effectiveness of our proposed methods in learning affordance properties. Furthermore, we show that a model pretrained on both tasks outperforms a strong image-based visuallinguistic foundation model (FLAVA) as well as pure linguistic models on a zero-shot physical reasoning probing task.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Affordances refer to the potential actions and interactions that objects offer/are available to intelligent agents <ref type="bibr" target="#b20">(Gibson, 1977)</ref>. For example, a chair affords sitting and a cup affords drinking. In the context of artificial intelligence, affordance understanding involves training an agent to recognize and interpret affordances in the real world, allowing for seamless action anticipation and planning <ref type="bibr" target="#b0">(Ardón et al., 2021;</ref><ref type="bibr" target="#b46">Nagarajan and Grauman, 2020)</ref>. Recent advancements in large language models (LLMs) have enabled researchers to use their extensive everyday knowledge to decompose high-level natural language instructions into low-level actions for embodied agents <ref type="bibr" target="#b26">(Ichter et al., 2022;</ref><ref type="bibr" target="#b26">Huang et al., 2022)</ref>. The lack of physical grounding, however, limits these models to understand affordances <ref type="bibr">(Bisk et al., 2020a)</ref>. The main challenge in learning affor-  dance is multiplicity. Put simply, different objects of distinct semantic classes potentially facilitate the same action, and a single object can offer multiple feasible actions <ref type="bibr" target="#b40">(Lu et al., 2022)</ref>. As illustrated in Figure <ref type="figure" target="#fig_1">1</ref>(b) &amp; (c), both the "ball" and "pizza cutter" can afford the action "roll" while garlic supports actions like "slide" and "cut". More precisely, two principles serve as the foundation for realizing multiplicity <ref type="bibr">( Şahin et al., 2007)</ref>. The first is behavior equivalence, which states that different actions can produce the same effect on a given object, e.g., "slice", "cut" and "chop" can all make "garlic" into smaller pieces (Fig. <ref type="figure" target="#fig_1">1(b)</ref>). The second, entity equivalence, suggests that executing the same action on different objects can lead to identical outcomes, e.g., rolling an "apple" producing a similar motion change to rolling the "ball" (Fig. <ref type="figure" target="#fig_1">1(c)</ref>). Learning such associations poses a significant challenge for generalizing knowledge to novel objects and unfamiliar scenarios <ref type="bibr" target="#b40">(Lu et al., 2022)</ref>.</p><p>Existing methods address the generalization problem either by identifying shared characteristics among objects of an affordance category, or iteratively reinforcing cross-modal representation consistency <ref type="bibr" target="#b40">(Lu et al., 2022;</ref><ref type="bibr" target="#b41">Luo et al., 2021)</ref>. However, these approaches are devised for specific affordance tasks in supervised settings, raising questions about their adaptability to other tasks <ref type="bibr">(Bisk et al., 2020b;</ref><ref type="bibr" target="#b1">Aroca-Ouellette et al., 2021)</ref>. Given recent findings on the emergence of world knowledge from large-scale self-supervised pretraining <ref type="bibr" target="#b51">(Petroni et al., 2019)</ref> and the importance of the visual domain for distilling certain knowledge <ref type="bibr" target="#b56">(Shwartz and Choi, 2020;</ref><ref type="bibr" target="#b48">Paik et al., 2021)</ref>, we study the implicit acquisition of affordance knowledge through visual-linguistic (VL) pretraining. As we seek for a high diversity in action and effect categories, we explore affordance learning in a noisy real-world video domain <ref type="bibr" target="#b15">(Ebert et al., 2023)</ref>. To this end, we leverage step-by-step instructional videos accompanied by subtitles <ref type="bibr" target="#b44">(Miech et al., 2019)</ref>, from which we extract affordancerelevant clip-subtitle pairs. The resulting dataset, referred to as CAE(Causal Action-Effect Dataset), contains 4.1M clip-subtitle pairs for modeling diverse actions and their effects. We then introduce two pretraining tasks-MAM and MEM-to induce behavior equivalence and entity equivalence, respectively. To validate our approach, we conduct intrinsic evaluations addressing two research questions: (RQ1) can models trained with MAM and MEM adequately learn fundamental principles of affordances? (RQ2) what are the benefits of joint task training? We then assess the encoded affordance knowledge in the grounded representations to answer the third question: (RQ3) how effective is our causal action-effect pretrained model on solving an affordance probing task?</p><p>2 Related Work Affordance Learning. Several works mine affordances from text corpora by identifying semantically plausible verb-object pairs <ref type="bibr" target="#b39">(Loureiro and Jorge, 2018;</ref><ref type="bibr" target="#b50">Persiani and Hellström, 2019;</ref><ref type="bibr" target="#b9">Chao et al., 2015)</ref>. Closely related are selectional preferences <ref type="bibr" target="#b49">(Pantel et al., 2007;</ref><ref type="bibr" target="#b16">Erk, 2007)</ref>, i.e., typical arguments (e.g., objects) of a verbal predicate. Another line of research targets visual affordances, their detection and categorization in visual input <ref type="bibr" target="#b22">(Hassanin et al., 2022)</ref>. Affordances underlie the multiplicity property, i.e., multiple objects can be mapped to one affordance category and vice versa, making supervised learning challenging. Few works address this by enhancing the multimodal representation consistency iteratively <ref type="bibr" target="#b40">(Lu et al., 2022)</ref> or by finding joint object features of a given affordance class <ref type="bibr" target="#b41">(Luo et al., 2021)</ref>. Inspired by the robotics domain <ref type="bibr" target="#b53">( Şahin et al., 2007;</ref><ref type="bibr" target="#b10">Dag et al., 2010;</ref><ref type="bibr" target="#b12">Dehban et al., 2016;</ref><ref type="bibr" target="#b29">Jaramillo-Cabrera et al., 2019)</ref>, we model the relationships between actions, objects, and the observed effects for encoding affordance knowledge implicitly via a self-supervised setup. In contrast to <ref type="bibr" target="#b42">Merullo et al. (2022)</ref> that model object trajectories as effects in a closed simulated environment, we use action-object-effect relations mined from diverse web-crawled instructional videos.</p><p>Causal Modeling of Action Verbs. Grounding the meaning of action verbs to the state changes of the manipulated objects is gaining attention in the NLP community <ref type="bibr">(Sampat et al., 2022b)</ref>. <ref type="bibr" target="#b18">Gao et al. (2016)</ref> are the first to explore causal verb modeling in the cooking domain <ref type="bibr" target="#b52">(Regneri et al., 2013)</ref> for grounded semantic role labeling. <ref type="bibr" target="#b7">Bosselut et al. (2017)</ref> use symbolic action-effect modeling for procedural text understanding. <ref type="bibr" target="#b19">Gao et al. (2018)</ref> introduce multimodal action-effects predictionlinking action verbs to their effects in static images. Several works approach action-effect modeling in a simulated environment. <ref type="bibr" target="#b63">Zellers et al. (2021)</ref> collect action and object state transitions in AI2-THOR <ref type="bibr" target="#b33">(Kolve et al., 2017)</ref>, and ground language models to the physical world through symbolic representations (e.g., isWarm=True). <ref type="bibr" target="#b21">Hanna et al. (2022)</ref> address effect prediction in AI2-THOR in a more challenging setup where the image showing the post-action is to be chosen, while <ref type="bibr" target="#b11">Dagan et al. (2023)</ref> predict change labels from the visual input. Our goal, in contrast, is to implicitly augment models with affordance knowledge through causal action-effect modeling. Moreover, we do not bound object states to a fixed set of categorical labels, but exploit the temporal dimension to represent perceptual effect changes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">The CAE Dataset</head><p>We base our work on the hypothesis that affordance knowledge can emerge from large-scale self-supervised pretraining. We choose to build upon HowTo100M <ref type="bibr" target="#b44">(Miech et al., 2019)</ref>, the largest and most diverse instructional video dataset available at the time of writing <ref type="bibr" target="#b58">(Tang et al., 2019;</ref><ref type="bibr" target="#b69">Zhukov et al., 2019;</ref><ref type="bibr">Kuehne et al., 2019a</ref>  causal action-effect, we employ a series of automatic procedures to extract useful video clips from HowTo100M:</p><p>(1) identify a set of result verbs by leveraging various linguistic resources (2) locate casual action-effect video clips via parsing subtitles to match the result verb set. We call our resulting clip-subtitle pairs the CAE dataset. 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Identify Result Verbs</head><p>To model perceptual causal change of actions, we are interested in a specific verb type called result verbs. Result verbs cause state changes on their arguments, including changes in volume, area, gradable scale, and motion <ref type="bibr" target="#b36">(Levin and Malka Rappaport, 2010)</ref>. One can reuse an existing collection of result verbs from <ref type="bibr" target="#b19">Gao et al. (2018)</ref>; yet, it has limited coverage (62 verb classes, of which 39 are covered in our list). Furthermore, to facilitate a reproducible and systematic method for identifying result verbs, we define 2 criteria that a potential result verb should meet: (1) visualness: it can be visually perceivable (2) effect-causing: it can cause physical results on the object it acts upon. We use several semantic resources, including Verb-Net <ref type="bibr" target="#b32">(Kipper et al., 2006)</ref> for its informative selectional restrictions, and imSitu <ref type="bibr" target="#b62">(Yatskar et al., 2016)</ref>, to leverage its exhaustive frame-semantic annotations on visual verbs. Moreover, we employ FrameNet (FN; <ref type="bibr" target="#b3">Baker et al., 1998)</ref> to extract (undisambiguated) situational frames a verb could evoke and use the associated frame elements to identify potential result verbs. 2 We will further use the extracted frames for generalization analysis on unseen verb classes (detailed in Sec. 5). To automate result verb identification, we define heuristics to verify visualness and effect-causing properties.</p><p>Visualness. We retain potential result verbs from imSitu's visually perceivable verbs, whose seman- To consolidate the visualness and the effectcausing information obtained from the various lexical resources, we merge the verbs on their lemma, e.g.,"grill" is judged as a result verb because its verb sense grill-45.3 captures visualness and effectcausing properties, even though the other, grill-26.3-2, lacks such information on VerbNet. We derive in total 236 sure cases with both visualness and effect-causing characteristics (an overview of sure and unsure cases can be found in Tab. 7 of App. A.1), which we use to locate causal actioneffect video clips described in the following.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Extract CAE Video Clips</head><p>Given the large size of the HowTo100M dataset, we down-sample the video pool with several heuristics and focus on 13 video domains with a high density of unique result verbs (see App. A.2 for details). To extract video clips from this pool relevant for causal action-effect modeling, we rely on the paired subtitles and their linguistic information such as PoS tags and dependency labels. Particularly, we only keep clips with a single occurrence of one of our results verbs. To mitigate information leakage due to overlapping video frames, we enforce a minimum difference of 5 seconds between adjacent clips at the per-video level. <ref type="foot" target="#foot_2">4</ref> In addition, to annotate proxy objects (i.e., nouns), we find the set of objects (within a subtitle) by considering the intersection of nouns labeled with dobj or pobj relations and with high concreteness ratings (i.e., &gt; 4; <ref type="bibr" target="#b8">Brysbaert et al., 2014)</ref>. Through this process, we derive in total 4.1M video clips with 235 unique result verb types. <ref type="foot" target="#foot_3">5</ref> Figure <ref type="figure" target="#fig_2">2</ref> gives examples (the comparison to the underlying HowTo100M clips can be found in App. A.2, Fig. <ref type="figure">5</ref>). <ref type="foot" target="#foot_4">6</ref> As Table <ref type="table" target="#tab_1">1</ref> shows, most of the verbs are prevalent across domains, e.g. "make". Since our goal is to maintain a naturalistic dataset, we keep such common verbs (see App. A.2 for details.). Recall that we built upon noisy weakly-paired clip-text data, resulting in many items without visual occurrences of both our target actions and objects (70% of 288 CAE samples analyzed by a postgraduate student). We keep these "background examples" as a preliminary study <ref type="bibr">(Kuehne et al., 2019b)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Causal Action-Effect Modeling</head><p>Our goal is to induce the basic principles of affordance knowledge, i.e., behavior equivalence and entity equivalence (Fig. <ref type="figure" target="#fig_1">1</ref> of Sec. 1). We design two pretraining tasks: MAM and MEM, and further explore the benefit of joint task training by alternating task-specific samples to optimize the model, referred to as Multi-task on Causal Action-Effect Modeling (MULTI-CAE). In order to gauge the understanding of affordance properties, the corresponding intrinsic tasks called Masked Action Prediction (MAP) and Masked Effect Prediction (MEP) are introduced. We build upon the existing video-language hierarchical framework HERO <ref type="bibr" target="#b37">(Li et al., 2020)</ref>, consisting of a Cross-Modal Transformer to learn contextualized embeddings between a subtitle and a video clip locally and a Temporal Transformer to learn video embeddings on the global context (i.e, the whole video clip). Figure <ref type="figure" target="#fig_5">3</ref> illustrates the overall architecture and the pretraining tasks (for model details see App. A.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Masked Action Prediction (MAP)</head><p>Task Definition. Our underlying assumption is that a video clip of the CAE dataset visually depicts the change of the pre-condition ([BEF]), the action process ([ACT]), and the post-condition ([AFT]) in sequential order throughout an action execution <ref type="bibr">(Sampat et al., 2022b)</ref>. Given a CAE clip-subtitle pair, where the action a ∈ A (a result verb) is masked. The task is to predict verb a.</p><p>Masked Action Modeling (MAM). We address MAP on the local context, i.e., the contextualized multimodal embeddings computed by the Cross-Modal Transformer (Fig. <ref type="figure" target="#fig_5">3</ref>  Training. During pretraining, we seek to encourage the model to learn holistic semantics. We thus mask the verb a and each word in S with a chance of 15%. <ref type="foot" target="#foot_5">7</ref> We empirically verify the benefit of this masking strategy during preliminary experiments (see App. A.5 for details). The objective is to reconstruct s a * (the action verb and some random words) based on the observation of unmasked tokens S \s a * and the video clip V such that the learnable parameters θ are updated with the loss function:</p><formula xml:id="formula_0">L M AM (θ) = -log P θ (s a * |S \s a * ∥V )</formula><p>Inference. During inference, only the target verb a is masked in the input. We feed the preprocessed input to HERO, and consider the token with the highest logits in the MAM head's output as the predicted token â.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Masked Effect Prediction (MEP)</head><p>Task Definition. Recall from MAP (Sec. 4.1), the effect of an action on the object is assumed to be visually perceivable in a CAE clip-subtitle pair. The goal of MEP is to predict the masked [AFT] (post-condition) subclips in a discriminative setup:  for each [AFT] subclip (frame), the correct frame from candidate frames with the same video id as the given video clip is to be selected. Training. During pretraining, the objective is to reconstruct v <ref type="bibr">[AFT]</ref> given the observation of unmasked video frames V \v [AFT] and subtitle S:</p><formula xml:id="formula_1">L M EM (θ) = -log P θ (v [AFT] |V \v [AFT] ∥S)</formula><p>Concretely, following <ref type="bibr" target="#b37">Li et al. (2020)</ref>, we optimize the model with a contrastive loss by employing the softmax version of the NCE loss function <ref type="bibr">(Józe-fowicz et al., 2016)</ref>, thus,</p><formula xml:id="formula_2">P θ (v[AFT]|V \v [AFT] ∥S) ≈ exp v ′ [AFT] • v [AFT] /τ C i=0 exp v ′ [AFT] • c i /τ</formula><p>where τ is a temperature to control the strength of the penalties on the negative samples, and where the global contextualized embeddings v ′</p><p>[AFT] , computed by the Temporal Transformer, are taken to compute the similarity to each video frame c i in C, a candidate set comprising the correct v [AFT] and negative video frames sampled from the same video id as the input video clip V .<ref type="foot" target="#foot_9">10</ref> </p><p>Inference. Identical to training, we mask postcondition video frames v [AFT] for reconstruction. By using the trained MEM head to compute the dot product between v ′</p><p>[AFT] and each of the candidate frames from the same video id, the highest score obtained is considered as the model's prediction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We first evaluate our proposed methodology for multimodal affordance learning intrinsically on MAP and MEP, and then on the task-specific probing benchmark Physical Reasoning about Objects through Space and Time (PROST). (2) examining the generalization ability from the perspective of event <ref type="bibr" target="#b3">(Baker et al., 1998)</ref> and lexico-taxonomic <ref type="bibr" target="#b45">(Miller, 1994)</ref> semantics. We thus implement an algorithm controlling the splitting of the CAE dataset.<ref type="foot" target="#foot_10">11</ref> </p><p>Dataset Split. To examine the action generalization ability on the level of event semantics in a generalized zero-shot setting <ref type="bibr" target="#b60">(Xian et al., 2017)</ref>, we assign verbs either to seen or unseen classes within a FrameNet frame and remove the restriction that all the verb classes of the test set should be unseen. In total, there are 143 seen and 92 unseen verb classes, resp. As shown in Moreover, to see if the modalities provide complementary information, <ref type="foot" target="#foot_12">13</ref> we train model variants with one ablated modality for comparison: MAM-L Rnd and MEM-V. We do this through zero-masking on the inter-attention mask. In other words, MAM-L Rnd and MEM-V are tasked to reconstruct the masked textual/visual target tokens under their own respective unimodal input (see Appendix A.7 Ablated Models). During inference, we perform a sanity check, where we ablate one modality to see whether the linguistic/visual context is sufficient to solve the task as illustrated in Figure <ref type="figure" target="#fig_5">3</ref>. See Appendix A.7 for the pretraining details and the hyperparameters we adopted.</p><p>Metrics. For MAP, we report the macro-average accuracy on seen/unseen verb classes and their harmonic mean <ref type="bibr" target="#b60">(Xian et al., 2017)</ref>, along with the micro-average accuracy. For the MEP task, we report the micro-average accuracy, which measures the correctness of predicting all masked [AFT] frames per instance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Probing Task: PROST</head><p>To address (RQ3) (Sec. 1), we assess the encoded affordance knowledge in our causal action-effect pretrained models by performing a zero-shot evaluation on the PROST task (Aroca-Ouellette et al effects due to the temporal dimension, we compare against the image-based visual-linguistic foundation model FLAVA <ref type="bibr" target="#b57">(Singh et al., 2022)</ref>, known for its strong unimodal and multimodal representations. Note that before undergoing multimodal pretraining, the textual encoder of FLAVA is initialized with unimodal pretrained weights,<ref type="foot" target="#foot_13">14</ref> making its linguistic understanding comparable to pretrained text-based models. The models thus all have some prior linguistic knowledge, allowing us to focus on the effect of CAE pretraining. Regarding the LMs, we report results for RoBERTa-B, and the average (coined AvgLM) of the best results that Aroca-Ouellette et al. ( <ref type="formula">2021</ref>) report for each of their LMs (GPT, GPT2, BERT, RoBERTa, ALBERT V2). <ref type="foot" target="#foot_14">15</ref>For inference, all models are fed textual input only, and we follow Aroca-Ouellette et al. <ref type="bibr">'s (2021)</ref> procedure to obtain the probabilities of each candidate, based on the logits of pretrained MLM (RoBERTa-B &amp; FLAVA) and MAM heads (ours).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Intrinsic Tasks: MAP</head><p>The accuracy of all models on predicting the correct verb is overall lower on the language-input test set compared against the multimodal set, where they are fed both, subtitles and video clips (Block 2 vs. 1, Tab. 3, left). The best model, MAM-VL Rnd , drops by -10.3pp accuracy on seen and -4.3pp on unseen verb classes, suggesting that the task and test set is not trivially solvable without visuals. It also indicates that the VL model has successfully learned to ground verbs by leveraging the visual effect change (cf. <ref type="bibr">Sampat et al., 2022a)</ref>. Indeed, when omitting the [AFT] frames (the visual effect) during inference, the accuracy of MAM-VL Rnd drops on Seen and Unseen (-4.5pp and -2.3pp, resp., no table shown). But the benefit of the visual modality for the model seems still limited regarding its generalization ability-the difference on Unseen between MAM-VL Rnd and its ablated variant MAM-L Rnd (pretrained on subtitles), is minimal (+.5pp for VL); MULTI-CAE-VL Rnd even underperforms MAM-L Rnd on Unseen irrespective of the test input.</p><p>Analysis: Generalization Ability. We analyzed the effect of our pretraining tasks on the generalization ability of verbs on the level of situations/events, i.e., semantic frames, and less specific verb senses: We measured the number of cases, in which the reference verb v and the predicted verb ṽ, v ̸ = ṽ, share the same FrameNet (FN) frame or the same direct WordNet (WN) hypernym (cohyponymy). <ref type="foot" target="#foot_15">16</ref> Table <ref type="table" target="#tab_4">3</ref> (right) shows that MAM-VL Rnd and MULTI-CAE-VL Rnd have the highest proportion of cases for which they did not predict v, but a shared FN frame or a co-hyponym. Moreover, MAM-L Rnd falls short against both VL models across the board on FN frames, in contrast to our findings above on MAP on verb types. E.g., MAM-VL Rnd predicted "fry" instead of reference "roast", but both evoke the Apply_heat frame and are co-hyponyms of "cook", while MAM-L Rnd predicted "put" (Placing; "move"; see also Fig. <ref type="figure" target="#fig_13">12</ref>  the visual modality is beneficial for frame semantics, and second, visual-linguistic (VL) action learning fosters event knowledge, while VL action-effect learning fosters lexico-taxonomic knowledge.</p><p>Qualitative Analysis. Through introspection of individual verb classes, we found the visually perceivable effect to be beneficial for the majority of our examined classes. For example, the accuracy of MAM-VL Rnd on Seen "whip" and "bake" drops significantly (-24pp and -20.7pp, resp.), when it is tested with language input only; examples for Unseen are "crumple", and "wring" (-9.1pp, -6.3pp, resp.). However, for several classes the linguistic context alone gives a strong cue. "Manicure", e.g., often co-occurs with the word "nail", and "sharpen" with "knife" (we refer to App. A.5, Fig. <ref type="figure" target="#fig_11">10</ref> for an example). For an example of extrapolations of visual effect similarities for capturing behavior equivalence, see Appendix A.5, Fig. <ref type="figure" target="#fig_12">11</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Intrinsic Tasks: MEP</head><p>As shown in Table <ref type="table">4</ref>, the accuracy of the multimodal and vision-only model, MEM-VL Rnd and MEM-V, is comparable on visual effect inference on their respective input modes (59.9% and 59.7%). This indicates that linguistic knowledge priors do not contribute much to visual action-effect comprehension. Comparing these models with a variant whose language encoder is initialized with RoBERTa-B before multimodal pretraining supports this-it yields a neglectable difference in accuracy (60% and 59.6% on VL and V test input, resp., no table shown). On the other hand, on videoonly inference, MULTI-CAE-VL is slightly more effective than MEM-VL Rnd (+1.4pp). Thus, a linguistic encoder that is trained jointly on both, visual effect and linguistic action prediction (MULTI-CAE-VL) may benefit video-only effect inference.</p><p>We refer to Figures <ref type="figure" target="#fig_1">14</ref> and<ref type="figure" target="#fig_1">15</ref> for examples of successful entity equivalence reasoning, and failures due to ambiguous reference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Probing Task: PROST</head><p>Pretraining models on both, visual action and effect prediction in the video domain, is beneficial for learning affordance knowledge. As Table <ref type="table" target="#tab_6">5</ref> (left) shows, MULTI-CAE-VL, which is additionally trained to observe the action process and its perceptual effect on objects obtains the best Macro Average (32%), with a difference to AvgLM of up to +19.1pp (slide). Notably, it achieves better results on average compared to FLAVA (+16.2pp). This indicates that modeling visual action-effects in the temporal dimension plays a crucial role in effectively encoding latent affordance concepts. Note that slide is the only affordance that is contained in our CAE training data, yet, even on slide, MAM-VL yields a higher accuracy (+6pp, Tab. 5) than its variant trained only on textual training items (subtitles), MAM-L.</p><p>Beneficial is moreover pretraining towards visual effect prediction (i.e., MEM), as the comparison of MULTI-CAE-VL against MAM-VL shows (+5.5pp on average). The former significantly outperforms all other models also on two affordances that are not covered by CAE's train split (stack (34%) and bounce (38%)). That is, MULTI-CAE-VL learns to extrapolate to unseen actions. Our models are at least comparable to the pure LMs on all individual affordances except for break (RoBERTa-B, 31%). When compared to FLAVA, our models perform slightly worse in the case of grasp, though the performance difference is not significant. Introspection showed the performance discrepancy between the affordances is not due to seen vs. unseen, objects, in fact, all are seen (cf. Tab. 15, App. A.8). However, we found that the errors made by our model in break and grasp are related to the frequency of objects in the CAE training set. In other words, our models tend to pick the most common seen object among the 4 choices as its prediction, e.g., wrongly selecting sugar as the graspable object.</p><p>Model Robustness. We test the models for robustness to the order of answer choices and to template inversion (difference in accuracy on affordance/non-affordance), allowing deeper insights into the models' proper affordance knowledge and language understanding ability, respec- tively. Table <ref type="table" target="#tab_6">5</ref> (right) shows that all our models display the most balanced effectiveness across different answer positions, indicating robustness against syntactic change of the answer position, i.e., the order in which the correct (non-)affordable object is presented in the context. In contrast, text-based models like RoBERTa-B and AvgLM are significantly affected, while FLAVA slightly favors the first answer position.</p><p>In terms of robustness to template inversion, as shown in Table <ref type="table" target="#tab_7">6</ref>, MULTI-CAE-VL, the overall most effective model in accuracy, is the least balanced, it has on average a 54pp higher accuracy on inverses. Our second overall best model, MAM-VL, is by far more robust (avg. 22.3pp diff.) and is better than FLAVA. This result is somewhat surprising since FLAVA is expected to have a stronger linguistic understanding due to its additional pretraining on textual corpora. The pure language models turn out to be most robust to inverses (avg. 13.2pp and 15.3pp for AvgLM and RoBERTa-B, resp.), indicating a higher ability of true language understanding. 18 See Appendix A.8, Table 16 for the breakdown of the individual results on original/inversed templates. 18 Recall our CAE pretraining data has noisy subtitles including automatically transcribed speech, which may hinder language understanding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>The intrinsic results suggest that both modalities contribute beneficially towards our goal of encoding behavior and entity equivalence. Crucially, our results on the PROST affordance probing task strongly support our joint action-effect modeling in the video domain: MULTI-CAE-VL is the most effective model. It is also most robust in terms of language-only (esp. PROST) and visual-only input (MEP) inference modes. We hypothesize that MULTI-CAE-VL is more encouraged in taking both modalities into account due to its training objectives on both, vision-conditioned linguistic action prediction (MAM) and language-conditioned visual effect prediction (MEM).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusions</head><p>We explore the acquisition of affordance propertiesbehavior and entity equivalence through large-scale causal action-effect pretraining in the video domain. To this end, we augment an existing instructional video dataset and introduce two pretraining tasks, MAM &amp; MEM. Our empirical results show the successful incorporation of these foundamental properties of affordance. Furthermore, the jointtask-trained model outperforms linguistic counterparts on an affordance probing task. Future work would benefit from a cleaner dataset to explicitly examine the contribution of action/effect modeling, and further exploration of multi-task training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Limitations</head><p>In this work, we seek to validate the induction of two affordance properties through large-scale self-supervised visual-linguistic pretraining. It is important to acknowledge that affordance knowledge encompasses a range of concepts <ref type="bibr" target="#b68">(Zhu et al., 2015;</ref><ref type="bibr" target="#b61">Xu et al., 2022)</ref>, and our assessment is currently limited to a linguistic probing task. Future work is necessary to investigate whether the representation derived from causal action-effect modeling can effectively address other affordance downstream tasks, e.g., purpose-driven affordance understanding <ref type="bibr" target="#b41">(Luo et al., 2021;</ref><ref type="bibr" target="#b64">Zhai et al., 2022)</ref>. Furthermore, it is worth investigating the potential applications of the encoded latent affordance representations in areas like procedural tasks <ref type="bibr" target="#b67">(Zhou et al., 2023)</ref> and robot learning <ref type="bibr" target="#b2">(Bahl et al., 2023)</ref>. When considering the use of the video domain for large-scale pretraining, one has to remark on certain shortcomings compared to a controllable embodied environment. Firstly, the temporal misalignment of the video clips and subtitles poses a challenge for cross-modal learning <ref type="bibr" target="#b69">(Zhukov et al., 2019;</ref><ref type="bibr" target="#b43">Miech et al., 2020)</ref>. Moreover, many subtitles consist of incomplete sentences, as most of them are automatically transcribed based on an ongoing speech within fixed time intervals <ref type="bibr">(Kuehne et al., 2019b)</ref>, restricting the linguistic capabilities of models trained on such data. Secondly, it is computationally infeasible to ensure quality control on the web-crawled video data, particularly when it comes to establishing clear temporal boundaries and localization between the pre-condition, action process, and the resulting effect. Additionally, eliminating background objects proves to be a challenging task in this context. Lastly, to draw more conclusive insights into the intrinsic evaluations, it would be beneficial to have a humanannotated test set. However, this approach can be prohibitively costly, necessitating further research into semi-automatic methods for conducting such annotations <ref type="bibr" target="#b25">(Huang et al., 2018;</ref><ref type="bibr" target="#b65">Zhang et al., 2022;</ref><ref type="bibr" target="#b14">Dvornik et al., 2023)</ref>. Regarding our methodology, it is important to note that our focus is on presenting proof-of-concept pretraining tasks rather than achieving optimal performance. Hence, we have not conducted an extensive hyperparameter search, and the results reported in this study are obtained from a single seed run.</p><p>Result Verbs: Sure Cases v.s. Unsure Cases. Following the series of automatic steps described in Section 3.1, we derive in total 377 result verb candidates, including 236 sure cases and 141 unsure cases, along with their corresponding 150 unique FrameNet frames. In this work, only the sure cases are utilized for locating the video clips. Some examples of sure cases v.s. unsure cases are shown in Table <ref type="table" target="#tab_9">7</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 HowTo100M Subtitles: Preprocessing Details</head><p>We focus on 13 video categories (the released file, HowTo100M_v1.csv, contains 19 categories) that have a denser distribution of result verbs according to a preliminary study conducted on a subset containing 500 videos from each category. In particular, a video category of our interest should have more than 15 unique result verb types, and each of the result verb types within should have more than 100 video clips. The distribution of result verb type across video categories computed during the preliminary study can be seen in Figure 4.</p><p>To further downsample the video pool, we select the top 15 viewed videos per wikiHow task id <ref type="bibr" target="#b44">(Miech et al. (2019)</ref> search and collect videos based on wikiHow task title. On average, there are 48 videos per task id).</p><p>We use the pre-processed version of clipsubtitle, raw_caption_superclean.json. All the relevant files can be downloaded from this link: https://www.di.ens.fr/willow/ research/howto100m/.</p><p>The comparison between extracted CAE clips and the non action-centric clip of HowTo100M can be found in Figure <ref type="figure">5</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 CAE Split Statistics</head><p>Split Details. Within a FrameNet frame, we randomly assign (seed 42) 80%/20% of the verbs (lexical units) to seen/unseen verb classes. As the video frame visual feature extractor is trained with Ki-netics400, we ensure no information leakage by controlling the seen verb classes that do not contain Kinetics400 <ref type="bibr" target="#b31">(Kay et al., 2017)</ref> verb types. To control the split, we adopt the recommended practices by <ref type="bibr" target="#b60">Xian et al. (2017)</ref>. For seen verb classes, the corresponding video clips ratio of train-dev-test follows 80%-10%-10% whereas for unseen verb classes, it follows 0%-50%-50%. As for the video   domain, validation and test set are ensured to be similar.</p><p>Statistics. For the top 20 and bottom 20 seen verb classes with their top 5 nouns combinations and the corresponding FrameNet frames they can evoke, refer to Tables <ref type="table">8</ref> and<ref type="table">9</ref> respectively. As for the unseen verb classes, refer to Tables <ref type="table" target="#tab_1">10</ref> and<ref type="table" target="#tab_1">11</ref>. The video clip counts (log scale) of top 100 seen verbs in the train set and unseen verbs (93 classes) in the test set can be found in Figures <ref type="figure">6</ref> and<ref type="figure">7</ref> respectively. The co-occurrence heatmap between the top 100 seen verbs and the top 30 nouns in the train set is shown in Figure <ref type="figure" target="#fig_8">8</ref>. As for that of unseen verbs (93 classes) and the top 30 nouns in the test set is shown in Figure <ref type="figure" target="#fig_9">9</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Model Details</head><p>Subtitle Input. Subtitles are tokenized with RobertaTokenizerFast that uses byte-level Byte-Pair-Encoding from the Hugging Face library <ref type="bibr" target="#b59">(Wolf et al., 2020)</ref>.</p><p>Video Input: Visual Feature Extraction. For each video clip, the temporal context is extended to 3 seconds before the starting point and after the endpoint of the original time stamp such as to ensure that the pre-condition and the post-condition are sufficiently captured. The visual features are then extracted every 2 seconds (0.5 FPS) with ResNet <ref type="bibr">(He et al.)</ref>, pretrained on ImageNet <ref type="bibr" target="#b13">(Deng et al., 2009)</ref>, and with SlowFast <ref type="bibr" target="#b17">(Feichtenhofer et al., 2019)</ref>, pretrained on Kinectics-400 <ref type="bibr" target="#b31">(Kay et al., 2017)</ref> for 2D and 3D features, respectively. Therefore, for a video segment</p><formula xml:id="formula_3">V = {v i } |V | i=1 (|V |</formula><p>is the number of decoded video frames), the resulting visual representation is the concatenation of 2D (2048) and 3D features (2304</p><formula xml:id="formula_4">) (V ∈ R |V | × 4352).</formula><p>HERO Architecture. Designed by <ref type="bibr" target="#b37">Li et al. (2020)</ref>, it can be viewed as a single-stream visionlanguage model that captures contextualized video embeddings in a hierarchical fashion. There are three major components: the Input Embedder, the Cross-Modal Transformer, and the Temporal Transformer. The Input Embedder comprises the Visual and Textual Embedder. The final textual representation of a sub-word token is obtained by applying a normalization (LN) layer on top of the sum of (1) the token embedding (2) the position embedding and (3) the segment type embedding (one segment type). As for the visual part, the video frame embedding is obtained by projecting the extracted visual features to the same dimension as the token embedding with a fully-connected (FC) layer. Similarly, to obtain the final visual representation, (1) the video frame embedding (2) the position embedding and (3) the segment type embedding comprising three types: [BEF] (to denote the pre-condition), [ACT] (to denote the action process), [AFT] (to denote the post-condition) are summed up and fed through a LN layer. Finally, the multimodal input is the concatenation of the    To learn the implicit association between subtitle tokens and video frames, the Cross-Modal Transformer is used to perform cross-modal attention on the multimodal input. The outputs are then contextualized subtitle embeddings and video frame embeddings.</p><p>To further obtain temporal-aware video frame embeddings, the local output of video frame embeddings from the Cross-Modal Transformer are fed into the Temporal Transformer yielding the global embeddings. The final contextualized video frame embeddings are obtained by adding the local and the global embeddings via a residual connection <ref type="bibr" target="#b24">(He et al., 2016)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.5 MAM</head><p>During the development stage performed on 10% of the training data and test data , we explored three masking strategies (see Table <ref type="table" target="#tab_3">12</ref>):</p><p>• Verb-only: mask the result verb only.</p><p>• Verb-random-joint: mask the result verb &amp; and some random words within one data point in the meantime. In this way, more masked tokens have to be reconstructed; thus, it is more challenging. Details on Controlling the Negative Video Frame Samples. In order to enhance the model's understanding in disentangling the pre-condition, the action process, and the post-condition in the visual space, we consider having the intra-videoclip video frames of types such as [BEF] (precondition) and [ACT] (post-condition) in the candidate set of the input. However, we exclude [AFT] video frames within the same clip as it becomes difficult and potentially unfair for the model to distinguish from due to its close temporal proximity.</p><p>Quantitative Results Across Different Negative Sampling Strategies During Development. As displayed in Table <ref type="table" target="#tab_1">14</ref>, the test set constructed based on a video-based sampling strategy is the most challenging one across three MEM models, despite that it yields the lowest average negative video frames in a batch (avg. neg is 8). In general, when the negative samples in the test set are constructed identically as the train set, the corresponding trained model has the highest accuracy, e.g., the video-based model has +2pp acc over the randomized and object-based one. Moreover, both   we obtain the logits of the 4 object candidates instead of the whole vocabulary from the pretrained MAM head. Subsequently, we compute the probabilities of these candidates using the Softmax function. The object with the highest probability is the model's decision.</p><p>PROST Probed Object Occurrences in CAE.</p><p>As shown in Table . 15, all the objects probed in the PROST affordance groups are seen to our models. Note that the statistic does not describe the occurrences of action-object combinations as only "Slide" is a seen verb to our models. In terms of action-object combinations, only [slide, oil ] and [slide, grease ], are seen to our model. We hypothesize that MULTI-CAE-VL and MAM-VL may have leveraged the shared visual properties of these objects, i.e., slipperiness, to extend the affordance understanding on the other objects like soap and frost.</p><p>Model Robustness: Original vs. Inverses. The individual results on original and inverse templates across the concepts are shown in Table <ref type="table" target="#tab_7">16</ref>. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: We address the (a) multiplicity issue of affordance learning by modeling causal action-effect during pretraining to implicitly induce two essential properties of affordance: (b) behavior and (c) entity equivalence.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: CAE Clip-subtitle pairs.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>(a) MAM). To prepare the multimodal inputs, we extract a series of video frames V = {v j } |V | j=1 from the video clip every 2 seconds, and tokenize the corresponding subtitle into a sequence of tokens S = {s i } |S| i=1 (refer to App. A.4 for details). We replace the (masked) target verb with the special [MASK] token.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Our proposed pretraining tasks on the hierarchical video-language architecture HERO (Li et al., 2020): (a) MAM for behavior equivalence on the output of Cross-Modal Transformer (Sec. 4.1) (b) MEM for entity equivalence on the output of Temporal Transformer (Sec. 4.2). (c) MULTI-CAE for joint-task training. During inference (blue-gray background), we also ablate one modality via attention masks for a systematic intrinsic evaluation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>8</head><label></label><figDesc>Masked Effect Modeling (MEM). Unlike MAP, the task is addressed globally with the temporal contextualized embeddings computed by the Temporal Transformer (Fig.3 (c) MEM). Given a preprocessed pair of video frames V = {v j } |V | j=1 and subtitle tokens S = {s i } |S| i=1 , we arbitrarily divide the video clip into three parts in a nearequal manner: [BEF] (pre-condition), [ACT] (action), [AFT] (post-condition) 9 and mask the video frames v [AFT] corresponding to the [AFT] postcondition subclips with zero-vectors.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 4 :Figure 5 :</head><label>45</label><figDesc>Figure 4: Number of unique result verbs across video categories</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: The co-occurrence heatmap between the top 100 seen verb classes and the top 30 nouns in the train set</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: The co-occurrence heatmap between top 100 unseen verb classes and top 30 nouns in the test set</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head></head><label></label><figDesc>subtitle: "and [MASK] that up until it reaches stiff" reference verb: whip (correct) MAM-VL-RND: whip (wrong) MAM-VL-RND (on L): combine (wrong) MAM-L-RND (on L): make</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 10 :</head><label>10</label><figDesc>Figure10: Action inference task: MAM-VL Rnd is able to infer the correct action "whip" by reasoning upon the visual causal effect process. Under the language-only inference setting, models fail as the subtitle gives limited information.</figDesc><graphic coords="23,387.78,334.71,116.37,86.59" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_12"><head>Figure 11 :</head><label>11</label><figDesc>Figure11: Action generalization: MAM-VL Rnd generalizes to the unseen verb "paint". Its causal effect is similar to the two seen verbs "spread" &amp; "spray" that produce a light coat on the surface of an object. For readability, we use "/" to indicate the sentence boundary.</figDesc><graphic coords="23,224.31,338.77,139.15,86.97" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_13"><head>Figure 12 :</head><label>12</label><figDesc>Figure 12: Action generalization: both MAM-VL Rnd and MAM-L Rnd predict the wrong verb, but MAM-VL Rnd predicts the verbs that share the same FrameNet frame and Hypernym (depth=1) with the reference verbs. MAM-L Rnd tends to predict one of the most common seen verbs, "put".</figDesc><graphic coords="24,229.41,489.88,134.72,99.60" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Number of unique videos, video clips, and the top 5 result verbs across 5 selected video domains.tic role in the second position is valid, e.g. Item.3  From VerbNet, we extract visual verbs based on the selectional restrictions on the thematic role of its verb class. Precisely, if a verb class, e.g., spank-18.3, specifies the Patient role to be concrete or solid, we consider its grouped verb members to possess visualness, e.g., "whisk" and "whip".</figDesc><table><row><cell>2 See App. A.1 for details on the versions we use.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2</head><label>2</label><figDesc></figDesc><table><row><cell>Model Ablations. To ensure a faithful assess-</cell></row><row><cell>ment of the generalization ability, we diverge from</cell></row><row><cell>Li et al. (2020) and use randomized weights rather</cell></row><row><cell>than RoBERTa-B's pretrained weights to initialize</cell></row><row><cell>HERO's Cross-Modal Transformer. 12 The models</cell></row><row><cell>pretrained with MAM, MEM, and MULTI-CAE</cell></row><row><cell>tasks are referred to as MAM-VL Rnd , MEM-</cell></row><row><cell>VL</cell></row></table><note><p><p><p>, the train/dev/test split ratio follows 70%/15%/15% and nearly 50% of instances in the dev/test set contain unseen actions (verbs) (see App. A.3 for relevant frequency statistics for verbs and verb-noun combinations in train/test). Note that the test set is not manually annotated by humans and serves solely as a reference set</p>(Kuehne et al., 2019a)</p>. Rnd , and MULTI-CAE-VL Rnd , respectively.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>The distribution of correct answer positions is uniform across the test instances. Therefore, a model that is found robust exhibits similar effectiveness on the original and its inverse template, as well as on all answer positions. Left: Results (%) for MAP on (1) Multimodal (video + subtitles) and (2) Language (subtitles) test input for Seen/Unseen verbs. HM = Harmonic Mean, Micro = micro-average accuracy. RoBERTa-B † is a linguistic baseline. Right: Proportion (in %) of false predictions on the set of unseen verb classes, which generalizes in terms of event and lexico-taxonomic semantics, measured through a shared FrameNet (FN) frame and direct Co-Hyponymy, respectively. Best results in boldface, best result in each input mode underlined.</figDesc><table><row><cell>Models. We compare pure language models</cell></row><row><cell>(LM) against variants of MAM-L, MAM-VL, and</cell></row><row><cell>MULTI-CAE-VL, whose textual encoders are ini-</cell></row><row><cell>tialized with the pretrained RoBERTa-B model</cell></row><row><cell>(Hugging Face, Wolf et al., 2020) before CAE</cell></row><row><cell>pretraining. Additionally, to test our hypothe-</cell></row><row><cell>sis that the video domain better captures action-</cell></row></table><note><p><p>.,  2021)</p>. It intends to probe models on physical commonsense knowledge in a textual cloze-style format, including 6 affordance concepts: stackable, rollable, graspable, breakable, slidable and bounceable for 38 object classes in total. Each of them comprises two templates: (1) the original template asks the model to choose the object among 4 objects that affords a given action, while (2) its inverse asks for the object that cannot afford the action; e.g., eggs is the non-stackable object in [eggs, books, blocks, boxes ].</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head></head><label></label><figDesc>of App. A.5). Noteworthy is also that MAM-VL Rnd is best on frame-level generalization with visual input during inference, while MULTI-CAE-VL Rnd is the best model on the co-hyponymy relation without visual input. The patterns indicate that, first,</figDesc><table><row><cell cols="2">Test Set Input Model</cell><cell>Accuracy</cell></row><row><cell></cell><cell>Random baseline</cell><cell>0.27</cell></row><row><cell>Multimodal</cell><cell>MULTI-CAE-VL Rnd</cell><cell>59.2</cell></row><row><cell></cell><cell>MEM-VL Rnd</cell><cell>59.9</cell></row><row><cell></cell><cell>MULTI-CAE-VL Rnd</cell><cell>58.6</cell></row><row><cell>Video</cell><cell>MEM-VL Rnd</cell><cell>57.2</cell></row><row><cell></cell><cell>MEM-V</cell><cell>59.7</cell></row><row><cell cols="3">Table 4: Results (%) for MEP on (1) Multimodal (video</cell></row><row><cell cols="3">clips + subtitles) and (2) Video (video clips) test input.</cell></row><row><cell></cell><cell></cell><cell>853</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>PROST: Left: Results (accuracy %) across six affordances. Right: Position accuracy across the correct answer's position. The more balanced, the more robust. † Results taken from PROST<ref type="bibr" target="#b1">(Aroca-Ouellette et al., 2021)</ref>. Statistically significant differences (p &lt; 0.05) 17 are indicated with * .</figDesc><table><row><cell>Model</cell><cell cols="3">Stack Roll Grasp Break</cell><cell cols="2">Slide Bounce Macro</cell><cell>1</cell><cell>2</cell><cell>3</cell><cell>4</cell></row><row><cell>MAM-L</cell><cell>30.0 20.0</cell><cell>24.0</cell><cell>27.0</cell><cell>24.0</cell><cell cols="4">23.0 24.7 22.5 22.5 22.3 22.3</cell></row><row><cell>MAM-VL</cell><cell>22.0 25.0</cell><cell>33.0</cell><cell>26.0</cell><cell>30.0</cell><cell cols="4">23.0 26.5 25.0 25.0 25.2 25.1</cell></row><row><cell cols="2">MULTI-CAE-VL 34.0  *  24.0</cell><cell>30.0</cell><cell cols="6">26.0 40.0  *  38.0  *  32.0  *  27.4 27.4 27.6 27.7</cell></row><row><cell>FLAVA</cell><cell>19.0 26.9</cell><cell>34.5</cell><cell>25.5</cell><cell>23.8</cell><cell cols="4">24.0 25.5 25.8 21.5 21.0 21.7</cell></row><row><cell>RoBERTa-B</cell><cell>27.4 24.9</cell><cell cols="2">22.8 31.0  *</cell><cell>26.6</cell><cell cols="4">25.5 26.4 45.8 19.4 15.1 15.0</cell></row><row><cell>AvgLM  †</cell><cell>29.1 29.0</cell><cell>28.4</cell><cell>30.7</cell><cell>20.9</cell><cell cols="3">20.4 26.3 31.4 25.2</cell><cell>8.5 38.6</cell></row><row><cell>Model</cell><cell cols="8">Stack ↓ Roll ↓ Grasp ↓ Break ↓ Slide ↓ Bounce ↓ Macro Average ↓</cell></row><row><cell>MAM-L</cell><cell>60.0</cell><cell>20.0</cell><cell>32.0</cell><cell>14.0</cell><cell>40.0</cell><cell>34.0</cell><cell></cell><cell>33.3</cell></row><row><cell>MAM-VL</cell><cell>4.0</cell><cell>30.0</cell><cell>62.0</cell><cell>12.0</cell><cell>20.0</cell><cell>6.0</cell><cell></cell><cell>22.3</cell></row><row><cell>MULTI-CAE-VL</cell><cell>68.0</cell><cell>32.0</cell><cell>56.0</cell><cell>12.0</cell><cell>80.0</cell><cell>76.0</cell><cell></cell><cell>54.0</cell></row><row><cell>FLAVA</cell><cell>4.5</cell><cell>45.2</cell><cell>68.6</cell><cell>41.9</cell><cell>39.6</cell><cell>31.7</cell><cell></cell><cell>38.6</cell></row><row><cell>RoBERTa-B</cell><cell>0.1</cell><cell>14.5</cell><cell>5.2</cell><cell>51.9</cell><cell>17.5</cell><cell>2.4</cell><cell></cell><cell>15.3</cell></row><row><cell>AvgLM</cell><cell>11.4</cell><cell>14.7</cell><cell>12.7</cell><cell>17.8</cell><cell>12.8</cell><cell>9.6</cell><cell></cell><cell>13.2</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>PROST: Absolute difference in accuracy between the original template and its inverse across six affordances. The lower the better the model's true question understanding.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 :</head><label>7</label><figDesc>Result verbs: sure &amp; unsure cases examples. The verb senses are sourced from different resources: * represents VerbNet while ⋆ indicates imSitu (no specific verb sense is recorded). "✓" implies the property is satisfied, whereas "?" indicates uncertainty.</figDesc><table><row><cell>Judgement</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head></head><label></label><figDesc>Figure 6: Video clips counts (log scale) of top 100 seen verb classes in the train set</figDesc><table><row><cell>Video Clip Counts (log scale) Top 30 Nouns in the Train Set</cell><cell>make put cut cook turn pull set stick dry bake build throw fold push chop click wash boil drop wrap hang press spread draw sell fry heat spray join shoot slice combine tie soak fix slide drive sprinkle peel shake whip rub crack seal pack sew brush rinse simmer grind bend secure kick dissolve collect slip spin stretch rip float tear assemble shred snap poke tape mash punch pin destroy bind paste pump pinch scratch weigh strip chew smash drip operate level chain curl crumble pair nail sharpen bury lean wet wire package confuse bang spoil crash crunch rust Top 100 Seen Verbs make cut turn set dry build fold chop wash drop hang spread sell heat join slice tie fix drive peel whip crack pack brush simmer bend kick collect spin rip tear shred poke mash pin bind pump scratch strip smash operate chain crumble nail bury wet Top 100 Seen Verbs in the Train Set package bang crash rust bond top water thing side video minute bit piece time way lot cup pan oil oven recipe end hand guy half bottom edge place egg hole two heat bowl cake everything 10 3 10 4 10 5 10 6</cell></row><row><cell></cell><cell>10 4</cell></row><row><cell>Video Clip Counts (log scale)</cell><cell>10 2 10 3</cell></row><row><cell></cell><cell>10 1</cell></row><row><cell></cell><cell>mix place break roll paint burn attach blend connect lift squeeze glue insert crush roast rest hook knock damage split grill brown clear flatten drag stain mince spill knead grate rock rot lick weld butter dye shove empty construct glaze fasten button smear flake chip swell comb stew rake warp knot shatter cram immerse compound skate yank wring butt nick meld stroke wrinkle tug crumple pedal gum scald hitch fling lump eject shelve sliver pare dissect rivet claw spear unify club fracture thump obliterate splinter jumble cleave punt prowl mutilate moor manicure Unseen Verbs</cell></row></table><note><p>Figure 7: Video clips counts (log scale) of all unseen verb classes in the test set</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head></head><label></label><figDesc>Generalization Analysis. Figure12gives two wrong prediction cases of MAM-VL Rnd and MAM-L Rnd , where we can see MAM-VL Rnd is able to predict a verb that captures relations with the reference verb from the perspective of situational and lexico-taxonomic semantics.[ACT] for the action process, and [AFT] for the post-condition:• Randomized subclips: randomized [BEF],[ACT] and [AFT] subclips across video clips.• Video-based subclips: [BEF], [ACT] and [AFT] subclips across multiple video clips that belong to the same video id.</figDesc><table><row><cell>A.6 MEM</cell></row><row><cell>During the development stage performed on</cell></row><row><cell>10% of the training data and test data, we explored</cell></row><row><cell>three masking strategies on controlling the nega-</cell></row><row><cell>tive video frames. In addition, each candidate video</cell></row><row><cell>frame has its corresponding video type: [BEF] for</cell></row><row><cell>the pre-condition,</cell></row><row><cell>• Verb-random-alter: mask the result verb or</cell></row><row><cell>random words alternatively, i.e., 50% of the</cell></row><row><cell>training data with only the result verb tokens</cell></row><row><cell>being masked, and the rest with only random</cell></row><row><cell>tokens being masked.</cell></row><row><cell>The best action generalization ability (highest ac-</cell></row><row><cell>curacy on unseen verbs) was yielded by verb-</cell></row><row><cell>random-joint (see Tab. 13); therefore, we adopt</cell></row><row><cell>this masking strategy for MAM.</cell></row><row><cell>Qualitative Analysis. Figure 10 shows an exam-</cell></row><row><cell>ple of various models' prediction on MAP task. Un-</cell></row><row><cell>der limited textual context, MAM-VL Rnd is able</cell></row><row><cell>to infer the action by reasoning upon the percep-</cell></row><row><cell>tual effect. Figure 11 gives an example of MAM-</cell></row><row><cell>VL Rnd 's extrapolation ability of seen to unseen</cell></row><row><cell>verbs in terms of visual effect similarities. Perform-</cell></row></table><note><p><p><p>ing the paint action on the object canvas, spread on surface, and spray on container result in similar post-conditions, namely, the surface is covered by a layer.</p>• Object-based subclips: [BEF], [ACT] and</p>[AFT] subclips across multiple video clips that have the same object identified in the video clip.</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>The project code can be found at https://github. com/Mallory24/cae_modeling</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>A list of invalid roles are detailed in App. A.1</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>We discard consecutive clips as they usually capture redundant information, i.e., the same result verb.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>  5  Only the phrasal verb warm_up is not</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_4"><p>considered.6  To align with our visual feature extraction procedure, the shown timestamps are extended 3 seconds before the original timestamp (see App. A.4). Note the released CAE dataset contains the original timestamp.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_5"><p>Following BERT,  </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_6"><p>80% and 15% of the target verbs are replaced with [MASK] and a random token, respectively, 5% of them are unchanged.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_7"><p>The rest the of intra-video clip [AFT] frames are excluded from the candidate set (see App. A.6 for details).</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_8"><p>  9  We leave automatic action localization<ref type="bibr" target="#b65">(Zhang et al., 2022)</ref> to determine effect frames more reliably, to future work.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="10" xml:id="foot_9"><p>In a preliminary study on various negative sampling strategies, we found this strategy most beneficial for teaching finegrained effect changes (see App. A.6).</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="11" xml:id="foot_10"><p>The algorithm is reproducible, allowing researchers to customize their own splits based on their requirements.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="12" xml:id="foot_11"><p>According to<ref type="bibr" target="#b37">Li et al. (2020)</ref>, RoBERTa's pretrained weights (12 layers) are partially taken to initialize the Cross-Modal Transformer (6 layers) of HERO.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="13" xml:id="foot_12"><p>The action is verbally mentioned (seeSec. 3.2.)   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="14" xml:id="foot_13"><p>The textual encoder is pretrained using the MLM objective on CCNews and BookCorpus.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="15" xml:id="foot_14"><p>  15  Following<ref type="bibr" target="#b1">Aroca-Ouellette et al. (2021)</ref>, we exclude the not directly comparable models T5 (it does not cover slide), and UnifiedQA (fine-tuned on task-specific text data).</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="16" xml:id="foot_15"><p>We used the NLTK toolkit<ref type="bibr" target="#b4">(Bird and Loper, 2004)</ref>.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>We are grateful to <rs type="person">Matteo Bortoletto</rs> for proofreading and providing valuable suggestions for the paper, as well as to <rs type="person">Pavel Denisov</rs> for offering technical assistance. Lastly, we thank the anonymous reviews for their constructive and valuable feedback.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>verb random alter</head><p>Chop the carrot into pieces.</p><p>[MASK] the carrot into pieces. Chop the garlic into small chunks. Chop the garlic into [MASK] chunks. video-based and object-based MEM outperform than randomized one when evaluated on the randomized test set, emphasizing the importance of dedicated control on the negative sampling process.</p><p>Qualitative Analysis During Development. As seen in Figure <ref type="figure">13</ref>, the video-based model is able to pick the correct post-condition for mixing the ingredients while the randomized-based model struggles to find a correct video frame. We also probe into several failure modes and found some patterns.</p><p>To begin, the candidate set that contains temporal close clips leads to wrong predictions more often than the temporal distant ones. Concretely, under the wrong predictions set, the average minimum temporal difference within the competitor set is 120 secs, compared to 211 secs for the correct predictions set. Similarly, the candidate set that has the same object occurrences or same action occurrences challenges the model to choose the right [AFT] video frame(s). In the wrong predictions set, 25.66/26.72% of the candidate sets has the same object/action occurrences, compared to 20.98%/18.58% of that for the correct prediction group.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.7 Pretraining Details</head><p>Hyperparameters. Following <ref type="bibr" target="#b37">Li et al. (2020)</ref>, we used the AdamW optimizer <ref type="bibr" target="#b38">(Loshchilov and Hutter, 2019)</ref> with a learning rate of 3e -5, weight decay of 0.01, and warm-up steps of 10000. We ran all the pretraining experiments on 2 NVIDIA RTX A6000 GPUs with a batch size of 16 per single GPU, and gradient accumulation steps <ref type="bibr" target="#b47">(Ott et al., 2018)</ref> are set to 2. We set the global training steps to 100000 with maximum training time of 48 hours.</p><p>Model Checkpoints. For model variants trained with either MAM or MEM pretraining tasks, the best model checkpoints are saved based on the highest task accuracy on the validation set. Regarding the models that were with the joint task configuration, specifically MULTI-CAE, the final model checkpoint is saved based on the best validation accuracy achieved on both tasks. Note that, for MULTI-CAE-based models, each task undergoes training on only 50% of the entire train set.</p><p>Ablated Models. We achieve modality ablation via inter-modal attention masking. More specifically, the weights of MAM-L Rnd are updated with the loss function:</p><p>As for MEM-V, we update its weights with the loss function:   </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Building affordance relations for robotic agents -a review</title>
+		<author>
+			<persName><forename type="first">Paola</forename><surname>Ardón</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Èric</forename><surname>Pairet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subramanian</forename><surname>Katrin S Lohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ronald P A</forename><surname>Ramamoorthy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Petrick</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">PROST: Physical reasoning about objects through space and time</title>
+		<author>
+			<persName><forename type="first">Stéphane</forename><surname>Aroca-Ouellette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cory</forename><surname>Paik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Roncone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katharina</forename><surname>Kann</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-acl.404</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4597" to="4608" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Affordances from human videos as a versatile representation for robotics</title>
+		<author>
+			<persName><forename type="first">Shikhar</forename><surname>Bahl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Russell</forename><surname>Mendonca</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Unnat</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deepak</forename><surname>Pathak</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR52729.2023.01324</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023</title>
+		<meeting><address><addrLine>Vancouver, BC, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2023-06-17">2023. June 17-24, 2023</date>
+			<biblScope unit="page" from="1" to="13" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">The Berkeley FrameNet project</title>
+		<author>
+			<persName><forename type="first">Collin</forename><forename type="middle">F</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><forename type="middle">J</forename><surname>Fillmore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">B</forename><surname>Lowe</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/980845.980860</idno>
+	</analytic>
+	<monogr>
+		<title level="m">36th Annual Meeting of the Association for Computational Linguistics and 17th International Conference on Computational Linguistics</title>
+		<meeting><address><addrLine>Montreal, Quebec, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1998">1998</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="86" to="90" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">NLTK: The natural language toolkit</title>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Bird</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Loper</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Interactive Poster and Demonstration Sessions</title>
+		<meeting>the ACL Interactive Poster and Demonstration Sessions<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="214" to="217" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Experience grounds language</title>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Thomason</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joyce</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angeliki</forename><surname>Lazaridou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandr</forename><surname>Nisnevich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Turian</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8718" to="8735" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">PIQA: reasoning about physical commonsense in natural language</title>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Ronan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Bras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirty-Fourth AAAI Conference on Artificial Intelligence, AAAI 2020, The Thirty-Second Innovative Applications of Artificial Intelligence Conference, IAAI 2020, The Tenth AAAI Symposium on Educational Advances in Artificial Intelligence</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2020-02-07">2020. February 7-12, 2020</date>
+			<biblScope unit="volume">2020</biblScope>
+			<biblScope unit="page" from="7432" to="7439" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Simulating action dynamics with neural process networks</title>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bosselut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Corin</forename><surname>Ennis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dieter</forename><surname>Fox</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Brysbaert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><forename type="middle">Beth</forename><surname>Warriner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Kuperman</surname></persName>
+		</author>
+		<idno type="DOI">10.3758/s13428-013-0403-5</idno>
+		<title level="m">Concreteness ratings for 40 thousand generally known english word lemmas. Behavior Research Methods</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Mining semantic affordances of visual object categories</title>
+		<author>
+			<persName><forename type="first">Yu-Wei</forename><surname>Chao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rada</forename><surname>Mihalcea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jia</forename><surname>Deng</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2015.7299054</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2015 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="4259" to="4267" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Learning affordances for categorizing objects and their properties</title>
+		<author>
+			<persName><forename type="first">Nilgun</forename><surname>Dag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilkay</forename><surname>Atil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sinan</forename><surname>Kalkan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erol</forename><surname>Şahin</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICPR.2010.1146</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2010 20th International Conference on Pattern Recognition</title>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="3089" to="3092" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning the effects of physical actions in a multimodal environment</title>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Gautier Dagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Keller</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lascarides</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EACL 2023</title>
+		<meeting><address><addrLine>Dubrovnik, Croatia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="133" to="148" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Denoising auto-encoders for learning of objects and tools affordances in continuous space</title>
+		<author>
+			<persName><forename type="first">Atabak</forename><surname>Dehban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lorenzo</forename><surname>Jamone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><forename type="middle">R</forename><surname>Kampff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jose</forename><surname>Santos-Victor</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/icra.2016.7487691</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ImageNet: A large-scale hierarchical image database</title>
+		<author>
+			<persName><forename type="first">Jia</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li-Jia</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2009.5206848</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2009 IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="248" to="255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Stepformer: Self-supervised step discovery and localization in instructional videos</title>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Dvornik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isma</forename><surname>Hadji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ran</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Konstantinos</forename><forename type="middle">G</forename><surname>Derpanis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Animesh</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><forename type="middle">P</forename><surname>Wildes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Allan</forename><forename type="middle">D</forename><surname>Jepson</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2304.13265</idno>
+		<idno>CoRR, abs/2304.13265</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Comparing trajectory and vision modalities for verb representation</title>
+		<author>
+			<persName><forename type="first">Dylan</forename><surname>Ebert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Pavlick</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2303.12737</idno>
+		<idno>CoRR, abs/2303.12737</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">A simple, similarity-based model for selectional preferences</title>
+		<author>
+			<persName><forename type="first">Katrin</forename><surname>Erk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the Association of Computational Linguistics</title>
+		<meeting>the 45th Annual Meeting of the Association of Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="216" to="223" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Slowfast networks for video recognition</title>
+		<author>
+			<persName><forename type="first">Christoph</forename><surname>Feichtenhofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoqi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jitendra</forename><surname>Malik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF international conference on computer vision</title>
+		<meeting>the IEEE/CVF international conference on computer vision</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6202" to="6211" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Physical causality of action verbs in grounded language understanding</title>
+		<author>
+			<persName><forename type="first">Ronald A Fisher ; Qiaozi</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malcolm</forename><surname>Doering</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaohua</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joyce</forename><surname>Chai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="1949">1949. 2016</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1814" to="1824" />
+		</imprint>
+	</monogr>
+	<note>The design of experiments</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">What action causes this? towards naive physical action-effect prediction</title>
+		<author>
+			<persName><forename type="first">Qiaozi</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaohua</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joyce</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><surname>Vanderwende</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="934" to="945" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<author>
+			<persName><forename type="first">J</forename><surname>James</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gibson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The theory of affordances. Hilldale</title>
+		<imprint>
+			<date type="published" when="1977">1977</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="67" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ACTthor: A controlled benchmark for embodied action understanding in simulated environments</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Hanna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Pedeni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Suglia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Testoni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raffaella</forename><surname>Bernardi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Computational Linguistics</title>
+		<meeting>the 29th International Conference on Computational Linguistics<address><addrLine>Gyeongju, Republic of Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5597" to="5612" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Visual affordance and function understanding: A survey</title>
+		<author>
+			<persName><forename type="first">Mohammed</forename><surname>Hassanin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salman</forename><forename type="middle">H</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Murat</forename><surname>Tahtali</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3446370</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Comput. Surv</title>
+		<imprint>
+			<biblScope unit="volume">54</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page">35</biblScope>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Deep residual learning for image recognition. and pattern recognition</title>
+		<author>
+			<persName><forename type="first">Zhang</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ren</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sun</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Deep residual learning for image recognition</title>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaoqing</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2016.90</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2016 IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Las Vegas, NV, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2016-06-27">2016. 2016. June 27-30, 2016</date>
+			<biblScope unit="page" from="770" to="778" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Finding &quot;it&quot;: Weakly-supervised reference-aware visual grounding in instructional videos</title>
+		<author>
+			<persName><surname>De-An</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shyamal</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucio</forename><forename type="middle">M</forename><surname>Buch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Animesh</forename><surname>Dery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename><forename type="middle">Carlos</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Niebles</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2018.00623</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2018 IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2018</title>
+		<meeting><address><addrLine>Salt Lake City, UT, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Computer Vision Foundation / IEEE Computer Society</publisher>
+			<date type="published" when="2018-06-18">2018. June 18-22, 2018</date>
+			<biblScope unit="page" from="5948" to="5957" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Inner monologue: Embodied reasoning through planning with language models</title>
+		<author>
+			<persName><forename type="first">Wenlong</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harris</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacky</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pete</forename><surname>Florence</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Tompson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Mordatch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yevgen</forename><surname>Chebotar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Sermanet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Jackson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linda</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karol</forename><surname>Hausman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Robot Learning</title>
+		<meeting><address><addrLine>New Zealand</addrLine></address></meeting>
+		<imprint>
+			<publisher>Auckland</publisher>
+			<date type="published" when="2022-12-18">2022. CoRL 2022, 14-18 December 2022</date>
+			<biblScope unit="volume">205</biblScope>
+			<biblScope unit="page" from="1769" to="1782" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Brohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yevgen</forename><surname>Chebotar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karol</forename><surname>Hausman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Herzog</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Ibarz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Irpan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Julian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Kalashnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carolina</forename><surname>Parada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kanishka</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Sermanet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Toshev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Vanhoucke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyuan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Cortes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Sievers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clayton</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sichun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Reyes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jarek</forename><surname>Rettinghouse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jornell</forename><surname>Quiambao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Pastor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linda</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuang-Huei</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuheng</forename><surname>Kuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sally</forename><surname>Jesmonth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nikhil</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Do as I can, not as I say: Grounding language in robotic affordances</title>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rosario</forename><surname>Jeffrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jasmine</forename><surname>Jauregui Ruano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keerthana</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Byron</forename><surname>Gopalakrishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuyuan</forename><forename type="middle">Kelly</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Fu</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Robot Learning</title>
+		<meeting><address><addrLine>Auckland, New Zealand</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-12-18">2022. CoRL 2022, 14-18 December 2022</date>
+			<biblScope unit="volume">205</biblScope>
+			<biblScope unit="page" from="287" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Enhancing object, action, and effect recognition using probabilistic affordances</title>
+		<author>
+			<persName><forename type="first">Esteban</forename><surname>Jaramillo-Cabrera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduardo</forename><forename type="middle">F</forename><surname>Morales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jose</forename><surname>Martinez-Carranza</surname></persName>
+		</author>
+		<idno type="DOI">10.1177/1059712319839057</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Adapt. Behav</title>
+		<imprint>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="295" to="306" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Exploring the limits of language modeling</title>
+		<author>
+			<persName><forename type="first">Rafal</forename><surname>Józefowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<idno>CoRR, abs/1602.02410</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Will</forename><surname>Kay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joao</forename><surname>Carreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloe</forename><surname>Hillier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sudheendra</forename><surname>Vijayanarasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Viola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Back</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Natsev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mustafa</forename><surname>Suleyman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Zisserman</surname></persName>
+		</author>
+		<title level="m">The kinetics human action video dataset</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Extending VerbNet with novel verb classes</title>
+		<author>
+			<persName><forename type="first">Karin</forename><surname>Kipper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neville</forename><surname>Ryant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martha</forename><surname>Palmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifth International Conference on Language Resources and Evaluation (LREC&apos;06)</title>
+		<meeting>the Fifth International Conference on Language Resources and Evaluation (LREC&apos;06)<address><addrLine>Genoa, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">AI2-THOR: an interactive 3d environment for visual AI</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Kolve</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roozbeh</forename><surname>Mottaghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<idno>CoRR, abs/1712.05474</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">2019a. Mining youtube -A dataset for learning fine-grained action concepts from webly supervised video data</title>
+		<author>
+			<persName><forename type="first">Hilde</forename><surname>Kuehne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahsan</forename><surname>Iqbal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juergen</forename><surname>Gall</surname></persName>
+		</author>
+		<idno>CoRR, abs/1906.01012</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Mining youtube -A dataset for learning fine-grained action concepts from webly supervised video data</title>
+		<author>
+			<persName><forename type="first">Hilde</forename><surname>Kuehne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahsan</forename><surname>Iqbal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juergen</forename><surname>Gall</surname></persName>
+		</author>
+		<idno>CoRR, abs/1906.01012</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Lexicalized scales and verbs of scalar change</title>
+		<author>
+			<persName><forename type="first">Beth</forename><surname>Levin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malka</forename><surname>Hovav</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rappaport</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">HERO: Hierarchical encoder for Video+Language omni-representation pretraining</title>
+		<author>
+			<persName><forename type="first">Linjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yen-Chun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Licheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingjing</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.161</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2046" to="2065" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Decoupled weight decay regularization</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Loshchilov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Hutter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">7th International Conference on Learning Representations, ICLR 2019</title>
+		<meeting><address><addrLine>New Orleans, LA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-05-06">2019. May 6-9, 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Affordance extraction and inference based on semantic role labeling</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Loureiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alípio</forename><surname>Jorge</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-5514</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Workshop on Fact Extraction and VERification (FEVER)</title>
+		<meeting>the First Workshop on Fact Extraction and VERification (FEVER)<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="91" to="96" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Phrase-based affordance detection via cyclic bilateral interaction</title>
+		<author>
+			<persName><forename type="first">Liangsheng</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongchen</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Cao</surname></persName>
+		</author>
+		<idno>CoRR, abs/2202.12076</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">One-shot affordance detection</title>
+		<author>
+			<persName><forename type="first">Hongchen</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dacheng</forename><surname>Tao</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2021/124</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirtieth International Joint Conference on Artificial Intelligence, IJCAI 2021, Virtual Event</title>
+		<meeting>the Thirtieth International Joint Conference on Artificial Intelligence, IJCAI 2021, Virtual Event<address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-08">2021. 19-27 August 2021</date>
+			<biblScope unit="page" from="895" to="901" />
+		</imprint>
+	</monogr>
+	<note>ijcai.org</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Pretraining on interactions for learning grounded affordance representations</title>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Merullo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dylan</forename><surname>Ebert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carsten</forename><surname>Eickhoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Pavlick</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.starsem-1.23</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th Joint Conference on Lexical and Computational Semantics</title>
+		<meeting>the 11th Joint Conference on Lexical and Computational Semantics<address><addrLine>Seattle, Washington</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="258" to="277" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">End-to-end learning of visual representations from uncurated instructional videos</title>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Miech</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean-Baptiste</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Smaira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Laptev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josef</forename><surname>Sivic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Zisserman</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR42600.2020.00990</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2020</title>
+		<meeting><address><addrLine>Seattle, WA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-06-13">2020. June 13-19, 2020</date>
+			<biblScope unit="page" from="9876" to="9886" />
+		</imprint>
+	</monogr>
+	<note>Computer Vision Foundation / IEEE</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Howto100m: Learning a text-video embedding by watching hundred million narrated video clips</title>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Miech</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitri</forename><surname>Zhukov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean-Baptiste</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Makarand</forename><surname>Tapaswi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Laptev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josef</forename><surname>Sivic</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICCV.2019.00272</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2019 IEEE/CVF International Conference on Computer Vision, ICCV 2019, Seoul, Korea (South)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019-10-27">2019. October 27 -November 2, 2019</date>
+			<biblScope unit="page" from="2630" to="2640" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">WordNet: A lexical database for English</title>
+		<author>
+			<persName><forename type="first">George</forename><forename type="middle">A</forename><surname>Miller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technology: Proceedings of a Workshop</title>
+		<meeting><address><addrLine>Plainsboro, New Jersey</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1994-03-08">1994. March 8-11, 1994</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Learning affordance landscapes for interaction exploration in 3d environments</title>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Nagarajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristen</forename><surname>Grauman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-12-06">2020. 2020. 2020. December 6-12, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Scaling neural machine translation</title>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/w18-6301</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Conference on Machine Translation: Research Papers, WMT 2018</title>
+		<meeting>the Third Conference on Machine Translation: Research Papers, WMT 2018<address><addrLine>Belgium, Brussels</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018-10-31">2018. October 31 -November 1, 2018</date>
+			<biblScope unit="page" from="1" to="9" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">The World of an Octopus: How Reporting Bias Influences a Language Model&apos;s Perception of Color</title>
+		<author>
+			<persName><forename type="first">Cory</forename><surname>Paik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stéphane</forename><surname>Aroca-Ouellette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Roncone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katharina</forename><surname>Kann</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.63</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="823" to="835" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">ISP: Learning inferential selectional preferences</title>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Pantel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahul</forename><surname>Bhagat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bonaventura</forename><surname>Coppola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Chklovski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies 2007: The Conference of the North American Chapter</title>
+		<imprint>
+			<publisher>the Association for Computational Linguistics</publisher>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="564" to="571" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the Main Conference</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Unsupervised inference of object affordance from text corpora</title>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Persiani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Hellström</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">22nd Nordic Conference on Computational Linguistics (NoDaLiDa&apos;19)</title>
+		<meeting><address><addrLine>Turku, Finland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019-09-30">2019. September 30 -October 2, 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Language models as knowledge bases?</title>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anton</forename><surname>Bakhtin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Miller</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1250</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2463" to="2473" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Grounding action descriptions in videos</title>
+		<author>
+			<persName><forename type="first">Michaela</forename><surname>Regneri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Rohrbach</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00207</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="25" to="36" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+		<respStmt>
+			<orgName>Stefan Thater, Bernt Schiele, and Manfred Pinkal</orgName>
+		</respStmt>
+	</monogr>
+	<note>Dominikus Wetzel</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">To afford or not to afford: A new formalization of affordances toward Affordance-Based robot control</title>
+		<author>
+			<persName><forename type="first">Erol</forename><surname>Şahin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maya</forename><surname>Çakmak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emre</forename><surname>Mehmet R Dogar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Göktürk</forename><surname>Ugur</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Üçoluk</surname></persName>
+		</author>
+		<idno type="DOI">10.1177/1059712307084689</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Adapt. Behav</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="447" to="472" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Yezhou Yang, and Chitta Baral. 2022a. Learning action-effect dynamics for hypothetical vision-language reasoning task</title>
+		<author>
+			<persName><forename type="first">Keyur</forename><surname>Shailaja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pratyay</forename><surname>Sampat</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Banerjee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2022</title>
+		<meeting><address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="5914" to="5924" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">Yezhou Yang, and Chitta Baral. 2022b. Reasoning about actions over visual and linguistic modalities: A survey</title>
+		<author>
+			<persName><forename type="first">Keyur</forename><surname>Shailaja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maitreya</forename><surname>Sampat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhasish</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Das</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2207.07568</idno>
+		<idno>CoRR, abs/2207.07568</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Do neural language models overcome reporting bias?</title>
+		<author>
+			<persName><forename type="first">Vered</forename><surname>Shwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.605</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6863" to="6870" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">FLAVA: A foundational language and vision alignment model</title>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ronghang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vedanuj</forename><surname>Goswami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Couairon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Galuba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Rohrbach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR52688.2022.01519</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2022</title>
+		<meeting><address><addrLine>New Orleans, LA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022-06-18">2022. June 18-24, 2022</date>
+			<biblScope unit="page" from="15617" to="15629" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<analytic>
+		<title level="a" type="main">COIN: A large-scale dataset for comprehensive instructional video analysis</title>
+		<author>
+			<persName><forename type="first">Yansong</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dajun</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongming</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danyang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiwen</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2019.00130</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-06-16">2019. 2019. June 16-20, 2019</date>
+			<biblScope unit="page" from="1207" to="1216" />
+		</imprint>
+		<respStmt>
+			<orgName>Computer Vision Foundation / IEEE</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<analytic>
+		<title level="a" type="main">Zero-shot learning-the good, the bad and the ugly</title>
+		<author>
+			<persName><forename type="first">Yongqin</forename><surname>Xian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernt</forename><surname>Schiele</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeynep</forename><surname>Akata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="4582" to="4591" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song-Chun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Huang</surname></persName>
+		</author>
+		<idno>CoRR, abs/2202.13519</idno>
+		<title level="m">Partafford: Partlevel affordance discovery from 3d objects</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<analytic>
+		<title level="a" type="main">Situation recognition: Visual semantic role labeling for image understanding</title>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Yatskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2016.597</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2016 IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Las Vegas, NV, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2016-06-27">2016. 2016. June 27-30, 2016</date>
+			<biblScope unit="page" from="5534" to="5542" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<analytic>
+		<title level="a" type="main">PIGLeT: Language grounding through neuro-symbolic interaction in a 3D world</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roozbeh</forename><surname>Mottaghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aniruddha</forename><surname>Kembhavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.159</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2040" to="2050" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<analytic>
+		<title level="a" type="main">One-shot object affordance detection in the wild</title>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongchen</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dacheng</forename><surname>Tao</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s11263-022-01642-4</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Int. J. Comput. Vis</title>
+		<imprint>
+			<biblScope unit="volume">130</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="2472" to="2500" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<analytic>
+		<title level="a" type="main">Actionformer: Localizing moments of actions with transformers</title>
+		<author>
+			<persName><forename type="first">Chen-Lin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianxin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yin</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-031-19772-7_29</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Computer Vision -ECCV 2022 -17th</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<analytic>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings, Part IV</title>
+		<title level="s">Lecture Notes in Computer Science</title>
+		<meeting>Part IV<address><addrLine>Tel Aviv, Israel</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2022">October 23-27, 2022</date>
+			<biblScope unit="volume">13664</biblScope>
+			<biblScope unit="page" from="492" to="510" />
+		</imprint>
+	</monogr>
+	<note>European Conference</note>
+</biblStruct>
+
+<biblStruct xml:id="b67">
+	<analytic>
+		<title level="a" type="main">Procedure-aware pretraining for instructional video understanding</title>
+		<author>
+			<persName><forename type="first">Honglu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Martín-Martín</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mubbasir</forename><surname>Kapadia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silvio</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename><forename type="middle">Carlos</forename><surname>Niebles</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR52729.2023.01033</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023</title>
+		<meeting><address><addrLine>Vancouver, BC, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2023-06-17">2023. June 17-24, 2023</date>
+			<biblScope unit="page" from="10727" to="10738" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b68">
+	<analytic>
+		<title level="a" type="main">Understanding tools: Task-oriented object modeling, learning and recognition</title>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yibiao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song-Chun</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2015.7298903</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2015</title>
+		<meeting><address><addrLine>Boston, MA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2015-06-07">2015. June 7-12, 2015</date>
+			<biblScope unit="page" from="2855" to="2864" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b69">
+	<analytic>
+		<title level="a" type="main">Cross-task weakly supervised learning from instructional videos</title>
+		<author>
+			<persName><forename type="first">Dimitri</forename><surname>Zhukov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean-Baptiste</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramazan</forename><surname>Gokberk Cinbis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">F</forename><surname>Fouhey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Laptev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josef</forename><surname>Sivic</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2019.00365</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-06-16">2019. 2019. June 16-20, 2019</date>
+			<biblScope unit="page" from="3537" to="3545" />
+		</imprint>
+		<respStmt>
+			<orgName>Computer Vision Foundation / IEEE</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b70">
+	<analytic>
+		<title level="a" type="main">coagent&apos;, &apos;end&apos;, &apos;recipient&apos;, &apos;audience&apos;, &apos;blow&apos;, &apos;supported&apos;, &apos;interviewee&apos;, &apos;destination&apos;, &apos;source&apos;, &apos;carrier</title>
+		<ptr target="https://github.com/my89/imSitu" />
+	</analytic>
+	<monogr>
+		<title level="m">verbnet and the semantic link to find the mapping between VerbNet and FrameNet</title>
+		<imprint/>
+	</monogr>
+	<note>The list of invalid imSitu roles at the second position we excluded is. The imSitu dataset (Yatskar et al., 2016) could be downloaded under the link</note>
+</biblStruct>
+
+<biblStruct xml:id="b71">
+	<analytic>
+		<title level="a" type="main">of the net / attach them to the hooks on the&quot; reference verb: attached FN Frames: [Attaching] Hypernym (d=1): [Synset(&apos;connect.v.01&apos;), Synset(&apos;touch.v.05&apos;), Synset(&apos;join.v.04&apos;)] MAM-VL-RND: tie FN Frames: [Attaching, &apos;Immobilization&apos;, &apos;Rope_manipulation&apos;, &apos;Closure&apos;, &apos;Knot_creation&apos;] Hypernym (d=1): [Synset(&apos;connect.v.01&apos;), Synset(&apos;fasten.v.01&apos;), Synset(&apos;equal.v.03&apos;), Synset(&apos;restrict.v.03&apos;), Synset(&apos;shape.v.03&apos;), Synset(&apos;fashion.v.01&apos;) ] MAM-L-RND: put FN Frames: [Placing] Hypernym (d=1): [Synset(&apos;move.v.02&apos;), Synset(&apos;change.v.01&apos;), Synset(&apos;use.v.01&apos;), Synset(&apos;subject.v.01&apos;), Synset(&apos;arrange.v.06&apos;)] subtitle: &quot;this is one of my favorite snacks / this face i&apos;m just gonna roast them up a bit</title>
+		<author>
+			<persName><forename type="first">;</forename><surname>Framenet</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hypernym</surname></persName>
+		</author>
+		<idno>MAM-L-RND: put FN Frames</idno>
+		<ptr target="https://framenet.icsi.berkeley.edu/fndrupal/framenet_request_data.subtitle" />
+	</analytic>
+	<monogr>
+		<title level="m">MAM-VL-RND: fry FN Frames: [Apply_heat] Hypernym (d=1): [Synset(&apos;cook.v.03&apos;)</title>
+		<imprint/>
+	</monogr>
+	<note>We request version 1. reference verb: roast FN Frames: [Apply_heat] Hypernym (d=1. Synset(&apos;cook.v.03&apos;). Synset(&apos;heat.v.04&apos;). Synset(&apos;move.v.02&apos;), Synset(&apos;change.v.01&apos;), Synset(&apos;use.v.01&apos;), Synset(&apos;subject.v.01&apos;), Synset(&apos;arrange.v.06&apos;)</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

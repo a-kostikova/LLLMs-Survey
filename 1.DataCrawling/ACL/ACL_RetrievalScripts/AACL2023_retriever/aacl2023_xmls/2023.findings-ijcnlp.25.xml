@@ -1,0 +1,687 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Privacy Adhering Machine Un-learning in NLP</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Vinayshekhar</forename><forename type="middle">Bannihatti</forename><surname>Kumar</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Rashmi</forename><surname>Gangadharaiah</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Privacy Adhering Machine Un-learning in NLP</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">32147A9A067FD04D138FDFEF80D6945D</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:52+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Regulations introduced General Data Protection Regulation (GDPR) in the EU or California Consumer Privacy Act (CCPA) in the US have included provisions on the right to be forgotten that mandates industry applications to remove data related to an individual from their systems. In several real world industry applications that use Machine Learning to build models on user data, such mandates require significant effort both in terms of data cleansing as well as model retraining while ensuring the models do not deteriorate in prediction quality due to removal of data. As a result, continuous removal of data and model retraining steps do not scale if these applications receive such requests at a very high frequency. Recently, a few researchers proposed the idea of Machine Unlearning to tackle this challenge. Despite the significant importance of this task, the area of Machine Unlearning is under-explored in Natural Language Processing (NLP) tasks. In this paper, we explore the Unlearning framework on various GLUE tasks <ref type="bibr" target="#b18">(Wang et al., 2018)</ref>, such as, QQP, SST and MNLI. We propose computationally efficient approaches (SISA-FC and SISA-A) to perform guaranteed Unlearning that provides significant reduction in terms of both memory (90-95%), time (100x) and space consumption (99%) in comparison to the baselines while having minimal impact on model performance. 1 .</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The use of user generated content in building MLbased solutions in many industry applications is quite common. As new data is acquired, these ML models undergo constant updates to further improve the performance. Such data can contain sensitive information such as names, account ids, email addresses and so on. Typically, user generated content goes through several redaction sys-tems to remove such sensitive information before being used for retraining purposes. Industry applications also adopt rigorous approval processes with opt-in or opt-out capabilities to ensure that user generated content is used in a safe manner while raising awareness among users on how their generated content will be used.</p><p>More recently, the GDPR and CCPA provisioned the right to be forgotten, introducing new regulations that mandates industry applications to support deletion of user generated content when requested by users. Although privacy concerns have gained significant importance now, the scale at which these models are built make it extremely expensive and time-consuming to remove data efficiently while providing complete removal guarantees.</p><p>Unlearning assures the users that their data has been completely removed when they prefer to have their data erased <ref type="bibr" target="#b2">(Bourtoule et al., 2019)</ref>. This task is different from Differential Privacy that focuses on models that ensure that the users' information in the training data cannot be inferred and provides guarantees on the effect of an individual examples. Such a task is challenging as removal of data points can have significant deterioration on the performance of the models aka catastrophic unlearning <ref type="bibr" target="#b5">(Du et al., 2019;</ref><ref type="bibr" target="#b6">Golatkar et al., 2019;</ref><ref type="bibr" target="#b12">Nguyen et al., 2020</ref><ref type="bibr">Nguyen et al., , 2022a))</ref>.</p><p>Approaches that guarantee complete removal of users' data points have recently gained momentum <ref type="bibr" target="#b2">(Bourtoule et al., 2019;</ref><ref type="bibr">Nguyen et al., 2022b)</ref> but are under explored on NLP tasks. Motivated by SISA (Sharded, Isolated, Sliced and Aggregated) training <ref type="bibr" target="#b2">(Bourtoule et al., 2019)</ref> applied to CV datasets, we explore an approach that trains multiple ML models in isolation on disjoint shards and its slices. Model checkpoints are saved after training each slice in a shard. When a request for deletion is received, the corresponding datapoint is deleted from its slice and the model checkpoint upto the datapoint is used to further retrain the model. Although the SISA framework can be applied to any learning algorithm, it is still impractical in NLP settings as storing model checkpoints that include large language models (such as, BERT <ref type="bibr">(Devlin et al., 2018a</ref>)) is both space and time consuming. We propose extensions to this SISA framework (1) (SISA-FC) requires storing only task-specific layers (2) (SISA-A) uses Adapters <ref type="bibr" target="#b7">(Houlsby et al., 2019)</ref> that requires storing only the adapter weights. These extensions prevent storing the entire model checkpoints, hence reducing time, memory and space footprints. We further improve upon the approaches by creating shards such that the least number of slices are affected when requests for removal are made, further reducing the time required to retrain the models. To the best of our knowledge this paper makes the first attempt to explore the task of Unlearning on various NLP tasks. The contributions of this paper are summarized as follows:</p><p>• We explore the task of Unlearning on various NLP tasks (GLUE tasks such as QQP, SST and MNLI) in both full data as well as few shot settings.</p><p>• We explore SISA-FC and SISA-A for NLPbased models that do not require storing large model checkpoints, thereby significantly reducing space, memory and time</p><p>• We propose novel ways to partition the data, thereby reducing the number of slices affected and the retraining time while ensuring minimal degradation in the overall model quality.</p><p>The paper is organized as follows. Section 2 briefly describes some of the related work in the area of Unlearning. Section 3 describes the NLP datasets used to evaluate the approaches proposed in this paper. Section 4 explains the proposed approaches (SISA-FC and SISA-A) followed by results in Section 5. We finally conclude and provide future extensions to this work in Section 6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Privacy preserving ML provides guarantees on bounds ensuring the contribution from the data points is as low as possible <ref type="bibr" target="#b15">(Sarwate et al., 2009;</ref><ref type="bibr" target="#b0">Abadi et al., 2016;</ref><ref type="bibr" target="#b8">Jang et al., 2022;</ref><ref type="bibr" target="#b20">Yu et al., 2021;</ref><ref type="bibr" target="#b10">Li et al., 2021)</ref>. Machine Unlearning on the other hand focuses on complete removal of training examples, ensuring that there is zero contribution of the training sample to the model's learned weights. As a result, Unlearning assures the users that their data has been completely removed when they prefer to have their data erased <ref type="bibr" target="#b2">(Bourtoule et al., 2019)</ref>.</p><p>A simple approach to forget training samples would be to re-train the models after removal of the examples. Such an approach is not scalable and computationally expensive when systems receive removal requests at high frequencies. Another challenge this brings is in the deterioration of the performance of the models. Machine Unlearning has gained significant attention in industry applications as a means to allow users to completely delete their data from ML models <ref type="bibr" target="#b17">(Tahiliani et al., 2021;</ref><ref type="bibr">Nguyen et al., 2022a;</ref><ref type="bibr" target="#b1">Baumhauer et al., 2020)</ref>. Regulations introduced by regulatory bodies apply to all forms of user generated content. However, most of the recent approaches tackle this problem of Unlearning in Computer Vision (CV) settings <ref type="bibr" target="#b11">(Mehta et al., 2022;</ref><ref type="bibr" target="#b6">Golatkar et al., 2019;</ref><ref type="bibr" target="#b2">Bourtoule et al., 2019)</ref>. It is imperative to explore unlearning strategies on textual data that can contain user sensitive information or personally identifiable information (PII).</p><p>Our work is inspired by SISA training <ref type="bibr" target="#b2">(Bourtoule et al., 2019)</ref> which was originally applied to CV datasets. The framework provides a strategic way to limit the influence of a data point in the training procedure. The approach trains models in isolation on disjoint shards created by partitioning the training data. When a request for removal is made, only the affected model is retrained. Shards are further broken down into slices to decrease the time required to unlearn. During inference, they use ensemble strategies to aggregate predictions of individual models. We extend this framework for NLP models. Our paper also proposes approaches to partition the data such that the least number of shards/slices are affected, thereby further reducing the re-training time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Datasets</head><p>Glue <ref type="bibr" target="#b18">(Wang et al., 2018)</ref> tasks are divided into three categories namely , "SINGLE-SENTENCE TASKS", " SIMILARITY AND PARAPHRASE TASKS" , " INFERENCE TASKS". We pick "SST-2" dataset from the first, "QQP" dataset from the second and "MNLI" dataset from the third respectively. In order to test the generalizability of our approach in terms of performance, time taken to retrain models and the memory they  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Models</head><p>The simplest way to make a model forget the datapoint it has seen during training is to remove the datapoint from the training set and re-train the model.</p><p>However, this is computationally very expensive for large models like BERT <ref type="bibr">(Devlin et al., 2018b)</ref> and we need an efficient way to re-training models if we want to forget a datapoint. <ref type="bibr" target="#b2">Bourtoule et al. (2019)</ref> presented Sharded, Isolated, Sliced and Aggregated (SISA) training approach in order to "un-learn" a datapoint. While they measured the performance of this approach on computer vision datasets, no work has looked at its performance on NLP datasets. We explain the algorithm and our approach to make it parameter efficient for NLP specific models.   to a shard predicts the label and the labels are aggregated similar to model ensembling. When an un-learning request comes in, we pick the shard where this data point is present, then go to the slice that contains the un-learning request. We delete the datapoint from this slice, take the checkpoint that was trained up until that checkpoint and continue training the model. This guarantees that the model forgets the un-learning request. During inference we pass the sample through each of the S models, obtain S labels and aggregate using a majority voting strategy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">SISA</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">SISA modified with fully connected Layer (SISA-FC)</head><p>While the SISA framework is flexible to be used with any model, in the NLP domain it is not practical to store a checkpoint after each slice. Moreover the pre-training/fine-tuning time of the full model will become a major shortcoming and we need a way to reduce both the training time and the memory footprint of these large models. A simple way to alleviate this short-coming is to use a base model and pre-train it on a generic corpus of text and then add fully connected layers on top of it. Only the pa-rameters from the linear layers are fine tuned in the optimization process. This will reduce the overall training time as the backpropagation of gradients only happens in the final layers and also we will only need to store the weights of these additional parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">SISA modified with Adapters (SISA-A)</head><p>While adding linear layers to SISA might solves both the training time and the memory footprint issue, the raw performance of the model will take a hit when compared to fine tuning the entire model as is done in a regular NLP setting <ref type="bibr">(Devlin et al., 2018b)</ref>. One approach to keep the benefits of the linear layer while also optimizing for performance is to use Adapters <ref type="bibr" target="#b7">(Houlsby et al., 2019)</ref> in the Encoder blocks of the transformer. While this increases the memory footprint of the model, it only accounts for about 1 -5% of the model parameters. Thereby providing us with 95 -99% memory benefits.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Baselines:</head><p>We compare the performance of SISA-FC and SISA-A with respect to popular NLP settings. We  fine-tune Bert on the same samples and show that there is minimal impact on performance. We also show the majority classifier accuracy to show the improvement of SISA-FC and SISA-A against this baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Implementation details:</head><p>We use the Bert-base model from Huggingface<ref type="foot" target="#foot_1">2</ref> to train on this task. We used a batch of 16, max length of 256, Adam (Kingma and Ba, 2014) optimizer learning rate of 5e -3 and train the model for 10 epochs when we are training the SISA-FC model. We also use the same hyper-parameters for SISA-A approach but add adapters using Adapterhub<ref type="foot" target="#foot_2">3</ref> and only update those parameters. We experiment with different slice sizes but keep the number of shards fixed at 5. We ran each experiment 4 times and averaged the results. All the experiments were run on 4 V-100 GPUs with 16GB memory each for a total of 10 days.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments and Results</head><p>For all the experiments in this paper we use a shard size of 5. We however experiment with different slices sizes (these are shown in the legends of the graphs)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Evaluation Metrics:</head><p>In order for an organization to allow customers to opt-out we need mechanisms that will enable retraining of models with low re-training time and memory foot-print while keeping the model performance as close to the original model as possible.</p><p>Hence we look at the following three metrics : Accuracy: Percentage of samples in the test set that the model predicts accurately.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Re-training time:</head><p>The amount of time taken to delete the un-learning requests from the dataset and then re-train the model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Memory:</head><p>The amount of memory the final model takes up on disk. We analyze the model across all the three metrics for upto 16 uniformly randomly sampled unlearning requests unless stated otherwise. An unlearning request is defined as a request to the delete a datapoint from the training set. This is equivalent to an user opting out of data collection practices.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Analysis of SISA-A</head><p>Figure <ref type="figure" target="#fig_2">2</ref> shows the performance of SISA-A for different slice sizes. We see that our approach is able to achieve the same level of performance as the BERT-base model even with the new setup we have with Adapters and SISA 1. While it doesn't drop in accuracy by more than 1 -6%, we see that the model has a lower training time of 100x. We also see that the memory occupied by the model is much lower than using the original SISA approach which would store the weights of the full model. We also see from Figure <ref type="figure" target="#fig_2">2</ref> that the accuracy of our approach for slice size greater than 2 is almost the same across different slices and remains same for different number of un-learning requests as well.</p><p>However with larger number of slices we see that the model has a much lower re-training time when compared to a slice size of two from Figure <ref type="figure" target="#fig_3">3</ref>. This observation is consistent across all the 3 datasets. It is also to be noted that the re-training time does not increase linearly with more number of un-learning requests. The re-training time does increase with a positive delta. We show in Section 5.5 on how we can make this re-training time flat across multiple un-learning requests. We also see that the model re-training time is constant across all the 3 datasets that were chosen.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Analysis of SISA-FC</head><p>Figure <ref type="figure" target="#fig_5">5</ref> shows the performance of SISA-FC for different slice sizes. We observe that the model performance for different un-learning requests is lower than that of SISA-A by 20 -30% on all the tasks. This is due to the fact that there are far lesser number of weights that were used to finetune the model. However in low memory settings this approach would work better than the SISA-A approach as it occupies lesser memory. We also observe that the re-training time to just train the final layer is much lower than that of SISA-A. But other observations made with respect to SISA-A still holds with SISA-FC.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Comparison Between SISA-FC and SISA-A</head><p>From Figures 5, we see that the SISA-A approach significantly outperforms the SISA-FC approach in terms of accuracy. Across different slice sizes we see that we can get an absolute gain of 20-30% in accuracy depending on the task. While the <ref type="bibr" target="#b7">Houlsby et al. (2019)</ref> does note this performance difference, the performance difference is only 1%. When we apply adapters to SISA we see that the performance gain is much higher.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Profiling requests based on probability of occurrence</head><p>In the above two experiments, we assumed that the un-learning requests are uniformly randomly chosen from all of the training points. However, in a practical setting this might not be the case.</p><p>Organizations can group customers into high risk and low risk customers based on their probability of opting out. In order to simulate such a scenario, we use the Pareto distribution. Pareto distribution is defined using the equation below:</p><formula xml:id="formula_0">p(x) = a.m a /x a+1<label>(1)</label></formula><p>When we plot the Pareto distribution we get the curve shown in Figure <ref type="figure" target="#fig_6">6a</ref>. 80% of the mass is in the head of the distribution and 20% in the tail. When we sample requests based on this distribution we get data-points belonging to the shards shown in Figure <ref type="figure" target="#fig_6">6b</ref>. For the purpose of this experiment we set m to 1 and a to 1.16. However if we take the mirror image of the Pareto distribution and sample from that distribution then the shards that will be affected is shown in Figure <ref type="figure" target="#fig_6">6c</ref>. We experiment with both these types of sampling to see its affect on model performance and re-training time.     </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Performance on a portion of the data</head><p>In the next experiment, we look at the performance of SISA-A on portions of the training set to test the few shot generalizability of this approach. For the purpose of this experiment, we use 5 shards, 16 slices and uniform un-learning requests. Results are shown in Figures <ref type="figure" target="#fig_11">11</ref> and<ref type="figure" target="#fig_2">12</ref>. We see that on all the different datasets, the performance in the few-shot setting does not match the performance of the model in the full-data setting. This is one of the major drawbacks of the SISA algorithm in low resource NLP settings. Since the model is forced to look at a portion of the data several times before it is check-pointed, the model tends to overfit on the slice it is training on. We hypothesize this to be the reason for lower model performance.</p><p>We also see that the BERT-base model performs much better than the SISA-A approach in the fewshot setting. While we show the short-coming of this approach in the few-shot setting we leave the further exploration to alleviate this issue for future work.</p><p>Figure <ref type="figure" target="#fig_3">13</ref>: Memory Occupied by the three approaches. We see that the SISA-A and SISA-FC approaches provides a significant memory savings when compared to the base SISA approach</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.7">Memory profiling</head><p>Figure <ref type="figure" target="#fig_3">13</ref> shows the memory occupied by the three different approaches compared in this work. We see that if we use the BERT model along with the vanilla SISA algorithm, the memory increases linearly as the number of slices increases. But with our approach, the memory increase is far less drastic (SISA-A and SISA-FC).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>The central tenet of privacy regulations in the U.S and EU revolve around the concept of "notice and choice". This allows users to opt-out of data collection if they deem something violates their privacy needs. However, owing to the gap between technology experts and privacy regulators there has not been enough work around opting out of data that has already been used to train ML models. Through the SISA-A and SISA-FC approaches we show the working of the SISA algorithm in the NLP domain on Encoder based models. We show the benefits of our approach in terms of re-training time and disk space usage.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>While the experimental results show that it is possible to use SISA in LLMs, it is only limited to Encoder based models because of the requirement of an aggregation layer in SISA. We cannot extend this approach to the decoder based models as is and that is a limitation of our work. Also,as noted in Section 5.6, our results show that SISA-A approches do not work well in the few shot setting because of the tendency of the model to overfit on each slice. In this paper we do point out the lack of generalizability of this approach in the few shot setting. However, we do not discuss steps to mitigate these issues using our technique. Finally, we show how organizations can benefit from segmenting users into different groups based on the probability of opting out. While we show this by using/simulating different distributions we do not perform profiling on actual user data.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Architecture of SISA-A which uses S slices and R shards. One model is built for each shard and the labels are aggregated using a majority voting strategy.</figDesc><graphic coords="3,133.94,70.87,327.40,183.89" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1</head><label>1</label><figDesc>Figure1shows the working of the SISA algorithm. The entire training dataset is split into S shards. Each shard is made up of R slices. There is one model that is trained for every shard. In order to begin training, we can pick any ML model and then use gradient descent to train the model. While training, the model goes through the data, slice by slice saving a checkpoint after training for each slice. Finally once the model finishes training on the final slice, the model is saved and mapped to the shard. This process is continued for all the shards. During inference, each model belonging</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Performance of SISA-A on the 3 datasets. Number of slices is shown in the legend. We see SISA-A has same or slightly lower performance than the baseline BERT model.</figDesc><graphic coords="4,70.87,244.88,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Re-training time of SISA-A on the 3 datasets. Number of slices is shown in the legend. We see that the re-training time remains fairly constant if the slice size is greater than 8 for a number of un-learning requests.</figDesc><graphic coords="4,220.54,244.88,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Performance of SISA-FC on the 3 datasets. Number of slices is shown in the legend. We see the performance of SISA-FC is lower than that of SISA-A.</figDesc><graphic coords="5,70.87,244.88,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Re-training time of SISA-FC on the 3 datasets. Number of slices is shown in the legend. We see that the re-training time remains fairly constant if the slice size is greater than 8 for a number of un-learning requests.</figDesc><graphic coords="5,220.54,244.88,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Figure 6a shows the Pareto distribution and the subsequent figures shows how the slices get affected with the Pareto and the inverse Pareto distributions.</figDesc><graphic coords="6,92.18,81.99,136.07,55.93" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Accuracy of SISA-A on Inverse Pareto distribution. Number of slices is shown in the legend.</figDesc><graphic coords="7,70.87,80.34,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Re-training time of SISA-A on Inverse Pareto distribution. Number of slices is shown in the legend.</figDesc><graphic coords="7,70.87,257.37,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Accuracy of SISA-A on Pareto distribution. Number of slices is shown in the legend.</figDesc><graphic coords="7,70.87,434.41,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head></head><label></label><figDesc>Figure 10: Re-training time of SISA-A on Pareto distribution. Number of slices is shown in the legend.</figDesc><graphic coords="7,70.87,611.44,149.67,112.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 11 :</head><label>11</label><figDesc>Figure 11: Accuracy of SISA-A on partial datasets. Percentage data used is shown in the legend</figDesc><graphic coords="8,70.87,222.73,136.06,102.05" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table><row><cell>Dataset Name</cell><cell cols="4">BERT-A Accuracy Re-training time (s) Accuracy Re-training time (s) SISA-A</cell><cell>Accuracy Reduction (%)</cell><cell>Re-training time gain (%)</cell></row><row><cell>SST</cell><cell>0.93</cell><cell>1580</cell><cell>0.92</cell><cell>147</cell><cell>1</cell><cell>9748</cell></row><row><cell>QQP</cell><cell>0.82</cell><cell>1750</cell><cell>0.80</cell><cell>145</cell><cell>2</cell><cell>1106</cell></row><row><cell>MNLI</cell><cell>0.75</cell><cell>1868</cell><cell>0.70</cell><cell>145</cell><cell>6</cell><cell>1188</cell></row><row><cell></cell><cell></cell><cell></cell><cell>form the</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">review along with the sentiment associated with</cell><cell></cell><cell></cell><cell></cell></row><row><cell>that sentence.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">QQP: Quora Question Pair corpus (Wang et al.,</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">2018) consists of two questions and a label</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">indicating if the two questions are duplicates of</cell><cell></cell><cell></cell><cell></cell></row><row><cell>each other.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">MNLI: The MNLI (Williams et al., 2017) corpus</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">is built of top of SNLI. This consists of a premise,</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">hypothesis and a label indicating if the premise</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">and hypothesis are in entailment, contradiction or</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">they are neutral.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p><p><p>We see that our SISA-A (SISA with Adapters) approach is only 1 -6% worse when compared to the deletion baseline model (BERT-A BERT model trained using Adapters) but has a 100x improvement in training time over the deletion baseline. This performance is measured upon receiving 16 unlearning requests occupy on disk, we pick the first 60, 000 samples across each datasets and use 20% of this as our test split. Having the same number of training and evaluation samples helps us to compare training times across different types of NLP tasks. For each of the datasets, we use accuracy to measure model performance. The tasks are explained below: SST-2: This is a movie review corpus from</p><ref type="bibr" target="#b16">Socher et al. (2013)</ref> </p>that consists of a sentence</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/awslabs/privacy-adhering-machineunlearning-nlp</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://huggingface.co/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://docs.adapterhub.ml/training.html</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>In this work we show how we can perform efficient NLP while also adhering to the people's privacy requirements. While we show how organizations can efficiently perform the task of un-learning we cannot prove if the organization indeed performed unlearning on the samples. Also all the associated risks of using pre-trained language models like BERT will remain with this approach as they form the backbone of our framework.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Deep learning with differential privacy</title>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">Brendan</forename><surname>Mcmahan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Mironov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kunal</forename><surname>Talwar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/2976749.2978318</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security</title>
+		<meeting>the 2016 ACM SIGSAC Conference on Computer and Communications Security</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Baumhauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascal</forename><surname>Schöttle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Zeppelzauer</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2002.02730</idno>
+		<title level="m">Machine unlearning: Linear filtration for logit-based classifiers</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Bourtoule</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varun</forename><surname>Chandrasekaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">A</forename><surname>Choquette-Choo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hengrui</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adelin</forename><surname>Travers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baiwu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Lie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Papernot</surname></persName>
+		</author>
+		<idno>abs/1912.03817</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<publisher>Machine unlearning. CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">BERT: pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno>CoRR, abs/1810.04805</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.04805</idno>
+		<title level="m">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Lifelong anomaly detection through unlearning</title>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rajvardhan</forename><surname>Oak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3319535.3363226</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 ACM SIGSAC Conference on Computer and Communications Security, CCS &apos;19</title>
+		<meeting>the 2019 ACM SIGSAC Conference on Computer and Communications Security, CCS &apos;19<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1283" to="1297" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Eternal sunshine of the spotless net: Selective forgetting in deep networks</title>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Golatkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Achille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Soatto</surname></persName>
+		</author>
+		<idno>CoRR, abs/1911.04933</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Parameter-efficient transfer learning for NLP</title>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Houlsby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Giurgiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stanislaw</forename><surname>Jastrzebski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bruna</forename><surname>Morrone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>De Laroussilhe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Gesmundo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Attariyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Gelly</surname></persName>
+		</author>
+		<idno>CoRR, abs/1902.00751</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Knowledge unlearning for mitigating privacy risks in language models</title>
+		<author>
+			<persName><forename type="first">Joel</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongkeun</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sohee</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungmin</forename><surname>Cha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moontae</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lajanugen</forename><surname>Logeswaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2210.01504</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Large language models can be strong differentially private learners</title>
+		<author>
+			<persName><forename type="first">Xuechen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Tramèr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<idno>CoRR, abs/2110.05679</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ronak</forename><surname>Mehta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sourav</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vikas</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sathya</forename><forename type="middle">N</forename><surname>Ravi</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2204.07655</idno>
+		<title level="m">Deep unlearning via randomized conditionally independent hessians</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Variational bayesian unlearning</title>
+		<author>
+			<persName><forename type="first">Phong</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan Kian Hsiang</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Low</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jaillet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="16025" to="16036" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Markov chain monte carlo-based machine unlearning</title>
+		<author>
+			<persName><forename type="first">Phong</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryutaro</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Oikawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mun</forename><surname>Dinil Mon Divakaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Choon Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hsiang</forename><surname>Kian</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Low</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3488932.3517406</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 ACM on Asia Conference on Computer and Communications Security</title>
+		<meeting>the 2022 ACM on Asia Conference on Computer and Communications Security</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Thanh</forename><surname>Tam Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thanh</forename><forename type="middle">Trung</forename><surname>Huynh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phi</forename><surname>Le Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan Wee-Chung</forename><surname>Liew</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2209.02299</idno>
+		<title level="m">Hongzhi Yin, and Quoc Viet Hung Nguyen. 2022b. A survey of machine unlearning</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Anand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kamalika</forename><surname>Sarwate</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Chaudhuri</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Monteleoni</surname></persName>
+		</author>
+		<idno>CoRR, abs/0912.0071</idno>
+		<title level="m">Differentially private support vector machines</title>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Recursive deep models for semantic compositionality over a sentiment treebank</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Perelygin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 conference on empirical methods in natural language processing</title>
+		<meeting>the 2013 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="1631" to="1642" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Machine unlearning: Its need and implementation strategies</title>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Tahiliani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vikas</forename><surname>Hassija</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinay</forename><surname>Chamola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohsen</forename><surname>Guizani</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3474124.3474158</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2021 Thirteenth International Conference on Contemporary Computing (IC3-2021), IC3 &apos;21</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="241" to="246" />
+		</imprint>
+	</monogr>
+	<note>Association for Computing Machinery</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">GLUE: A multi-task benchmark and analysis platform for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno>CoRR, abs/1804.07461</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Samuel R Bowman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1704.05426</idno>
+		<title level="m">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Differentially private fine-tuning of language models</title>
+		<author>
+			<persName><forename type="first">Da</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Naik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arturs</forename><surname>Backurs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sivakanth</forename><surname>Gopi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huseyin</forename><forename type="middle">A</forename><surname>Inan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gautam</forename><surname>Kamath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janardhan</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yin Tat</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andre</forename><surname>Manoel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukas</forename><surname>Wutschitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Yekhanin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huishuai</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno>CoRR, abs/2110.06500</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

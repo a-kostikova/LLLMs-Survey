@@ -1,0 +1,1696 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Phylogeny-Inspired Soft Prompts For Data-to-Text Generation in Low-Resource Languages</title>
+				<funder ref="#_6aPEjZd">
+					<orgName type="full">Agence Nationale de la Recherche</orgName>
+					<orgName type="abbreviated">ANR</orgName>
+				</funder>
+				<funder ref="#_g2urkBX">
+					<orgName type="full">CNRS</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">RENATER</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">William</forename><surname>Soto-Martinez</surname></persName>
+							<email>william-eduardo.soto-martinez@loria.fr</email>
+						</author>
+						<author>
+							<persName><forename type="first">Yannick</forename><surname>Parmentier</surname></persName>
+							<email>yannick.parmentier@loria.fr</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Université de Lorraine / LORIA</orgName>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="institution">Université d&apos;Orléans / LIFO</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+							<email>claire.gardent@loria.fr</email>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Université de Lorraine / LORIA</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff3">
+								<orgName type="institution" key="instit1">CNRS/LORIA</orgName>
+								<orgName type="institution" key="instit2">Université de Lorraine</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Phylogeny-Inspired Soft Prompts For Data-to-Text Generation in Low-Resource Languages</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">D59C3CC5A0E4D02E628412CD6225E206</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:07+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Most work on verbalising Knowledge-Graphs (KG) has focused on high-resource languages such as English, Russian, Czech or Arabic. In this paper, we focus on KG-to-Text generation where the output text is in Breton, Irish or Welsh. To overcome the small size of the parallel training data, we combine the strengths of a multilingual encoder-decoder model with denoising fine-tuning on monolingual data and Soft Prompt fine-tuning on a small quantity of KG/text data. We furthermore structure the soft prompt into multiple sub-prompts designed to capture the similarities and differences between English, Knowledge graphs and the three target languages. Our experiments show that our approach outperforms strong baselines and that all sub-prompts contribute to performance 1 .</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Data-to-Text generation includes generating complete and precise natural language descriptions of the information contained in structured data like tables or knowledge graphs (KG). The ever-growing volumes of data generated over time have opened the doors to a large variety of data analysis techniques that can be applied to structured data; however, presenting the outcome of these analyses in a straightforward and easy-to-interpret manner can be complex. Data-to-Text generation facilitates the communication of these outcomes by turning cumbersome data structures into accessible text.</p><p>Steady progress has been made on the task of generating text from KG graphs into the English language <ref type="bibr" target="#b4">(Castro Ferreira et al., 2020;</ref><ref type="bibr" target="#b33">Pasricha et al., 2020;</ref><ref type="bibr">Guo et al., 2020b;</ref><ref type="bibr" target="#b23">Kertkeidkachorn and Takamura, 2020)</ref> and some advances have taken place in other high-resource languages like Russian <ref type="bibr" target="#b1">(Agarwal et al., 2020;</ref><ref type="bibr" target="#b22">Kasner and Dušek, 2020;</ref><ref type="bibr" target="#b51">Yang et al., 2020)</ref>. Little research has been done on low-resource languages however which can be explained, at least partially, by how data-intensive the best-performing KG-to-Text approaches are.</p><p>Recent work in machine translation <ref type="bibr" target="#b8">(Conneau et al., 2020;</ref><ref type="bibr" target="#b28">Lin et al., 2020)</ref> shows that fine-tuning large language models pre-trained on multiple languages helps compensate for data sparsity. Moreover, lightweight fine-tuning techniques have recently emerged that allow preserving the language knowledge obtained from high-resource languages while transferring well to low-resource languages. In particular, the use of phylogeny information has shown good results in transfer learning for related languages in classification tasks like POS tagging, Named Entity Recognition, or Natural Language Inference <ref type="bibr" target="#b12">(Faisal and Anastasopoulos, 2022)</ref>. At the same time, Factorized Soft Prompts have demonstrated a good performance in transfer learning to low-resource languages in text generation tasks like summarization <ref type="bibr" target="#b46">(Vu et al., 2022)</ref>.</p><p>In this work, we focus on Data-to-Text generation where the input is a Knowledge Graph in the RDF <ref type="bibr">(Resource Description Format, (W3C, 1999)</ref>) format and the output is a text verbalising this graph in languages from the Celtic family namely, Irish (GA), Welsh (CY), and Breton (BR). We propose an approach which combines the strengths of large multilingual language models (mT5) with monolingual denoising pre-training and linguistically motivated, lightweight fine-tuning on small quantities (around 1.5K) of downstream RDF-to-Text data. Fine-tuning a multilingual model using mono-lingual denoising incorporates the benefits of the large quantities of unlabeled data, which is particularly important for low-resource languages. We further hypothesize that structuring the Soft Prompt to account for relations between languages helps improve transfer learning.</p><p>Leveraging the data made available by the WebNLG shared task<ref type="foot" target="#foot_1">2</ref> , we show that our approach outperforms Full Model Fine-tuning and Factorized Soft Prompts without phylogeny information in terms of both automatic metrics and human judgments. We also perform an ablation study to study the impact of the various sub-prompts, and we examine how the size (from 0 to 1.5K) of the RDFto-Text fine-tuning data impacts performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>RDF-to-Text. This is a subclass of the Data-to-Text task that takes as input RDF graphs and aims to generate natural text. A usual benchmark for this task is the WebNLG Challenge <ref type="bibr" target="#b15">(Gardent et al., 2017;</ref><ref type="bibr" target="#b4">Castro Ferreira et al., 2020)</ref> which uses DBpedia graphs of different sizes (from 1 to 7 triplets) as the sources and includes human written lexicalizations as the targets.</p><p>The best-performing approaches for this task are based on the Transformer Architecture <ref type="bibr" target="#b45">(Vasava et al., 2022)</ref>. <ref type="bibr" target="#b37">Ribeiro et al. (2021)</ref> tested the efficiency of LLMs on Graph-to-Text tasks and <ref type="bibr" target="#b27">Li et al. (2020)</ref> did it specifically on the WebNLG Challenge. They both found that T5 <ref type="bibr" target="#b36">(Raffel et al., 2020)</ref> performs particularly well. Later on, using lightweight approaches like Prefix Tuning <ref type="bibr" target="#b26">(Li and Liang, 2021)</ref> and Control Prefixes <ref type="bibr" target="#b7">(Clive et al., 2021)</ref> on T5, further improvements were reached. Currently, the best results for the English WebNLG are around 57 BLEU for all the categories.</p><p>Beyond English. Some research has expanded the results obtained in the Data-to-Text task from English to other languages. <ref type="bibr" target="#b1">Agarwal et al. (2020)</ref> leverage the strength of pre-trained language models. They further pre-train T5 on parallel English-Russian machine translation data for around 900K steps before fine-tuning on 34K English WebNLG and 29K Russian WebNLG samples. This method obtained a balanced score of around 52 BLEU for both English and Russian. Their results show the benefits of pre-trained language models, even when the target language is new to the model. <ref type="bibr" target="#b21">Kale and Roy (2020)</ref> attempt the Table-to-Text task in Czech. They pre-train a transformer from scratch on English-to-Czech parallel data for a million steps and then fine-tune it on 1K  <ref type="bibr" target="#b43">Touma et al. (2023)</ref> fine-tune various models on 7K WebNLG samples translated to Arabic. Their best-performing model reaches 25 BLEU and consists of an Encoder-Decoder where both components are initialized on <ref type="bibr">AraBERT (Antoun et al., 2020)</ref>, a Large Language Model pre-trained on 1.3B Arabic words.</p><p>These approaches, however, rely on large (hundred of thousands) bilingual or medium-size (several thousand) data-to-text datasets. In contrast, we rely only on monolingual data, which is more easily available for low-resource languages. We then combine denoising pre-training with a linguistically motivated lightweight fine-tuning strategy to overcome the small size (around 1.5K) of the data-to-text train set.</p><p>Parameter-Efficient Training and Low-Resource Languages. To combat catastrophic forgetting and minimise the computation costs induced by the full fine-tuning of large pre-trained models, various parameter-efficient training approaches have surfaced which rely on keeping the original pre-trained model frozen and only training a few additional parameters. In particular, Adapters (parameters introduced in every transformer layer) and Soft Prompts (parameters prepended to the embedded input of the model) have shown good performance on a variety of NLP tasks <ref type="bibr" target="#b18">(Houlsby et al., 2019;</ref><ref type="bibr" target="#b25">Lester et al., 2021)</ref>.</p><p>Parameter-efficient training strategies have also been shown to support transfer learning, which is particularly important when dealing with lowresource languages. <ref type="bibr" target="#b3">Artetxe et al. (2020)</ref> showed that it is possible to adjust an existing language model to a new language using Adapters. <ref type="bibr" target="#b34">Pfeiffer et al. (2020)</ref> demonstrated that stacking tasks and target language adapters can be used for multilingual transfer learning of a task from a highresource language to a low-resource one. In the same line, <ref type="bibr" target="#b46">Vu et al. (2022)</ref> showed that by using Factorized Soft Prompts that separate tasks from the target language it is possible to transfer learning of generative tasks like text summarization from high-resource languages to low-resource languages like Vietnamese and Thai. <ref type="bibr" target="#b24">Lee et al. (2022)</ref> showed that fusing Language Family adapters improves performance in low-resourced languages. <ref type="bibr" target="#b12">Faisal and Anastasopoulos (2022)</ref> showed that training hierarchical language adapters following a phylogeny tree during training can further improve the transfer learning capacity of adapters in classification tasks like POS Tagging, Name Entity Recognition and Natural Language Inference.</p><p>We build on these approaches and extend Vu et al. ( <ref type="formula">2022</ref>)'s Soft Prompt approach by structuring the prompt to better account for the phylogeny relations between languages and maximise transfer learning between closely related languages.</p><p>3 Phylogeny-Inspired Task-Source-Target Soft Prompts</p><p>At the heart of our approach is a highly structured Soft Prompt which decomposes into multiple subprompts. Inspired partly by the structure of the original T5 translation prompts <ref type="bibr" target="#b36">(Raffel et al., 2020</ref>) (e.g., Translate English to German), we first divide the Soft Prompt into three main components: Task, Source, and Target. This is also similar to one standard practice in Machine Translation architectures like mBART <ref type="bibr" target="#b30">(Liu et al., 2020)</ref>, M2M100 <ref type="bibr" target="#b13">(Fan et al., 2021)</ref>, and NLLB <ref type="bibr" target="#b31">(NLLB Team et al., 2022)</ref> where both Source and Target languages are specified to improve Zero-Shot performance.</p><p>In an attempt to model phylogeny information, we further decompose the Source and Target components into Family, Genus, and Language sub-prompts. We call the resulting Soft Prompt, "Phylogeny-Inspired Task-Source-Target" Soft Prompt (PI-TST). By using this prompt, we aim to allow less-resourced languages to benefit from the training data of their related languages while preventing the mixture of training data to introduce too much noise to the model. Figure <ref type="figure" target="#fig_0">1</ref> shows the simplified phylogeny tree we used during training. We paired the linearized RDFs with English since the subjects, objects, and predicates of the RDF are in English.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Method</head><p>We fine-tune a pre-trained multilingual model using the Soft Prompt described in the previous section and proceed in two steps: an unsupervised pretraining of the whole Soft Prompt (Step 1) and a downstream task fine-tuning of the task sub-prompt (Step 2). During these two steps, all the weights of the base model remain frozen. For mT5, we add a preliminary step (Step 0) which we refer to as language Model Adaptation.</p><p>Step 0: Language Model Adaptation. Sometimes the pre-training objective of the base Large Language Model is not aligned with the natural text generation objective. For example, models based on T5 are generally pre-trained on the Span Corruption objective which generates spans of text separated by sentinel tokens instead of plain natural text. When performing full model fine-tuning this behaviour is soon corrected, but for lightweight approaches like Soft Prompts, it can be harder to overcome it. <ref type="bibr" target="#b25">Lester et al. (2021)</ref> proved that pretraining the base model for some steps in a language modelling task, like Prefix Language Modelling, before freezing it and applying a lightweight strategy benefits performance. We use the BERTstyle Masked Language Modelling (MLM) pretraining task of <ref type="bibr" target="#b36">Raffel et al. (2020)</ref> instead of Prefix Language Modelling (PLM). We do this given the better performance of the first objective over the second in <ref type="bibr" target="#b36">Raffel et al. (2020)</ref>, particularly on translation downstream tasks. Furthermore, the MLM task is closer to our downstream tasks than PLM. Once this step has been completed, we freeze the base model for the rest of the training.</p><p>Step 1: Unsupervised Pre-training of the Soft Prompt. The goal of the first stage is to train the language components of the Soft Prompt so that each of them captures as much language information relevant to their assigned language. Specifically, we train the whole Soft Prompt on a mixture of unsupervised, monolingual tasks (Masked LM, Prefix LM, Suffix LM, Generation, and Deshuffling). We substitute the parameters being used for each component based on the language of the training sample. Instances that belong to the same language family share the same Family subprompt but have different Genus and Language Soft Prompt Component Possible Options Task Masked LM, Prefix LM, Suffix LM, Deshuffling, Open Generation, Data-to-Text Source/Target Family Germanic, Celtic Source/Target Genus West Germanic, Goidelic, Britonic Source/Target Language English, RDF, Irish, Scottish Gaelic, Breton, Welsh  sub-prompts. Table <ref type="table" target="#tab_1">1</ref> shows the possible values of each component and Figure <ref type="figure" target="#fig_1">2</ref> shows an example input batch for this step.</p><p>Step 2: Downstream Task Fine-tuning of the Soft Prompt. Once the language components of the Soft Prompt have learned to perform the unsupervised tasks, we freeze them and train the Task sub-prompt on the downstream task (RDFto-Text generation). Following <ref type="bibr" target="#b46">Vu et al. (2022)</ref>, we use one of the unsupervised task Soft Prompt components to initialize the new task Soft Prompt component. In our case, we use the Masked LM component since we consider it to be the closest one to the RDF-to-Text task. In this stage, we continue switching the language components of the Soft Prompt as required by each training instance, with the difference that now they are frozen.</p><p>Inference. At inference time all the parameters of the base model and the Soft Prompt remain frozen. We then combine the task and language sub-prompts as required by each of the 3 inference tasks (i.e., generating into Breton, Irish or Welsh).  <ref type="bibr" target="#b38">(Scherrer, 2020)</ref>, TedTalks <ref type="bibr" target="#b5">(Cettolo et al., 2012)</ref>, UDHR, and Wikipedia.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Data</head><p>To process the text we first split it into sentences using SentenceSplitter<ref type="foot" target="#foot_2">4</ref> with the default English settings. Then, each sentence was normalized using TextaCy<ref type="foot" target="#foot_3">5</ref> , we applied bullet point normalization, hyphenated words normalization, quotation marks normalization, Unicode normalization, white space normalization, and HTML tag removal. Finally, the sentences were filtered using FastText Language Identification <ref type="bibr">(Joulin et al., 2016b,a)</ref> <ref type="foot" target="#foot_4">6</ref> by keeping only those above a 0.5 threshold. We collected as many samples as possible for the Celtic languages but limited the number of English samples to prevent it from overshadowing the other languages.</p><p>6 Experimental Setup</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Training Process</head><p>Step 0: Language Model Adaptation. We choose to use mT5-Large <ref type="bibr">(Xue et al., 2021)</ref> as our base model<ref type="foot" target="#foot_5">7</ref> since it that was originally pretrained in several languages including English, Irish, Scottish Gaelic, and Welsh. Before training the Phylogeny-Inspired Soft Prompt we perform a language model adaptation for 30 000 steps on monolingual data for English, Breton, Irish, Scottish Gaelic, and Welsh as well as RDF triples from WebNLG. Once the LM Adaptation has been completed the base model is permanently frozen and we train the Phylogeny-Inspired Soft Prompts.</p><p>Step 1: Unsupervised Pre-training of the Soft Prompt. We perform this step for 30 000 steps over our monolingual data for English, Breton, Irish, Scottish Gaelic, and Welsh as well as the RDF triples from WebNLG.</p><p>Step 2: Downstream Task Fine-tuning of the Soft Prompt. We fine-tune the Task sub-prompt on the WebNLG task using the validation split of the English WebNLG dataset <ref type="bibr" target="#b15">(Gardent et al., 2017)</ref> as well as human-written Breton, Irish, and Welsh translations of it. This process takes 5 epochs or around 4500 steps and we keep the best checkpoint every 500 steps.</p><p>To account for the unbalanced distribution of samples in our datasets we apply the sampling strategy described in <ref type="bibr" target="#b10">Devlin et al. (2019)</ref> with α = 0.3 which has been shown to perform best NLLB <ref type="bibr" target="#b31">Team et al. (2022)</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Models</head><p>We compare our model to a baseline obtained by applying full fine-tuning on mT5, to previous work, and two MT-based, upper-bound models.</p><p>Full Model Fine-tuning. We perform full finetuning on mT5. First, we performed the Language Model Adaptation to attune the model to our target languages. We then fine-tuned it on the downstream task.</p><p>Control Prefixes. The Control Prefixes model presented by Clive et al. ( <ref type="formula">2021</ref>) is currently one of the best-performing strategies for the English WebNLG benchmarks. This lightweight finetuning approach includes attribute-level parameters into different layers of T5 which indicate the semantic category of the input WebNLG RDF graph to improve performance. For our baseline, we trained Control Prefixes on the WebNLG validation data of all languages (Celtic and English).</p><p>Machine Translation (MT). We consider two scenarios using Machine Translation: a generateand-translate scenario (NLG+MT), where the output of the best RDF-to-English generation system from the WebNLG Challenge 2020 <ref type="bibr">(Guo et al., 2020a)</ref> is translated into the Celtic languages using Machine Translation, and a translation-only scenario (Gold+MT) where the translation takes as input the references of the WebNLG dataset. We view these models as upper bounds since, different from our models which are trained on around 1.5K data points, the machine translation models have been trained on thousands of samples of parallel English-Celtic data. Note further that the GOLD+MT model does not perform RDF-to-Text generation as it simply translates the English sentences of the WebNLG test set into Celtic. To perform the translations we used a version of the system from Zhang et al. ( <ref type="formula">2020</ref>) trained only on Celtic and English data from the OPUS Corpora (Tiedemann, 2012). It is worth noting that NLG+MT and the Gold+MT models are requires significantly more parallel data to be trained than our proposed method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Ablation Experiments</head><p>To test the impact of the various sub-prompts (task, phylogeny data, source and target language), we perform a series of ablation experiments. Figure <ref type="figure" target="#fig_2">3</ref> shows the various prompts we experiment with. We compare our full prompt with five other prompts: the same prompt but without phylogeny information (TST); the same prompt without Source Language information (PI-TT) and three simpler prompts without phylogeny information which either are unstructured (S) or model only two factors namely, Task and Target Language (TT) or Source and Target Language (ST).</p><p>We fixed the size of the Soft Prompts at 140 tokens for all the experiments. When a task component was present, we fixed its size to 50 tokens with the rest taking 90 tokens. All the languagerelated components on a Soft Prompt had their size distributed uniformly as shown in Figure <ref type="figure" target="#fig_2">3</ref>. All the Soft Prompts underwent the same pre-training before the downstream task fine-tuning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Training Data</head><p>Training Samples. This experiment tests our final PI-TST model but fine-tuned on different numbers (100, 500, 1000) of randomly sampled elements from each language on the dataset.</p><p>Zero-Shot. We test the zero-shot capabilities of our final PI-TST model by fine-tuning the task Soft Prompt only in English (either on the validation or training data) and testing it on Celtic languages. We compute the corpus level BLEU score <ref type="bibr" target="#b32">(Papineni et al., 2002)</ref> for each experiment using SacreBLEU <ref type="bibr" target="#b35">(Post, 2018)</ref> .</p><p>Google BLEU. We also compute sentence level Google BLEU scores <ref type="bibr" target="#b49">(Wu et al., 2016)</ref> for each experiment.</p><p>LaBSE Cosine Similarity. We use LaBSE <ref type="bibr" target="#b14">(Feng et al., 2022)</ref> to obtain sentence embeddings for the generated text and the human reference. We then compute the sentence level cosine similarity of both embeddings as an automatic measurement of semantic accuracy. We choose this model for sentence embeddings over others given its implicit goal of being language agnostic, which benefits the experimentation with low-resourced languages.</p><p>Wilcoxon signed-rank test. We use the Wilcoxon signed-rank test <ref type="bibr" target="#b48">(Wilcoxon, 1945)</ref> on the sentence level metrics (Google BLEU and LaBSE Cosine Similarity) to evaluate if the differences observed on different experiments are statistically significant. We proffered this approach over paired Student's t-test since our results do not follow a normal distribution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2">Human Evaluation</head><p>We selected 25 random input graphs from our test set making sure to have a variety of sizes and collected the generation by our proposed model from those graphs into all our target languages. We then provided all 25 of those generated texts to human evaluators and asked them to score them following 4 different criteria: Readability, Grammaticality, Word Order and Semantic Adequacy. Each criterion was to be scored on a 1 to 3 scale where 1 is bad, 2 is medium, and 3 is good.</p><p>Readability. The evaluator was given the generated output of the model and asked if the generated text was understandable and reasonable text in the language.</p><p>Grammaticality. The evaluator was given the generated output of the model and asked if the morphology of the generated text was correct and if agreement constraints (e.g., verb/subject, noun/adjective) were respected.</p><p>Word Order. The evaluator was given the generated output of the model and asked if the word order of the generated text was correct and if a native speaker would come up with a text like that.</p><p>Semantic Adequacy. The evaluator was given the generated of the model as well as the human-written reference and asked if the generated text shared the same meaning as the human-written reference.</p><p>We reached out to colleagues that grew up on regions where the evaluated language is spoken to perform the human evaluation. Given the nature of the low-resource languages we are working with, we only collected a small number of evaluations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8.1">Automatic Evaluation Results</head><p>PI-TST outperforms the baselines. Table <ref type="table" target="#tab_5">4</ref> shows the results of the automatic evaluation. Our proposal (PI-TST) outperforms mT5 Full Finetuning and the state-of-the-art, Control Prefixes models fine-tuned on Celtic. For Breton and Welsh, PI-TST even outperforms the BLEU score of the NLG+MT approach, with the advantage that our model does not require any number of parallel translation data, while the MT model has been trained on significant amounts of bilingual data, which is not always available for low resource languages. Furthermore, the NLG model of the NLG+MT baseline was trained on all 32K samples of the full English WebNLG while PI-TST is only trained on validation data, which is significantly smaller. It is worth noting that, for Breton, which is the most under-resourced of the Celtic language evaluated, our method even comes close to the Gold+MT BLEU score and surpasses its LaBSE Cosine Similarity score. As the data used to pretrain mT5 does not include any Breton, this suggests that our fine-tuning approach produces bigger improvements on languages which were not seen during the base model pre-training.</p><p>The effect of Source information. The ablation results in Table <ref type="table" target="#tab_6">5</ref> show that the two bestperforming models (PI-TST, ST) include a source sub-prompt, which suggests that, similar to the control tokens used in multilingual machine translation, our source and target sub-prompts help structure the representation space and guide learning. We conjecture that having both Source and Target sub-    prompts (rather than just Target) helps the model differentiate between the unsupervised monolingual step (Step 1) where Source and Target prompts refer to the same language and the second finetuning step where the Source and Target prompt refers to different languages (Source: RDF, Target: Celtic). On the other hand, we observe that the TST model has much lower performance than ST, which is likely due to a trade off between prompts and prompt size: 70 tokens for the Source token in ST vs. 45 in TST.</p><p>The effect of Phylogeny information. Just like PI-TST, the Phylogeny-Inspired Task-Target (PI-TT) model outperforms Full Model Fine-tuning in all languages confirming the positive impact of phylogeny information.</p><p>Languages not seen during pre-training of the original Encoder-Decoder (mT5). For Breton, the only language not seen during the pretraining of mT5, the PI-TT model outperforms TT indicating that phylogeny information is particularly useful for under-resourced languages.</p><p>Source and Phylogeny Prompts. Comparing models across these two dimensions, we find that while adding either a phylogeny or a source subprompt does not always improve performance (both TST and PI-TT underperform TT), adding both does (PI-TST outperforms all other models).</p><p>Size of the Training Data. Figure <ref type="figure" target="#fig_3">4</ref> shows the performance of the PI-TST models when fine-tuned with varying amounts of KG-Text data. With only 1 000 samples per language, PI-TST outperforms Full Model fine-tuning in English and performs on par with the Celtic languages.</p><p>Zero-Shot. Table <ref type="table" target="#tab_6">5</ref> shows that using our model in a zero-shot setting reaches equivalent results on Celtic languages than a simple Soft Prompt model trained on all Celtic languages.</p><p>Statistical Significance. Table <ref type="table" target="#tab_9">7</ref> in Appendix A presents the statistical significance between each experiment and our final proposal PI-TST. While some of the ablation experiments produce results that are not statistically different to our proposal, we still advocate from our proposal over those other approaches, since PI-TST provides much more controlability and flexibility given its complex soft prompt. We believe that the extreme modularity of our proposal gives it an edge over the ablation studies. We also note that, where the average Google BLEU score of an ablation experiments outperformed our model (Irish PI-TT) the difference was not statistically significant. Finally, the difference on the Google BLEU score between our proposal and the Breton Gold+MT is not statistically significant; despite the former (and more data intensive) approach having a higher average. When asked where they learned the language 4 of the evaluators answered "Home", 2 answered "School and Home" and 3 answered "School". When asked how they considered their proficiency at the language 8 of the evaluators answered "Good" and 1 answered "Medium". Table <ref type="table" target="#tab_7">6</ref> shows the results of their evaluation of our PI-TST model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8.2">Human Evaluation Results</head><p>This evaluation shows that the model produces acceptable text concerning Readability, Grammaticality and Word Order for all Celtic languages. It also shows that, for English and Irish, the quality of the Semantic Adequacy is past the middle point. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Conclusion</head><p>In this work, we proposed a Soft Prompt approach enriched with phylogeny source language information. We showed that adding this information to the Soft Prompt leads to an improvement in the Data-to-Text task on low-resource languages. In particular, we showed that this approach can outperform basic strategies like Full Model Fine-tuning and other complex approaches like Control Prefixes, simple Soft Prompts, and Factorized Soft Prompts. These results open the door to further advancements in the NLG domain for low-resource languages, as shown by the improved performance of Breton which was new to the base language model and is significantly less resourced than the other Celtic languages studied.</p><p>Generation from the Semantic Web (WebNLG+), pages <ref type="bibr">[107]</ref><ref type="bibr">[108]</ref><ref type="bibr">[109]</ref><ref type="bibr">[110]</ref><ref type="bibr">[111]</ref><ref type="bibr">[112]</ref><ref type="bibr">[113]</ref><ref type="bibr">[114]</ref><ref type="bibr">[115]</ref><ref type="bibr">[116]</ref><ref type="bibr">Dublin,</ref><ref type="bibr">Ireland (Virtual)</ref>. Association for Computational Linguistics.</p><p>Biao Zhang, Philip Williams, Ivan Titov, and Rico Sennrich. 2020. Improving massively multilingual neural machine translation and zero-shot translation. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 1628-1639, Online. Association for Computational Linguistics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Statistical Significance</head><p>Table <ref type="table" target="#tab_9">7</ref> presents the statistical significance between each experiment and our final proposal PI-TST. While some of the ablation experiments produce results that are not statistically different to our proposal, we still advocate from our proposal over those other approaches, since PI-TST provides much more controlability and flexibility given its complex soft prompt. We believe that the extreme modularity of our proposal gives it an edge over the ablation studies. We also note that, where the average Google BLEU score of an ablation experiments outperformed our model (Irish PI-TT) the difference was not statistically significant. Finally, the difference on the Google BLEU score between our proposal and the Breton Gold+MT is not statistically significant; despite the former (and more data intensive) approach having a higher average. Machine Translation NLG+MT 0.0000 0.0002 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 Gold+MT 0.2700 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 Baselines Control Prefixes 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 Full Fine-tuning 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000</p><p>Soft Prompt S 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0121 0.0000 TT 0.0007 0.0089 0.0135 0.1101 0.0060 0.4284 0.5420 0.4962 ST 0.0249 0.0048 0.1443 0.0124 0.0626 0.1318 0.4616 0.0467 TST 0.0000 0.0000 0.0000 0.0089 0.0000 0.0000 0.0000 0.0000 PI-TT 0.0166 0.0011 0.0020 0.1358 0.0013 0.0003 0.0000 0.0313</p><p>Training Samples 100 Samples 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 500 Samples 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 1000 Samples 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000</p><p>Zero-Shot English Validation 0.0000 0.0000 0.0004 0.0000 0.0000 0.0000 0.0000 0.0000 English Training 0.0000 0.0000 0.0001 0.0000 0.0000 0.0000 0.0000 0.0000 </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Simplified phylogeny tree used when training the Soft Prompts.</figDesc><graphic coords="3,306.14,70.88,218.23,80.48" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Example input Batch for Step 1 (Unsupervised Pre-training of the Soft Prompt).</figDesc><graphic coords="4,70.87,164.24,453.51,122.07" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Composition of the input embeddings to the frozen model for different Soft Prompt variants.</figDesc><graphic coords="6,306.14,70.87,218.24,191.69" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: BLEU Score comparison by number of training samples per language. The × mark indicates the score of Full Model Fine-tuning.</figDesc><graphic coords="9,70.87,98.19,218.27,182.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Tableto-Czech samples. Their best-performing model obtains around 26 BLEU. They prove that good pre-training can produce acceptable results even when samples of the downstream task are limited. Demir (2022) experiments with Recurrent Neural Networks, training a Seq2Seq model from scratch for Turkish Data-to-Text. Their bestperforming model obtains 31 BLEU after being trained on close to 40K samples mined from the Turkish Wikipedia.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Possible values of each Soft Prompt component.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Datasets. Collected data for the experiment.</figDesc><table><row><cell>Table 2 shows the number of samples available on</cell></row><row><cell>each dataset used.</cell></row><row><cell>For unsupervised training, we extract Celtic</cell></row><row><cell>and English monolingual data from multiple</cell></row><row><cell>datasets available in the Huggingface Hub 3 .</cell></row><row><cell>Specifically, we collected data from different</cell></row></table><note><p><p><p>3 https://huggingface.co/datasets</p>CAR (Suárez et al., 2019)</p>, TaPACo</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Table 3 accounts for that and other</figDesc><table><row><cell>Parameter</cell><cell>Value</cell></row><row><cell>Base Model</cell><cell>mT5-Large</cell></row><row><cell>Vocabulary Size</cell><cell>∼250K Tokens</cell></row><row><cell>Embedding Dimensions</cell><cell>1 024</cell></row><row><cell>Base Model Parameters</cell><cell>∼1.22B</cell></row><row><cell>Total Prompt Parameters</cell><cell>∼747K</cell></row><row><cell>Inference Prompt Parameters</cell><cell>∼143</cell></row><row><cell>Learning Rate</cell><cell>0.0001</cell></row><row><cell>Batch Size per GPU</cell><cell>8</cell></row><row><cell>Available GPUS</cell><cell>2 Nvidia A40</cell></row><row><cell>Sampling Temperature</cell><cell>0.3</cell></row><row><cell>ML Adaptation Steps</cell><cell>30 000</cell></row><row><cell>ML Adaptation Training Hours</cell><cell>∼12</cell></row><row><cell>Soft Prompt Pre-training Steps</cell><cell>30 000</cell></row><row><cell>Soft Prompt Pre-training Training Hours</cell><cell>∼12</cell></row><row><cell>Soft Prompt Fine-tuning Steps</cell><cell>∼4 500</cell></row><row><cell>Soft Prompt Fine-tuning Training Hours</cell><cell>∼4</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Hyperparameters.relevant hyperparameters used. The batch size was chosen to optimize the use of our GPUs. The learning rate was chosen after a small exploratory experiment. The Soft Prompt size follows Vu et al.</figDesc><table /><note><p><p><p>(2022) using around 50 tokens for task and 50 for each language. Finally, the training steps follow</p><ref type="bibr" target="#b25">Lester et al. (2021)</ref></p>.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Automatic Evaluation Results. For Google BLEU and Cosine Similarity, the results without a statistically significant difference from the final PI-TST model (p &gt; 0.05) are underlined. The English values on the Machine Translation rows are the scores obtained by the RDF-to-EN model and the Gold references i.e., in this case, translation is not used. *Since we use the Sentence Level Google BLEU score for statistical significance analysis, here we present the Average of the Sentence level scores instead of the corpus level one.</figDesc><table><row><cell></cell><cell></cell><cell cols="2">BLEU Score (↑)</cell><cell></cell><cell cols="4">Google BLEU Score (↑)*</cell><cell cols="4">LaBSE Cosine Similarity (↑)</cell></row><row><cell>Experiment</cell><cell>BR</cell><cell>CY</cell><cell>EN</cell><cell>GA</cell><cell>BR</cell><cell>CY</cell><cell>EN</cell><cell>GA</cell><cell>BR</cell><cell>CY</cell><cell>EN</cell><cell>GA</cell></row><row><cell>Machine Translation</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>NLG+MT</cell><cell cols="2">13.08 20.24</cell><cell cols="4">53.98 18.09 17.74 27.49</cell><cell cols="4">49.64 24.86 72.96 89.90</cell><cell cols="2">95.05 87.76</cell></row><row><cell>Gold+MT</cell><cell cols="12">19.81 49.04 100.00 32.09 23.04 51.82 100.00 36.44 76.23 94.80 100.00 92.56</cell></row><row><cell>Baselines</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Control Prefixes</cell><cell cols="2">12.23 13.33</cell><cell>51.61</cell><cell cols="3">8.17 16.37 18.76</cell><cell cols="4">47.77 13.59 80.52 79.41</cell><cell cols="2">94.52 73.12</cell></row><row><cell>Full Fine-tuning</cell><cell cols="2">16.49 18.83</cell><cell cols="4">46.40 14.16 21.36 24.36</cell><cell cols="4">43.62 20.09 82.56 86.02</cell><cell cols="2">92.35 82.49</cell></row><row><cell>Final</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>PI-TST</cell><cell cols="2">18.15 20.60</cell><cell cols="4">49.15 15.64 22.57 25.95</cell><cell cols="4">46.09 21.23 84.09 87.72</cell><cell cols="2">93.65 84.68</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Automatic Evaluation Results of Ablation Experiments. For Google BLEU and Cosine Similarity, the results without a statistically significant difference from the final PI-TST model (p &gt; 0.05) are underlined. *Since we use the sentence level Google BLEU score for statistical significance analysis, here we present the average of the sentence level scores instead of the corpus level one.</figDesc><table><row><cell>84.35</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>Results of Human Evaluation</figDesc><table><row><cell>Criteria (↑)</cell><cell>BR</cell><cell>CY</cell><cell>EN</cell><cell>GA</cell></row><row><cell>Annotators (↑)</cell><cell>3</cell><cell>2</cell><cell>2</cell><cell>2</cell></row><row><cell>Readability (↑)</cell><cell cols="4">2.67 2.18 2.96 2.16</cell></row><row><cell>Grammaticality (↑)</cell><cell cols="4">2.69 2.46 2.84 2.42</cell></row><row><cell>Word Order (↑)</cell><cell cols="4">2.68 2.58 2.94 2.30</cell></row><row><cell cols="5">Semantic Adequacy (↑) 1.84 1.64 2.54 2.06</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 :</head><label>7</label><figDesc>Wilcoxon signed-rank test p-values.  For Google BLEU and Cosine Similarity, the results without a statistically significant difference from the final PI-TST model (p &gt; 0.05) are underlined. *Since we use the sentence level Google BLEU score for statistical significance analysis, here we present the average of the sentence level scores instead of the corpus level one.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Code athttps://gitlab.inria.fr/wsotomar/ phylogenyinspired_softprompts</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://synalp.gitlabpages.inria.fr/ webnlg-challenge/challenge_2023/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>https://github.com/mediacloud/ sentence-splitter</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>https://textacy.readthedocs.io/en/latest/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_4"><p>https://fasttext.cc/docs/en/ language-identification.html</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_5"><p>https://huggingface.co/google/mt5-large</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="10">Acknowledgments</head><p>We thank the anonymous reviewers for their feedback. We gratefully acknowledge the support of the <rs type="funder">French National Research Agency</rs> (<rs type="projectName">Gardent</rs>; award <rs type="grantNumber">ANR-20-CHIA-0003</rs>, XNLG "<rs type="projectName">Multilingual, Multi-Source Text Generation</rs>"). Experiments presented in this paper were carried out using the Grid'5000 testbed, supported by a scientific interest group hosted by Inria and including <rs type="funder">CNRS</rs>, <rs type="funder">RENATER</rs> and several Universities as well as other organizations (see https://www.grid5000.fr).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_6aPEjZd">
+					<idno type="grant-number">ANR-20-CHIA-0003</idno>
+					<orgName type="project" subtype="full">Gardent</orgName>
+				</org>
+				<org type="funded-project" xml:id="_g2urkBX">
+					<orgName type="project" subtype="full">Multilingual, Multi-Source Text Generation</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="11">Limitations</head><p>The scarcity of available data and the access to native speakers of the language made the research particularly challenging. Furthermore, we only tested our approach in one language Family given the lack of training and evaluation data in other language families. We would like to expand our approach to other generative tasks and cover more language families across the globe.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="12">Ethics Statement</head><p>Research into expanding the capabilities of advanced NLP tools to low-resource languages facilitates the democratization of these technologies. Particularly in the domain of Data-to-Text generation, this research can be used to make data available to speakers of low-resourced languages. However, it is important to consider the implications and shortcomings of these technologies. As happens in high-resourced languages, current models are still capable of generating inaccurate text and misleading users.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">The AMARA corpus: Building parallel language resources for the educational domain</title>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Abdelali</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hassan</forename><surname>Sajjad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Vogel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Ninth International Conference on Language Resources and Evaluation (LREC&apos;14)</title>
+		<meeting>the Ninth International Conference on Language Resources and Evaluation (LREC&apos;14)<address><addrLine>Reykjavik, Iceland</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1856" to="1862" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Machine translation aided bilingual data-to-text generation and semantic parsing</title>
+		<author>
+			<persName><forename type="first">Oshin</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heming</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siamak</forename><surname>Shakeri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="125" to="130" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">AraBERT: Transformer-based model for Arabic language understanding</title>
+		<author>
+			<persName><forename type="first">Fady</forename><surname>Wissam Antoun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hazem</forename><surname>Baly</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hajj</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 4th Workshop on Open-Source Arabic Corpora and Processing Tools, with a Shared Task on Offensive Language Detection</title>
+		<meeting>the 4th Workshop on Open-Source Arabic Corpora and Processing Tools, with a Shared Task on Offensive Language Detection<address><addrLine>Marseille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resource Association</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9" to="15" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">On the cross-lingual transferability of monolingual representations</title>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.421</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4623" to="4637" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">The 2020 bilingual, bi-directional WebNLG+ shared task: Overview and evaluation results (WebNLG+ 2020)</title>
+		<author>
+			<persName><forename type="first">Thiago</forename><surname>Castro Ferreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolai</forename><surname>Ilinykh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Van Der Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Mille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Moussallem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="55" to="76" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">WIT3: Web inventory of transcribed and translated talks</title>
+		<author>
+			<persName><forename type="first">Mauro</forename><surname>Cettolo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Girardi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcello</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Annual conference of the European Association for Machine Translation</title>
+		<meeting>the 16th Annual conference of the European Association for Machine Translation<address><addrLine>Trento, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Association for Machine Translation</publisher>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="261" to="268" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Christos</forename><surname>Christodouloupoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s10579-014-9287-y</idno>
+		<title level="m">A massively parallel corpus: the bible in 100 languages. Language resources and evaluation</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">49</biblScope>
+			<biblScope unit="page" from="375" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Control prefixes for text generation</title>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Clive</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kris</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marek</forename><surname>Rei</surname></persName>
+		</author>
+		<idno>CoRR, abs/2110.08329</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Unsupervised cross-lingual representation learning at scale</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartikay</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.747</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8440" to="8451" />
+		</imprint>
+	</monogr>
+	<note>Online. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Turkish data-to-text generation using sequence-to-sequence neural networks</title>
+		<author>
+			<persName><forename type="first">Seniz</forename><surname>Demir</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Transactions on Asian and Low-Resource Language Information Processing</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="1" to="27" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">CCAligned: A massive collection of cross-lingual web-document pairs</title>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>El-Kishky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.480</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5960" to="5969" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Phylogeny-inspired adaptation of multilingual models to new languages</title>
+		<author>
+			<persName><forename type="first">Fahim</forename><surname>Faisal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="434" to="452" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Online only. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Beyond English-centric multilingual machine translation</title>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Bhosale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyi</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>El-Kishky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddharth</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandeep</forename><surname>Baines</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Onur</forename><surname>Celebi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="4839" to="4886" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Language-agnostic BERT sentence embedding</title>
+		<author>
+			<persName><forename type="first">Fangxiaoyu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naveen</forename><surname>Arivazhagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.62</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="878" to="891" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">The WebNLG challenge: Generating text from RDF data</title>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Perez-Beltrachini</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W17-3518</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Conference on Natural Language Generation</title>
+		<meeting>the 10th International Conference on Natural Language Generation<address><addrLine>Santiago de Compostela, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="124" to="133" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">A plan-and-pretrain approach for knowledge graph-to-text generation</title>
+		<author>
+			<persName><forename type="first">Qipeng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijing</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyang</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Wipf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="100" to="106" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">CycleGT: Unsupervised graph-to-text and text-to-graph generation via cycle training</title>
+		<author>
+			<persName><forename type="first">Qipeng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijing</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weinan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Wipf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="77" to="88" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Parameter-efficient transfer learning for nlp</title>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Houlsby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Giurgiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stanislaw</forename><surname>Jastrzebski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bruna</forename><surname>Morrone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>De Laroussilhe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Gesmundo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Attariyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Gelly</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2790" to="2799" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthijs</forename><surname>Douze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hérve</forename><surname>Jégou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1612.03651</idno>
+		<title level="m">a. Fasttext.zip: Compressing text classification models</title>
+		<imprint>
+			<biblScope unit="page">2016</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Bag of tricks for efficient text classification</title>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1607.01759</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Machine translation pre-training for data-to-text generation -a case study in Czech</title>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Roy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Conference on Natural Language Generation</title>
+		<meeting>the 13th International Conference on Natural Language Generation<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="91" to="96" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Train hard, finetune easy: Multilingual denoising for RDF-totext generation</title>
+		<author>
+			<persName><forename type="first">Zdeněk</forename><surname>Kasner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ondřej</forename><surname>Dušek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="171" to="176" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Text-to-text pre-training model with plan selection for RDF-to-text generation</title>
+		<author>
+			<persName><forename type="first">Natthawut</forename><surname>Kertkeidkachorn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hiroya</forename><surname>Takamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="159" to="166" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">FAD-X: Fusing adapters for cross-lingual transfer to low-resource languages</title>
+		<author>
+			<persName><forename type="first">Jaeseong</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seung-Won</forename><surname>Hwang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taesup</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online only. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="57" to="64" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">The power of scale for parameter-efficient prompt tuning</title>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Lester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.243</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3045" to="3059" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Prefix-tuning: Optimizing continuous prompts for generation</title>
+		<author>
+			<persName><forename type="first">Lisa</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.353</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4582" to="4597" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Leveraging large pretrained models for WebNLG 2020</title>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandre</forename><surname>Maskharashvili</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jory</forename><surname>Symon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Stevens-Guille</surname></persName>
+		</author>
+		<author>
+			<persName><surname>White</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="117" to="124" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Pretraining multilingual neural machine translation by leveraging alignment information</title>
+		<author>
+			<persName><forename type="first">Zehui</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangtao</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.210</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2649" to="2663" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">OpenSubtitles2016: Extracting large parallel corpora from movie and TV subtitles</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Lison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)</title>
+		<meeting>the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)<address><addrLine>Portorož, Slovenia</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="923" to="929" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Multilingual denoising pretraining for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00343</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="726" to="742" />
+		</imprint>
+	</monogr>
+	<note>Transactions of the Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Marta</forename><forename type="middle">R</forename><surname>Nllb Team</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Costa-Jussà</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Onur</forename><surname>Cross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maha</forename><surname>Çelebi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenneth</forename><surname>Elbayad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Heafield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elahe</forename><surname>Heffernan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janice</forename><surname>Kalbassi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Lam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Licht</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Maillard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Skyler</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Al</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bapi</forename><surname>Youngblood</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Loic</forename><surname>Akula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Barrault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prangthip</forename><surname>Mejia-Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Hansanti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Semarley</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jarrett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ram</forename><surname>Kaushik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dirk</forename><surname>Sadagopan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shannon</forename><surname>Rowe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chau</forename><surname>Spruit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Necip</forename><surname>Andrews</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Fazil Ayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Bhosale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cynthia</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vedanuj</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Goswami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christophe</forename><surname>Mourachko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Safiyyah</forename><surname>Ropers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Saleem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2207.04672</idno>
+		<title level="m">No language left behind: Scaling human-centered machine translation</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Philadelphia, Pennsylvania, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">NUIG-DSI at the WebNLG+ challenge: Leveraging transfer learning for RDF-to-text generation</title>
+		<author>
+			<persName><forename type="first">Nivranshu</forename><surname>Pasricha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Mihael Arcan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Buitelaar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="137" to="143" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">MAD-X: An Adapter-Based Framework for Multi-Task Cross-Lingual Transfer</title>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Pfeiffer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.617</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7654" to="7673" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A call for clarity in reporting BLEU scores</title>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-6319</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Conference on Machine Translation: Research Papers</title>
+		<meeting>the Third Conference on Machine Translation: Research Papers<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="186" to="191" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">140</biblScope>
+			<biblScope unit="page" from="1" to="67" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Investigating pretrained language models for graph-to-text generation</title>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Leonardo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Schmitt</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.nlp4convai-1.20</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Natural Language Processing for Conversational AI</title>
+		<meeting>the 3rd Workshop on Natural Language Processing for Conversational AI</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="211" to="227" />
+		</imprint>
+	</monogr>
+	<note>Hinrich Schütze, and Iryna Gurevych</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">TaPaCo: A corpus of sentential paraphrases for 73 languages</title>
+		<author>
+			<persName><forename type="first">Yves</forename><surname>Scherrer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twelfth Language Resources and Evaluation Conference</title>
+		<meeting>the Twelfth Language Resources and Evaluation Conference<address><addrLine>Marseille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6868" to="6873" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">CCMatrix: Mining billions of high-quality parallel sentences on the web</title>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.507</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6490" to="6500" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">An overview of the European Union&apos;s highly multilingual parallel corpora</title>
+		<author>
+			<persName><forename type="first">Ralf</forename><surname>Steinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Ebrahim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandros</forename><surname>Poulis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Carrasco-Benitez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Schlüter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marek</forename><surname>Przybyszewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Signe</forename><surname>Gilbro</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s10579-014-9277-0</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Language Resources and Evaluation</title>
+		<imprint>
+			<biblScope unit="volume">48</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="679" to="707" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Asynchronous pipeline for processing huge corpora on medium to low resource infrastructures</title>
+		<author>
+			<persName><forename type="first">Pedro</forename><surname>Javier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ortiz</forename><surname>Suárez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benoît</forename><surname>Sagot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Romary</surname></persName>
+		</author>
+		<idno type="DOI">10.14618/IDS-PUB-9021</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+		<respStmt>
+			<orgName>Institut für Deutsche Sprache</orgName>
+		</respStmt>
+	</monogr>
+	<note>In 7th Workshop on the Challenges in the Management of Large Corpora (CMLC-7</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Parallel data, tools and interfaces in OPUS</title>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Conference on Language Resources and Evaluation (LREC&apos;12)</title>
+		<meeting>the Eighth International Conference on Language Resources and Evaluation (LREC&apos;12)<address><addrLine>Istanbul, Turkey</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="2214" to="2218" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Automated generation of human-readable natural Arabic text from rdf data</title>
+		<author>
+			<persName><forename type="first">Roudy</forename><surname>Touma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hazem</forename><surname>Hajj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wassim</forename><surname>El-Hajj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khaled</forename><surname>Shaban</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Transactions on Asian and Low-Resource Language Information Processing</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="1" to="13" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Rule-based augmentation of training data in Breton-French statistical machine translation</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Francis</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Tyers</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th Annual conference of the European Association for Machine Translation</title>
+		<meeting>the 13th Annual conference of the European Association for Machine Translation<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Association for Machine Translation</publisher>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Transformer-based architecture for empathy prediction and emotion classification</title>
+		<author>
+			<persName><forename type="first">Himil</forename><surname>Vasava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pramegh</forename><surname>Uikey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaurav</forename><surname>Wasnik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raksha</forename><surname>Sharma</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.wassa-1.27</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th Workshop on Computational Approaches to Subjectivity, Sentiment &amp; Social Media Analysis</title>
+		<meeting>the 12th Workshop on Computational Approaches to Subjectivity, Sentiment &amp; Social Media Analysis<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="261" to="264" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Overcoming catastrophic forgetting in zero-shot cross-lingual generation</title>
+		<author>
+			<persName><forename type="first">Tu</forename><surname>Vu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Barua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Lester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="9279" to="9300" />
+		</imprint>
+	</monogr>
+	<note>Mohit Iyyer, and Noah Constant</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Resource description framework (rdf) model and syntax specification</title>
+		<ptr target="Https://www.w3.org/TR/1999/REC-rdf-syntax-19990222/" />
+	</analytic>
+	<monogr>
+		<title level="m">Technical report, W3C</title>
+		<imprint>
+			<publisher>W3C</publisher>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">Individual comparisons by ranking methods</title>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Wilcoxon</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1945">1945</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="80" to="83" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolfgang</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxim</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qin</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Macherey</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.08144</idno>
+		<title level="m">Google&apos;s neural machine translation system: Bridging the gap between human and machine translation</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Aditya Barua, and Colin Raffel. 2021. mT5: A massively multilingual pre-trained text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.41</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="483" to="498" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Improving text-to-text pre-trained models for the graph-to-text task</title>
+		<author>
+			<persName><forename type="first">Zixiaofan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arash</forename><surname>Einolghozati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hakan</forename><surname>Inan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keith</forename><surname>Diedrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pinar</forename><surname>Donmez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonal</forename><surname>Gupta</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language</title>
+		<meeting>the 3rd International Workshop on Natural Language</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

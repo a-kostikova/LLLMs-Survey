@@ -1,0 +1,1826 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Location Aware Modular Biencoder for Tourism Question Answering</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Haonan</forename><surname>Li</surname></persName>
+							<email>haonan.li@mbzuai.ac.ae</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">School of Computing and Information Systems</orgName>
+								<orgName type="department" key="dep2">Department of Infrastructure Engineering</orgName>
+								<orgName type="department" key="dep3">Department of Natural Language Processing</orgName>
+								<orgName type="institution" key="instit1">The University of Melbourne</orgName>
+								<orgName type="institution" key="instit2">The University of Melbourne</orgName>
+								<address>
+									<region>MBZUAI</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Martin</forename><surname>Tomko</surname></persName>
+							<email>tomkom@unimelb.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">School of Computing and Information Systems</orgName>
+								<orgName type="department" key="dep2">Department of Infrastructure Engineering</orgName>
+								<orgName type="department" key="dep3">Department of Natural Language Processing</orgName>
+								<orgName type="institution" key="instit1">The University of Melbourne</orgName>
+								<orgName type="institution" key="instit2">The University of Melbourne</orgName>
+								<address>
+									<region>MBZUAI</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">School of Computing and Information Systems</orgName>
+								<orgName type="department" key="dep2">Department of Infrastructure Engineering</orgName>
+								<orgName type="department" key="dep3">Department of Natural Language Processing</orgName>
+								<orgName type="institution" key="instit1">The University of Melbourne</orgName>
+								<orgName type="institution" key="instit2">The University of Melbourne</orgName>
+								<address>
+									<region>MBZUAI</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Location Aware Modular Biencoder for Tourism Question Answering</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">1D7486DA8C7D68FABDA444B96720F20C</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Answering real-world tourism questions that seek Point-of-Interest (POI) recommendations is challenging, as it requires both spatial and non-spatial reasoning, over a large candidate pool. The traditional method of encoding each pair of question and POI becomes inefficient when the number of candidates increases, making it infeasible for real-world applications. To overcome this, we propose treating the QA task as a dense vector retrieval problem, where we encode questions and POIs separately and retrieve the most relevant POIs for a question by utilizing embedding space similarity. We use pretrained language models (PLMs) to encode textual information, and train a location encoder to capture spatial information of POIs. Experiments on a real-world tourism QA dataset demonstrate that our approach is effective, efficient, and outperforms previous methods across all metrics. Enabled by the dense retrieval architecture, we further build a global evaluation baseline, expanding the search space by 20 times compared to previous work. We also explore several factors that impact on the model's performance through follow-up experiments. Our code and model are publicly available at https://github. com/haonan-li/LAMB.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Question answering (QA) models and recommender systems have undergone rapid development in recent years <ref type="bibr" target="#b38">(Seo et al., 2017;</ref><ref type="bibr" target="#b34">Rajpurkar et al., 2016;</ref><ref type="bibr" target="#b21">Kwiatkowski et al., 2019;</ref><ref type="bibr" target="#b22">Lee et al., 2019;</ref><ref type="bibr" target="#b5">Cui et al., 2020;</ref><ref type="bibr" target="#b10">Hamid et al., 2021)</ref>. However, personalised question answering is still highly challenging and relatively unexplored in the literature. Consider the example question in Figure <ref type="figure">1</ref>, in the form of a real-world point-of-interest (POI) recommendation question from a travel forum. Answering such questions requires understanding of the question text with possibly explicit (e.g., in Dublin) Question: Hi! My wife and I are in our late thirties and going to be in Dublin on September 28 and 29th. We are staying in the Grafton Street area. Does anybody have any suggestions for some fairly priced restaurants with great food within walking distance of Grafton Street? Also, What about some good pubs with live local music? (I realize it is a Sun and Mon night and may be slow) Any suggestion would be appreciated! Thanks! Answer ID: 11_R_4392 Answer Name: The Porterhouse Central, 45-47 Nassau Street, Dublin. Figure <ref type="figure">1</ref>: An example of real-world POI recommendation question from the TourismQA dataset <ref type="bibr">(Contractor et al., 2021b)</ref>. Colored text represents constraints relevant to recommending POIs.</p><p>or vague and ambiguous (e.g., within walking distance of Grafton Street) spatial constraints, as well as a fast indexing method that supports large-scale reasoning over both spatial and non-spatial (e.g., fairly priced restaurants) constraints.</p><p>Recently, there has been increased interest in geospatial QA. Most approaches focus on querying structured knowledge bases, based on translating natural language questions into structured queries, e.g., using SPARQL <ref type="bibr" target="#b32">(Punjani et al., 2018;</ref><ref type="bibr" target="#b24">Li et al., 2021;</ref><ref type="bibr" target="#b12">Hamzei et al., 2022)</ref>. Separately, <ref type="bibr">Contractor et al. (2021b)</ref> introduced the task of answering POIseeking questions using geospatial metadata and reviews that describe POIs. In later work, they proposed a spatial-textual reasoning network that uses distance-aware question embeddings as input and encodes question-POI pairs using attention <ref type="bibr">(Contractor et al., 2021a)</ref>. However, as their model creates separate question embeddings for each POI, the inference cost increases linearly in the number of POIs, and the model is incompatible with large pre-trained models such as BERT <ref type="bibr" target="#b8">(Devlin et al., 2019)</ref> or even medium-sized QA models such as BiDAF <ref type="bibr" target="#b38">(Seo et al., 2017)</ref>.</p><p>In this work, we address the question: can we build a more efficient POI recommendation system which supports the use of advanced pre-trained language models as the textual encoder? By presenting the Location aware modular bi-encoder ("LAMB") model. We use a bi-encoder architecture to encode questions and POIs separately, where the question encoder is a textual module and the POI encoder consists of a textual and a location module. By encoding them separately, we cast the task as a retrieval problem based on dense vector similarity between the question and each POI. For training, we combine each question with one positivelylabeled POI and multiple negatively-labeled POIs, and use contrastive learning to train the question encoder and POI encoder simultaneously, by maximizing the similarity between the question and positive POI. After training, we generate locationaware dense representations for all POIs using the POI encoder, and index them by city name and entity (POI) type. For inference, we use the question encoder to generate a location-aware representation, and rank the POIs using similarity.</p><p>Our contributions are four-fold:</p><p>(1) we propose a location-aware modular bi-encoder model which fuses spatial and textual information; (2) we demonstrate that the proposed model outperforms the existing SOTA on a real-world tourism QA dataset, with huge improvements in training and inference efficiency; (3) we build new global evaluation baselines by expanding the search space 20× over local evaluation; and finally, (4) we analyse the influence of different training strategies and hyperparameters through extensive experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Methodology</head><p>In this section, we first formulate the task, and then introduce the POI pre-processing method and the LAMB model. Finally, we describe the efficient training and inference strategies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Task Formulation</head><p>Given a question q, the task is to find the most probable POI answer p from a candidate pool P , which satisfies spatial and non-spatial constraints in q. Each POI in P consists of a geocoordinates (lat, long) of the POI, the multigranularity location name (POI entity name, street, city, postcode), and a list of textual reviews = (r 1 , r 2 , ...r n ). It can be represented as p = ⟨coordinates, name, reviews⟩ (see Appendix A for an example).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">POI Pre-processing</head><p>Reviews of POIs provide useful information to represent POIs, however, each candidate can have hundreds of reviews, the total length greatly exceeding the maximum token length of 512 tokens in general PLMs such as BERT. To choose more representative reviews, previous work <ref type="bibr">(Contractor et al., 2021b)</ref> has clustered reviews into K clusters, and then represented the POI using the top-N sentences from each cluster based on distance from the cluster centroid, resulting in N × K sentences. However, this approach is potentially problematic as clusters can be of varying size and density, and outliers can affect the centroid. To keep representative reviews, K and N should not be too small, e.g., <ref type="bibr">Contractor et al. (2021b,a)</ref> set N = K = 10.</p><p>In this paper, we adopt the SELSUM <ref type="bibr" target="#b0">(Bražinskas et al., 2021)</ref> model, which consists of a selector to choose the M most representative reviews and a summarizer to generate a summary of the selected reviews. We use a model pre-trained on the AMA-SUM dataset, which includes verdicts, pros, and cons, and hundreds of reviews for more than 31,000 summarized Amazon products (see example in Appendix C). We compare the results using clustering, the selection module only, and the full SELSUM model in Appendix C. Our results show that using a 3-sentence summary for each POI achieves comparable results with a clustering approach that represents each POI via 100 sentences, and that using 10 sentences outperforms the clustering method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Location Aware Modular Bi-encoder</head><p>LAMB (see Figure <ref type="figure">2</ref>) uses a bi-encoder framework to encode questions and POIs. The question encoder is a textual module which takes question text as input, and outputs dense representations. The POI encoder consists of a textual module and a location module, where the textual module encodes a description and/or reviews associated with it, and the location module encodes the multi-granularity location names. The outputs of the textual and location modules are real-valued vectors, which are concatenated to represent a POI. Full details of the model are presented below. Textual Module We use two independent PLMs as the textual encoder for questions and POIs, using the [CLS] token representation as the output. For questions, we do not preprocess the question text, while for POIs, we concatenate the preprocessed reviews.</p><p>Location Module Spatial constraints are crucial in retrieving relevant POIs to a question. However, previous research has shown that PLMs perform poorly in encoding and reasoning over spatial data, especially for geolocation information <ref type="bibr" target="#b37">(Scherrer and Ljubešić, 2021;</ref><ref type="bibr" target="#b14">Hofmann et al., 2022)</ref>. To enhance the model's ability to capture geospatial information, we employ a location module that explicitly encodes the multi-granularity location name of a POI into a dense vector. We initialize the location module by choosing several transformer blocks from a PLM, and continue pre-training it to learn geo-coordinate-aware location name representations. The training object is designed to pull together pairs of encoded location representations if the locations are physically near each other, and push them apart if they are far from each other. Formally, for any three POIs (p 0 , p 1 , p 2 ), suppose the corresponding locations are (l 0 , l 1 , l 2 ), and the encoded representations are (h 0 , h 1 , h 2 ).</p><p>Here</p><formula xml:id="formula_0">l i (i = 0, 1, 2) is a 1-d vector [lat i , long i ],</formula><p>representing the latitude and longitude of p i , with lat i ∈ [-90, 90] and long i ∈ <ref type="bibr">[-180, 180]</ref>, and h i is a vector. We choose p 0 to be an anchor location, and d i (i = 1, 2) ∈ [0, 1] to represent the normalized Haversine distance between l 0 and l i , representing the greater-circle distance between two points on a sphere. Similarly, s i (i = 1, 2) ∈ [0, 1] represents the cosine similarity between h 0 and h i . We use the triplet margin loss, and define the loss function as follows:</p><formula xml:id="formula_1">L = max((s1 -s2) + (d1 -d2), 0) if(d1 -d2) &gt; 0 max((s2 -s1) -(d1 -d2), 0) otherwise</formula><p>In the first case, d 1 -d 2 &gt; 0 means that p 2 is closer to p 0 than p 1 , and hence we structure the loss to learn a larger s 2 (= higher similarity between p 0 and p 2 ) and smaller s 1 (= lower similarity between p 0 and p 1 ). We set the difference between the two distances as a dynamic margin, which controls the rationally-valued similarity difference.</p><p>Question and POI Encoders As mentioned above, we use a separate textual encoding module E text P and location encoding module E loc P to encode each POI. These modules map the review text and location names to fixed-length vectors:</p><formula xml:id="formula_2">r text p = E text P (p) ∈ R 1×d 1 r loc p = E loc P (p) ∈ R 1×d 2</formula><p>We concatenate r text p and r loc p and then use a dense layer to fuse the representations together, resulting in the POI representation r p ∈ R 1×d :</p><formula xml:id="formula_3">r p = Dense([r text p , r loc p ]) ∈ R 1×d</formula><p>For questions, we similarly tried using separate text and location modules, and combining their outputs. However, we found that the text may contain distractor locations that should not be considered as spatial constraints, and that context is essential. (e.g., the place name Italy in question Hey I am from Italy, please suggest a restaurant in Berlin that suits my appetite.) Hence, we use a single textual module E text Q which directly maps the question text into representation r q ∈ R 1×d , of the same dimension as a POI.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Training and Inference</head><p>We train the two encoders simultaneously using contrastive learning. We input each question q i with one positive POI p + i and several negative POIs p - i,1 , ...p - i,n into the model, with the objective to maximize the similarity between the embeddings of q i and p + i , while minimizing the similarity between the embeddings of q i and p - i,1 , ...p - i,n . We use the negative log-likelihood (NLL) loss of the positive POIs as our objective function:</p><formula xml:id="formula_4">L(q i , p + i , p - i,1 , ...p - i,n ) = -log e sim(q i ,p + i )</formula><p>e sim(q i ,p + i ) + n j=1 e sim(q i ,p - i,j )</p><p>where similarity function sim(p, q) is the inner product.</p><p>Negative Sampling Strategy A critical question in contrastive learning is how to construct positive and negative examples. In our case, for each question, there can be more than one answer (= positive) POI. To make use of every positive POI, as well as to adapt to the NLL loss function, we create a training example for each positive POI. For negative samples, all non-answer POIs are candidate negative samples, but previous work <ref type="bibr" target="#b20">(Karpukhin et al., 2020;</ref><ref type="bibr">Xiong et al., 2021a)</ref>  Inference Before inference, we disable the question encoder and generate representations of all POIs using the POI encoder only, and store and index them (as shown in the orange part in Figure <ref type="figure">2</ref>). During inference, the generated POI representations are loaded into memory. Given a question q at run-time, we encode it using the question encoder, score all candidates using the pre-computed representations, and return the top-k results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experimental Setup</head><p>In this section, we introduce the dataset, baselines, and implementation details of our model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dataset</head><p>We use the TourismQA <ref type="bibr">(Contractor et al., 2021b)</ref> dataset, which comprises over 47,000 real-world POI question-answer pairs from 50 cities across the globe. These questions are genuine queries submitted to a trip advisor website,<ref type="foot" target="#foot_1">2</ref> and the answers are real-world responses that have been chosen and authenticated by annotators. The average length of the questions is 87.48 tokens (separated by whitespace). And on average, there are 3.63 POIs as ground truth answers for each question.</p><p>The dataset contains roughly 114,000 candidate POIs altogether, each with a collection of reviews and metadata such as geo-coordinates and type (restaurant, attraction, or hotel). We follow <ref type="bibr">Contractor et al. (2021b)</ref> in dividing the dataset into a 9:1 train-test split, and constructing a search space by including POIs located in the same city as the ground truth POIs, resulting in an average of approximately 5,300 candidate POIs per question. We believe one reason for earlier work to build the candidate pool within a city was that their methods struggled with a large candidate pool. However, in real-world scenarios, the ground truth answer is concealed, and the candidate pool may be extensive, encompassing all POIs in the database. Therefore, we established a new evaluation setting in which the search space comprises all POIs in the world. We refer to this new setting as global evaluation (114,000 candidates), and the previous one as local evaluation (5,300 candidates).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Evaluation Metrics</head><p>Following <ref type="bibr">Contractor et al. (2021b)</ref>, we evaluate using Accuracy@N ∈ {3, 5, 30} and mean reciprocal rank (MRR) for local evaluation, and use Accuracy@N ∈ {5, 30, 100} for global evaluation. For Accuracy@N , if the top-N predictions have a non-empty intersection with the answer POI set, the results are considered to be correct. For MRR, we return the reciprocal rank of the first positive answer POI per question, and average over the questions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Baselines</head><p>We compare ourselves against four baselines, as detailed below. Sort by Distance (SD): Given all tagged locations with geo-coordinates in the question, we rank POIs by the minimal distance from the tagged locations. BM25: We represent each POI by its combined reviews, and index them using Apache Lucene. Then questions are used as a query to compute BM25 scores for all POIs. Cluster-Select-Rerank ("CSR") Model <ref type="bibr">(Contractor et al., 2021b)</ref>, which consists of three components: (1) a clustering module that clusters reviews for each POI and selects representative reviews;</p><p>(2) a Duet (Mitra and Craswell, 2019) retrieval model that selects the best 30 candidate POIs; and</p><p>(3) a QA-style re-ranker that scores and re-ranks the selected POIs. Note that the cluster module is used to pre-process the POIs, and the selection and re-ranking modules are trained separately and pipelined. Spatial-Textual CSR <ref type="bibr">(Contractor et al., 2021a)</ref>, which adds a self-attention based geospatial reasoner to the CSR model, and ranks POIs based on the weighted sum of scores from the geo-spatial reasoner and CSR.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">LAMB Implementation Details</head><p>We implement our model in PyTorch, and use the HuggingFace <ref type="bibr" target="#b43">(Wolf et al., 2020)</ref> implementation of DistilBERT <ref type="bibr" target="#b35">(Sanh et al., 2019)</ref> as the textual encoder. The location module is comprised of two transformer blocks that are initialized using the first two blocks of a pre-trained DistilBERT model. We continued pre-training for 3 epochs using triplet loss to force the model to learn more spatial information, as described in Section 2.3. During this process, we set the batch size to 8, learning rate to 2e-5, and the max sequence length to 64.</p><p>For the main model of LAMB, the maximum length (in subtokens) for both questions and reviews is set to 256. For training, we use a linear learning rate scheduler with an initial learning rate of 2e-5, and the Adam optimizer with default hyperparameters. For each training instance, we use a single positive POI and varying numbers of negatives. We set the batch size to 8 and train for 10 epochs: 5 epochs of phase 1 (easy and medium negatives), and 5 epochs of phase 2 (medium and hard negatives). All experiments were run on a single Nvidia A100 40GB GPU for about 8 hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results and Analysis</head><p>Table <ref type="table" target="#tab_2">1</ref> shows the overall performance of the baselines and our proposed model. We can see that the sparse-vector retrieval (BM25) and distancebased retrieval (SD) models in the first block of the table perform extremely poorly, demonstrating the difficulty of the task. In contrast, the textualonly pipelined models (CRQA and CSRQA) in the second block improve overall performance substantially, and adding the spatial reasoning subnetwork ("ST+") boosts results again. Note that, since CSRQA is pipelined with a selection model that selects the top-30 results, the spatial-textual module cannot improve Accuracy@30 further.</p><p>Compared to the baselines in blocks one and two, our model, LAMB, achieves the state-of-theart across all metrics. To better understand the impact of different components of our model, we conducted an ablation study by separately removing the training phase 2, review selection and summarization modules, and location module. Overall, the performance dropped when one of these modules or strategies was removed, but still outperformed the previous state-of-the-art. Specifically, removing training phase 2 had a relatively large impact on local evaluation, which we attribute to the process</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Local Global Acc@3 Acc@5 Acc@30 MRR Acc@5 Acc@30 Acc@100 MRR SD 0.83 of training to distinguish hard negatives. Removing the location module greatly impacted the global evaluation, demonstrating the effectiveness of the location module, particularly when candidates are from around the globe.</p><p>Based on our analysis, there are three main reasons why LAMB outperforms previous models: (1) training and inference are end-to-end, avoiding error propagation due to pipelining, as with CSRQA;</p><p>(2) our use of pre-trained language models as the textual encoder, outperforming static word embeddings or training encoders from scratch; and (3) learning location encodings separately and fusing them with textual representations, providing a soft distance computing method. We provide a comparison between our location module design and other straightforward geo-coordinate-based location/distance modules in Appendix E. From this, we can conclude that compared to strategies that encode geo-coordinates directly, a pretrained location name module better captures spatial information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Efficiency Comparison</head><p>We analyze the computational requirements of the models in </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Ablation Study on Model Training</head><p>To further understand how different model training options affect the results, we conduct several additional experiments and discuss our findings below.</p><p>Location Module Analysis In this section, we compare various settings of location modules as shown in Table <ref type="table" target="#tab_5">3</ref>. The table indicates that continuous pretraining of a PLM on location names significantly enhances the module's ability to capture geo-location and distance. Furthermore, using two transformer blocks is sufficient to encode multigranularity location names, whereas more or fewer layers may lead to overfitting or underfitting. Acc@3 Acc@5 Acc@30 MRR Acc@5 Acc@30 Acc@100 MRR number of negatives constant at 15 while varying the mix of easy and hard negatives (as presented in Table <ref type="table" target="#tab_6">4</ref>). As we increase the number of hard negatives, the global evaluation results deteriorate while the local evaluation results improve. This implies that training with easy negatives is more appropriate when the target city or area is unconstrained. The best local evaluation results were achieved when using 12/15 hard negatives, indicating that easy negatives are still necessary for learning general location constraints. We further investigated varying the total number of negatives for contrastive learning, as presented in Table <ref type="table" target="#tab_12">7</ref> in the Appendix. Our findings indicate that the more negatives we have in each training instance, the better the model performs, but that the relative improvement plateaus beyond around 30.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Effectiveness of Negative Examples</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Two-Phase Training Strategy</head><p>We conducted experiments with different epoch configurations for our two-phase training strategy, as detailed in Table 5. Our results indicate that both phase 1 and phase 2 are essential, aligning with the assumptions stated in Section 2.4. Furthermore, we found that commencing phase 2 training at the midway point was particularly effective.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Human Evaluation</head><p>To further investigate the dataset and have a better sense of the overall performance of LAMB, we conducted a small-scale human evaluation. We randomly choose 100 questions from the test set and manually evaluate the top-3 predictions for rel-evance based on LAMB as presented in Table <ref type="table" target="#tab_2">1</ref>. For this small question set, our estimate of the true Accuracy@3 is around 75%, as compared to the automatic evaluation result of 24%. This is consistent with the human evaluation results reported in <ref type="bibr">(Contractor et al., 2021a)</ref>, and points to the issue of low label-recall in the dataset: while a given POI may not have been selected by the user who issued the original question, it may well have satisfied the constraints described in the question.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">How ChatGPT Performs on TourismQA</head><p>During the writing of this paper, ChatGPT (i.e. GPT3.5) was released. We manually tested 100 questions from Section 4.3 by inputting them directly into ChatGPT (GPT-3.5-turbo on 20-March-2023) and getting a single response. <ref type="foot" target="#foot_2">3</ref> The results show that out of the 100 questions, 91 received recommendations for points of interest or areas. However, only 14 of those replies match the ground truth answers, which is lower than our model's performance of 24. We believe that the main reason for this discrepancy is due to differences in the POI databases. The replies from ChatGPT were wellorganized and logical, and could even answer many details in the questions beyond the capabilities of our model. However, we observed that ChatGPT failed to provide an output in many cases: among the 100 replies, sentences such as As an AI language model, I don't have personal experience in ... appeared 36 times, while other outputs like I can recommend that you check out the reviews on websites like Tri-pAdvisor or Booking.com appeared 13 times. Additionally, ChatGPT tended to recommend popular places, with the word popular appearing 44 times in replies, despite not being mentioned in any of the questions. We observed further bias in ChatGPT's recommendations. For example, it recommended Shake Shack nine times in response to fast food requests, but never mentioned other international fast-food chains or local chains, even when questions specifically asked for fast food with regional characteristics.</p><p>Lastly, ChatGPT's database is not up-to-date, as also mentioned in its replies. Since OpenAI did not provide full training details, the cost of updating the database, including fine-tuning the model, is unclear. In summary, there is still a real need for a comprehensive recommendation system that can be combined with up-to-date website information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>Geo-Spatial Question Anwering There has been a strong focus in the literature on component geospatial tasks such as geo-parsing (toponym recognition and disambiguation) <ref type="bibr" target="#b19">(Karimzadeh et al., 2019;</ref><ref type="bibr">Wang et al., 2020a)</ref>, geo-tagging (tagging toponyms with geographic metadata) <ref type="bibr" target="#b2">(Compton et al., 2014;</ref><ref type="bibr" target="#b29">Middleton et al., 2018)</ref>, geospatial information retrieval <ref type="bibr" target="#b33">(Purves et al., 2018)</ref>, and geospatial question analysis <ref type="bibr" target="#b11">(Hamzei et al., 2019)</ref>.</p><p>Based on the type of question, existing work on geospatial QA ("GeoQA") can be classified into four types <ref type="bibr" target="#b28">(Mai et al., 2021)</ref>: (1) factoid GQA <ref type="bibr" target="#b24">(Li et al., 2021;</ref><ref type="bibr" target="#b12">Hamzei et al., 2022)</ref>, focusing on answering questions with geographic factoids; (2) geo-analytical QA <ref type="bibr" target="#b36">(Scheider et al., 2020;</ref><ref type="bibr" target="#b46">Xu et al., 2020)</ref>, focusing on questions with complex spatial analytical intent; (3) visual GQA <ref type="bibr" target="#b27">(Lobry et al., 2020;</ref><ref type="bibr" target="#b16">Janowicz et al., 2020)</ref>, linking questions to an image or video; and (4) scenariobased GQA <ref type="bibr" target="#b15">(Huang et al., 2019;</ref><ref type="bibr">Contractor et al., 2021b)</ref>, which associates questions with a scenario described with a map or paragraph of text. Our work corresponds to the last type, and unlike most other work, we do not rely on task-specific query languages or annotations, and focus more on NLP and IR modeling.</p><p>Point-of-Interest (POI) Recommendation POI recommendation systems have a wide range of ap-plications such as online navigation applications <ref type="bibr">(Zhao et al., 2019a;</ref><ref type="bibr" target="#b48">Yuan et al., 2021)</ref>, personalized recommendation systems in location-based social networks <ref type="bibr" target="#b9">(Feng et al., 2015;</ref><ref type="bibr">Zhao et al., 2019b)</ref>, and trip or accommodation advisory systems <ref type="bibr" target="#b25">(Li et al., 2016;</ref><ref type="bibr">Contractor et al., 2021b)</ref>. In this research, we focus on POI recommendation incorporating both structured information (such as geocoordinates) and unstructured information (such as textual descriptions). Previous work has explored efficient spatial indexing based on specialized data structures, with textual information as sparse vectors or filters (de Almeida and Rocha-Junior, 2015; <ref type="bibr" target="#b25">Li et al., 2016)</ref>. Recent work <ref type="bibr">(Contractor et al., 2021b,a)</ref> has focused on latent textual representations, which is highly relevant here.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Textual Encoding and Document Retrieval</head><p>Pretrained language models (PLMs) have led to great successes across many NLP tasks <ref type="bibr" target="#b8">(Devlin et al., 2019;</ref><ref type="bibr" target="#b26">Liu et al., 2019;</ref><ref type="bibr" target="#b47">Yang et al., 2019;</ref><ref type="bibr" target="#b23">Lewis et al., 2020;</ref><ref type="bibr" target="#b13">He et al., 2021;</ref><ref type="bibr" target="#b1">Clark et al., 2020)</ref>. In the field of QA, PLMs have been used to generate representations of questions and documents <ref type="bibr" target="#b31">(Nogueira et al., 2019;</ref><ref type="bibr" target="#b49">Zhang et al., 2020)</ref>. In this work, we use DistilBERT <ref type="bibr" target="#b35">(Sanh et al., 2019)</ref> as our textual encoder, as it is more efficient than BERT and retains much of its expressivity.</p><p>Document retrieval has become a mainstay of research in IR and QA. Recently, IR has increasingly moved towards dense vector retrieval methods <ref type="bibr" target="#b6">(Das et al., 2019;</ref><ref type="bibr" target="#b39">Seo et al., 2019;</ref><ref type="bibr">Xiong et al., 2021b)</ref>. In particular, <ref type="bibr" target="#b20">Karpukhin et al. (2020)</ref> proposed DPR based on a dual-encoder approach, and attained impressive results on multiple open-domain question answering benchmarks. Inspired by this, we adopt a bi-encoder framework.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We have proposed the LAMB model, a locationaware bi-encoder model for answering POI recommendation questions. Experiments on a recentlyreleased tourism question-answering dataset show that our model surpasses existing spatial-textual reasoning models across all metrics. Experiments over LAMB's components and based on changing up the training strategy show the effectiveness of the different design choices used in LAMB. Finally, we analyzed the training and inference efficiency, and demonstrated that our model is resource-efficient at training and inference time, suggesting it can be deployed in real-world tourism applications.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Although we have achieved results that significantly outperform the current state-of-the-art, our work still has some limitations. First, as demonstrated in Section 4.3 and in the earlier work of <ref type="bibr">Contractor et al. (2021a)</ref>, the TourismQA dataset was collected semi-automatically, and the gold labels have high precision but low recall. Hence any results on this dataset are likely an underestimate of the true model performance. While we currently use the Haversine formula to compute the distance between two locations and supervise the pre-training of the location module, we recognize that this calculation may not reflect the actual distance between two places, taking into account the route direction and vertical height difference. In light of the city's urban design, the Manhattan distance might better represent the true distance between two locations within a city. Additionally, POI density could be a factor that influences user choice in real life, in that people may be more inclined to go to locations with a higher density of restaurants to eat (in order to have more options if a given restaurant doesn't live up to their expectations), rather than travel far to a remote place without other options in the local vicinity. For hotels, on the other hand, some users may prefer privacy and a lower density. Such extra-linguistic features are not explicitly captured in our model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A POI Example</head><p>Table <ref type="table" target="#tab_10">6</ref> shows a POI example, from which we can see that many reviews have similar semantics, making it important to choose representative reviews. In this work, we cluster sentences from reviews, and choose reviews evenly from each cluster to make up the textual input. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Impact of Total Number of Negative Examples</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C SELSUM Example and Effectiveness</head><p>Figure <ref type="figure">3</ref> shows an example of SELSUM model output. Table <ref type="table" target="#tab_13">8</ref> presents the comparison of using clustered reivews, selected reviews (of SELSUM), and summarized reviews.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Efficiency and Usability Analysis</head><p>The most important component of LAMB is the textual encoder, which can be replaced by any pretrained language model. With the increased development of model distillation and compression methods <ref type="bibr" target="#b17">(Jiao et al., 2019;</ref><ref type="bibr">Wang et al., 2020b;</ref><ref type="bibr" target="#b40">Sun et al., 2020)</ref>  <ref type="bibr" target="#b18">(Johnson et al., 2021)</ref> can be used to achieve sub-linear times. <ref type="foot" target="#foot_3">4</ref>Training and Update: The training of LAMB takes no more than 12 hours on a single GPU. Figure <ref type="figure">4</ref> shows the top-k retrieval accuracy with respect to the number of training epochs, based on which we can see that the model already achieves good results after 5 epochs. Once this has happened, there is no need to retrain the model from scratch: as more and more new questions and POIs appear, to maintain high performance of the model, it should be enough to fine-tune it on the new questions and POIs for one or two additional epochs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Comparison to Geo-coordinate-based Location/Distance Module</head><p>We compare our location module with straightforward geo-coordinate-based location and distance modules. Specifically, during question preprocessing, we detect location mentions and tag them with geo-coordinates using a geo-tagger. Similar to LAMB, the question location module E loc Q maps the geo-coordinates of the mentioned locations into fixed-length vectors:</p><formula xml:id="formula_5">r loc q = E loc Q ([l 1 , l 2 , ..., l m ]) ∈ R 1×d 2</formula><p>where m is a hyper-parameter determined based on the average number of location mentions in questions (m = 5 here). Each l i is a 2-d vector [lat i , long i ]. If a question contains n &gt; m unique locations, we randomly select m locations as the input to E loc Q , otherwise we pad the input to m with [0, 0]. Note that the output dimension d 2 is fixed and independent of the number of locations n. For POI, we simply set m = 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Location Module</head><p>The location modules for both questions and POIs are implemented with a multilayer perceptron. Since multiple location mentions (geo-coordinates) may exist in a given question while each POI has a unique geolocation, the sizes of the two location modules are slightly different: POIs are represented as [lat, long] (with size = 2), while questions are represented as [lat 1 , long 1 , lat 2 , long 2 , ..., lat m , long m ] (size = 2m). We use a 3-layer MLP with dropout of 0.2 and ReLU activation function to map locations into a 2m-d vector (i.e., d 2 = 2m).</p><p>Distance Module Since the location module indiscriminately encodes location mentions from the </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Negatives</head><p>Local Global #N #HN Acc@3 Acc@5 Acc@30 MRR Acc@5 Acc@30 Acc@100 MRR  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Review Module Local Global</head><p>Acc@3 Acc@5 Acc@30 MRR Acc@5 Acc@30 Acc@100 MRR question into a fixed-length vector, some of which may be irrelevant or even harmful for POI matching, we add a distance module to explicitly compute a distance score from the location mentions in the question to a POI, followed by min-pooling to choose the minimal distance from the question to a given POI. We use the Haversine formula to compute distances.</p><p>To use the distance module, we define similarity between a question q and a POI p using the Verdict: If you're looking for an Italian restaurant that doesn't require a lot of preparation, this is the one to get.</p><p>Pros: Offers a wide variety of appetizers and dishes, from lasagna to lasagna . Offered in a variety of sizes and flavors .</p><p>Cons: Some of the items on the menu don't have the same quality as some of the other dishes on our list . 0: The zucchini soup was delicious and fresh, salad crisp and not loaded with dressing. 1: The eggplant parmigiana appetizer was a single thin slice of eggplant with a thicker layer of regular (not fresh) mozzarella melted on top, something I could make at home in 5 min. 2: The pieces of brussel sprouts seriously added up to 1-1. 3: We ordered a variety of items from the menu ranging from appetizers (mussels are terrific) to salad to fish and pasta dishes to dessert. 4: We selected Al Dente because of the location but were pleasantly surprised by the ambiance, service and food. 5: The pasta wasn't fresh and seemed to be out of a box. 6: On a warm day the outside tables were all occupied, so the small corner table inside while dining alone was perfect for the view and the food. 7: The food is consistently great and after talking with the owner many time over the years, I know that she searches out the best quality ingredients and makes everything fresh, from the bread they serve to all the desserts. 8: When I want great Italian food that doesn't break the bank I go to Al Dente. 9: You get ready to dine in a Italian restaurant to find out that the waiters in "Al Dente" don't know a thing about pasta? 0: The zucchini soup was delicious and fresh, salad crisp and not loaded with dressing. 1: Had the homemade pasta special with brussel sprouts, shitake mushrooms, and fresh herbs. 2: I had pasta, salad and desert here two days in a row. 3: I had the Caparese Salad and Calamari both great and my husband an pesto chicken sandwich. 4: The eggplant parmigiana appetizer was a single thin slice of eggplant with a thicker layer of regular (not fresh) mozzarella melted on top, something I could make at home in 5 min. 5: This was the first time I had such small yet very flavorful meatballs with the spaghetti. 6: The pieces of brussel sprouts seriously added up to 1-1. 7: My portobello pasta was great. 8: 5 brussel sprouts, and the shitake mushroom also at most 1 shitake mushroom. 9: We ordered a variety of items from the menu ranging from appetizers (mussels are terrific) to salad to fish and pasta dishes to dessert. 10: Excellent coffee. 11: nice service! 12: This for $17. 13: Good pasta,not too much. 14: Maybe I've just gotten incredibly lucky here. 15: It was pretty ordinary. 16: However, I'm puzzled by the bad reviews. 17: check out Al Dente! 18: Based on my experiences, I recommend it. 19: Charming atmosphere too! 20: Bad communications and indifferent service make this restaurant an unpleasant dining experience. 21: The restaurant is pretty but the tables are very close together and the room is loud, which is a problem for conversation. 22: The hostess was kind enough to give us a window table for 7 without reservations. 23: Quiet atmosfere, local guests, no tourists. 24: The atmosphere is inviting and the food was very good. 25: We selected Al Dente because of the location but were pleasantly surprised by the ambiance, service and food. 26: The food was very tasty and the service was great, we would eat here again. 27: Lovely space, friendly staff and tasty dishes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="28">-55</head><p>56: On a warm day the outside tables were all occupied, so the small corner table inside while dining alone was perfect for the view and the food. 57: Didn't know what we were hungry for until we saw the menu at Al Dente. 58: It was our first night and we were tired, so we just walked in to this italian restaurant. 59: We had some wine and time to talk. 60: We stumbled upon this place after a few drinks in the area and were not disappointed. 61: We had just gotten into the city after a long morning of travel. 62: Ducked into this lovely little place to get out of a storm and we were so pleased we did! 63: Just happened to stop in for lunch and we returned for dinner. 64: Me and my husband went there after a long day of shopping. 65: Next time we're on vacation we gonna make sure we visit again 66: A little pricey, but we left happy! 67: As usual didnt fail us. 68: First, it was cream-based, which was not part of the description. 69: The service wasn't very attentive. 70: No one rushed us out. 71: But, If it's good enough for Roth, it's good enough for me. 72: At al dente new york, you eat the very best of the italian food, very delicious, friendly staff, nice Atmosphere, i was there for business and i loved this restarant, i would recommend it and would go there again if i am in new york city 73: I do not recommend this restaurant, attended only because other similarly priced restaurants were booked. 74: There are many places to choose from when looking to eat in Manhattan and many come and go like the seasons. 75: Would definitely go back here and recommend this place to anyone who likes real Italian food. 76: We looked for a good italian restaurant near to our hotel. 77: The food is consistently great and after talking with the owner many time over the years, I know that she searches out the best quality ingredients and makes everything fresh, from the bread they serve to all the desserts. 78: if you want great Italian food and the best Tiramisu you'll ever have. 79: When I want great Italian food that doesn't break the bank I go to Al Dente. 80: You get ready to dine in a Italian restaurant to find out that the waiters in "Al Dente" don't know a thing about pasta? 81: Had a marvelous, Irish waiter (in an Italian restaurant? 82: Portions European size.&lt;/pre&gt;  weighted sum of the bi-encoder similarity score and distance score: sim(p, q) = (1 -λ)sim(r p , r q ) -λ(dist(p, q))</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Selected Reviews Summarized Reviews</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original Reviews</head><p>We negate the distance score to ensure the closer</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 3 :Figure 4 :</head><label>34</label><figDesc>Figure 3: Example of SELSUM output.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Figure 2: Proposed approach. The reviews of POIs are first selected and summarized by SELSUM (bottom right part). A location module is separately pre-trained under the supervision of geocoordinate-based distances (top right part). The left part is the main LAMB model. The cyan-and salmon-coloured parts are the POI encoder and question encoder, respectively. The orange part is the index of POI embeddings used for inference.</figDesc><table><row><cell cols="2">Similarity</cell><cell></cell><cell cols="2">Representation</cell><cell>PLM-Loc</cell><cell>Text</cell></row><row><cell></cell><cell>Scorer</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Question Representation</cell><cell cols="2">POI Representation POI Representation POI Representation</cell><cell cols="2">Similarity Matrix</cell><cell>Distance</cell><cell>Locations</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">Objective</cell><cell>Matrix</cell><cell>Coordinates</cell></row><row><cell></cell><cell cols="2">Dense Fusing</cell><cell>Store &amp;</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>Indexing</cell><cell cols="3">Pre-train: Location-Aware PLM</cell></row><row><cell></cell><cell>Textual Textual Textual</cell><cell>Geo Geo Loc</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>POI</cell><cell></cell><cell>POI</cell><cell>POI</cell></row><row><cell>PLM</cell><cell>PLM</cell><cell>PLM-Loc</cell><cell>Verdict</cell><cell></cell><cell>review 1</cell><cell>review 1</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>Sum</cell><cell></cell><cell>Select</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Pros</cell><cell></cell><cell>review 2</cell><cell>review 2</cell></row><row><cell>Question Text</cell><cell>Description Description Description</cell><cell>Location Location Location</cell><cell>Cons</cell><cell></cell><cell>review 10 ...</cell><cell>review N ...</cell></row><row><cell>Location-Aware Modular Bi-encoder</cell><cell>POIs</cell><cell></cell><cell cols="4">Pre-process: Review Selection and Summarization</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>Two-phase Training We conduct two phases of training: first, we use easy and medium negatives to do warm-up training of the model, and provide the model with a relatively easily-optimizable objective; next, we switch over to training with a mixture of medium and hard negatives. 1 We sample hard negatives by performing inference on the training data after each epoch (or a specific number of steps) to find the top-k POIs for each training question. We then create new training instances by randomly sampling N non-answer POIs from the top-k retrieved POIs, and use these to continue training the model.</figDesc><table /><note><p>has shown that high-quality negative samples help to learn a better encoder. In this research, we consider three different types of negative samples: (1) easy negatives = random (non-answer) POIs from the entire candidate set; (2) medium negatives = random (nonanswer) POIs that are in the same city and of the same type (restaurant, attraction, or hotel) as the answer POI; and (3) hard negatives = top-k ranked non-answer POIs from the previous epoch.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>Overall evaluation on the TourismQA dataset. The second block of results are based on the TourismQA paper, wherein the best results are underlined, and "ST" denotes the spatial-textual module. The overall best results are in bold. The third block presents the results for the full LAMB model, and also with module ablation.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>1.11</cell><cell>5.62</cell><cell>0.011</cell><cell>0.83</cell><cell>1.11</cell><cell>5.62</cell><cell>0.011</cell></row><row><cell>BM25</cell><cell></cell><cell>5.59</cell><cell>8.29</cell><cell>16.33</cell><cell>0.061</cell><cell>0.44</cell><cell>1.86</cell><cell>3.68</cell><cell>0.014</cell></row><row><cell>CRQA</cell><cell></cell><cell>16.89</cell><cell>23.75</cell><cell>52.51</cell><cell>0.159</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>ST+CRQA</cell><cell></cell><cell>19.37</cell><cell>26.23</cell><cell>56.33</cell><cell>0.175</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>CSRQA</cell><cell></cell><cell>21.44</cell><cell>28.20</cell><cell>52.65</cell><cell>0.186</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell cols="2">ST+CSRQA</cell><cell>22.41</cell><cell>28.99</cell><cell>52.65</cell><cell>0.193</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>LAMB</cell><cell></cell><cell>24.83</cell><cell>32.51</cell><cell>60.92</cell><cell>0.220</cell><cell>14.07</cell><cell>32.87</cell><cell>49.08</cell><cell>0.101</cell></row><row><cell>-Phase 2</cell><cell></cell><cell>22.49</cell><cell>29.35</cell><cell>59.20</cell><cell>0.201</cell><cell>13.22</cell><cell>31.89</cell><cell>49.68</cell><cell>0.094</cell></row><row><cell>-SELSUM</cell><cell></cell><cell>23.90</cell><cell>31.20</cell><cell>60.52</cell><cell>0.216</cell><cell>13.28</cell><cell>32.12</cell><cell>48.63</cell><cell>0.096</cell></row><row><cell>-E loc</cell><cell></cell><cell>23.68</cell><cell>31.30</cell><cell>60.52</cell><cell>0.215</cell><cell>9.59</cell><cell>24.52</cell><cell>40.03</cell><cell>0.071</cell></row><row><cell>Model</cell><cell cols="2">Training</cell><cell cols="2">Inference</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="2">Time (h)</cell><cell cols="2">#Cand Time (h)</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>CRQA (±ST)</cell><cell></cell><cell>360</cell><cell>5.3k</cell><cell>64</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>CSRQA (±ST)</cell><cell></cell><cell>360+</cell><cell>30</cell><cell>2-3</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>LAMB</cell><cell></cell><cell>10</cell><cell>115k</cell><cell>0.15</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Runtime comparison, based on a single Nvidia V100 GPU. "#Cand" indicates the number of candidate POIs. For CSRQA, time was estimated by summing the times of the component models.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2 .</head><label>2</label><figDesc>LAMB is more time efficient</figDesc><table><row><cell>Loc Module</cell><cell cols="4">Acc@5 Acc@30 Acc@100 MRR</cell></row><row><cell>w/o Loc</cell><cell>9.59</cell><cell>24.52</cell><cell>40.03</cell><cell>0.071</cell></row><row><cell>2-l PLM</cell><cell>9.91</cell><cell>25.47</cell><cell>41.64</cell><cell>0.075</cell></row><row><cell cols="2">1-l PLM-Loc 12.86</cell><cell>30.67</cell><cell>46.28</cell><cell>0.091</cell></row><row><cell cols="2">2-l PLM-Loc 14.07</cell><cell>32.87</cell><cell>49.08</cell><cell>0.101</cell></row><row><cell cols="2">4-l PLM-Loc 10.92</cell><cell>27.78</cell><cell>43.24</cell><cell>0.081</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Results with different location module settings.</figDesc><table /><note><p><p>"PLM" = use PLM directly; "PLM-Loc" = continue to pretrain PLM on location names; and "N -l" = use N transformer blocks.</p>than the previously-proposed neural models, requiring around 5% of the training time, and &lt;10% of the inference time. It is also able to handle a much larger candidate pool (in the millions of candidates) compared to C(±S)RQA (in the tens or thousands of candidates). Further analysis of efficiency and usability is provided in Appendix D.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 4 :</head><label>4</label><figDesc>Results with differing numbers of easy/hard negatives, total negatives = 15. #HN: number of hard negatives.</figDesc><table><row><cell>To inves-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 5 :</head><label>5</label><figDesc>Results with varied epochs in two-phase training, using 10 total training epochs.</figDesc><table><row><cell>10, 0</cell><cell>22.49</cell><cell>29.35</cell><cell>59.20</cell><cell>0.201</cell><cell>13.22</cell><cell>31.89</cell><cell>49.68</cell><cell>0.094</cell></row><row><cell>8, 2</cell><cell>23.08</cell><cell>30.22</cell><cell>60.33</cell><cell>0.209</cell><cell>13.48</cell><cell>32.48</cell><cell>50.65</cell><cell>0.096</cell></row><row><cell>5, 5</cell><cell>24.83</cell><cell>32.51</cell><cell>60.92</cell><cell>0.220</cell><cell>14.07</cell><cell>32.87</cell><cell>49.08</cell><cell>0.101</cell></row><row><cell>2, 8</cell><cell>24.49</cell><cell>31.88</cell><cell>60.08</cell><cell>0.219</cell><cell>13.05</cell><cell>31.18</cell><cell>46.04</cell><cell>0.095</cell></row><row><cell>0, 10</cell><cell>21.73</cell><cell>28.28</cell><cell>54.15</cell><cell>0.198</cell><cell>11.70</cell><cell>28.74</cell><cell>42.82</cell><cell>0.085</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 6 :</head><label>6</label><figDesc>A POI example, where reviews have been segmented into sentences.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 7 :</head><label>7</label><figDesc>Results with differing numbers of total negatives, with around 3/4 hard negatives. Lines with * signify results with early stopping, because using only hard negatives collapsed the model.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 8 :</head><label>8</label><figDesc>Comparison of using clustered reviews, selected reviews with SELSUM, and summarized reviews with SELSUM.</figDesc><table><row><cell>Cluster</cell><cell>23.90</cell><cell>31.20</cell><cell>60.52</cell><cell>0.216</cell><cell>13.28</cell><cell>32.12</cell><cell>48.63</cell><cell>0.096</cell></row><row><cell>SEL</cell><cell>24.87</cell><cell>32.08</cell><cell>61.17</cell><cell>0.221</cell><cell>13.28</cell><cell>32.05</cell><cell>47.96</cell><cell>0.095</cell></row><row><cell>SELSUM</cell><cell>24.83</cell><cell>32.51</cell><cell>60.92</cell><cell>0.220</cell><cell>14.07</cell><cell>32.87</cell><cell>49.08</cell><cell>0.101</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head>Table 9 :</head><label>9</label><figDesc>Comparison between LAMB location module and other geo-coordinate-based location/distance modules on local evaluation.</figDesc><table><row><cell>Module</cell><cell cols="4">Acc@3 Acc@5 Acc@30 MRR</cell></row><row><cell cols="2">LAMB Loc 24.83</cell><cell>32.51</cell><cell>60.92</cell><cell>0.220</cell></row><row><cell>Geo-loc</cell><cell>22.01</cell><cell>29.54</cell><cell>58.24</cell><cell>0.204</cell></row><row><cell>Geo-dist</cell><cell>20.25</cell><cell>28.00</cell><cell>58.43</cell><cell>0.189</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>For convenience, we use "easy" and "hard" negatives to describe the training setting in any single phase.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://www.tripadvisor.in</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>Questions and responses are released together with the source code.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>FAISS is an efficient open-source library for approximate nearest-neighbor search.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Key Value</head><p>Name <ref type="bibr">Donnybrook, 35 Clinton St, New York City, NY 10002-2426 Lat Long [40.7201861, -73</ref>.9846227]</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reviews</head><p>The place was far from packed, but those who were there were very loud. It was the only place that we didnt have on a list of places to go and I have to say it was one of the high lights of the night. We stumbled across this place whilst enjoying the night life around the lower east side late on a Saturday night. I went in for drinks while I waited for a reservation nearby. On the whole , the atmosphere was not one in which I'd like to stay very long.</p><p>The loud music wasn't the problem. Turns out that the place is very noisy. They were not serving food when we arrived, but the bar tender ordered a pizza for us which we ate at the bar :-) Definitely include it in an East Village pub crawl Nice bar to grab a beer and a warm pretzel. I wanted a nice pub to sit down and have a beer in peace and quiet.</p><p>You always find a seat in this place .</p><p>A great prerequisite to the delancey for the final blow out.</p><p>A disappointment, but it depends what you're after. We were early for our res at Ivan Ramen down the street. Good beer and good service .</p><p>They have Magners (just what you need on a hot NYC summer day) The pace is easy going, the staff are friendly and the drinks are reasonably priced (similar to Dublin).</p><p>Staff is kindle and guinness is a real guinness .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Good draft selection and very friendly service</head><p>The bartender was very friendly. I can't speak to the food, but it was exactly what we needed when we needed it. I had read the reviews, and had high expectations.</p><p>For a very young audience, I guess it might be fun The music was R&amp;B / HIPHOP / Pop and the whole place had a really good vibe. Everyone up dancing, lots of new yorkers. We stumbled across this "Irish" bar while waiting to check into our hotel.</p><p>the two locations, the higher the similarity. λ ∈ [0, 1] is a distance score weight, where λ = 0 means the model does not consider distance at all and λ = 1 means the model computes scores by distance only. We compare our location module with these straightforward geo-coordinate-based location/distance modules in Table <ref type="table">9</ref>. From the table we can clearly see that our module is much better than the alternatives.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Learning opinion summarizers by selecting informative reviews</title>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Bražinskas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ELECTRA: pretraining text encoders as discriminators rather than generators</title>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Conference on Learning Representations. OpenReview</title>
+		<meeting>the 8th International Conference on Learning Representations. OpenReview</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Geotagging one hundred million twitter accounts with total variation minimization</title>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Compton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Jurgens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Allen</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/BigData.2014.7004256</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 IEEE International Conference on Big Data</title>
+		<meeting>the 2014 IEEE International Conference on Big Data</meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="393" to="401" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">2021a. Joint spatio-textual reasoning for answering tourism questions</title>
+		<author>
+			<persName><forename type="first">Danish</forename><surname>Contractor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Goel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Parag</forename><surname>Singla</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Web Conference 2021</title>
+		<meeting>the Web Conference 2021</meeting>
+		<imprint>
+			<biblScope unit="page" from="1978" to="1989" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Parag Singla, and Mausam. 2021b. Answering poirecommendation questions using tourism reviews</title>
+		<author>
+			<persName><forename type="first">Danish</forename><surname>Contractor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Krunal</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditi</forename><surname>Partap</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3459637.3482320</idno>
+	</analytic>
+	<monogr>
+		<title level="m">the 30th ACM International Conference on Information and Knowledge Management, Virtual Event</title>
+		<meeting><address><addrLine>Queensland, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2021">November 1 -5, 2021</date>
+			<biblScope unit="page" from="281" to="291" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Personalized recommendation system based on collaborative filtering for IoT scenarios</title>
+		<author>
+			<persName><forename type="first">Zhihua</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianghua</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xue</forename><surname>Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingjuan</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wensheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinjun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Services Computing</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="685" to="695" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Multi-step retrieverreader interaction for scalable open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Rajarshi</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shehzaad</forename><surname>Dhuliawala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manzil</forename><surname>Zaheer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th International Conference on Learning Representations. OpenReview</title>
+		<meeting>the 7th International Conference on Learning Representations. OpenReview</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Top-k spatial keyword preference query</title>
+		<author>
+			<persName><forename type="first">Paulo</forename><surname>João</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">João</forename><forename type="middle">B</forename><surname>Dias De Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rocha-Junior</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Information and Data Management</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="162" to="177" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Personalized ranking metric embedding for next new POI recommendation</title>
+		<author>
+			<persName><forename type="first">Shanshan</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xutao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifeng</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gao</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yeow</forename><surname>Meng Chee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quan</forename><surname>Yuan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Fourth International Joint Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Fourth International Joint Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="2069" to="2075" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">How smart is e-tourism? a systematic review of smart tourism recommendation system applying data management</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Rula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Hamid</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shihab Albahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><forename type="middle">T</forename><surname>Jwan K Alwan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Osamah</forename><surname>Al-Qaysi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shihab Albahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alhamzah</forename><surname>Aa Zaidan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Alnoor</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Alamoodi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bb Zaidan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Science Review</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="page">100337</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Place questions and human-generated answers: A data analysis approach</title>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Hamzei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haonan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Vasardani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Tomko</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-030-14745-7_1</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd AGILE Conference on Geographic Information Science</title>
+		<meeting>the 22nd AGILE Conference on Geographic Information Science</meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3" to="19" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Translating place-related questions to geosparql queries</title>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Hamzei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Tomko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Winter</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3485447.3511933</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM Web Conference 2022</title>
+		<meeting>the ACM Web Conference 2022</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="902" to="911" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">DeBERTa: decoding-enhanced Bert with disentangled attention</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th International Conference on Learning Representations</title>
+		<meeting>the 9th International Conference on Learning Representations</meeting>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Hofmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Goran</forename><surname>Glavaš</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Ljubešić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janet</forename><forename type="middle">B</forename><surname>Pierrehumbert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.08565</idno>
+		<title level="m">Geographic adaptation of pretrained language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">GeoSQA: A benchmark for scenario-based question answering in the geography domain at high school level</title>
+		<author>
+			<persName><forename type="first">Zixian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulin</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu'ang</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gong</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuzhong</forename><surname>Qu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1597</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5866" to="5871" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">GeoAI: Spatially explicit artificial intelligence techniques for geographic knowledge discovery and beyond. International Journal of Geographic Information Science</title>
+		<author>
+			<persName><forename type="first">Krzysztof</forename><surname>Janowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Grant</forename><surname>Mckenzie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingjie</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Budhendra</forename><surname>Bhaduri</surname></persName>
+		</author>
+		<idno type="DOI">10.1080/13658816.2019.1684500</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="625" to="636" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xiaoqi</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichun</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lifeng</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linlin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qun</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.10351</idno>
+		<title level="m">Tinybert: Distilling bert for natural language understanding</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Billion-scale similarity search with GPUs</title>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthijs</forename><surname>Douze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hervé</forename><surname>Jégou</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/TBDATA.2019.2921572</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Big Data</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="535" to="547" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Geotxt: A scalable geoparsing system for unstructured text geolocation</title>
+		<author>
+			<persName><forename type="first">Morteza</forename><surname>Karimzadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Pezanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><forename type="middle">M</forename><surname>Maceachren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><forename type="middle">O</forename><surname>Wallgrün</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions in GIS</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="118" to="136" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Dense passage retrieval for opendomain question answering</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.550</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6769" to="6781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Natural questions: A benchmark for question answering research</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennimaria</forename><surname>Palomaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivia</forename><surname>Redfield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danielle</forename><surname>Epstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Kelcey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00276</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="452" to="466" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Latent retrieval for weakly supervised open domain question answering</title>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1612</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6086" to="6096" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Neural factoid geospatial question answering</title>
+		<author>
+			<persName><forename type="first">Haonan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Hamzei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Majic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hua</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jochen</forename><surname>Renz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Tomko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Vasardani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Spatial Information Science</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="page" from="65" to="90" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Efficient processing of location-aware group preference queries</title>
+		<author>
+			<persName><forename type="first">Miao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lisi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gao</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ge</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/2983323.2983757</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th ACM International Conference on Information and Knowledge Management</title>
+		<meeting>the 25th ACM International Conference on Information and Knowledge Management</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="559" to="568" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">RoBERTa: A robustly optimized BERT pretraining approach</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno>ArXiv preprint, abs/1907.11692</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">RSVQA: Visual question answering for remote sensing data</title>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Lobry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Marcos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Murray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devis</forename><surname>Tuia</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/TGRS.2020.2988782</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Geoscience and Remote Sensing</title>
+		<imprint>
+			<biblScope unit="volume">58</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="8555" to="8566" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Geographic question answering: Challenges, uniqueness, classification, and future directions</title>
+		<author>
+			<persName><forename type="first">Gengchen</forename><surname>Mai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Krzysztof</forename><surname>Janowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ling</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">AGILE: GIScience Series</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="1" to="21" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Location extraction from social media: Geoparsing, location disambiguation, and geotagging</title>
+		<author>
+			<persName><forename type="first">Giorgos</forename><surname>Stuart E Middleton</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kordopatis-Zilos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Symeon Papadopoulos, and Yiannis Kompatsiaris</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="1" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">An updated duet model for passage re-ranking</title>
+		<author>
+			<persName><forename type="first">Mitra</forename><surname>Bhaskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Craswell</surname></persName>
+		</author>
+		<idno>abs/1903.07666</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">ArXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Document expansion by query prediction</title>
+		<author>
+			<persName><forename type="first">Rodrigo</forename><surname>Nogueira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<idno>abs/1904.08375</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">ArXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Template-based question answering over linked geospatial data</title>
+		<author>
+			<persName><forename type="first">Dharmen</forename><surname>Punjani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manolis</forename><surname>Both</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioannis</forename><surname>Koubarakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Konstantina</forename><surname>Angelidis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Themis</forename><surname>Bereta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitris</forename><surname>Beris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bilidas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Ioannidis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Karalis</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lange</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3281354.3281362</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th Workshop on Geographic Information Retrieval</title>
+		<meeting>the 12th Workshop on Geographic Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page">7</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Geographic information retrieval: Progress and challenges in spatial search of text</title>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Ross S Purves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">B</forename><surname>Clough</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><forename type="middle">H</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vanessa</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Murdock</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Foundations and Trends in Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="issue">2-3</biblScope>
+			<biblScope unit="page" from="164" to="318" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">SQuAD: 100,000+ questions for machine comprehension of text</title>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Konstantin</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D16-1264</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2383" to="2392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Distilbert, a distilled version of BERT: smaller, faster, cheaper and lighter</title>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<idno>abs/1910.01108</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">ArXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Geo-analytical questionanswering with GIS</title>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Scheider</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enkhbold</forename><surname>Nyamsuren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Kruiger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiqi</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="DOI">10.1080/17538947.2020.1738568</idno>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Digital Earth</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="14" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Social media variety geolocation with GeoBERT</title>
+		<author>
+			<persName><forename type="first">Yves</forename><surname>Scherrer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Ljubešić</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth Workshop on NLP for Similar Languages, Varieties and Dialects</title>
+		<meeting>the Eighth Workshop on NLP for Similar Languages, Varieties and Dialects</meeting>
+		<imprint>
+			<publisher>The Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Bidirectional attention flow for machine comprehension</title>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Joon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seo</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aniruddha</forename><surname>Kembhavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Conference on Learning Representations</title>
+		<meeting>the 5th International Conference on Learning Representations</meeting>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Real-time open-domain question answering with dense-sparse phrase index</title>
+		<author>
+			<persName><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinhyuk</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1436</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4430" to="4441" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhiqing</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongkun</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renjie</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.02984</idno>
+		<title level="m">MobileBERT: a compact task-agnostic bert for resource-limited devices</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">NeuroTPR: A neuro-net toponym recognition model for extracting locations from social media messages</title>
+		<author>
+			<persName><forename type="first">Jimin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingjie</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenneth</forename><surname>Joseph</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions in GIS</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="719" to="735" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">MiniLM: Deep selfattention distillation for task-agnostic compression of pre-trained transformers</title>
+		<author>
+			<persName><forename type="first">Wenhui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangbo</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="5776" to="5788" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">2021a. Approximate nearest neighbor negative contrastive learning for dense text retrieval</title>
+		<author>
+			<persName><forename type="first">Lee</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kwok-Fung</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">N</forename><surname>Bennett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junaid</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arnold</forename><surname>Overwijk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th International Conference on Learning Representations. OpenReview</title>
+		<meeting>the 9th International Conference on Learning Representations. OpenReview</meeting>
+		<imprint/>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">2021b. Progressively pretrained dense corpus index for open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Wenhan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.244</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter</title>
+		<meeting>the 16th Conference of the European Chapter</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="2803" to="2815" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Extracting interrogative intents and concepts from geo-analytic questions</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hamzei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nyamsuren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kruiger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tomko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Scheider</surname></persName>
+		</author>
+		<idno type="DOI">10.5194/agile-giss-1-23-2020</idno>
+	</analytic>
+	<monogr>
+		<title level="j">AGILE: GIScience Series</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page">23</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">XLNet: Generalized autoregressive pretraining for language understanding</title>
+		<author>
+			<persName><forename type="first">Zhilin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaime</forename><forename type="middle">G</forename><surname>Carbonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 32: Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2019">2019. 2019</date>
+			<biblScope unit="page" from="5754" to="5764" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Incremental spatio-temporal graph learning for online query-poi matching</title>
+		<author>
+			<persName><forename type="first">Zixuan</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanchi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renjun</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Xiong</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3442381.3449810</idno>
+		<ptr target="ACM/IW3C2" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Web Conference 2021</title>
+		<meeting>the Web Conference 2021</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1586" to="1597" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">SG-Net: Syntax-guided machine reading comprehension</title>
+		<author>
+			<persName><forename type="first">Zhuosheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuwei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junru</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sufeng</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hai</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-Fourth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Thirty-Fourth AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9636" to="9643" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Incorporating semantic similarity with geographic correlation for query-poi relevance learning</title>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuhan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meiyu</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanji</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hua</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jieping</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaohu</forename><surname>Qie</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v33i01.33011270</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-Third AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Thirty-Third AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1270" to="1277" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Where to go next: A spatiotemporal gated network for next POI recommendation</title>
+		<author>
+			<persName><forename type="first">Pengpeng</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haifeng</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanchi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajie</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhixu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fuzhen</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><forename type="middle">S</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaofang</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v33i01.33015877</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-Third AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Thirty-Third AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5877" to="5884" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

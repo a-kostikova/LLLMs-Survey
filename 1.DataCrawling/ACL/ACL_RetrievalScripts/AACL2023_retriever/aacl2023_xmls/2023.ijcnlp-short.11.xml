@@ -1,0 +1,1603 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Efficient Zero-Shot Cross-lingual Inference via Retrieval</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Genta</forename><surname>Indra Winata</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Lingjue</forename><surname>Xie</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Karthik</forename><surname>Radhakrishnan</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Yifan</forename><surname>Gao</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Daniel</forename><surname>Preoţiuc-Pietro</surname></persName>
+						</author>
+						<title level="a" type="main">Efficient Zero-Shot Cross-lingual Inference via Retrieval</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">5453E70DF548CDD5F964880D1C3E35DD</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:42+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Resources for building NLP applications, such as data and models, are usually only created and curated for a limited set of high resource languages. Thus, the ability to transfer knowledge to a new language is a key way in which to enable access to NLP technology for a wider population. This paper presents a framework to perform zero-shot inference in a target language by using cross-lingual retrieval from another language where limited annotated data for a comparable domain is available. Results on two large-scale multilingual datasets show that, in this setup, this framework improves over fine-tuning multilingual models or translating annotated data, and achieves results relatively close to fine-tuning the model on the target language directly. These results show that models can be transferred efficiently across languages for a given task and domain, even for languages not covered by multilingual model training approaches.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Multilingual pre-trained language models (LMs) allow for sharing and transfer of knowledge across languages <ref type="bibr" target="#b6">(Conneau and Lample, 2019;</ref><ref type="bibr" target="#b26">Pires et al., 2019;</ref><ref type="bibr" target="#b34">Wu and Dredze, 2019;</ref><ref type="bibr" target="#b13">Goyal et al., 2021;</ref><ref type="bibr" target="#b17">Lin et al., 2022;</ref><ref type="bibr" target="#b22">Muennighoff et al., 2023;</ref><ref type="bibr" target="#b27">Scao et al., 2022;</ref><ref type="bibr" target="#b28">Shliazhko et al., 2022)</ref>. This limits the need of gathering annotated data for a specific task and/or domain and language pair to obtain good performance by bootstrapping the model using higher resource source language(s) <ref type="bibr" target="#b29">(Siddhant et al., 2020)</ref>. This is beneficial to enabling access to NLP technology across the globe, and especially in low-resource or regional languages and dialects, because collecting new datasets is costly and requires effort in finding or training annotators for a given language and task <ref type="bibr">(Adelani et al., 2022a,b;</ref><ref type="bibr" target="#b21">Mahendra et al., 2021;</ref><ref type="bibr" target="#b2">Aji et al., 2022;</ref><ref type="bibr" target="#b8">Ebrahimi et al., 2022;</ref><ref type="bibr" target="#b32">Winata et al., 2023)</ref>. Recent research has shown that few-shot learning abilities are able to carry over to some extent even to languages unseen in the pre-training data of the multilingual model <ref type="bibr" target="#b27">(Scao et al., 2022;</ref><ref type="bibr" target="#b30">Srivastava et al., 2023;</ref><ref type="bibr" target="#b31">Winata et al., 2022;</ref><ref type="bibr" target="#b22">Yong et al., 2023)</ref>.</p><p>A common approach to zero-shot cross-lingual inference involves fine-tuning a model on the source language, then applying it to the target language <ref type="bibr" target="#b3">(Artetxe and Schwenk, 2019;</ref><ref type="bibr" target="#b19">Liu et al., 2019;</ref><ref type="bibr" target="#b16">Lauscher et al., 2020;</ref><ref type="bibr" target="#b25">Phang et al., 2020;</ref><ref type="bibr" target="#b23">Nooralahzadeh et al., 2020;</ref><ref type="bibr" target="#b4">Bari et al., 2021;</ref><ref type="bibr" target="#b15">Kanakagiri and Radhakrishnan, 2021;</ref><ref type="bibr" target="#b24">Nozza, 2021)</ref>, with the assumption that the underlying learned representations are aligned and will transfer to the task in another language. This approach also requires a full fine-tuning for each language and domain which makes scaling across multiple languages cumbersome.</p><p>Separately, multilingual sentence representations are trained to obtain a joint representation of utterances across multiple languages and can be directly used as inputs to train classifiers that can be applied across languages (?). Further, fine-tuning encoder models for sentence representations, for example using the natural language inference task, shows an ability to generalize for both monolingual <ref type="bibr" target="#b36">(Yin et al., 2019)</ref> and multilingual classification tasks <ref type="bibr" target="#b33">(Winata et al., 2021)</ref>. However, these approaches are less robust and do not perform as well as full fine-tuning on downstream tasks <ref type="bibr" target="#b20">(Ma et al., 2021)</ref>.</p><p>In this paper, we present a simple, yet effective framework for zero-shot inference in a target language via cross-lingual retrieval. Effectively, for each utterance in the target language, we use a multilingual sentence representation model to retrieve similar examples from a pool of labeled data in the source language and project their labels onto the target by combining label distributions and averaging across multiple samples. This framework is efficient for zero-shot cross-lingual inference, as it does not require any training or parameter updates, allowing it to scale effectively to multiple target languages. It is also lightweight, as it only requires the availability of a multilingual sentence representation model. Different from <ref type="bibr" target="#b4">Bari et al. (2021)</ref>, this framework does not require any few-shot samples or prior adaptation using a source language.</p><p>We evaluate this method for classification across two large-scale multilingual datasets, NusaX <ref type="bibr" target="#b32">(Winata et al., 2023)</ref> and <ref type="bibr">MAS-SIVE (FitzGerald et al., 2023)</ref>, where annotated data in multiple languages from the same domain is available. Results show that this method outperforms cross-lingual fine-tuning on the source language and fine-tuning on the translated training data. Further, based on the findings in <ref type="bibr" target="#b31">Winata et al. (2022)</ref>, we evaluate the ability of this framework when the target language is not seen in pre-training of the LMs or training of the sentence representations. Results on these unseen languages show that our framework is more robust and obtains a greater relative improvement over the fine-tuning on source language data approach, albeit with a wider gap to the upper bound performance of fine-tuning with data from the target language.</p><p>Our contributions are as follows:</p><p>• We propose a lightweight and efficient inference framework for cross-lingual zero-shot text classification without any gradient updates. • We benchmark cross-lingual zero-shot learning approaches on two large-scale multilingual datasets, and study the robustness of our framework on languages that are unseen in the training on the LMs. • We show the effectiveness of merging output distribution from multiple models, showing the ability to capture complementary information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Methods</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem Definition</head><p>Our goal is zero-shot cross-lingual text classification, where no labeled data from the target language is seen in training, and labeled data for the same task and domain is available in a different source language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Proposed Framework</head><p>Our framework for zero-shot inference is based on the intuition that similar documents across languages should have the same label. We use multilingual sentence representation models to find similar samples to the target language utterance. Figure <ref type="figure" target="#fig_0">1</ref> presents an illustration of the framework. We formalize this as follows: Models We define θ j as multilingual pre-trained encoder LM to which we can pass samples from the source and target languages to generate embeddings E src j and E tgt j . Data D src is the labeled dataset from the source language and D tgt i is the labeled dataset from the target language i, where each dataset has inputlabel pairs. Memory We store embeddings E src j and the corresponding labels to a memory M that will be used as a source for retrieval. Sample Retrieval We pass the test sample to the models θ j to get test sample embeddings E tgt j . We then retrieve the k most similar embeddings from M from each model by calculating their cosine similarity d θ j = sim(E src j , E tgt j ).  <ref type="bibr">33.33 33.33 33.33 33.33 33.33 33.33 33.33 33.33 33.33 33.33 33.33 33.33 Majority 38.25 38.25 38.25 38.25 38.25 38.25 38.25 38.25 38.25 38.25 38.25</ref>  DistFuse If there is more than one model, we take the distance of the label distributions from the models θ and merge them using a linear combination:</p><formula xml:id="formula_0">d FUSE = M j=1 w j d θ j</formula><p>, where w j is the weight for model θ j . Aggregate We aggregate the nearest k samples by taking the majority label.</p><p>Note that this framework does not involve any model training or parameter updates.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experimental Setup</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Datasets</head><p>We use two multilingual datasets. NusaX <ref type="bibr" target="#b32">(Winata et al., 2023)</ref> is a multilingual sentiment analysis dataset comprising 12 languages, including 10 Indonesian regional languages. MASSIVE <ref type="bibr" target="#b12">(FitzGerald et al., 2023)</ref> is a multilingual natural language understanding dataset with 51 languages for which we use the intent detection data.</p><p>In all our experiments, we use English as the source language for cross-lingual transfer to maintain the uniformity and tractability of experiments. Identifying the best language to transfer from is an orthogonal direction of exploration <ref type="bibr" target="#b18">(Lin et al., 2019;</ref><ref type="bibr" target="#b9">Eronen et al., 2023)</ref> we consider beyond our scope and thus leave it for future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Models</head><p>Our framework uses XLM-R BASE <ref type="bibr" target="#b5">(Conneau et al., 2020)</ref> as the base LM, and LaBSE <ref type="bibr" target="#b11">(Feng et al., 2022)</ref> and CMLM <ref type="bibr" target="#b35">(Yang et al., 2021)</ref> as the multilingual sentence representation models. The param-eter count for the models are: XLM-R BASE -270M parameters, LaBSE and CMLM -471M parameters, and M2M100 -1.2B parameters. We define seen languages those included in pre-training or training of the models; otherwise, we classify languages as unseen. For the translation methods, we use the M2M100 1.2B model <ref type="bibr" target="#b10">(Fan et al., 2021)</ref> to obtain the translated text. We pick this over commercial systems as it is a high performing system that is both open-source and transparent, which makes our results easily reproducible and can help isolate the effects of training data and languages covered by this model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Baselines</head><p>We use the following models as baselines for comparison:</p><p>• Random: Assigns each sample with a random label uniformly chosen from possible labels. • Majority: Assigns each sample with the majority label from the training set. • Zero-shot: Zero-shot prediction using an existing cross-lingual fine-tuned model on XNLI data <ref type="bibr" target="#b7">(Conneau et al., 2018)</ref>.<ref type="foot" target="#foot_0">1</ref> • Fine-tune (src lang): The base LM fine-tuned on data from the source language only. • Fine-tune (translate train): The base LM finetuned on the training set translated from the source language to the target language. • Fine-tune (translate test): The base LM finetuned with the training set and evaluated with the test data translated from the target to the source language.</p><p>In addition, for comparison purposes, we include the two following methods which use data from the target language and that should be considered an upper bound for classification performance, as these are trained : • Fine-tune (tgt): The base LM fine-tuned with the target language data. • Fine-tune (src + tgt): The base LM fine-tuned with data from both the source and target languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Hyper-parameters</head><p>We run the fine-tuning baselines with five seeds and report the average F1 scores for NusaX and average Accuracy scores for MASSIVE.</p><p>We train for a maximum of 20 epochs with a batch size of 32 on a V100 32GB GPU. We do early stopping after three consecutive epochs without performance improvement, and use a learning rate of 1e-5 for NusaX and 5e-5 for MASSIVE. We explore different retrieval samples size k ∈ {1, 3, 5, 10, 15, 20} and DistFuse weights (0.9, 0.1), (0.8, 0.2), (0.7, 0.3)(0.6, 0.4), (0.5, 0.5).</p><p>We report results with the best parameters k = 10 and DistFuse weights of w 1 = 0.8 (LaBSE) and w 2 = 0.2 (CMLM).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results and Discussion</head><p>Tables <ref type="table" target="#tab_1">1</ref> and<ref type="table" target="#tab_2">2</ref> show results on the NusaX and MASSIVE datasets, respectively. We observe that the proposed zero-shot framework (DistFuse) significantly outperforms the Fine-tune (src lang) by ∼19% F1 on NusaX. Our proposed model achieves similar performance as Fine-tune (src lang) on MASSIVE with a minor improvement. Moreover, the XLM-R XNLI results are also lagging behind the sentence transformers models, LaBSE and CMLM, as the model does not use any labeled data from the same domain. We also see that LaBSE obtains better results than CMLM on both datasets. We hypothesise this is because LaBSE is optimized for bitext mining.</p><p>We also calculate the average performance of each model from Table <ref type="table" target="#tab_1">1</ref> on seen and unseen languages on the NusaX dataset and summarize the results in Table <ref type="table">7</ref>. The breakdown performance analysis again suggests our proposed methods are effective on both seen and unseen languages, and often surpass the baselines by a large margin.</p><p>Fine-grained results for each language on the MASSIVE dataset are available in Table <ref type="table" target="#tab_6">5</ref> and<ref type="table">Table 6</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Generalization to Unseen Languages</head><p>As shown in Table <ref type="table" target="#tab_1">1</ref>, DistFuse is able to handle unseen languages significantly better than Fine-tune (src lang) baseline on the NusaX dataset (∼21% F1 on the average of nine languages), showing the strong generalization ability on languages that are not supported by the encoder LMs. This is feasible because the unseen languages share subword tokens with the LM vocabulary <ref type="bibr" target="#b31">(Winata et al., 2022)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Retrieved Samples</head><p>Figure <ref type="figure" target="#fig_1">2</ref> shows the zero-shot cross-lingual performance when varying k. LaBSE's performance increases with larger k but tapers off after k = 10, while CMLM's performance drops after k = 15. Thus, we fix k = 10 in all our experiments for optimal results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">DistFuse Weights</head><p>The optimal fusion is obtained when k = 10 with the weight proportion w 1 = 0.8 (LaBSE) and w 2 = 0.2 (CMLM), showing the need to give a higher weight on a more robust model LaBSE when combining the two distributions. In general, combining LaBSE and CMLM by fusing distributions is shown to boosts performance (+2.51 on NusaX, +0.58 on MASSIVE), showing the two methods can capture complementary information. An analysis of performance on the validation set for different DistFuse weights is presented in Table <ref type="table">8</ref>. can observe that 8 out of 10 sentences retrieved using LaBSE have the correct label for the input. Moreover, this sentence transformer model can retrieve English sentences even though the input is in Javanese. It also captures the semantics of the entities in Javanese (e.g., television agencies trans.tv and net.tv) and identifies similar keywords in English, such as kancaku, which is the literal translation of my friend. The model also retrieves the sentence with an entity Transmart, which is an organization that is associated with trans tv. This presents the ability of the LaBSE model to not only search for the same keywords during retrieval but also semantically related keywords in another language. However, the XLM-R model performs much worse compared to LaBSE. The retrieved sentences do not have overlapping entities; they generally have different semantic contexts. It shows that the XLM-R representations are not suitable for bitext mining without any additional fine-tuning for cross-lingual alignment. Nevertheless, by taking the majority voting over the 10 sentences, we are still able to predict the correct label.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Qualitative Analysis</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We introduce a simple but effective framework to utilize sentence representation models for text classification without requiring parameter updates. We experiment on two large-scale multilingual datasets and show that our framework outperforms zeroshot cross-lingual fine-tuning. This shows the fea-  sibility of utilizing encoder LMs as zero-shot crosslingual learners without additional gradient updates. The framework can also be dynamically scaled by updating the memory and combining the output distribution of multiple sentence representation models. Our framework can be further applied to unseen languages that have subword token overlaps with the LM vocabulary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Limitations</head><p>This paper only studies text classification tasks with two multilingual datasets; we expect no unseen labels on the test sets. We only experiment using two multilingual sentence transformer models and one variant of the XLM-R model. We only use English as the source language, and we expect better results using the closest language as the source language. We leave the exploration of other models and experiment settings as future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Ethics Statement</head><p>In our experiments, we use publicly available datasets with permissive licenses for research experiments. We do not release new data or annotations as part of this work. There are no potential risks. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Inference using our proposed zero-shot framework. In this example, we use two different models θ 1 and θ 2 , and the model weights are w 1 = 0.8 and w 2 = 0.2.</figDesc><graphic coords="2,70.87,70.87,453.50,172.65" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Performance with different k and DistFuse weights on NusaX dataset. The star marker ⋆ shows the optimal performance.</figDesc><graphic coords="4,76.32,70.87,207.35,145.33" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>38.25Zero-shot XLM-R XNLI59.28 55.11 53.50 44.74 44.20 37.67 53.97 40.43 51.24 53.36 47.52  49.18 Fine-tune (tgt lang) † 88.40 78.90 80.10 73.90 72.80 62.30 76.60 66.60 69.70 79.10 75.00 74.85 Fine-tune (src + tgt lang) 90.50 82.60 81.33 76.90 81.41 72.47 81.41 70.19 74.62 80.54 74.77 78.79 Results on the NusaX dataset in the zero-shot cross-lingual setting.</figDesc><table><row><cell>Fine-tune (src lang)</cell><cell cols="10">87.16 71.66 52.25 40.62 51.90 29.99 63.84 28.55 46.30 57.31 43.25 52.08</cell></row><row><cell>Fine-tune (translate train)</cell><cell>85.18 77.11 46.48</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>Fine-tune (translate test)</cell><cell>79.10 62.35 44.42</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>Our Zero-Shot Framework</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>XLM-R BASE</cell><cell cols="10">71.29 56.32 52.64 33.52 41.59 31.71 54.91 35.24 34.30 48.94 37.86 45.30</cell></row><row><cell>CMLM</cell><cell cols="10">73.60 72.21 74.29 64.92 68.41 55.09 72.31 51.56 63.32 69.47 61.49 66.06</cell></row><row><cell>LaBSE</cell><cell cols="10">74.10 74.50 76.08 65.52 66.76 64.38 70.99 58.55 64.11 71.80 67.09 68.54</cell></row><row><cell>DistFuse</cell><cell cols="10">78.75 78.50 78.75 65.50 70.50 65.25 75.25 58.00 67.25 73.50 70.25 71.05</cell></row><row><cell cols="2">Target Language Data (Upper Bounds)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p><p><p><p>† </p>The results are taken from</p><ref type="bibr" target="#b32">Winata et al. (2023)</ref></p>, showing the upper bound model performance when the training data on the target language is available.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Table3shows the top 10 retrieved sentences with the LaBSE (top) and XLM-R (bottom) models. We Results on the MASSIVE dataset in the zeroshot cross-lingual setting. The languages are grouped into three vitality classes based on Joshi et al. (2020): 1-2→low, 3-4→mid, 5→high. The full mapping is in Table4from the Appendix.</figDesc><table><row><cell>Model</cell><cell>low</cell><cell>mid</cell><cell>high</cell><cell>avg.</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>all langs</cell></row><row><cell>Baselines</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Random</cell><cell>1.67</cell><cell>1.67</cell><cell>1.67</cell><cell>1.67</cell></row><row><cell>Majority</cell><cell>7.03</cell><cell>7.03</cell><cell>7.03</cell><cell>7.03</cell></row><row><cell>Zero-shot XLM-R XNLI</cell><cell cols="3">29.26 33.74 34.98</cell><cell>32.53</cell></row><row><cell>Fine-tune (src lang)</cell><cell cols="3">63.31 75.95 69.43</cell><cell>70.96</cell></row><row><cell>Fine-tune (translate train) #</cell><cell cols="3">39.49 62.59 53.09</cell><cell>57.22</cell></row><row><cell>Fine-tune (translate test) #</cell><cell cols="3">51.72 73.81 59.87</cell><cell>68.73</cell></row><row><cell>Our Zero-Shot Framework</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>XLM-R BASE</cell><cell cols="3">25.10 13.25 27.27</cell><cell>23.62</cell></row><row><cell>CMLM</cell><cell cols="3">66.83 70.81 71.05</cell><cell>69.60</cell></row><row><cell>LaBSE</cell><cell cols="3">68.73 71.84 72.01</cell><cell>70.89</cell></row><row><cell>DistFuse</cell><cell cols="3">69.31 72.46 72.48</cell><cell>71.47</cell></row><row><cell cols="3">Target Language Data (Upper Bounds)</cell><cell></cell><cell></cell></row><row><cell>Fine-tune (tgt lang)</cell><cell cols="3">76.09 81.85 71.88</cell><cell>78.48</cell></row><row><cell>Fine-tune (src + tgt lang)</cell><cell cols="3">75.03 80.91 69.20</cell><cell>77.23</cell></row></table><note><p><p># </p>The M2M100 model does not support te-IN and zh-TW.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Aku nembe ngerti ketemu kancaku sek makarya nang trans tv Label: neutral Translation: I just found out that I met my friend while working at trans tv</figDesc><table><row><cell>Retrieved sentence (LaBSE)</cell><cell>Score Label</cell></row><row><cell>My dad is an employee in net.tv</cell><cell>0.5346 neutral</cell></row><row><cell>Now I know I've hated that foreign online shop too much</cell><cell>0.4282 negative</cell></row><row><cell>My friend works at Gojek</cell><cell>0.4222 neutral</cell></row><row><cell>I heard they'll build a Transmart there, next to that building</cell><cell>0.4062 neutral</cell></row><row><cell>I've been dreaming of travelling abroad for a long time</cell><cell>0.3903 neutral</cell></row><row><cell>My friend applies for a position in Tokopedia</cell><cell>0.3762 neutral</cell></row><row><cell>Lots of my friends also work in Bukalapak</cell><cell>0.3748 neutral</cell></row><row><cell>Lots of my family have worked as civil servants.</cell><cell>0.3441 neutral</cell></row><row><cell>Last week there was some 4G network in my village for a while.</cell><cell>0.3417 neutral</cell></row><row><cell>So bored. I've watched all the films and now I'm drawing a blank</cell><cell>0.3253 negative</cell></row><row><cell>Prediction: neutral (k=1); neutral (k=10)</cell><cell></cell></row><row><cell>Retrieved sentence (XLM-R)</cell><cell>Score Label</cell></row><row><cell>Poor Ungu personnels, can't find a gig after Pasha left</cell><cell>0.9957 negative</cell></row><row><cell>Win cool prizes by entering the "Baik untuk Men" photo</cell><cell></cell></row><row><cell>contest in Alfamart</cell><cell>0.9956 neutral</cell></row><row><cell>Pos Indonesia's services are so pathetic nowadays.</cell><cell>0.9953 negative</cell></row><row><cell>This person do be blockin' the road like no tomorrow.</cell><cell>0.9951 negative</cell></row><row><cell>Rode on the Jayabaya train from Malang to Jakarta, stopped in Gubeng,</cell><cell></cell></row><row><cell>the ticket costed 35 thousand plus 6k insurance via Traveloka.</cell><cell>0.9949 neutral</cell></row><row><cell>How much is the minimal if I may ask, I wanna</cell><cell></cell></row><row><cell>buy Tiket Kami for Senen -Yogyakarta using the May promo</cell><cell>0.9949 neutral</cell></row><row><cell>The PIK Waterboom Jakarta tickets are rising in price.</cell><cell>0.9948 neutral</cell></row><row><cell>The employees at Graha Indosat is so rude</cell><cell>0.9946 negative</cell></row><row><cell>The denizens found 2.910 KTP-el cards in the bushes.</cell><cell>0.9946 neutral</cell></row><row><cell>I wanna help by giving the info connections, but my internet</cell><cell></cell></row><row><cell>quota is limited</cell><cell>0.9945 neutral</cell></row><row><cell>Prediction: negative (k=1); neutral (k=10)</cell><cell></cell></row></table><note><p>Input:</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Retrieved English sentences from the NusaX example with LaBSE (top) and XLM-R (bottom). The input is a Javanese sample from the test set.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Language category mapping on MASSIVE.</figDesc><table><row><cell>Language</cell><cell cols="5">Language Code Taxonomy (1-5)  ‡ Vitality  *  Seen on Encoders Seen on M2M100</cell></row><row><cell>Afrikaans</cell><cell>af-ZA</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Albanian</cell><cell>sq-AL</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Amharic</cell><cell>am-ET</cell><cell>2</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Arabic</cell><cell>ar-SA</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Armenian</cell><cell>hy-AM</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Azerbaijani</cell><cell>az-AZ</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Bengali</cell><cell>bn-BD</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Burmese</cell><cell>my-MM</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Danish</cell><cell>da-DK</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Dutch</cell><cell>nl-NL</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>English</cell><cell>en-US</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Finnish</cell><cell>fi-FI</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>French</cell><cell>fr-FR</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Georgian</cell><cell>ka-GE</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>German</cell><cell>de-DE</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Greek</cell><cell>el-GR</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Hebrew</cell><cell>he-IL</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Hindi</cell><cell>hi-IN</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Hungarian</cell><cell>hu-HU</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Icelandic</cell><cell>is-IS</cell><cell>2</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Indonesian</cell><cell>id-ID</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Italian</cell><cell>it-IT</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Japanese</cell><cell>ja-JP</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Javanese</cell><cell>jv-ID</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Kannada</cell><cell>kn-IN</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Khmer</cell><cell>km-KH</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Korean</cell><cell>ko-KR</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Latvian</cell><cell>lv-LV</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Malay</cell><cell>ms-MY</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Malayalam</cell><cell>ml-IN</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Mandarin (simp)</cell><cell>zh-CN</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Mandarin (trad)  ‡</cell><cell>zh-TW</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>×</cell></row><row><cell>Mongolian</cell><cell>mn-MN</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Norwegian</cell><cell>nb-NO</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Persian</cell><cell>fa-IR</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Polish</cell><cell>pl-PL</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Portuguese</cell><cell>pt-PT</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Romanian</cell><cell>ro-RO</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Russian</cell><cell>ru-RU</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Slovenian</cell><cell>sl-SI</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Spanish</cell><cell>es-ES</cell><cell>5</cell><cell>high</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Swahili</cell><cell>sw-KE</cell><cell>2</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Swedish</cell><cell>sv-SE</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Tagalog</cell><cell>tl-PH</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Tamil</cell><cell>ta-IN</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Telugu</cell><cell>te-IN</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>×</cell></row><row><cell>Thai</cell><cell>th-TH</cell><cell>3</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Turkish</cell><cell>tr-TR</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Urdu</cell><cell>ur-PK</cell><cell>3</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Vietnamese</cell><cell>vi-VN</cell><cell>4</cell><cell>mid</cell><cell>✓</cell><cell>✓</cell></row><row><cell>Welsh</cell><cell>cy-GB</cell><cell>1</cell><cell>low</cell><cell>✓</cell><cell>✓</cell></row></table><note><p><p><p>* It maps the language taxonomy class to three vitality classes: 1-2→low, 3-4→mid, 5→high. † Mandarin (trad) is considered as Mandarin. ‡ The language taxonomy is taken from</p><ref type="bibr" target="#b14">Joshi et al. (2020)</ref></p>.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Fine-grained baseline results on MASSIVE. We label "N/A" for English and languages that are not supported by the M2M100 machine translation model.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>The model can be accessed at https://huggingface. co/joeddav/xlm-roberta-large-xnli.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>We would like to thank <rs type="person">Rajarshi Bhowmik</rs> and the entire Bloomberg AI group for valuable discussions and feedback on the manuscript.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0" />			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Africa-centric transfer learning for named entity recognition</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Adelani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Rijhwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Beukman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chester</forename><surname>Palen-Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Constantine</forename><surname>Lignos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesujoba</forename><surname>Alabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shamsuddeen</forename><surname>Muhammad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Nabende</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cheikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andiswa</forename><surname>Bamba Dione</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rooweither</forename><surname>Bukula</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mabuya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">P</forename><surname>Bonaventure</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blessing</forename><surname>Dossou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Happy</forename><surname>Sibanda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Buzaaba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Godson</forename><surname>Mukiibi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derguene</forename><surname>Kalipe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amelia</forename><surname>Mbaye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fatoumata</forename><surname>Taylor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Kabore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anuoluwapo</forename><surname>Chinenye Emezue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Perez</forename><surname>Aremu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Catherine</forename><surname>Ogayo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edwin</forename><surname>Gitau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victoire</forename><surname>Munkoh-Buabeng</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Memdjokam Koagne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Auguste</forename><surname>Allahsera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tebogo</forename><surname>Tapo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vukosi</forename><surname>Macucwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mboning</forename><surname>Marivate</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tajuddeen</forename><surname>Tchiaze Elvis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tosin</forename><surname>Gwadabe</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Adewumi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.emnlp-main.298</idno>
+		<idno>MasakhaNER 2.0</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<editor>
+			<persName><forename type="first">Oreen</forename><surname>Ogundepo</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tatiana</forename><surname>Yousuf</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Dietrich</forename><surname>Moteu</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Klakow</surname></persName>
+		</editor>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4488" to="4508" />
+		</imprint>
+		<respStmt>
+			<orgName>Orevaoghene Ahia, Joyce Nakatumba-Nabende, Neo Lerato Mokono, Ignatius Ezeani, Chiamaka Chukwuneke, Mofetoluwa Oluwaseun Adeyemi</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Africa-centric transfer learning for named entity recognition</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ifeoluwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adelani</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Rijhwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Beukman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chester</forename><surname>Palen-Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Constantine</forename><surname>Lignos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Jesujoba</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Alabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Shamsuddeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Muhammad</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nabende</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.12391</idno>
+		<imprint>
+			<date type="published" when="2000">2022b. Masakhaner 2.0</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">One country, 700+ languages: Nlp challenges for underrepresented languages and dialects in indonesia</title>
+		<author>
+			<persName><forename type="first">Alham</forename><surname>Aji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Indra Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fajri</forename><surname>Koto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Cahyawijaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ade</forename><surname>Romadhony</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahmad</forename><surname>Mahendra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kemal</forename><surname>Kurniawan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Moeljadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radityo</forename><forename type="middle">Eko</forename><surname>Prasojo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="7226" to="7249" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Massively multilingual sentence embeddings for zero-shot crosslingual transfer and beyond</title>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="597" to="610" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Nearest neighbour few-shot learning for cross-lingual classification</title>
+		<author>
+			<persName><forename type="first">Bari</forename><surname>Saiful</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Batool</forename><surname>Haider</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saab</forename><surname>Mansour</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1745" to="1753" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Unsupervised crosslingual representation learning at scale</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartikay</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Édouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8440" to="8451" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Crosslingual language model pretraining</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Xnli: Evaluating crosslingual sentence representations</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruty</forename><surname>Rinott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2475" to="2485" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Americasnli: Evaluating zeroshot natural language understanding of pretrained multilingual models in truly low-resource languages</title>
+		<author>
+			<persName><forename type="first">Abteen</forename><surname>Ebrahimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Mager</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arturo</forename><surname>Oncevay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luis</forename><surname>Chiruzzo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Ortega</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Ramos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Annette</forename><forename type="middle">Rios</forename><surname>Gonzales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Meza-Ruiz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="6279" to="6299" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Zero-shot cross-lingual transfer language selection using linguistic similarity</title>
+		<author>
+			<persName><forename type="first">Juuso</forename><surname>Eronen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michal</forename><surname>Ptaszynski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fumito</forename><surname>Masui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Information Processing &amp; Management</title>
+		<imprint>
+			<biblScope unit="volume">60</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page">103250</biblScope>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Beyond english-centric multilingual machine translation</title>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Bhosale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyi</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>El-Kishky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddharth</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandeep</forename><surname>Baines</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Onur</forename><surname>Celebi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="4839" to="4886" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Language-agnostic BERT sentence embedding</title>
+		<author>
+			<persName><forename type="first">Fangxiaoyu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naveen</forename><surname>Arivazhagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.62</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="878" to="891" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">MASSIVE: A 1M-example multilingual natural language understanding dataset with 51 typologically-diverse languages</title>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hench</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charith</forename><surname>Peris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Mackie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kay</forename><surname>Rottmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Sanchez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Nash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liam</forename><surname>Urbach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishesh</forename><surname>Kakarala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richa</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swetha</forename><surname>Ranganath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurie</forename><surname>Crist</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Misha</forename><surname>Britan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wouter</forename><surname>Leeuwis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gokhan</forename><surname>Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prem</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.235</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">Natarajan. 2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4277" to="4302" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Larger-scale transformers for multilingual masked language modeling</title>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th Workshop on Representation Learning for NLP</title>
+		<meeting>the 6th Workshop on Representation Learning for NLP</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="29" to="33" />
+		</imprint>
+	</monogr>
+	<note>Giri Anantharaman, and Alexis Conneau. RepL4NLP-2021</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">The state and fate of linguistic diversity and inclusion in the nlp world</title>
+		<author>
+			<persName><forename type="first">Pratik</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastin</forename><surname>Santy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amar</forename><surname>Budhiraja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalika</forename><surname>Bali</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Monojit</forename><surname>Choudhury</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6282" to="6293" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Task-oriented dialog systems for dravidian languages</title>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Kanakagiri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Radhakrishnan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Workshop on Speech and Language Technologies for Dravidian Languages</title>
+		<meeting>the First Workshop on Speech and Language Technologies for Dravidian Languages</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="85" to="93" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">From zero to hero: On the limitations of zero-shot language transfer with multilingual transformers</title>
+		<author>
+			<persName><forename type="first">Anne</forename><surname>Lauscher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinit</forename><surname>Ravishankar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Goran</forename><surname>Glavaš</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4483" to="4499" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Few-shot learning with multilingual generative language models</title>
+		<author>
+			<persName><forename type="first">Victoria</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todor</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Mihaylov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianlu</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuohui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Simig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Bhosale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramakanth</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Pasunuru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Punit</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Singh Koura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian O'</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Horo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zornitsa</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Kozareva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Diab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xian</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.emnlp-main.616</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="9019" to="9052" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Choosing transfer languages for cross-lingual learning</title>
+		<author>
+			<persName><forename type="first">Yu-Hsiang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chian-Yu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zirui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuyan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengzhou</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Rijhwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhisong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Littell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1301</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3125" to="3135" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Zero-shot cross-lingual dialogue systems with transferable latent variables</title>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamin</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Indra Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1297" to="1303" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Issues with entailment-based zero-shot text classification</title>
+		<author>
+			<persName><forename type="first">Tingting</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin-Ge</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiejun</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="786" to="796" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Indonli: A natural language inference dataset for indonesian</title>
+		<author>
+			<persName><forename type="first">Rahmad</forename><surname>Mahendra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alham</forename><surname>Fikri Aji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Louvan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fahrurrozi</forename><surname>Rahman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Vania</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="10511" to="10527" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Crosslingual generalization through multitask finetuning</title>
+		<author>
+			<persName><forename type="first">Niklas</forename><surname>Muennighoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lintang</forename><surname>Sutawika</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stella</forename><surname>Biderman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Saiful Bari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng Xin</forename><surname>Yong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hailey</forename><surname>Schoelkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangru</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dragomir</forename><surname>Radev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alham</forename><surname>Fikri Aji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khalid</forename><surname>Almubarak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Albanie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zaid</forename><surname>Alyafeai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Webson</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.891</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="15991" to="16111" />
+		</imprint>
+	</monogr>
+	<note>Edward Raff, and Colin Raffel. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Zero-shot cross-lingual transfer with meta learning</title>
+		<author>
+			<persName><forename type="first">Farhad</forename><surname>Nooralahzadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giannis</forename><surname>Bekoulis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Bjerva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4547" to="4562" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Exposing the limits of zero-shot cross-lingual hate speech detection</title>
+		<author>
+			<persName><forename type="first">Debora</forename><surname>Nozza</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="907" to="914" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">English intermediatetask training improves zero-shot cross-lingual transfer too</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Phang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iacer</forename><surname>Calixto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mon</forename><surname>Phu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yada</forename><surname>Htut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haokun</forename><surname>Pruksachatkun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katharina</forename><surname>Vania</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Kann</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bowman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 10th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 1st Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 10th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="557" to="575" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">How multilingual is multilingual bert?</title>
+		<author>
+			<persName><forename type="first">Telmo</forename><surname>Pires</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eva</forename><surname>Schlinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Garrette</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4996" to="5001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Teven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Akiki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suzana</forename><surname>Pavlick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ilić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roman</forename><surname>Hesslow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Castagné</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Sasha Luccioni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Yvon</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gallé</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.05100</idno>
+		<title level="m">Bloom: A 176bparameter open-access multilingual language model</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">Oleh</forename><surname>Shliazhko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alena</forename><surname>Fenogenova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Tikhonova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladislav</forename><surname>Mikhailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Kozlova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatiana</forename><surname>Shavrina</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2204.07580</idno>
+		<title level="m">mgpt: Few-shot learners go multilingual</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Evaluating the cross-lingual effectiveness of massively multilingual neural machine translation</title>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melvin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henry</forename><surname>Tsai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naveen</forename><surname>Ari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Riesa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Bapna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Raman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI conference on artificial intelligence</title>
+		<meeting>the AAAI conference on artificial intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="8854" to="8861" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Beyond the imitation game: Quantifying and extrapolating the capabilities of language models</title>
+		<author>
+			<persName><forename type="first">Aarohi</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Rastogi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abu</forename><surname>Awal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Md</forename><surname>Shoeb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abubakar</forename><surname>Abid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Adam R Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Santoro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrià</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Garriga-Alonso</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Crosslingual few-shot learning on unseen languages</title>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shijie</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mayank</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thamar</forename><surname>Solorio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Preoţiuc-Pietro</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="777" to="791" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">NusaX: Multilingual parallel sentiment dataset for 10 Indonesian local languages</title>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Indra Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alham</forename><surname>Fikri Aji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Cahyawijaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahmad</forename><surname>Mahendra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fajri</forename><surname>Koto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ade</forename><surname>Romadhony</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kemal</forename><surname>Kurniawan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Moeljadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radityo</forename><forename type="middle">Eko</forename><surname>Prasojo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jey</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Lau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 17th Conference of the European Chapter of the Association for Computational Linguistics<address><addrLine>Dubrovnik, Croatia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="815" to="834" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot multilingual learners</title>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Indra Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaojiang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rosanne</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Yosinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Workshop on Multilingual Representation Learning</title>
+		<meeting>the 1st Workshop on Multilingual Representation Learning</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1" to="15" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Beto, bentz, becas: The surprising cross-lingual effectiveness of BERT</title>
+		<author>
+			<persName><forename type="first">Shijie</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Dredze</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1077</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="833" to="844" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Universal sentence representation learning with conditional masked language model</title>
+		<author>
+			<persName><forename type="first">Ziyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jax</forename><surname>Law</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Darve</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6216" to="6228" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Benchmarking zero-shot text classification: Datasets, evaluation and entailment approach</title>
+		<author>
+			<persName><forename type="first">Wenpeng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamaal</forename><surname>Hay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3914" to="3923" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Dragomir Radev, and Vassilina Nikoulina. 2023. BLOOM+1: Adding language support to BLOOM for zero-shot prompting</title>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Zheng Xin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hailey</forename><surname>Schoelkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niklas</forename><surname>Muennighoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alham</forename><surname>Fikri Aji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ifeoluwa Adelani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khalid</forename><surname>Almubarak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Saiful Bari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lintang</forename><surname>Sutawika</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jungo</forename><surname>Kasai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Baruwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stella</forename><surname>Biderman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Raff</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.653</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="11682" to="11703" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

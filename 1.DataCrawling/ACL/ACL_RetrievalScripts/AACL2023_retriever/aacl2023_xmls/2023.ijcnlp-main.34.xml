@@ -1,0 +1,1459 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Investigating Zero-and Few-shot Generalization in Fact Verification</title>
+				<funder ref="#_nWwvRmB">
+					<orgName type="full">Ministry of Education, Singapore</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Liangming</forename><surname>Pan</surname></persName>
+							<email>liangmingpan@ucsb.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Yunxiang</forename><surname>Zhang</surname></persName>
+							<email>yunxiang@umich.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Michigan</orgName>
+								<address>
+									<settlement>Ann Arbor</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff2">
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Investigating Zero-and Few-shot Generalization in Fact Verification</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">93ACE03A4FEF88F8A2593D0E5FE25318</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:42+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We explore zero-and few-shot generalization for fact verification (FV), which aims to generalize the FV model trained on well-resourced domains (e.g., Wikipedia) to low-resourced domains that lack human annotations. To this end, we first construct a benchmark dataset collection which contains 11 FV datasets representing 6 domains. We conduct an empirical analysis of generalization across these FV datasets, finding that current models generalize poorly. Our analysis reveals that several factors affect generalization, including dataset size, length of evidence, and the type of claims. Finally, we show that two directions of work improve generalization: 1) incorporating domain knowledge via pretraining on specialized domains, and 2) automatically generating training data via claim generation.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>With a rise in deliberate disinformation, Fact Verification (FV) has become an important NLP application. FV aims to verify given claims with the evidence retrieved from plain text. Rapid progress has been made by training large neural models <ref type="bibr" target="#b45">(Zhou et al., 2019;</ref><ref type="bibr" target="#b19">Liu et al., 2020;</ref><ref type="bibr" target="#b44">Zhong et al., 2020)</ref> on the FEVER dataset <ref type="bibr" target="#b38">(Thorne et al., 2018)</ref>, containing more than 100K human-crafted (evidence, claim) pairs based on Wikipedia. Fact verification is also needed in other domains, including news, social media, and scientific documents. This has spurred the creation of a large number of FV datasets, such as COVID-Fact <ref type="bibr" target="#b30">(Saakyan et al., 2021)</ref>, SciFact <ref type="bibr" target="#b40">(Wadden et al., 2020)</ref>, and Climate-FEVER <ref type="bibr" target="#b8">(Diggelmann et al., 2020)</ref>.</p><p>However, considering that human annotation is time-consuming, costly, and often biased, it is difficult to collect reliable human-labeled data in every domain that demands fact verification. We need to † Equal Contribution.</p><p>investigate how to build a generalizable fact verification system that adapts to new domains with zero or few samples. Critically, how can we leverage valuable (evidence, claim, label) annotations from rich-resourced domains (e.g., Wikipedia) to aid fact verification in the low-resourced ones (e.g., scholarly documents, and social media)? Although FV datasets have been recently created in different domains, little analysis has shown whether FV models generalize across them and to what extent existing datasets can be leveraged to improve performance in these new domains.</p><p>In this paper, we bridge this gap by conducting a comprehensive investigation of zero-and few-shot generalization in fact verification. By conducting a holistic study of FV datasets to date, we first carefully select 8 datasets that have artificial or natural claims, human-annotated evidence, and two or three-class labels for our study. We then standardize their data formats as (evidence, claim, label) pairs and create dataset variants with different granularity of evidence, which gives us a total of 11 datasets. We then conduct a thorough empirical study of generalization and transfer across these 11 datasets. We train models on a source dataset, and then evaluate their performance on a target dataset, either without any additional target training examples (zero-shot setting) or with a few additional target examples (few-shot setting).</p><p>We find that RoBERTa-based FV models tend to overfit the particular training set, generalizing poorly to other datasets. Our in-depth analysis shows generalization is related to several key factors, including dataset size, length of evidence, and the claim type. In particular, we find that Wikipedia-based artificial claims (e.g., FEVER) generalize well to natural claims in real-world domains with the growth of dataset size, in contrast to prior work that criticized crowd-sourced claims as having strong annotation bias and being unrepresentative of real-world misinformation <ref type="bibr" target="#b33">(Schuster et al., 2019)</ref>. Our few-shot generalization experiment further shows that fine-tuning on a small amount of target training data can substantially improve performance.</p><p>Armed with the above insights, we explore two ways to improve the generalization of fact verification models. 1) Domain-specific Pretraining: initializing the FV model with language models pretrained on specialized domains, and 2) Data Augmentation: automatically generating training data for the target domain. Results show that these methods can noticeably improve generalization but still leave unsolved challenges such as inflexibility, high cost, and label consistency.</p><p>To the best of our knowledge, this is the first work to perform a thorough investigation of generalization and transfer in fact verification. We open-sourced our dataset collection and codes to support future research towards a universal and robust fact verification system<ref type="foot" target="#foot_0">1</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Dataset Curation</head><p>In this section, we describe the 11 fact verification datasets included in our study. We first describe the criteria for dataset selection ( § 2.1), and then we introduce the dataset processing ( § 2.2). We show the key characteristics of the datasets in Table <ref type="table" target="#tab_0">1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Dataset Selection</head><p>A large number of datasets have recently been introduced to study various tasks for fact-checking, e.g., claim detection, evidence retrieval, fact verification, justification production, etc. Our focus, fact verification, in particular, takes a textual claim and a piece of evidence as input to predict the label for the claim. Let's define these aspects:</p><p>• Claim: Claims for fact verification are often textual, sentence-level statements, which are categorized into: 1) real-world natural claims crawled from dedicated websites, textbooks, forums, etc. 2) artificial claims written by crowd-workers.</p><p>• Evidence: Evidence is the relevant information source for validating the claim. Textual sources, such as news articles, academic papers, and Wikipedia documents, are one of the most commonly used types of evidence. Based on the granularity, we categorize the evidence in existing datasets into: 1) document-level evidence such as the Wikipedia page <ref type="bibr" target="#b38">(Thorne et al., 2018)</ref>, news articles <ref type="bibr" target="#b12">(Hanselowski et al., 2019)</ref>, and scientific papers <ref type="bibr" target="#b40">(Wadden et al., 2020)</ref>. 2) sentence-level evidence annotated by human experts in the relevant documents to support or refute each claim. 3) no evidence is given for each claim; the model needs to retrieve evidence from a large knowledge source.</p><p>• Label: The label definition for the claim also varies across datasets. The most common definition is the binary label with supports and refutes, and the three-class label, i.e., supports/refutes/not enough info. Some works <ref type="bibr" target="#b41">(Wang, 2017;</ref><ref type="bibr" target="#b3">Augenstein et al., 2019)</ref> also employ multi-class labels for more fine-grained degrees of truthfulness (e.g. true, mostly-true, mixture, etc), where the number of labels vary greatly, ranging from 4 to 27.</p><p>Selection Criteria. We employ the following criteria to select the datasets for our study.</p><p>• We consider both natural and artificial claims in various domains.</p><p>• We consider the datasets with human-annotated document-level and sentence-level evidence. We exclude datasets without evidence or which provide only non-textual evidence; i.e., tables, knowledge bases, etc.</p><p>• We only consider datasets with the binary or the three-class label annotation due to the difficulty of canonicalizing such multi-class labels.</p><p>By conducting a holistic study of fact-checking datasets to date, eight different data sources meet our requirements. The full list of candidate datasets we investigate is given in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Dataset Processing</head><p>We then process the selected datasets as follows. 1) We convert each dataset to the unified format of claim-evidence-label triples (c i , e i , l i ) N i=1 . The simplicity of this format allows us to focus on out-ofdomain generalization, instead of other orthogonal challenges of fact-checking. 2) We create separate dataset variants by pairing each claim with the evidence in different granularity. This enables us to study the impact of evidence length on generalization. After processing, we obtain the final selection of 11 datasets used. We now briefly introduce the nature of each dataset and its specific processing.</p><p>Group I: datasets with artificial claims. These are based on Wikipedia articles and are often large in size. However, crowd-sourced claims are often written with minimal edits to reference sentences, leading to lexical biases such as the overuse of explicit negation <ref type="bibr" target="#b33">(Schuster et al., 2019)</ref>.</p><p>• FEVER <ref type="bibr" target="#b38">(Thorne et al., 2018)</ref> asks crowdworkers to mutate sentences from Wikipedia articles to create claims. We use the Wikipedia paragraph associated with each claim as its documentlevel evidence to construct the FEVER-para dataset.</p><p>We then use the sentence-level gold evidence for the supports and refutes claims to build the FEVER-sent dataset. However, since sentencelevel evidence is not available for NEI claims, we use the system of <ref type="bibr" target="#b21">Malon (2018)</ref> to retrieve the evidence sentences, following <ref type="bibr" target="#b2">Atanasova et al. (2020)</ref> and <ref type="bibr" target="#b26">Pan et al. (2021)</ref>.</p><p>• VitaminC <ref type="bibr" target="#b32">(Schuster et al., 2021)</ref> creates contrastive evidence pairs for each claim, in which evidence pairs are nearly identical in language and content, with the exception that one supports a claim while the other does not.</p><p>• FoolMeTwice <ref type="bibr" target="#b9">(Eisenschlos et al., 2021)</ref> designs a multi-player game that leads to diverse strategies for crafting claims (e.g., temporal inference) based on Wikipedia, resulting in more complex claims with less lexical overlap with the evidence.</p><p>Group II: datasets with natural claims. These claims are collected from the Internet and then manually verified by professional fact checkers. They represent real-world claims, and originate from diverse domains, such as scholarly documents, news articles, forums, etc. However, due to the difficulty and high cost of manually verifying realworld claims, these datasets are limited in scale.</p><p>• Climate-FEVER <ref type="bibr" target="#b8">(Diggelmann et al., 2020)</ref> consists of 1,535 real-life claims regarding climatechange collected from the Internet. The top five most relevant sentences from Wikipedia are re-trieved as the evidence. Humans then annotate each sentence as supporting, refuting, or not enough information to validate the claim. We use the sentence-level annotation as the evidence for each claim to build the Climate-FEVER-sent. We construct the document-level evidence for each claim by putting together all of its evidence sentences, which gives us the Climate-FEVER-para version.</p><p>• Sci-Fact <ref type="bibr" target="#b40">(Wadden et al., 2020)</ref> consists of 1.4K expert-written scientific claims paired with evidence-containing abstracts annotated with labels and sentence-level rationale. We use the annotated rationale as the sentence-level evidence to build the Sci-Fact-sent. We construct the Sci-Fact-para version by using the evidence-containing abstract as the document-level evidence for each claim.</p><p>• PubHealth (Kotonya and Toni, 2020) contains 11.8K claims accompanied by journalist crafted, gold standard judgments to support/refute the claims. The claims are collected from five factchecking websites, news headlines, and news reviews. We use the judgment texts as evidence to pair with each claim.</p><p>• COVID-Fact <ref type="bibr" target="#b30">(Saakyan et al., 2021)</ref> consists of 4,086 claims concerning the COVID19 pandemic crawled from the r/COVID19 subreddit. We use their sentence-level evidence annotated by crowdworkers as the evidence.</p><p>• FAVIQ <ref type="bibr" target="#b28">(Park et al., 2022)</ref> contains 26k claims converted from natural ambiguous questions posed by real users. The answer-containing Wikipedia paragraph is provided as the document-level evidence for each claim.</p><p>Many of the original datasets do not release their test set. Therefore, we use their original split of train/dev sets as our training and evalua-tion sets. We also standardize the naming of labels as supports, refutes, and NEI. We visualize the global structure of the datasets with tSNE (van der <ref type="bibr" target="#b39">Maaten and Hinton, 2008)</ref> and analyze the domain divergence in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Zero/Few-shot Generalization</head><p>We now explore the generalization ability of fact verification models across the 11 datasets. We first formulate the task of zero/few-shot generalization.</p><p>Task Formulation. Given a claim C and a piece of evidence P as inputs, a fact verification model F predicts a label Y to verify whether C is supported, refuted, or can not be verified by the information in P. In the zero-shot generalization setting, we train models on one source FV dataset, and then evaluate its performance on a target test set, without any additional training data in the target dataset. In the few-shot generalization setting, we assume we have a small amount of target training examples.</p><p>Fact Verification Model. We use the RoBERTalarge <ref type="bibr" target="#b18">(Liu et al., 2019)</ref> as the benchmark model for our study since it has achieved state-of-theart results in many FV datasets. We concatenate the claim and evidence ([CLS] claim [SEP] evidence) and use it as input for a classification task to predict the label of the claim. We use the roberta-large (355M parameters) model provided by the HuggingFace library 2 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Zero-shot generalization results</head><p>Table <ref type="table" target="#tab_1">2</ref> shows the zero-shot generalization results in macro-averaged F1 for the 3-class fact verification task on all the datasets that have supports/refutes/NEI labels, where we partition by dataset group: Group I, top (datasets with artificial claims); Group II, bottom (datasets with natural claims). In general, the RoBERTa model generalizes poorly in this zero-shot setup. Compared with the in-domain performance (training and testing on the same dataset), the best zeroshot generalization performance shows a large drop of 20.80% on average. This shows that the FV model overfits to the particular dataset and generalizes poorly to unseen datasets. This validates prior work that shows the neural models are brittle when encountering out-of-distribution data. Taking a closer look, we further explore several research 2 https://huggingface.co/roberta-large questions specific to fact verification behind this general trend.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Do artificial claims and natural claims generalize to each other?</head><p>The bottom left of Table <ref type="table" target="#tab_1">2</ref> shows that the model trained on natural claims generalizes badly to datasets with artificial claims, with an average F1 drop of 72% relative to the in-domain performance on the three artificial datasets. In contrast, with natural claims<ref type="foot" target="#foot_1">3</ref> , the model generalizes better, with an average F1 drop of 56% (bottom right). This observation supports the argument that artificial claims and natural claims have substantial differences, e.g., Wikipedia vs. real-world domains, high vs. less lexical overlap, and simple vs. diverse reasoning types, as discussed in § 2.2 and related works <ref type="bibr" target="#b40">(Wadden et al., 2020;</ref><ref type="bibr" target="#b30">Saakyan et al., 2021)</ref>.</p><p>However, a surprising and counter-intuitive observation is that the model trained on artificial claims generalizes quite well to natural claims. As shown by the top right section, the average F1 drop narrows to 36.9% when generalizing from artificial to natural claims, markedly better than when generalizing between natural claim datasets (56% average drop). In particular, when trained on FEVERsent, the model achieves the best generalization results on 3 out of 5 datasets with natural claims. However, we will show in the following that the large size of artificial claims contributes a lot to its good generalization performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Does generalization improve with more data?</head><p>To examine whether good generalization on the FEVER and VitaminC datasets comes from their large dataset size, we conducted an experiment controlling for data size. Here, we only take 800 examples for each dataset to train the model. We show the zero-shot generalization results between the five datasets with sentence-level evidence in Table <ref type="table" target="#tab_3">4</ref>. The results on all datasets are shown in Table <ref type="table" target="#tab_0">10</ref> in Appendix C.</p><p>We find that the model trained on natural claim datasets (Group I) can generalize to other natural claims slightly better than the model trained on artificial claim datasets (Group II) in this controlled setting. This confirms that dataset size contributes a lot to generalization ability. Tables <ref type="table" target="#tab_1">2</ref> and<ref type="table" target="#tab_3">4</ref> together show that Wikipedia-based artificial claims still generalize well to natural claims in real-world domains with the growth of dataset size, although crowd-sourced claims have been criticized to have strong annotation bias and cannot represent reallife misinformation <ref type="bibr" target="#b33">(Schuster et al., 2019)</ref>.</p><p>Which type of label is more difficult to verify? Table <ref type="table">5</ref> shows the breakdown of the class-wise F1 score. For each dataset, we show the average class-wise F1 when training the model on other datasets (zero-shot) and the class-wise F1 for training on the same dataset (in-domain). The results show that the refutes claim has the worst prediction score (in bold) almost for all datasets, in both the zero-shot and the in-domain setting. The in-domain results are in line with the empirical observation that <ref type="bibr" target="#b14">(Jiang et al., 2020)</ref> it is often ambiguous to differentiate between refutes and NEI claims even for trained human annotators. This difficulty still maintains in the zero-shot setting and harms the generalization results.</p><p>What is the impact of evidence length? From Table <ref type="table" target="#tab_1">2</ref>, we find that fact verification in a dataset with document-level evidence is more difficult than in the same dataset with sentence-level evidence (an average of 13.29% drop of in-domain F1). This is understandable since document-level evidence requires the model to additionally filter out In terms of generalization, the datasets with sentence-level evidence in general achieve better generalization results than other datasets compared to their doc-level versions. For example, C-FEVER-sent generalizes better than C-FEVERpara on 5 of the 6 datasets excluding themselves. Models trained on sentence-level datasets generalize well to other document-level datasets, but the converse is not true. These results indicate that training the FV model on more fine-grained evidence yields better generalization. This is consistent with the intuition that providing fine-grained evidence eases models' learning in FV, showing the importance of accurate evidence retrieval.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Zero-shot generalization for binary FV</head><p>Many works <ref type="bibr" target="#b14">(Jiang et al., 2020;</ref><ref type="bibr" target="#b30">Saakyan et al., 2021)</ref> do not consider NEI claims due to their ambiguity. To explore whether our previous observations also hold for the task of binary fact verification, we evaluate the generalization results for all 11 datasets using only the supports and refutes claims for training and evaluation, shown in Table 3. In this setting, artificial claims also generalize well to natural claims in other domains. In 6 of the 7 datasets with natural claims, the best generalization score is from a model trained on artificial claims. This also holds for the evidence length: datasets with sentence-level evidence tend to generalize better than document-level datasets.</p><p>Finally, compared with the three-class result in Table <ref type="table" target="#tab_1">2</ref>, generalization improves a lot on Climate-FEVER, SciFact, and PubHealth. The reason is that the model struggles in distinguishing between refutes and NEI claims in these datasets, as reflected by Table <ref type="table">5</ref>. Therefore, they benefit a lot from removing the NEI label.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Few-shot generalization results</head><p>We now consider the few-shot generalization setting, assuming access to a small number of examples from a target dataset (50 for each class in our experiment). We pre-train a model on a source dataset and then fine-tune it on the target dataset.</p><p>Our goal is to analyze whether pre-training improves performance compared to training on the target alone.</p><p>Table <ref type="table" target="#tab_5">6</ref> shows the macro-F1 on the evaluation set of all datasets. The rows "SELF-few-shot" and "SELF-full" show the performance of direct training on the 150 samples of the target dataset and the full target training set, respectively (without pre-training on the source dataset). Generally, pretraining on a source FV dataset and fine-tuning to the target outperform "SELF-few-shot" on all 5 datasets and "SELF-full" on 3 out of 5 datasets. This shows that pre-training on a related FV dataset helps to reduce the demand for human-annotated training data in the target domain.</p><p>Second, FEVER-sent obtains good generalization performance in all evaluation datasets. This strengthens our finding in Section 3.1 that FEVER generalizes well to datasets with natural claims in real-world domains. Last, after finetuning, we see a dramatic improvement in performance compared to Table <ref type="table" target="#tab_1">2</ref>. This highlights that current models over-fit the data they are trained on, and small amounts of data from the target distribution can overcome this generalization gap. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Improving Generalization</head><p>We then investigate two ways to improve the generalization ability of fact verification: 1) incorporating domain knowledge via pretraining on specialized domains, and 2) automatically generating training data via data augmentation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Pretraining on Specialized Domains</head><p>In-domain knowledge is essential for fact-checking in specialized domains. For example, virology background knowledge is required to verify scientific claims regarding COVID19 <ref type="bibr" target="#b40">(Wadden et al., 2020)</ref>. When generalizing an FV model from one domain to another, how to endow the model with such in-domain knowledge is a challenging subject worthy of long-term study. Here we explore one simple solution: initializing the model with language models pretrained on specialized domains. In Table <ref type="table" target="#tab_6">7</ref>, we show the zero-shot generalization performance when initializing the FV model with BioBERT <ref type="bibr" target="#b16">(Lee et al., 2020)</ref> (pretrained on biology literature) and SciBERT <ref type="bibr" target="#b4">(Beltagy et al., 2019)</ref> (pretrained on scholarly documents). Our goal is to explore whether pretraining on specialized domains helps the generalization. To eliminate the impact of other factors such as the model size, we use the BERT model <ref type="bibr" target="#b7">(Devlin et al., 2019)</ref> as the baseline, since BioBERT and SciBERT are both based on the BERT model.</p><p>We find that BioBERT and SciBERT both outperform the BERT on the generalization scores in Climate-FEVER, SciFact, and PubHealth, with an average improvement of 21.39% and 12.69% in F1, respectively. However, their performance on Wikipedia-based datasets (FEVER and Vitam-inC) is relatively worse with BERT (-2.6% and -17.7% for BioBERT and SciBERT, respectively). This confirms the generalization of FV in certain domains (e.g., science) can be improved with the language models pretrained on relevant domains (e.g., scientific papers). We have similar observations for the few-shot generalization setting, shown in Table <ref type="table" target="#tab_0">11</ref> in Appendix D. Despite the positive results, a suitable pretraining model in certain domains (e.g., tweets) is often unavailable. Moreover, this requires re-training the FV model during domain transfer. Therefore, how to develop a more accessible and less expensive way to incorporate in-domain knowledge required for fact-checking still requires further investigation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Data Augmentation</head><p>Another direction we explore is improving generalization via data augmentation, which has recently shown promising results in other NLP tasks such as question answering <ref type="bibr" target="#b42">(Yue et al., 2021)</ref> and machine translation <ref type="bibr" target="#b6">(Cheng et al., 2020)</ref>. We first train a claim generation model based on the BART <ref type="bibr" target="#b17">(Lewis et al., 2020)</ref>, using the (evidence, claim, label) triples in the source domain as training data. We use the format [LABEL] label [NER] NERs [EVIDENCE] evidence as the input, and use the claim as the target output for training, where NERs are the entities appearing in the claim (we add NERs to guide the model to generate more specific claims). We then apply the trained model to generate claims with different labels in the target domain by separately assigning supports, refutes, NEI as the label prefix of the evidence, and we randomly assign an entity from the evidence as the NERs<ref type="foot" target="#foot_2">4</ref> to guide the claim generation. We name this method as BART-gen.</p><p>We train BART-gen on the FEVER-sent dataset  <ref type="table">8</ref> shows the zero-and few-shot generalization results for BART-gen and other baselines: 1) FEVER-full: the model is trained on the original FEVER-sent dataset; 2) FEVER-control: the model is trained on a random subset of FEVERsent which has the same amount of data with the generated data; 3) BART-gen: the model is trained on the generated data. For the few-shot setting, the model is further fine-tuned with 150 in-domain samples.</p><p>For the zero-shot setting results in Table <ref type="table">8</ref>, BARTgen consistently improves the generalization performance compared with FEVER-full (+24.9% in average) and FEVER-control (+47.4% in average). The results show that training with generated target data is in general more effective than directly generalizing a model trained on the source data. This is better reflected by comparing BART-gen with FEVER-control in which the data amount is the same. The improvement is especially noticeable for PubHealth, probably because it lacks the NEI claims in its original training set. Data augmentation addresses this by generating a sufficiently balanced number of claims for each label.</p><p>However, our human evaluation in Appendix E shows that around 30% of generated claims suffer the label inconsistency problem, i.e., the BART-gen often generates a fluent claim that does not match our desired label (for example, we want to generate a refutes claim, but the generated claim is actually NEI). Label inconsistency may introduce conflicting information between the pretraining and fine-tuning stages, which we hypothesize is the cause for the lower level of improvement in fine-tuning the model on the generated data, compared with fine-tuning the model on FEVER. Therefore, although data augmentation is a promising direction to improve generalization, it remains a challenging problem regarding how to generate high-quality claims with consistent labels.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>To overcome the proliferation of misinformation, a great amount of progress has been made in the area of automated fact verification. For modeling, pretraining-based models <ref type="bibr" target="#b22">(Nie et al., 2019;</ref><ref type="bibr" target="#b36">Stammbach and Neumann, 2019;</ref><ref type="bibr" target="#b43">Zhao et al., 2020;</ref><ref type="bibr" target="#b35">Soleimani et al., 2020)</ref> have been used for better text representation and have achieved promising performance. Graph-based models <ref type="bibr" target="#b45">(Zhou et al., 2019;</ref><ref type="bibr" target="#b19">Liu et al., 2020;</ref><ref type="bibr" target="#b44">Zhong et al., 2020)</ref> are used to facilitate the reasoning over multiple pieces of evidence. However, most existing models rely on large-scale in-domain training data, which is often unrealistic for every domain that demand fact checking. In this paper, we aim to address this by working towards a generalizable fact verification system that can adapt to different domains with zero or few samples in the target domain.</p><p>For datasets, various fact-checking datasets representing different real-world domains are proposed, including both naturally occurring <ref type="bibr" target="#b3">(Augenstein et al., 2019;</ref><ref type="bibr" target="#b11">Gupta and Srikumar, 2021;</ref><ref type="bibr" target="#b30">Saakyan et al., 2021;</ref><ref type="bibr" target="#b20">Lu et al., 2023)</ref> and humancrafted <ref type="bibr" target="#b38">(Thorne et al., 2018;</ref><ref type="bibr" target="#b31">Sathe et al., 2020;</ref><ref type="bibr" target="#b32">Schuster et al., 2021;</ref><ref type="bibr" target="#b1">Atanasova et al., 2022)</ref> factchecking claims. While these FV datasets focus on different domains, there is still a substantial overlap in the abilities required to verify claims across these datasets. However, little analysis has been done on whether they generalize to one another, and the extent to which existing datasets can be leveraged for improving performance on new ones. Similar studies have been done in other NLP tasks <ref type="bibr" target="#b37">(Talmor and Berant, 2019;</ref><ref type="bibr" target="#b13">Hardalov et al., 2021)</ref>, while it is less investigated in fact verification. In this paper, we bridge this gap by conducting a comprehensive study of generalization and transfer across existing FV datasets, revealing several key factors for better generalization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Future Work</head><p>In this work, we perform a thorough empirical investigation of zero-and few-shot generalization over 11 fact verification datasets. Moreover, we conduct an exhaustive analysis and highlight the most important factors influencing the generalization performance. We further empirically explore two ways to improve generalization in fact verification. We highlight several practical takeaways:</p><p>• Overall, the FV model generalizes poorly to unseen datasets compared with in-domain evaluation. However, performance is largely improved by finetuning on the target data.</p><p>• Artificial claims can also generalize well to natural claims with an increase of dataset size.</p><p>• Model trained on sentence-level evidence generalize better than document-level evidence.</p><p>• The refutes claims are the most difficult to verify among the three labels.</p><p>• Domain-specific pretraining and data augmentation consistently improves generalization performance, but they also leave unsolved challenges.</p><p>In future work, we plan to experiment with more datasets, including non-English ones. We will also explore the generalization of other sub-tasks in factchecking, e.g., claim detection, evidence retrieval.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>In our study, we primarily focused on assessing the generalization capabilities of Transformer-based models, such as RoBERTa. However, we did not extend our evaluation to include zero-and few-shot learning performance on large language models (LLMs) like InstructGPT <ref type="bibr" target="#b25">(Ouyang et al., 2022)</ref> and <ref type="bibr">GPT-4 (OpenAI, 2023)</ref>, due to the high experimental costs. Recently, these LLMs have demonstrated impressive few-shot learning capacities across a variety of natural language processing tasks, including few-shot fact-checking <ref type="bibr" target="#b27">(Pan et al., 2023)</ref>. However, they are API-based and function as black-box models. This restricts our ability to delve deeper into their behavior, given that we cannot access their model weights or fine-tune them directly. On the contrary, Transformer-based models are opensourced and replicable, providing a wealth of opportunity for more profound insights into our study and paving the way for future research.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset</head><p>Domain Claim Doc-level evidence Sent-level evidence NEI claims Publicly available FEVER <ref type="bibr" target="#b38">(Thorne et al., 2018)</ref> Wikipedia artificial WikiFactCheck <ref type="bibr" target="#b31">(Sathe et al., 2020)</ref> Wikipedia artificial HOVER <ref type="bibr" target="#b14">(Jiang et al., 2020)</ref> Wikipedia artificial VitaminC <ref type="bibr" target="#b32">(Schuster et al., 2021)</ref> Wikipedia artificial Fool Me Twice <ref type="bibr" target="#b9">(Eisenschlos et al., 2021)</ref> Wikipedia artificial CREAK <ref type="bibr" target="#b23">(Onoe et al., 2021)</ref> Commonsense artificial</p><p>CreditAccess <ref type="bibr" target="#b29">(Popat et al., 2016)</ref> News natural Emergent <ref type="bibr" target="#b10">(Ferreira and Vlachos, 2016)</ref> Emergent natural MultiFC <ref type="bibr" target="#b3">(Augenstein et al., 2019)</ref> Multiple natural Snopes <ref type="bibr" target="#b12">(Hanselowski et al., 2019)</ref> News natural Climate-FEVER <ref type="bibr" target="#b8">(Diggelmann et al., 2020)</ref> Climate natural SciFact <ref type="bibr" target="#b40">(Wadden et al., 2020)</ref> Scientific natural PubHealth <ref type="bibr" target="#b15">(Kotonya and Toni, 2020)</ref> Health natural COVID-Fact <ref type="bibr" target="#b30">(Saakyan et al., 2021)</ref> Forum natural X-Fact <ref type="bibr" target="#b11">(Gupta and Srikumar, 2021)</ref> Multiple natural FaVIQ <ref type="bibr" target="#b28">(Park et al., 2022)</ref> Forum natural  A A List of Fact Verification Datasets</p><p>In Table <ref type="table" target="#tab_8">9</ref> we provide a comprehensive list of candidate datasets that we consider for our study, including those are not selected in our benchmark in the end. The candidate list does not include the fact checking datasets without providing evidence for the claim (e.g., FakeNewsNet <ref type="bibr" target="#b34">(Shu et al., 2020)</ref>), or focusing on non-textual evidence such as table (e.g., FEVEROUS <ref type="bibr" target="#b0">(Aly et al., 2021)</ref> and TabFact <ref type="bibr" target="#b43">(Chen et al., 2020)</ref>).</p><p>Afterward, we exclude some datasets from the candidate list, mainly because of the lack of clean evidence, the small scale in size, non-English claims, and unavailability. For example, we exclude Emergent <ref type="bibr" target="#b10">(Ferreira and Vlachos, 2016)</ref> since it only contains 300 claims. We exclude X-Fact <ref type="bibr" target="#b11">(Gupta and Srikumar, 2021)</ref> since it is a multi-lingual dataset that mainly focus on non-English languages. Snopes <ref type="bibr" target="#b12">(Hanselowski et al., 2019)</ref> is not included since it is not publicly available. We also exclude CREAK <ref type="bibr" target="#b23">(Onoe et al., 2021)</ref>, HOVER <ref type="bibr" target="#b14">(Jiang et al., 2020), and</ref><ref type="bibr">MultiFC (Augenstein et al., 2019)</ref> since their evidence is either coarse-grained (e.g., the whole Wikipedia page) or noisy (e.g., the original webpage in certain fact checking website). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Domain Divergence Analysis</head></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: tSNE plot of [CLS] representations of each dataset; highlighted points denote cluster centroids.</figDesc><graphic coords="12,73.47,379.83,186.37,185.06" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Following</head><label></label><figDesc><ref type="bibr" target="#b13">Hardalov et al. (2021)</ref>, we plot the 11 datasets in a latent vector space to visualize the global structure of the datasets. We proportionally sample 82K (10%) examples, and we pass them through a RoBERTa-large<ref type="bibr" target="#b18">(Liu et al., 2019)</ref> model without any training. The input has the following form: [CLS] claim [SEP] evidence. Next, we take the [CLS] token representations, and we plot them in Figure 1 using tSNE (van der Maaten and Hinton, 2008). We can see that datasets with natural claims are grouped top-right, clearly</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>List of the 11 fact verification datasets for our study and their characteristics.</figDesc><table><row><cell cols="2">Dataset</cell><cell>Domain</cell><cell>Claim</cell><cell>Evidence</cell><cell>Label</cell><cell cols="2"># Claims Train</cell><cell>Avg. # tokens Test Claim Evid.</cell></row><row><cell></cell><cell>FEVER-sent</cell><cell cols="6">Wikipedia artificial sent-level S (52%), R (22%), N (26%) 145,327 19,972</cell><cell>9.4</cell><cell>35.9</cell></row><row><cell>I</cell><cell>FEVER-para VitaminC</cell><cell cols="6">Wikipedia artificial doc-level S (52%), R (22%), N (26%) 145,327 19,972 Wikipedia artificial sent-level S (50%), R (35%), N (15%) 370,653 63,054</cell><cell>9.4 368.7 12.6 29.5</cell></row><row><cell></cell><cell>FoolMeTwice</cell><cell cols="4">Wikipedia artificial sent-level S (49%), R (51%)</cell><cell>10,419</cell><cell>1,169</cell><cell>15.3</cell><cell>37.0</cell></row><row><cell></cell><cell>Climate-FEVER-sent</cell><cell>Climate</cell><cell cols="3">natural sent-level S (25%), R (11%), N (64%)</cell><cell>6,140</cell><cell>1,535</cell><cell>22.8</cell><cell>33.8</cell></row><row><cell></cell><cell>Climate-FEVER-para</cell><cell>Climate</cell><cell cols="3">natural doc-level S (47%), R (19%), N (34%)</cell><cell>1,103</cell><cell>278</cell><cell>22.9 168.9</cell></row><row><cell></cell><cell>Sci-Fact-sent</cell><cell>Science</cell><cell cols="3">natural sent-level S (43%), R (22%), N (35%)</cell><cell>868</cell><cell>321</cell><cell>13.8</cell><cell>61.9</cell></row><row><cell>II</cell><cell>Sci-Fact-para</cell><cell>Science</cell><cell cols="3">natural doc-level S (43%), R (22%), N (35%)</cell><cell>868</cell><cell>321</cell><cell>13.8 257.3</cell></row><row><cell></cell><cell>PubHealth</cell><cell>Health</cell><cell cols="3">natural sent-level S (60%), R (36%), N (4%)</cell><cell>8,370</cell><cell>1,050</cell><cell>15.7 137.6</cell></row><row><cell></cell><cell>COVID-Fact</cell><cell>Forum</cell><cell cols="3">natural sent-level S (32%), R (68%)</cell><cell>3,268</cell><cell>818</cell><cell>12.4</cell><cell>82.5</cell></row><row><cell></cell><cell>FAVIQ</cell><cell>Question</cell><cell cols="3">natural doc-level S (50%), R (50%)</cell><cell>17,008</cell><cell>4,260</cell><cell>15.2 304.9</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Macro-F1 of 3-class fact verification on the evaluation set for all datasets in a zero-shot generalization setup. Rows correspond to the training dataset and columns to the evaluated dataset. The row SELF corresponds to the in-domain performance (training and testing on the same target dataset).</figDesc><table><row><cell cols="2">Train↓ Test→</cell><cell>FEVER -para</cell><cell>FEVER -sent</cell><cell cols="2">VitaminC</cell><cell cols="2">C-FEVER -para</cell><cell cols="2">C-FEVER -sent</cell><cell cols="2">SciFact -para</cell><cell>SciFact -sent</cell><cell>PubHealth</cell></row><row><cell cols="2">FEVER-para</cell><cell>-</cell><cell>72.81</cell><cell>43.87</cell><cell></cell><cell cols="2">20.83</cell><cell cols="2">40.90</cell><cell></cell><cell>22.09</cell><cell>28.10</cell><cell>9.05</cell></row><row><cell cols="2">FEVER-sent</cell><cell>55.57</cell><cell>-</cell><cell>62.11</cell><cell></cell><cell cols="2">44.98</cell><cell cols="2">48.70</cell><cell></cell><cell>44.98</cell><cell>56.15</cell><cell>21.61</cell></row><row><cell cols="2">VitaminC</cell><cell>52.04</cell><cell>65.32</cell><cell>-</cell><cell></cell><cell cols="2">42.32</cell><cell cols="2">44.40</cell><cell></cell><cell>44.14</cell><cell>50.55</cell><cell>21.97</cell></row><row><cell cols="3">C-FEVER-para 17.86</cell><cell>20.04</cell><cell>10.59</cell><cell></cell><cell>-</cell><cell></cell><cell cols="2">42.02</cell><cell></cell><cell>29.93</cell><cell>31.62</cell><cell>5.29</cell></row><row><cell cols="3">C-FEVER-sent 17.87</cell><cell>24.47</cell><cell>20.25</cell><cell></cell><cell cols="2">54.59</cell><cell cols="2">-</cell><cell></cell><cell>25.84</cell><cell>39.39</cell><cell>8.47</cell></row><row><cell cols="2">SciFact-para</cell><cell>23.96</cell><cell>27.09</cell><cell>28.37</cell><cell></cell><cell cols="2">29.85</cell><cell cols="2">28.63</cell><cell></cell><cell>-</cell><cell>44.68</cell><cell>6.78</cell></row><row><cell cols="2">SciFact-sent</cell><cell>16.86</cell><cell>24.50</cell><cell>29.22</cell><cell></cell><cell cols="2">20.61</cell><cell cols="2">32.50</cell><cell></cell><cell>29.00</cell><cell>-</cell><cell>4.49</cell></row><row><cell cols="2">PubHealth</cell><cell>35.21</cell><cell>34.41</cell><cell>30.67</cell><cell></cell><cell cols="2">34.12</cell><cell cols="2">24.18</cell><cell></cell><cell>40.34</cell><cell>42.03</cell><cell>-</cell></row><row><cell>SELF</cell><cell></cell><cell>85.58</cell><cell>89.28</cell><cell>86.76</cell><cell></cell><cell cols="2">44.61</cell><cell cols="2">62.54</cell><cell></cell><cell>52.25</cell><cell>54.27</cell><cell>72.10</cell></row><row><cell>Train↓ Test→</cell><cell>FEVER -para</cell><cell>FEVER -sent</cell><cell>VitaminC</cell><cell>FoolMe Twice</cell><cell cols="2">C-FEVER -para</cell><cell cols="2">C-FEVER -sent</cell><cell cols="2">SciFact -para</cell><cell>SciFact -sent</cell><cell>PubHealth</cell><cell>COVID -Fact</cell><cell>FAVIQ</cell></row><row><cell>FEVER-para</cell><cell>-</cell><cell>94.91</cell><cell>71.56</cell><cell>72.50</cell><cell></cell><cell>77.40</cell><cell cols="2">76.04</cell><cell cols="3">72.29 75.92</cell><cell>44.75</cell><cell>56.82 55.09</cell></row><row><cell>FEVER-sent</cell><cell>89.08</cell><cell>-</cell><cell>79.79</cell><cell>84.02</cell><cell></cell><cell>74.71</cell><cell cols="2">80.21</cell><cell cols="3">75.12 87.37</cell><cell>58.25</cell><cell>63.99 61.64</cell></row><row><cell>VitaminC</cell><cell cols="2">84.62 94.46</cell><cell>-</cell><cell>84.57</cell><cell></cell><cell>62.80</cell><cell cols="2">54.59</cell><cell cols="3">62.37 69.31</cell><cell>55.32</cell><cell>70.32 62.98</cell></row><row><cell cols="3">FoolMeTwice 82.58 91.46</cell><cell>78.56</cell><cell>-</cell><cell></cell><cell>71.38</cell><cell cols="2">78.24</cell><cell cols="3">69.22 84.19</cell><cell>56.81</cell><cell>58.68 59.23</cell></row><row><cell cols="3">C-FEVER-para 33.37 33.72</cell><cell>52.56</cell><cell>34.15</cell><cell></cell><cell>-</cell><cell cols="2">56.66</cell><cell cols="3">39.77 40.89</cell><cell>38.61</cell><cell>25.50 33.52</cell></row><row><cell cols="3">C-FEVER-sent 51.33 62.00</cell><cell>55.91</cell><cell>50.69</cell><cell></cell><cell>75.85</cell><cell></cell><cell>-</cell><cell cols="3">66.72 72.08</cell><cell>55.54</cell><cell>43.04 36.53</cell></row><row><cell>SciFact-para</cell><cell cols="2">33.38 33.57</cell><cell>46.73</cell><cell>34.42</cell><cell></cell><cell>43.35</cell><cell cols="2">49.23</cell><cell>-</cell><cell></cell><cell>41.27</cell><cell>38.69</cell><cell>26.64 33.69</cell></row><row><cell>SciFact-sent</cell><cell cols="2">33.40 33.64</cell><cell>36.91</cell><cell>33.77</cell><cell></cell><cell>42.63</cell><cell cols="2">42.46</cell><cell>44.02</cell><cell></cell><cell>-</cell><cell>43.35</cell><cell>26.64 33.51</cell></row><row><cell>PubHealth</cell><cell cols="2">65.68 64.69</cell><cell>53.57</cell><cell>53.55</cell><cell></cell><cell>53.92</cell><cell cols="2">61.78</cell><cell cols="3">68.75 71.01</cell><cell>-</cell><cell>40.95 50.89</cell></row><row><cell>COVID-Fact</cell><cell cols="2">70.94 76.16</cell><cell>37.22</cell><cell>63.02</cell><cell></cell><cell>44.13</cell><cell cols="2">51.71</cell><cell cols="3">63.60 76.29</cell><cell>60.06</cell><cell>-</cell><cell>46.93</cell></row><row><cell>FAVIQ</cell><cell cols="2">74.57 73.80</cell><cell>59.14</cell><cell>59.67</cell><cell></cell><cell>64.92</cell><cell cols="2">60.49</cell><cell cols="3">59.08 52.64</cell><cell>40.15</cell><cell>50.25</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>F1 of binary fact verification on the evaluation set for all datasets in a zero-shot generalization setup. Rows correspond to the training dataset and columns to the evaluated dataset.</figDesc><table><row><cell>Train↓ Test→</cell><cell>FEVER -sent</cell><cell>Vita minC</cell><cell>C-FEVER -sent</cell><cell>SciFact -sent</cell><cell>Pub Health</cell></row><row><cell>FEVER-sent</cell><cell>-</cell><cell>22.20</cell><cell>13.66</cell><cell cols="2">19.64 24.57</cell></row><row><cell>VitaminC</cell><cell>16.93</cell><cell>-</cell><cell>13.78</cell><cell cols="2">20.04 24.98</cell></row><row><cell cols="3">C-FEVER-sent 16.63 8.36</cell><cell>-</cell><cell cols="2">17.24 2.51</cell></row><row><cell>SciFact-sent</cell><cell cols="2">27.43 26.80</cell><cell>30.50</cell><cell>-</cell><cell>13.06</cell></row><row><cell>PubHealth</cell><cell cols="2">28.60 26.69</cell><cell>18.04</cell><cell>22.22</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 4 :</head><label>4</label><figDesc>Macro-F1 of 3-class fact verification for all datasets with sentence-level evidence in a zero-shot generalization setup. The size of training data is controlled to 800 samples for all datasets.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 6 :</head><label>6</label><figDesc>Macro-F1 of three-class fact verification for all datasets in a few-shot generalization setup.</figDesc><table><row><cell>Train↓ Test→</cell><cell>C-fever -para</cell><cell>C-fever -sent</cell><cell>SciFact -para</cell><cell>SciFact -sent</cell><cell>Pub Health</cell></row><row><cell>FEVER-para</cell><cell cols="5">50.04 45.99 59.91 68.18 42.81</cell></row><row><cell>FEVER-sent</cell><cell cols="5">55.13 51.84 66.12 76.39 40.90</cell></row><row><cell>VitaminC</cell><cell cols="5">50.41 49.80 58.27 68.59 37.84</cell></row><row><cell cols="6">SELF-few-shot 22.74 10.75 17.24 33.38 43.62</cell></row><row><cell>SELF-full</cell><cell cols="5">44.61 62.54 52.25 54.27 72.10</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 7 :</head><label>7</label><figDesc>Zero-shot generalization performance (macro-F1) when initialized with different pretraining models.</figDesc><table><row><cell cols="2">Model Train↓ Test→</cell><cell>FEVER -para</cell><cell>FEVER -sent</cell><cell>VitaminC</cell><cell>C-FEVER -para</cell><cell>C-FEVER -sent</cell><cell>SciFact -para</cell><cell>SciFact -sent</cell><cell>PubHealth</cell></row><row><cell></cell><cell>FEVER-para</cell><cell>-</cell><cell>64.04</cell><cell>33.82</cell><cell>18.15</cell><cell>29.71</cell><cell cols="2">18.53 18.19</cell><cell>3.20</cell></row><row><cell>BERT</cell><cell>FEVER-sent</cell><cell>66.97</cell><cell>-</cell><cell>54.75</cell><cell>35.39</cell><cell>26.49</cell><cell cols="2">39.27 39.72</cell><cell>25.95</cell></row><row><cell></cell><cell>VitaminC</cell><cell>54.12</cell><cell>63.28</cell><cell>-</cell><cell>39.57</cell><cell>34.93</cell><cell cols="2">40.80 45.51</cell><cell>22.21</cell></row><row><cell></cell><cell>FEVER-para</cell><cell>-</cell><cell>67.89</cell><cell>42.41</cell><cell>24.22</cell><cell>38.94</cell><cell cols="2">37.69 35.85</cell><cell>8.24</cell></row><row><cell>BioBERT</cell><cell>FEVER-sent</cell><cell>57.18</cell><cell>-</cell><cell>51.95</cell><cell>40.58</cell><cell>39.01</cell><cell cols="2">36.83 38.36</cell><cell>37.61</cell></row><row><cell></cell><cell>VitaminC</cell><cell>51.03</cell><cell>60.34</cell><cell>-</cell><cell>40.60</cell><cell>39.72</cell><cell cols="2">43.38 50.71</cell><cell>19.44</cell></row><row><cell></cell><cell>FEVER-para</cell><cell>-</cell><cell>68.49</cell><cell>39.73</cell><cell>20.43</cell><cell>33.84</cell><cell cols="2">28.90 35.53</cell><cell>6.37</cell></row><row><cell>SciBERT</cell><cell>FEVER-sent</cell><cell>52.95</cell><cell>-</cell><cell>51.84</cell><cell>35.50</cell><cell>35.68</cell><cell cols="2">34.24 39.46</cell><cell>36.46</cell></row><row><cell></cell><cell>VitaminC</cell><cell>50.20</cell><cell>58.74</cell><cell>-</cell><cell>37.99</cell><cell>38.79</cell><cell cols="2">43.55 45.69</cell><cell>20.66</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 9 :</head><label>9</label><figDesc>A list of candidate fact verification datasets.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/teacherpeterpan/ Fact-Checking-Generalization</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>For fair comparison, we don't count the dataset pairs with the same data source, e.g., (SciFact-sent, SciFact-para)</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>Since no ground-truth claim is available for the target domain, the entity cannot come from the claim.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This research / project is supported by the <rs type="funder">Ministry of Education, Singapore</rs>, under its <rs type="grantName">MOE AcRF TIER 3 Grant</rs> (<rs type="grantNumber">MOE-MOET32022-0001</rs>). Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not reflect the views of the <rs type="institution">Ministry of Education, Singapore</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_nWwvRmB">
+					<idno type="grant-number">MOE-MOET32022-0001</idno>
+					<orgName type="grant-name">MOE AcRF TIER 3 Grant</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>separated from those with artificial claims. The clusters of real-world domain datasets do not overlap, which highlights the rich diversity of our selected datasets. We also notice that datasets with sentence-level evidence have little overlap with their paragraph-level counterparts (e.g., Climate-FEVER-sentence v.s. Climate-FEVER-paragraph).</p><p>To sum up, Figure <ref type="figure">1</ref> confirms that there exists divergence between different domains and datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Full Results of Controlled Size Generalization</head><p>Table <ref type="table">10</ref> shows the full results of the controlled experiment in Section 3.1 where we only take 800 examples for each dataset to train the model. We find that the model trained on artificial claim datasets generalize slightly worse to natural claims compared with the model trained on artificial claim datasets in the controlled size setting. Compared with the good generalization results from artificial claims to natural claims in Table <ref type="table">2</ref>, it shows that the size of the source dataset contributes a lot to generalization ability of fact verification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Full Results of Few-shot Generalization</head><p>In Table <ref type="table">11</ref>, we show the few-shot generalization performance of FV model pretrained on specialized domains. After finetuning, we observe dramatic improvement in performance comparing to Table 7 (+14.31% for BERT, +11.84% for BioBERT, +15.29% for SciBERT). Under few-shot setting, we find that BioBERT and SciBERT still outperform the BERT on the generalization scores in all datasets except Climate-FEVER-sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Human Evaluation of Generated Claims</head><p>We conduct the human evaluation on the claims generated by BART-gen on four datasets: Climate-FEVER-sentence, Sci-Fact-sentence, PubHealth, and COVID-Fact. We randomly sample 90 generated claims for each dataset with a balanced desired label distribution. To be specific, 30/30/30 of their desired labels, i.e., the type of claim we expect the model to generate (by appending the corresponding label prefix) are supports/refutes/NEI. We ask two expert human annotators to annotate the actual label for each claim, i.e., whether the generated claim is supported, refuted, or cannot be verified by the evidence. If the generated claim is an incomplete or unreadable sentence, we label it as Unclassified.</p><p>Figure <ref type="figure">2</ref> shows the confusion matrix for the desired labels and the actual labels. We find that in all four datasets, around 30% of the generated claims suffer from the label inconsistency problem, i.e., the actual label of the claim is not the desired label. Specially, the confusion between the refutes and NEI claim is the major type of error, showing that refutes and NEI claims are the hardest for the model to generate.</p><p>We also observe that around 5% of the generated claims are incomplete or unreadable. Moreover, most generated claims are short and simple (e.g., "Gilbert Rothschild was a person"), which do not require complex reasoning to verify. It is therefore worthy to investigate how to obtain high-quality claims in data augmentation for better generalization in the future study.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Train↓   </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">FEVEROUS: fact extraction and verification over unstructured and structured information</title>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Aly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijiang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sejr</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Schlichtkrull</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Thorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christos</forename><surname>Vlachos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oana</forename><surname>Christodoulopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arpit</forename><surname>Cocarascu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mittal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks 1, NeurIPS Datasets and Benchmarks</title>
+		<meeting>the Neural Information Processing Systems Track on Datasets and Benchmarks 1, NeurIPS Datasets and Benchmarks</meeting>
+		<imprint>
+			<date type="published" when="2021">2021. 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Fact checking with insufficient evidence</title>
+		<author>
+			<persName><forename type="first">Pepa</forename><surname>Atanasova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><forename type="middle">Grue</forename><surname>Simonsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Lioma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics (TACL)</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="746" to="763" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Generating label cohesive and wellformed adversarial claims</title>
+		<author>
+			<persName><forename type="first">Pepa</forename><surname>Atanasova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dustin</forename><surname>Wright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3168" to="3177" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Multifc: A real-world multi-domain dataset for evidencebased fact checking of claims</title>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Lioma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><forename type="middle">Chaves</forename><surname>Lima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Casper</forename><surname>Hansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Hansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><forename type="middle">Grue</forename><surname>Simonsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4684" to="4696" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Scibert: A pretrained language model for scientific text</title>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arman</forename><surname>Cohan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3613" to="3618" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Tabfact: A large-scale dataset for table-based fact verification</title>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongmin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianshu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunkai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiyou</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Conference on Learning Representations (ICLR)</title>
+		<meeting>the 8th International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Advaug: Robust adversarial augmentation for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolfgang</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Eisenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5961" to="5970" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BERT: pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">CLIMATE-FEVER: A dataset for verification of real-world climate claims</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Diggelmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><forename type="middle">L</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jannis</forename><surname>Bulian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Massimiliano</forename><surname>Ciaramita</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Leippold</surname></persName>
+		</author>
+		<idno>CoRR, abs/2012.00614</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Fool me twice: Entailment from wikipedia gamification</title>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Eisenschlos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhuwan</forename><surname>Dhingra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jannis</forename><surname>Bulian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Börschinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><forename type="middle">L</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="352" to="365" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Emergent: a novel data-set for stance classification</title>
+		<author>
+			<persName><forename type="first">William</forename><surname>Ferreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</meeting>
+		<imprint>
+			<publisher>The Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1163" to="1168" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">X-fact: A new benchmark dataset for multilingual fact checking</title>
+		<author>
+			<persName><forename type="first">Ashim</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivek</forename><surname>Srikumar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="675" to="682" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">A richly annotated corpus for different tasks in automated factchecking</title>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Hanselowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Stab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claudia</forename><surname>Schulz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zile</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd Conference on Computational Natural Language Learning (CoNLL)</title>
+		<meeting>the 23rd Conference on Computational Natural Language Learning (CoNLL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="493" to="503" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Cross-domain labeladaptive stance detection</title>
+		<author>
+			<persName><forename type="first">Momchil</forename><surname>Hardalov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arnav</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="9011" to="9028" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Hover: A dataset for many-hop fact extraction and claim verification</title>
+		<author>
+			<persName><forename type="first">Yichen</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shikha</forename><surname>Bordia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Dognin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maneesh</forename><forename type="middle">Kumar</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3441" to="3460" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Explainable automated fact-checking for public health claims</title>
+		<author>
+			<persName><forename type="first">Neema</forename><surname>Kotonya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesca</forename><surname>Toni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7740" to="7754" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Biobert: a pre-trained biomedical language representation model for biomedical text mining</title>
+		<author>
+			<persName><forename type="first">Jinhyuk</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wonjin</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungdong</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donghyeon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunkyu</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chan</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">So</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaewoo</forename><surname>Kang</surname></persName>
+		</author>
+		<idno type="DOI">10.1093/bioinformatics/btz682</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Bioinformation</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="1234" to="1240" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">BART: denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Roberta: A robustly optimized BERT pretraining approach</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno>CoRR, abs/1907.11692</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Fine-grained fact verification with kernel graph attention network</title>
+		<author>
+			<persName><forename type="first">Zhenghao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7342" to="7351" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">SCITAB: A challenging benchmark for compositional reasoning and claim verification on scientific tables</title>
+		<author>
+			<persName><forename type="first">Xinyuan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangming</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qian</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2305.13186</idno>
+		<idno>CoRR, abs/2305.13186</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Team papelo: Transformer networks at FEVER</title>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Malon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Workshop on Fact Extraction and VERification (FEVER)</title>
+		<meeting>the First Workshop on Fact Extraction and VERification (FEVER)</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="109" to="113" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Revealing the importance of semantic retrieval for machine reading at scale</title>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2553" to="2566" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">CREAK: A dataset for commonsense reasoning over entity knowledge</title>
+		<author>
+			<persName><forename type="first">Yasumasa</forename><surname>Onoe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Q</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunsol</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Durrett</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks</title>
+		<meeting>the Neural Information Processing Systems Track on Datasets and Benchmarks</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">GPT-4 technical report</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2303.08774</idno>
+		<idno>CoRR, abs/2303.08774</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><forename type="middle">L</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fraser</forename><surname>Kelton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maddie</forename><surname>Simens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Welinder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">F</forename><surname>Christiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2203.02155</idno>
+		<idno>CoRR, abs/2203.02155</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Zero-shot fact verification by claim generation</title>
+		<author>
+			<persName><forename type="first">Liangming</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="476" to="483" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Fact-checking complex claims with program-guided reasoning</title>
+		<author>
+			<persName><forename type="first">Liangming</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaobao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyuan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anh</forename><forename type="middle">Tuan</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">Yang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.386</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 61th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="6981" to="7004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">FaVIQ: FAct verification from information-seeking questions</title>
+		<author>
+			<persName><forename type="first">Jungsoo</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaewoo</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5154" to="5166" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Credibility assessment of textual claims on the web</title>
+		<author>
+			<persName><forename type="first">Kashyap</forename><surname>Popat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhabrata</forename><surname>Mukherjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jannik</forename><surname>Strötgen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/2983323.2983661</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th ACM International Conference on Information and Knowledge Management (CIKM)</title>
+		<meeting>the 25th ACM International Conference on Information and Knowledge Management (CIKM)</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2173" to="2178" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Covid-fact: Fact extraction and verification of real-world claims on COVID-19 pandemic</title>
+		<author>
+			<persName><forename type="first">Arkadiy</forename><surname>Saakyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tuhin</forename><surname>Chakrabarty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Smaranda</forename><surname>Muresan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2116" to="2129" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Automated fact-checking of claims from wikipedia</title>
+		<author>
+			<persName><forename type="first">Aalok</forename><surname>Sathe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salar</forename><surname>Ather</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tuan</forename><forename type="middle">Manh</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Perry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joonsuk</forename><surname>Park</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 12th Language Resources and Evaluation Conference (LREC)</title>
+		<meeting>The 12th Language Resources and Evaluation Conference (LREC)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6874" to="6882" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Get your vitamin c! robust fact verification with contrastive evidence</title>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="624" to="643" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Towards debiasing fact verification models</title>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Darsh</forename><forename type="middle">J</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun</forename><surname>Jie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Serene</forename><surname>Yeo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Filizzola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enrico</forename><surname>Santus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3417" to="3423" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Fakenewsnet: A data repository with news content, social context, and spatiotemporal information for studying fake news on social media</title>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deepak</forename><surname>Mahudeswaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suhang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongwon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.1089/big.2020.0062</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Big Data</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="171" to="188" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">BERT for evidence retrieval and claim verification</title>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Soleimani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christof</forename><surname>Monz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcel</forename><surname>Worring</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-030-45442-5_45</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Information Retrieval -42nd European Conference on IR Research (ECIR)</title>
+		<imprint>
+			<date type="published" when="2020">2020. 12036</date>
+			<biblScope unit="page" from="359" to="366" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Team DOMLIN: Exploiting evidence enhancement for the FEVER shared task</title>
+		<author>
+			<persName><forename type="first">Dominik</forename><surname>Stammbach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guenter</forename><surname>Neumann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Second Workshop on Fact Extraction and VERification (FEVER)</title>
+		<meeting>the Second Workshop on Fact Extraction and VERification (FEVER)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="105" to="109" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Multiqa: An empirical investigation of generalization and transfer in reading comprehension</title>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Talmor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4911" to="4921" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">FEVER: a large-scale dataset for fact extraction and verification</title>
+		<author>
+			<persName><forename type="first">James</forename><surname>Thorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christos</forename><surname>Christodoulopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arpit</forename><surname>Mittal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="809" to="819" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Visualizing data using t-sne</title>
+		<author>
+			<persName><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">86</biblScope>
+			<biblScope unit="page" from="2579" to="2605" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Fact or fiction: Verifying scientific claims</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Wadden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shanchuan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><forename type="middle">Lu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Madeleine</forename><surname>Van Zuylen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arman</forename><surname>Cohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7534" to="7550" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">liar, liar pants on fire&quot;: A new benchmark dataset for fake news detection</title>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="422" to="426" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Contrastive domain adaptation for question answering using limited text corpora</title>
+		<author>
+			<persName><forename type="first">Zhenrui</forename><surname>Yue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Kratzwald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Feuerriegel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="9575" to="9593" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Transformer-xh: Multi-evidence reasoning with extra hop attention</title>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Corby</forename><surname>Rosset</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xia</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">N</forename><surname>Bennett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Tiwary</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Conference on Learning Representations (ICLR)</title>
+		<meeting>the 8th International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Reasoning over semantic-level graph for fact checking</title>
+		<author>
+			<persName><forename type="first">Wanjun</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingjing</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zenan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahai</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6170" to="6180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">GEAR: graph-based evidence aggregating and reasoning for fact verification</title>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lifeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changcheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="892" to="901" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

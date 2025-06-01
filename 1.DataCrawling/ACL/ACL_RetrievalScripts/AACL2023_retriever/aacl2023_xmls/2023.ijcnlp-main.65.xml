@@ -1,0 +1,1821 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Retrieval Augmented Generation with Rich Answer Encoding</title>
+				<funder ref="#_Sgv77Dg">
+					<orgName type="full">unknown</orgName>
+				</funder>
+				<funder ref="#_rAde96k">
+					<orgName type="full">Huawei&apos;s Dean&apos;s Funding</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Wenyu</forename><surname>Huang</surname></persName>
+							<email>w.huang@ed.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Informatics</orgName>
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Informatics</orgName>
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Pavlos</forename><surname>Vougiouklis</surname></persName>
+							<email>pavlos.vougiouklis@huawei.com</email>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">Huawei Edinburgh Research Centre</orgName>
+								<orgName type="institution" key="instit2">CSI</orgName>
+								<address>
+									<settlement>Edinburgh</settlement>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Nikos</forename><surname>Papasarantopoulos</surname></persName>
+							<affiliation key="aff2">
+								<address>
+									<settlement>Priceline, Edinburgh</settlement>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Informatics</orgName>
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">Huawei Edinburgh Research Centre</orgName>
+								<orgName type="institution" key="instit2">CSI</orgName>
+								<address>
+									<settlement>Edinburgh</settlement>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Retrieval Augmented Generation with Rich Answer Encoding</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">B1DA66F89466BE347C09C906D87E957D</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:54+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Knowledge-intensive generation tasks like generative question answering require models to retrieve appropriate passages from external knowledge sources to support answer generation. The generation quality relies heavily on the retrieved passages, which serve as contextual information. State-of-the-art Retrieval Augmented Generation models with marginalized output dominate this area but focus too much on label-relevant passages, rather than question-relevant passages and answers. This work addresses this issue by incorporating rich answer encoding through Dense Knowledge Similarity (DKS) and Retriever as Answer Classifier (RAC). We demonstrate the advantages of our proposed approach in open domain question answering (MSMARCO) and conversation (Wizard of Wikipedia) datasets, reporting both generation and retrieval metrics. In the MSMARCO development set, our best model achieves 12.1% relative improvement 1 on Recall@1 and 4.5% relative improvement on BLEU-4 compared to the baseline model. In the KILT-WoW leaderboard, our best model achieves 8.9% relative improvement on R-Precision and 13.3% relative improvement on KILT-RL compared to the baseline model. Our codes and models are available at https://github.com/hwy9855/rag-ae. * Work done while at Huawei Edinburgh Research Centre. † Corresponding author. 1 In this paper, we mainly report relative improvement for better comparison between different methods.</p><p>Question: Definition of tactful personality Reference Answer (label): Tactful is someone or something that shows a regard for other people's feelings.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Knowledge-Intensive Generation (KIG) is a series of tasks that requires external knowledge sources, such as a passage corpus (focus of this paper) or a knowledge graph <ref type="bibr" target="#b33">(Pan et al., 2017)</ref> to generate natural language responses to questions. Without external knowledge, even the state-of-the-art Large Language Models (LLMs) like <ref type="bibr">GPT-4 (OpenAI, 2023)</ref> still suffer from the hallucination problem Passage 1 (label-relevant): The definition of tactful is someone or something that shows a regard for other people's feelings. An example of something that would be described as tactful is a suggestion that is worded very carefully so as not to offend. Both models are trained with the given input (first row). The RAG model only captures the label-relevant passage with high token matching (highlighted with italics) in the reference answer, while our approach can also capture the knowledge-relevant passage with knowledge matching (highlighted with bold). <ref type="bibr">(Pan et al., 2023a;</ref><ref type="bibr" target="#b48">Zhang et al., 2023)</ref> that produces plausible-looking statements that are factually incorrect. State-of-the-art works focus on the retrieval augmented generation (RAG) systems <ref type="bibr" target="#b18">(Karpukhin et al., 2020;</ref><ref type="bibr" target="#b16">Izacard and Grave, 2021)</ref>, which fit in a retrieve-generate architecture, where the models first retrieve question-relevant passages from external knowledge sources, then generate responses based on the retrieved passages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>RAG</head><p>A high-quality retriever is essential for accomplishing KIG tasks. In the era of LLMs, a highquality off-the-shelf retriever is also important in verifying and correcting the factual errors produced by LLMs <ref type="bibr" target="#b15">(He et al., 2023;</ref><ref type="bibr" target="#b49">Zhao et al., 2023)</ref> However, directly training the retriever <ref type="bibr" target="#b18">(Karpukhin et al., 2020;</ref><ref type="bibr" target="#b19">Khattab and Zaharia, 2020)</ref> requires a large number of annotations of gold passages according to the given questions. Current state-ofthe-art works <ref type="bibr">(Lewis et al., 2020b;</ref><ref type="bibr" target="#b35">Paranjape et al., 2022)</ref> provide an end-to-end training framework for this task, where they marginalize the retrieval step and use the natural language labels to guide the training of both retriever and generator. The gradient of both the retriever and generator is obtained from token matches with reference answers (labels). However, existing works prefer more label-relevant passages (a subset of question-relevant passages), this will result in missing some knowledge-relevant passages which limits the generalisability of the retriever. See the example presented in Table <ref type="table" target="#tab_0">1</ref>. Given the question, the RAG framework can only retrieve the Passage 1, due to label-relevance, but not the Passage 2, which is also highly relevant to the reference answer. Using limited gold label passages when training a retrieve-generate model harms the robustness resulting in overfitting the retrieval performance to the training data (as shown in Table <ref type="table" target="#tab_5">5</ref>).</p><p>To mitigate the above issue, in this work, we propose a new framework for extending RAG with rich answer encoding, based on knowledge relevant to answers. More precisely, we introduce the following two objectives: Retriever as Answer Classifier (RAC), and Dense Knowledge Similarity (DKS), for training the retriever to retrieve knowledgerelevant passages. RAC incorporates answer encoding to check whether the retrieved passage contains the knowledge inside the answer, where both passages in Table <ref type="table" target="#tab_0">1</ref> are positive as they both contain knowledge inside the answer. DKS incorporates both answer encoding and passage encoding to check how close the knowledge inside the answer and that inside the passage are in the knowledge representation<ref type="foot" target="#foot_0">2</ref> space. The answer encoding and passage encoding in DKS guarantees that knowledge-relevant passages (both passages in Table 1) are much closer to the label (than other passages) in the knowledge representation space.</p><p>Both proposed objectives focus on sequence similarity (by answer encoding) instead of the tokenlevel similarity from the backbone architecture (NLL objective), which fundamentally turns the objective from token matching to sequence (knowledge) matching. This allows the proposed loss functions to capture knowledge-level information (instead of token-level information) from answer labels. This knowledge-level information can assist with training the retriever to recall more knowledgerelevant passages (instead of only label-relevant passages) and improve the performance and generalisation ability of the end-to-end trained retrievers.</p><p>Our main contribution is a new training framework for retrieve-generate models that 1) offers two new objectives, RAC and DKS, incorporating rich answer encoding, and 2) paying more attention to knowledge-relevant passages with the two new objectives to train more robust retrievegenerate models that generalize better in retrieval. We evaluate the proposed framework in two KIG tasks, which are the generative QA task on MS-MARCO <ref type="bibr" target="#b28">(Nguyen et al., 2016)</ref> and the informative conversation task on Wizard of Wikipedia <ref type="bibr" target="#b8">(Dinan et al., 2019)</ref> organized by KILT benchmark <ref type="bibr" target="#b36">(Petroni et al., 2021)</ref>. Compared with the baseline model RAG <ref type="bibr">(Lewis et al., 2020b)</ref>, we get substantial improvement on both datasets. For the retrieval quality, our best model achieves 12.1% relative improvement (Recall@1) on MSMARCO and 8.9% relative improvement (R-Prec) on KILT-WoW. While for end-to-end generation quality, our best model achieves 4.5% relative improvement (BLEU-4) on MSMARCO and 13.3% relative improvement (KILT-RL) on KILT-WoW. The reliable improvement in the retrieval quality also indicates the potential contribution of the proposed work in the era of LLM for training a powerful and robust retriever for supporting LLMs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Works</head><p>Knowledge-intensive Generation Knowledgeintensive generation tasks are a series of Natural Language Generation (NLG) tasks that require access to large, external knowledge sources. Unlike other knowledge-intensive NLP tasks such as fact checking <ref type="bibr" target="#b43">(Thorne et al., 2018)</ref> and slot filling <ref type="bibr" target="#b21">(Levy et al., 2017;</ref><ref type="bibr" target="#b9">Elsahar et al., 2018)</ref>, knowledgeintensive generation tasks further require models to generate natural language response, which are more challenging. <ref type="bibr" target="#b41">Shuster et al. (2021)</ref> has shown that in knowledge-intensive generation tasks, pretrained language models like BART <ref type="bibr">(Lewis et al., 2020a)</ref>, T5 <ref type="bibr" target="#b38">(Raffel et al., 2020)</ref> and GPT series <ref type="bibr" target="#b4">(Brown et al., 2020;</ref><ref type="bibr" target="#b30">OpenAI, 2023)</ref> significantly suffer from the hallucination problem <ref type="bibr" target="#b40">(Roller et al., 2021)</ref>, where they generate plausible looking statements that are factually incorrect.</p><p>Retrieval Marginalization In retrieval-based tasks, the false-negative passage problem refers to passage labels not being fully annotated. <ref type="bibr" target="#b29">Ni et al. (2021)</ref>  sage problem happens very frequently in multidocument question tasks, with such cases appearing in more than half of the sampled answerable questions of the IIRC dataset <ref type="bibr" target="#b11">(Ferguson et al., 2020)</ref>. Research has been made to mitigate this problem by marginalizing the retrieval process and directly training the retriever with the final goal, e.g., answer label in multi-document QA <ref type="bibr" target="#b29">(Ni et al., 2021)</ref>. However, in knowledge-intensive generation tasks, the marginalization methods do not work so well. <ref type="bibr">Lewis et al. (2020b)</ref> reported that such marginalization methods get very limited improvement in benefiting the retrieval quality on the generative QA task.</p><p>Retrieval Augmented Generation To overcome the hallucination problem, people start to introduce retrieve-generate architectures for building retrieval augmented generation models. RAG <ref type="bibr">(Lewis et al., 2020b)</ref> outperforms DPR <ref type="bibr" target="#b18">(Karpukhin et al., 2020)</ref> by marginalizing the retrieval step to train the generator and retriever jointly with the supervision of the label answer. FiD <ref type="bibr" target="#b16">(Izacard and Grave, 2021)</ref> encodes the concatenation of the passages retrieved by pre-trained DPR and the original question separately, and then fuses them with concatenation to the decoder. KG-FiD <ref type="bibr" target="#b47">(Yu et al., 2022)</ref> utilize knowledge graphs to further enhance the retrieval quality by establishing the structural relationship among the retrieved passages. This illustrates the concept of integrating knowledge graphs with re-trieval augmented generation, but indirectly (i.e., the generator does not benefit from knowledge graphs). <ref type="bibr">KGI (Chowdhury et al., 2022)</ref> provides a robust implementation of RAG, where the retriever is trained jointly with both the RAG setting and the vanilla DPR setting. RE2G <ref type="bibr" target="#b13">(Glass et al., 2022)</ref> further extends RAG by adding a reranker in the retrieval step to integrate statistical retriever (e.g., TF-IDF and BM25) with DPR trained by RAG to improve the retrieval quality. Hindsight <ref type="bibr" target="#b35">(Paranjape et al., 2022)</ref> trains another hindsight retriever that takes inputs of both queries and labels to retrieve label-relevant passages. The original retriever is trained by Evidence Lower Bound (ELBo) which includes both the marginalized loss as in RAG and the KL divergence for fitting the hindsight retriever.</p><p>The state-of-the-art methods tend to retrieve labelrelevant passages, whereas our approach seeks to consider a more diverse set of passages as suitable (knowledge-wise).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Retrieval Augmented Generation with LLMs</head><p>The utilization of retrieval augmented generation can be further expanded within the context of Large Language Models (LLMs) <ref type="bibr">(Pan et al., 2023a)</ref>, to address a critical concern associated with LLMs: the hallucination problem. <ref type="bibr" target="#b15">He et al. (2023)</ref> use retrieved passages to help LLMs "rethink" the question to remove factual errors in the decomposed reasoning steps obtained from the chain-of-thought (CoT) prompting <ref type="bibr" target="#b46">(Wei et al., 2022)</ref>. <ref type="bibr" target="#b49">Zhao et al. (2023)</ref> utilize retrieved passages to post-edit the decomposed reasoning steps which contain factual errors obtained from the CoT prompting, to increase the prediction factuality. Besides retrieving documents (passages), <ref type="bibr" target="#b1">Baek et al. (2023)</ref> shows that an off-the-shelf document retriever can also be used to retrieve knowledge graph triples for supporting LLMs. Most of these works utilize off-theshelf retrievers, which emphasize the importance of powerful and robust retrievers. Their remarkable achievements underscore the central theme of our work, which focuses on training powerful and robust retrievers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Problem Statement</head><p>A typical Knowledge-Intensive Generation (KIG) task can be formulated as follows: 1) given a question q and a knowledge source (passage corpus) P, retrieve question-relevant passages P q ⊂ P;</p><p>2) conditioned on the question q and the retrieved question-relevant passages P q , generate the natural language response y. Since P q is not available, state-of-the-art works marginalize the first retrieval step and train both retriever and generator based on gradient from the negative log-likelihood loss. This results in training a biased retriever which favors label-relevant passages P l ⊆ P q , a biased subset of question-relevant passages. Thus in training, the retriever will overfit to these label-relevant passages.</p><p>In this work, we consider another subset of question-relevant passages, which is knowledgerelevant passages P k ⊆ P q . We define P k as passages that contain the knowledge to generate label answer y. Therefore it is obvious that P l ⊆ P k . Unlike label-relevant passages that usually have high token overlap with label answer y, knowledgerelevant passages are defined at a higher knowledge level. In examples from Table <ref type="table" target="#tab_0">1</ref>, the Passage 1 is a label-relevant passage (also the gold passage), while the Passage 2 is a knowledge-relevant passage, which has the same meaning as the label answer but with little token overlap with the former. By introducing a training framework that focuses on retrieving knowledge-relevant passages, the retriever can be trained more robustly and provide better generalization ability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Methodology</head><p>In order to focus on retrieving knowledge-relevant passages in KIG tasks, we introduce a new training framework with two new objectives: Retriever as Answer Classifier (RAC), and Dense Knowledge Similarity (DKS). Both objectives aim to mitigate the problem discussed in Section 3, that the retriever solely trained with NLL loss prefers labelrelevant passages rather than question-relevant passages. Figure <ref type="figure">1</ref> shows the overall architecture of the proposed model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Retrieve-Generate Backbone</head><p>Transformer-based retrieve-generate systems are widely used in knowledge-intensive generation tasks like generative QA and conversational search <ref type="bibr" target="#b7">(Cooper Stickland et al., 2021;</ref><ref type="bibr" target="#b0">Adiwardana et al., 2020)</ref>. To apply our knowledge-constrained objectives, we need a retrieve-generate architecture as the backbone. Here we choose to use the architecture from the RAG paper <ref type="bibr">(Lewis et al., 2020b)</ref> as the retrieve-generate backbone. Given a question q and passage corpus P, we first use a Dense Passage Retriever (DPR; <ref type="bibr" target="#b18">Karpukhin et al. (2020)</ref>) to compute the similarity of each passage p i ∈ P with q:</p><formula xml:id="formula_0">sim(p i , q) = enc q (q) ⊤ enc p (p i ),<label>(1)</label></formula><p>where enc q is the question encoder and enc p is the passage encoder. To facilitate easier comparison with prior works, we follow the settings in <ref type="bibr">Lewis et al. (2020b)</ref> to fix the parameters of the passage encoder. Based on the similarity, we select topn passages with Maximum Inner Product Search (MIPS) and calculate the probability</p><formula xml:id="formula_1">p(p i |q) = exp (sim(p i , q)) p j ∈Top-n(P|q) exp (sim(p j , q)) ,<label>(2)</label></formula><p>where Top-n(P|q) is the selected top-n passages with given q. Then these passages are concatenated with the question and generate the probability distribution of response tokens through a sequence-tosequence encoder-decoder model:</p><formula xml:id="formula_2">p(y t |y :t-1 , q, p i ) = BART([q; p i ], y :t-1 ) (3) p p i (y t |q, y :t-1 ) = p(y t |y :t-1 , q, p i )p(p i |q) (4) p gen (y t |q, y :t-1 ) = p i ∈Top-n(P|q) p p i (y t |q, y :t-1 ) (5) p gen (y|q) = T t=1 p gen (y t |q, y :t-1 ),<label>(6)</label></formula><p>where BART([q; p i ], y :t-1 ) is the BART generator <ref type="bibr">(Lewis et al., 2020a</ref>) that takes the concatenation of q and p i , and y :t-1 as input. The goal of the backbone is to maximize the probability of label sentence ŷ, which is equal to minimizing the negative log-likelihood of ŷ:</p><formula xml:id="formula_3">L gen = -log p gen (ŷ|q) (7)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Retriever as Answer Classifier</head><p>Since we would like our retriever to retrieve knowledge-relevant passages instead of only retrieving label-relevant passages, we add a new answer classification objective, which makes use of rich answer encoding to capture knowledge inside the answer. The answer classifier outputs whether the retrieved top-n passages contain the knowledge inside the answer. Here we reuse the DPR retriever (sharing parameters) in the retrieve-generate backbone to generate answer encoding and use it for classifying the matched answer. We apply in-batch negative sampling <ref type="bibr" target="#b18">(Karpukhin et al., 2020)</ref> for the RAC objective. Given a question-answer pair (q, ŷ), we use m answers in the same batch as negative answers from the rest of the training set:</p><formula xml:id="formula_4">N eg = {y (1) , y (2) , . . . , y (m) },<label>(8)</label></formula><p>where the batch size is m + 1. We then compute the probability of the answer (both positive and negative) y given question q as: sim(y, p q i ) = enc p (p q i ) ⊤ enc q (y) (9)</p><formula xml:id="formula_5">S(y, q) = p q i ∈Top-n(P|q) p(p q i |q)sim(y, p q i )<label>(10)</label></formula><p>p RAC (y|q) = σ(S(y, q)),</p><p>where p(p q i |q) is computed with Eq. ( <ref type="formula" target="#formula_1">2</ref>), enc p and enc q are the same as described in Section 4.1, and σ(•) is the sigmoid function for generating probability. We then use binary cross-entropy loss to get the training signal:</p><formula xml:id="formula_7">L RAC = log(p RAC (ŷ|q)) + y ′ ∈N eg log(1 -p RAC (y ′ |q))<label>(12)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Dense Knowledge Similarity</head><p>Another way of focusing on knowledge-relevant passages is to further marginalize the generation process. This objective directly focuses on knowledge instead of the answer label, which changes the final goal from generating a natural language response to answer the question p(y|q) to generating knowledge k required to answer the question p(k|q):</p><formula xml:id="formula_8">p(k|q) = y p(k|y)p(y|q)<label>(13)</label></formula><p>Thus the optimization process becomes maximizing p( k|q). To accomplish that, we need to get the gold knowledge k for training.</p><p>We choose to use the sentence bottleneck autoencoder 3 introduced by Montero et al. ( <ref type="formula">2021</ref>) to get answer knowledge representations. The original goal of sentence bottleneck auto-encoder is to reconstruct the input sequence through a bottleneck representation between encoder and decoder (as shown in Figure <ref type="figure">2</ref>):</p><formula xml:id="formula_9">AE(y) = dec AE (β(enc AE (y))) = y ′ , (<label>14</label></formula><formula xml:id="formula_10">)</formula><p>where β(•) is the knowledge extractor, a multihead attention mechanism that aggregates encoder states H to a single bottleneck representation:</p><formula xml:id="formula_11">H = enc AE (y) (15) z = β(H) (16) β(H) = MultiHead(q, K, V ) (<label>17</label></formula><formula xml:id="formula_12">)</formula><p>where q is the encoder states of [CLS] token, K and V are the encoder states H. Here we treat the bottleneck representation as the knowledge representation of the input sequence:</p><formula xml:id="formula_13">k = z<label>(18)</label></formula><p>k is a rich answer encoding containing knowledge needed to rebuild the sentence itself, and thus, implicitly guarantees that the knowledge represented by a wrong answer is different from the one by a right answer. We, subsequently, train another knowledge extractor α to extract knowledge representation from question-passage pairs:</p><formula xml:id="formula_14">k ′ = p i ∈Top-n(P|q) α(enc AE ([q; p i ]))p(p i |q) (19)</formula><p>We expect k ′ to be similar to k in the knowledge representation space, thus we use MSE loss to obtain the training signal:</p><formula xml:id="formula_15">L DKS = || k -k ′ || 2 2 (<label>20</label></formula><formula xml:id="formula_16">)</formula><p>3 Appendix B provides more details about our reasoning behind selecting sentence bottleneck auto-encoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>enc AE dec AE</head><p>Figure <ref type="figure">2</ref>: Sentence Bottleneck Auto-endoer. The encoder is initialized from pre-trained language models and is not trainable.</p><p>By fitting the dense knowledge representations (rich answer encoding) instead of the original label answers, we change the goal from retrieving labelrelevant passages to retrieving knowledge-relevant passages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Overall Architecture</head><p>Using the retrieve-generate backbone and the two objectives with rich answer encoding, we can train the model with all these objectives in a multi-task setting. In training, we optimize the summation of all the different losses:</p><formula xml:id="formula_17">L = L gen + w(L RAC , L DKS ) ⊤ ,<label>(21)</label></formula><p>where L gen , L RAC and L DKS are computed in Eq. ( <ref type="formula">7</ref>), ( <ref type="formula" target="#formula_7">12</ref>) and ( <ref type="formula" target="#formula_15">20</ref>) respectively. w ∈ R 2 is the weight vector for balancing different losses. We compute w in each step to make sure that all the losses will have the same value.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Setup</head><p>We evaluate the proposed methods on two KIG tasks: generative question answering and informative conversations. The designed experiments aim to answer the following research questions:</p><p>• RQ1 Effectiveness: Can the proposed methods improve the retrieval and end-to-end generation quality?</p><p>• RQ2 Robustness: Do the proposed methods facilitate better generalization at retrieving relevant passages?</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Datasets</head><p>For generative question answering, we use the NL-Gen split of the MSMARCO QA dataset <ref type="bibr" target="#b28">(Nguyen et al., 2016)</ref>. The answers of the NLGen split are rewritten by crowdworkers into well-formed answers for reducing overlaps between answers and gold passages. For the informative conversation task, we use the Wizard of Wikipedia (WoW) dataset <ref type="bibr" target="#b8">(Dinan et al., 2019)</ref> organized by KILT <ref type="bibr" target="#b36">(Petroni et al., 2021)</ref>. Since the test split of KILT-WoW is not published, we only report our best result on the test split as shown on the KILT leaderboard. All other experiments are done on the public development set. For MSMARCO dataset, since the challenge is retired, and we do not have access to the full test split, we further split the original train split to be the train set and validation set in our experiment, and report results on the original development split. All the evaluation metrics reported in this paper are obtained using the official scripts provided by MSMARCO<ref type="foot" target="#foot_1">4</ref> and KILT.<ref type="foot" target="#foot_2">5</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Metrics</head><p>For the MSMARCO dataset, we report ROUGE-L and BLEU-1/4 scores for evaluating the end-toend generation quality. We also report the recall rate of retrieved passages to evaluate the retrieval quality. For KILT-WoW dataset, we follow the evaluation setup in <ref type="bibr" target="#b36">Petroni et al. (2021)</ref> and report: 1) ROUGE-L score and F1 score for the end-toend evaluation; 2) R-Precision and Recall@5 for the retrieval evaluation; 3) KILT-RL and KILT-F1 for the combined evaluation. R-Precision metric is identical to Precision@1 in KILT-WoW dataset since the gold passage for every conversation is a single Wikipedia page. KILT-RL and KILT-F1 are two special metrics motivated by FEVER-score <ref type="bibr" target="#b43">(Thorne et al., 2018)</ref>, which calculate ROUGE-L score and F1 score as 0 when the retriever does not perfectly select the gold passage. Furthermore, for both datasets, we use METEOR <ref type="bibr" target="#b2">(Banerjee and Lavie, 2005)</ref>, which is a metric with a high correlation with human judgment, to mimic the human preference for the generations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Knowledge Sources</head><p>For both datasets, we retrieve passages from the knowledge sources which the gold passages are selected from. For MSMARCO, the knowledge source contains 8.8M passages extracted from 3.6M web documents retrieved by Bing, while for KILT-WoW, the knowledge source is extracted from the 2019/08/01 Wikipedia dump, which after our preprocessing contains approximately 24.5M passages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Model Configuration</head><p>Following <ref type="bibr">Lewis et al. (2020b)</ref>, we use DPR model fine-tuned with Natural Questions <ref type="bibr" target="#b20">(Kwiatkowski et al., 2019)</ref> to initialize the retriever, and BART LARGE model to initialize the generator. For the KILT-WoW dataset, we initialize all the models using non-finetuned RAG checkpoint provided on HuggingFace<ref type="foot" target="#foot_3">6</ref> . For the MSMARCO dataset, we find that using the same initialization strategy does not work well for baseline and our proposed methods. We hypothesize that this is due to the questions of MSMARCO having a very different structure compared to the Natural Question dataset (where the initialized model is trained). Thus we first pretrain the DPR retriever on the MSMARCO passage ranking task, then use the pre-trained model as the initialization point for all MSMARCO experiments. For the training of sentence bottleneck auto-encoder, we use RoBERTa BASE provided on HuggingFace<ref type="foot" target="#foot_4">7</ref> as the sentence encoder. At inference time, we use top-5 retrieved passages to support generation in both datasets. Other Detailed settings are shown in Appendix A.</p><formula xml:id="formula_18">1018 Model End-to-end Retrieval B-1 B-4 R-L METEOR R@1 R@5 R@</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Comparison Models</head><p>We compare our model with RAG <ref type="bibr">(Lewis et al., 2020b)</ref>, which also serves as the encoder-decoder backbone of the proposed methods. For fair comparisons, we train our own RAG model with the same configuration as our proposed methods. Additionally, to evaluate how baseline RAG and our proposed model benefit the retriever training, we also compare with the non-finetuned DPR <ref type="bibr" target="#b18">(Karpukhin et al., 2020)</ref> model on the retrieval evaluation.</p><p>We choose not to compare our model with other state-of-the-art works on the KILT leaderboard since the retriever settings are very different (both the retriever architecture and size) and the comparison is helpless for showing the benefits of our work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head><p>In this section, we show our results with respect to RQ1 and RQ2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">RQ1: Effectiveness</head><p>Generative QA set. First of all, we find that the proposed methods outperform the baseline in the retrieval step. Both proposed methods achieve consistent improvement compared to the baseline RAG and the non-finetuned DPR. The multi-task setting model works best, which achieves about 14.3% relative improvement (1.5% absolute improvement) to the non-finetuned DPR on Recall@1, showing a large benefit to the training of the retriever. In contrast, the baseline RAG only gets 1.9% relative improvement (0.2% absolute improvement). For the endto-end generation results, we also see a consistent improvement, especially in BLEU scores. In the multi-task setting, our method got a 4.5% relative improvement on the BLEU-4 score. This indicates that better retrieval quality benefits the end-to-end generation results.</p><p>Informative Conversations Table <ref type="table">3</ref> shows the effectiveness evaluation results of proposed methods on KILT-WoW development set. Similarly to the case of the MSMARCO experiments, for all versions of our model, there is a consistent improvement in the retrieval metrics. As a benefit of better retrieval quality, we also get consistent improvement in the end-to-end and combined evaluations. Specifically, the DKS version achieves the best R-Precision across all models, with 11.4% relative improvement compared to the baseline, showing that the continuous sequence-level features are more suitable for such casual conversational task where the answer label can have less overlap with gold passages.</p><p>We submit our best model and the fine-tuned RAG baseline to the KILT-WoW leaderboard.<ref type="foot" target="#foot_5">8</ref> Table <ref type="table" target="#tab_4">4</ref> shows the evaluation results. We do not include the official results of the RAG baseline reported by KILT, since the dataset splits are updated due to a mapping issue <ref type="bibr" target="#b35">(Paranjape et al., 2022)</ref>. The proposed methods get improvements across all metrics compared to the baseline RAG, with 13.3% relative improvement on KILT-RL score and 13.2% relative improvement on KILT-F1 score, proving that the proposed methods benefit on both the retrieval part and generation part.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">RQ2: Robustness</head><p>In this section, following <ref type="bibr" target="#b39">Roelofs et al. (2019)</ref>, we use the differences between train set metrics and development set metrics to measure the overfit degree to evaluate RQ2 that is relevant to robustness. Table 5 shows the robustness evaluation results of the proposed methods in both datasets. We measure the retrieval performance drop from the training set to the development set as the overfit degree ∆.</p><p>In the result, we can find that the baseline RAG model generalizes badly, with a significant per- Label Answer It is one of the oldest recorded cheeses still made today, from 1184, people were mentioning Gouda Cheese RAG Gouda cheese is a type of cheese made from gouda, which is a type of goat's milk.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ours (RAC)</head><p>The first mention of Gouda cheese dates from 1184, making it one of the oldest recorded cheeses in the world still made today. ours (DKS)</p><p>The first mention of Gouda cheese dates from 1184, making it one of the oldest recorded cheeses in the world still made today. ours (multi-task) Gouda cheese is a type of cheese made from gouda, which is a type of cow's milk. formance drop in both datasets. In contrast, the proposed methods have far less overfit degree, especially in the KILT-WoW dataset. We also note that some of the proposed methods have better train set results than the RAG model, indicating that the proposed methods can also help to better fit the training data while achieving better generalization to unseen data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Case Studies</head><p>Table <ref type="table" target="#tab_6">6</ref> shows some sampled generations from the KILT-WoW development set. In the example, both RAC and DKS retrieve the same Wikipedia page and give responses with a perfect knowledge match. Though the baseline and the multi-task model both failed in retrieving the gold passage, our model is providing an acceptable answer encompassing the correct knowledge, while the baseline generates hallucination ('goat's milk').</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this work, we introduced a new training framework for retrieval augmented generation models, for training a more robust retriever. The new training framework includes two knowledgeconstrained objectives, RAC and DKS, to help guide the retriever to retrieve knowledge-relevant passages instead of only label-relevant passages. We evaluate the proposed methods on two wellknown KIG datasets, MSMARCO and KILT Wizard of Wikipedia. The results show a consistent improvement of our proposed methods on both retrieval metrics and generation metrics compared to the baseline model. On MSMARCO, our best model achieves 12.1% relative improvement on Recall@1. In the KILT-WoW leaderboard, our best model achieves 8.9% relative improvement on R-Precision, 13.3% relative improvement on KILT-RL, and 13.2% relative improvement on KILT-F1 compared to the baseline model. Furthermore, we show that the focusing on label-relevant passages for the KIG task can result in overfitting, which we manage to mitigate considerably using our training framework. The reliable improvement in the retrieval quality indicates that our work could further contribute to the research community in the era of LLM, where the proposed methods could be used for training retrievers to reduce hallucinations from LLMs.</p><p>We believe retrieval augmented methods are crucial for LLMs. As future work, one idea is to combine passages and structured knowledge, such as databases <ref type="bibr" target="#b44">(Vougiouklis et al., 2023)</ref> and/or knowledge graphs, possibly including uncertain knowledge graphs <ref type="bibr">(Pan et al., 2005;</ref><ref type="bibr" target="#b42">Stoilos et al., 2006;</ref><ref type="bibr" target="#b37">Qi et al., 2007;</ref><ref type="bibr" target="#b5">Chen et al., 2019)</ref>, knowledge graph with selected vocabulary <ref type="bibr" target="#b45">(Wang et al., 2014)</ref> and temporal knowledge graphs <ref type="bibr" target="#b12">(García-Durán et al., 2018;</ref><ref type="bibr" target="#b3">Bourgaux et al., 2021)</ref>, for retrieval augmented generations. Furthermore, as suggested in <ref type="bibr">(Pan et al., 2023a)</ref>, there are a few pressing challenges in this space, such as unifying knowledge editing <ref type="bibr" target="#b25">(Mitchell et al., 2022;</ref><ref type="bibr" target="#b14">Han et al., 2023)</ref> and retrieval augmentation, complex reasoning via retrieval augmentation and semi-parametric LLMs <ref type="bibr">(Pan et al., 2023b)</ref> in general. performance of the retrieve-generate model. However, unfixing the passage encoder will significantly increase the training cost, which is not feasible for us.</p><p>Another potential limitation is that we cannot access the MSMARCO test set since the challenge is retired, which limits the training samples for the experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Detailed Experiment Settings</head><p>Training Cost Our experiments are built on top of the RAG research project provided on Hug-gingFace<ref type="foot" target="#foot_6">9</ref> . We use pytorch-lightning (Falcon and team, 2019) for fine-tuning the model, and use ray <ref type="bibr" target="#b27">(Moritz et al., 2018)</ref> and FAISS <ref type="bibr" target="#b17">(Johnson et al., 2019)</ref> for distributed retrieval with HNSW index <ref type="bibr" target="#b24">(Malkov and Yashunin, 2020)</ref>. All the models are trained under FP16 for memory and time efficiency. We use 4 NVIDIA A100 80G GPUs for fine-tuning the retrieve-generate models and 1 NVIDIA A100 80G GPU for inference. Specially, since the experiment requires fast retrieval using FAISS, it requires approximately 200GB CPU memory for running MSMARCO experiments, and 300GB CPU memory for running KILT-WoW experiments (both training and inference). The memory requirement can be reduced by compressing the HNSW index. Table <ref type="table" target="#tab_10">10</ref> shows the average runtime for the experiments. Since the fine-tuning runtime varies during training as the retriever training on CPU gets faster and faster, we only report the runtime of the first epoch. Note that the training runtime is not very comparable, as it depends largely on the FAISS retrieval.    It is characterized by higher levels of the dark pigment eumelanin and lower levels of the pale pigment pheomelanin. A: Not much really but it was the only thing to choose from. B: Well it seems there are two different main types. One of them is very large and the other decently small. A: Okay so you know some about them. Great!! Have you ever seen one in the ocean before? B: I have seen the larger ones in the ocean and the smaller ones in aquariums. These things are super protected by government agencies in the wild and domestic. A: I didn't know that. Are the endangered then?</p><p>Reference response Not quite, but they will be very soon. They have a very slow reproductive rate so it takes awile for new ones to be had. RAG I'm not sure but I do know that the manta ray is one of the largest ray-finned fish.</p><p>ours (RAC) I'm not sure but I know that they are listed as endangered by the International Union for Conservation of Nature (IUCN). ours (DKS)</p><p>Well they are protected in international waters by the Convention on Migratory Species of Wild Animals, but they are more vulnerable closer to shore. ours (multi-task) I'm not sure but I know that they are filter feeders and eat large amounts of zooplankton. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Context A :</head><label>:</label><figDesc>Do you like Gouda cheese, its a mild, yellow cheese. B: Well I like most cheeses so I'd probably like it, yes. Do you know where it originated from?</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>really like cooking pasta, it is some of my favorite Italian food. B: I do too. What type of pastas do you like to make? A: Angel hair is always a great one to use in standard Italian cuisine. B: Yes! I prefer angel hair in spaghetti instead of the traditional spaghetti noodles. Do you make different pasta dishes? Reference response One of my favorite pasta dishes is just standard meat sauce and angel hair pasta. RAG I make a lot of different pasta dishes. I like to use rice flour instead of wheat flour. ours (RAC) I like to make a lot of different pasta dishes. I like to use a lot of different types of pasta. ours (DKS) I do, I like to use rice flour instead of wheat flour to get a different taste and texture. ours (multi-task) I like to make a lot of different pasta dishes. I like to use eggs instead of water. Context A: Hey there!! How are ya? B: Hey there! I'm very good! What do you know about the manta ray?</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Passage 2 (knowledge-relevant): ... tactful(adj) having or showing a sense of what is fitting and considerate in dealing with others. she was tactful enough not to shatter his illusion; ... Retrieval samples of MSMARCO training set.</figDesc><table><row><cell>✓</cell></row><row><cell>ours</cell></row><row><cell>✓</cell></row><row><cell>RAG</cell></row><row><cell>✗</cell></row><row><cell>ours</cell></row><row><cell>✓</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>has shown that the false-negative pas-</figDesc><table><row><cell>RAG</cell><cell>NLLLoss</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>BART generator</cell><cell></cell><cell></cell><cell>The cortisone in the injection is a type of steroid that works by reducing inflammation in the affected area.</cell><cell cols="2">Utility is a term used by economists to describe any good. consumer obtains from the measurement of useful-ness that a</cell><cell>...</cell><cell>Argon is used to fill incandescent light Abulbs to inhibit the and increase bulb life. tungsten filaments evaporation of the</cell><cell>answers (reference &amp; negative)</cell></row><row><cell></cell><cell></cell><cell></cell><cell>DKS</cell><cell cols="2">passage knowledge</cell><cell></cell><cell>answer knowledge</cell></row><row><cell cols="2">top-n passages</cell><cell></cell><cell>enc AE</cell><cell cols="2">embeddings</cell><cell>MSELoss</cell><cell>embeddings</cell><cell>enc AE</cell></row><row><cell></cell><cell>MIPS</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>question encoder</cell><cell>passage encoder</cell><cell>RAC</cell><cell cols="2">top-n passages embeddings</cell><cell>BCELoss</cell><cell>embeddings answer as question</cell><cell>question encoder</cell></row><row><cell></cell><cell>question Why is argon</cell><cell>Passage Corpus</cell><cell></cell><cell cols="4">p1: Now, with the light bulb filled with argon and some nitrogen because ... p2: Helium, neon, argon and krypton are used in gas ... ... pn: ... Nitrogen along with Argon used to fill the electric bulb. Why? ...</cell></row><row><cell></cell><cell>used in light</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>bulbs?</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="8">Figure 1: Overall architecture of the proposed model. MIPS indicates Maximum Inner Product Search. Green</cell></row><row><cell cols="8">arrows indicate a different information stream with black arrows. Orange components are trainable while gray</cell></row><row><cell cols="8">components are not trainable. The dashed box indicates the retrieve-generate backbone (Lewis et al., 2020b). Violet</cell></row><row><cell cols="8">boxes indicate the two objectives introduced by this work. The proposed DKS and RAC aim to help the retriever</cell></row><row><cell cols="8">focus more on knowledge-relevant passages instead of only label-relevant passages.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Effectiveness evaluation results in MSMARCO development set. R-L represents ROUGE-L, B-1 and B-4 represent BLEU-1 and BLEU-4. R@k represents for recall rate for top-k retrieved passages. Bold highlighted values are the best among all.</figDesc><table><row><cell>10</cell></row></table><note><p>Table 3: Effectiveness evaluation results in KILT-WoW development set. RL and KILT-RL refer to ROUGE-L and KILT ROUGE-L. R-Prec refers to R-Precision, which is identical to Precision@1 in the KILT-WoW dataset. Bold highlighted values are the best among all.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2</head><label>2</label><figDesc></figDesc><table><row><cell>shows the effectiveness</cell></row><row><cell>evaluation results on MSMARCO development</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Test results on KILT leaderboard. We reported our best model under the development set, which is DKS. RL and KILT-RL refer to ROUGE-L and KILT ROUGE-L. R-Prec refers to R-Precision, which is identical to Precision@1 in the KILT-WoW dataset. Bold highlighted values are the best.</figDesc><table><row><cell>Model</cell><cell>MSMARCO Train Dev ∆ ↓ Train Dev ∆ ↓ KILT-WoW</cell></row><row><cell>RAG (ours)</cell><cell>17.5 10.7 6.8 46.73 42.21 4.52</cell></row><row><cell>ours (RAC)</cell><cell>17.8 11.2 6.6 45.32 44.95 0.37</cell></row><row><cell>ours (DKS)</cell><cell>16.3 11.5 4.8 47.94 47.02 0.92</cell></row><row><cell cols="2">ours (multi-task) 16.6 12.0 4.6 46.47 43.94 2.53</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Robustness evaluation results for the proposed methods. For MSMARCO dataset we report Recall@1 and for KILT-WoW dataset we report R-Prec. ∆ = Train -Dev indicates the overfitting level of the given model. Bold highlighted values are the best among all.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>Sampled Generations from KILT-WoW development set.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head></head><label></label><figDesc>Table 7 shows the trainable parameters of our models.</figDesc><table><row><cell>Model</cell><cell>Trainable Params</cell></row><row><cell>RAG</cell><cell>515M</cell></row><row><cell>ours (RAC)</cell><cell>515M</cell></row><row><cell>ours (DKS)</cell><cell>518M</cell></row><row><cell>ours (multi-task)</cell><cell>518M</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc>Trainable parameters of models.</figDesc><table><row><cell cols="4">Dataset Details Table 8 shows the statistics of</cell></row><row><cell cols="4">datasets used in our experiments. Both the datasets</cell></row><row><cell cols="4">and knowledge sources are in English. For the MS-</cell></row><row><cell cols="4">MARCO dataset, we split the original training set</cell></row><row><cell cols="4">into our training set and validation set, and report</cell></row><row><cell cols="4">all the experimental results on the original devel-</cell></row><row><cell cols="4">opment set. This setting is for better comparison</cell></row><row><cell cols="4">to the results reported in Lewis et al. (2020b). For</cell></row><row><cell cols="4">both knowledge sources, we use the script provided</cell></row><row><cell cols="4">by HuggingFace 10 to build FAISS format corpus.</cell></row><row><cell cols="4">Specially, for KILT-WoW knowledge source, we</cell></row><row><cell cols="4">do an extra data cleaning process, including 1) re-</cell></row><row><cell cols="4">moving paragraphs starting with Section:::: and</cell></row><row><cell cols="4">BULLET::::; 2) removing all non-unicode charac-</cell></row><row><cell>ters.</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Dataset</cell><cell>Train</cell><cell>Dev</cell><cell>Test</cell></row><row><cell cols="4">MSMARCO 143,725 10,000 12,467</cell></row><row><cell>KILT-WoW</cell><cell>63,734</cell><cell>3,054</cell><cell>2,944</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 8 :</head><label>8</label><figDesc>Dataset Statistics. The original development set of MSMARCO dataset is used as the test set in our experiments, which is still referred to as the development set in the result section.</figDesc><table><row><cell>Model</cell><cell cols="4">MSMARCO Fine-tuning Inference Fine-tuning Inference KILT-WoW</cell></row><row><cell>RAG</cell><cell>6,918s</cell><cell>0.28s</cell><cell>3,228s</cell><cell>0.37s</cell></row><row><cell>ours (RAC)</cell><cell>8,202s</cell><cell>0.28s</cell><cell>6,702s</cell><cell>0.42s</cell></row><row><cell>ours (DKS)</cell><cell>9,980s</cell><cell>0.32s</cell><cell>5,134s</cell><cell>0.40s</cell></row><row><cell>ours (multi-task)</cell><cell>10,551s</cell><cell>0.32s</cell><cell>5,028s</cell><cell>0.41s</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 10 :</head><label>10</label><figDesc>Average runtime of experiments. Fine-tuning numbers are average seconds per training first epoch, inference numbers are average seconds per generation sample. For MSMARCO, we report fine-tuning runtime with batch size=16. For KILT-WoW, we report fine-tuning runtime with batch size=8. Context A: I have observed that after black hair Brown hair is the second most common human hair color. B: Im not actually sure about my own i think its black but might just be dark brown. A: Really, mine is black, but People with brown hair are often referred to as brunette. B: Yea i think mine might be black but who knows. Reference response Maybe, i have observed that brown hair is common in the western world RAG Yea brown hair is second most common hair color after black hair. ours (RAC) Brown hair is the second most common human hair color after black hair. ours (DKS) Brown hair is common among populations in the Western world, especially among those from Central Europe, Southeastern Europe, Eastern Europe, Southern Europe, Southern Cone, the United States, and also some Asians. ours (multi-task)</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 11 :</head><label>11</label><figDesc>More sampled Generations from KILT-WoW development set.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>In this paper, we use the term "knowledge representation" since the learned representation is for representing the knowledge inside the answer and passage, which has a different meaning from "knowledge representation" in the knowledge graph area.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_1"><p>https://github.com/microsoft/ MSMARCO-Question-Answering</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_2"><p>https://github.com/facebookresearch/KILT</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_3"><p>https://huggingface.co/facebook/ rag-token-base</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_4"><p>https://huggingface.co/facebook/roberta-base</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_5"><p>https://eval.ai/web/challenges/ challenge-page/689/leaderboard/1909/KILT-F1</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_6"><p>https://github.com/huggingface/transformers/ tree/main/examples/research_projects/rag</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="10" xml:id="foot_7"><p>https://github.com/huggingface/transformers/ blob/main/examples/research_projects/rag/use_ own_knowledge_dataset.py</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgement</head><p>This work is supported by <rs type="funder">Huawei's Dean's Funding</rs> (<rs type="grantNumber">C-00006589</rs>) and the <rs type="programName">Chang Jiang Scholars Program</rs> (<rs type="grantNumber">J2019032</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_rAde96k">
+					<idno type="grant-number">C-00006589</idno>
+					<orgName type="program" subtype="full">Chang Jiang Scholars Program</orgName>
+				</org>
+				<org type="funding" xml:id="_Sgv77Dg">
+					<idno type="grant-number">J2019032</idno>
+				</org>
+			</listOrg>
+
+			<div type="availability">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>https://knowledge-representation.org/j.z.pan/</p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>The first limitation is that the parameters of the passage encoder is fixed during the training of the retriever for a fair comparison with the baseline model. This potentially limits the expressiveness of the bi-encoder retriever and harms the overall Hyperparameters Table <ref type="table">9</ref> shows the hyperparameter settings for training and evaluation of the proposed model. If some hyperparameters are not mentioned, then keep them as default in Hugging-Face. For Kilt-WoW experiments, we select the best hyperparameter (batch size and passage nums for training) based on the ROUGE-L score. Noticed that it is not possible for our experimental setup to choose batch size of 16 and passage nums of 10, as it explodes the GPU memory. For KILT-WoW experiments, the best combination of (batch size, passage nums) for our DKS model is (8, 10), while for others is <ref type="bibr">(16,</ref><ref type="bibr">5)</ref>. For receiving the reference knowledge representations, we train sentence bottleneck auto-encoder <ref type="bibr" target="#b26">(Montero et al., 2021)</ref> on each dataset for 100,000 iterations with batch size 64 and learning rate 3e-5. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Sentence Bottleneck AutoEncoder</head><p>There could be different ways to obtain label knowledge representations. In our preliminary experiments, we tried to use [CLS] token representation of pre-trained BERT model or simply use average or maximum pooling to obtain label knowledge representations. But all these methods don't work well, as they can not provide enough knowledge about the answer without further finetuning. Besides, the sentence bottleneck autoencoder fits our needs well and also works much better. We initialise the encoder of the sentence bottleneck auto-encoder with bert-base-uncased checkpoint from huggingface, and then finetune it with the MSMARCO and KILT-WoW datasets before training the retrieve-generate model. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C More Generation Samples</head></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Towards a human-like open-domain chatbot</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Adiwardana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">R</forename><surname>So</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamie</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Romal</forename><surname>Thoppilan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Apoorv</forename><surname>Kulshreshtha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaurav</forename><surname>Nemade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifeng</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Le</surname></persName>
+		</author>
+		<idno>CoRR, abs/2001.09977</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Knowledge-augmented language model prompting for zero-shot knowledge graph question answering</title>
+		<author>
+			<persName><forename type="first">Jinheon</forename><surname>Baek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alham</forename><surname>Fikri Aji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Saffari</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.nlrse-1.7</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Workshop on Natural Language Reasoning and Structured Explanations (NLRSE)</title>
+		<meeting>the 1st Workshop on Natural Language Reasoning and Structured Explanations (NLRSE)<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="78" to="106" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">METEOR: An automatic metric for MT evaluation with improved correlation with human judgments</title>
+		<author>
+			<persName><forename type="first">Satanjeev</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization</title>
+		<meeting>the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Geometric Models for (Temporally) Attributed Description Logics</title>
+		<author>
+			<persName><forename type="first">Camille</forename><surname>Bourgaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Ozaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of DL2021</title>
+		<meeting>of DL2021</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Alec Radford, Ilya Sutskever, and Dario Amodei</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+	<note>Language models are few-shot learners</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Embedding uncertain knowledge graphs</title>
+		<author>
+			<persName><forename type="first">Xuelu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weijia</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhou</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlo</forename><surname>Zaniolo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3363" to="3370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">KGI: an integrated framework for knowledge intensive language tasks</title>
+		<author>
+			<persName><surname>Md</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">R</forename><surname>Mahbub Chowdhury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaetano</forename><surname>Glass</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alfio</forename><surname>Rossiello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nandana</forename><surname>Gliozzo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mihindukulasooriya</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2204.03985</idno>
+		<idno>CoRR, abs/2204.03985</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Recipes for adapting pre-trained monolingual and multilingual models to machine translation</title>
+		<author>
+			<persName><forename type="first">Asa</forename><surname>Cooper Stickland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.301</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter</title>
+		<meeting>the 16th Conference of the European Chapter</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3440" to="3453" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Wizard of wikipedia: Knowledge-powered conversational agents</title>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Roller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kurt</forename><surname>Shuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">7th International Conference on Learning Representations</title>
+		<meeting><address><addrLine>New Orleans, LA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-05-06">2019. 2019. May 6-9, 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">T-REx: A large scale alignment of natural language with knowledge base triples</title>
+		<author>
+			<persName><forename type="first">Hady</forename><surname>Elsahar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlos</forename><surname>Vougiouklis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arslen</forename><surname>Remaci</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christophe</forename><surname>Gravier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathon</forename><surname>Hare</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)</title>
+		<meeting>the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)<address><addrLine>Miyazaki, Japan</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>Frederique Laforest, and Elena Simperl</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Falcon and The PyTorch Lightning team</title>
+		<author>
+			<persName><surname>William</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>Pytorch lightning</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">IIRC: A dataset of incomplete information reading comprehension questions</title>
+		<author>
+			<persName><forename type="first">James</forename><surname>Ferguson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pradeep</forename><surname>Dasigi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.86</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1137" to="1147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning sequence encoders for temporal knowledge graph completion</title>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>García-Durán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastijan</forename><surname>Dumancic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mathias</forename><surname>Niepert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4816" to="4821" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Re2G: Retrieve, rerank, generate</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Glass</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaetano</forename><surname>Rossiello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Md</forename><surname>Faisal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mahbub</forename><surname>Chowdhury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankita</forename><surname>Naik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengshan</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alfio</forename><surname>Gliozzo</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.194</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2701" to="2715" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A divide and conquer framework for knowledge editing</title>
+		<author>
+			<persName><forename type="first">Xiaoqi</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ru</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoli</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.knosys.2023.110826</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Knowledge-Based Systems</title>
+		<imprint>
+			<biblScope unit="volume">279</biblScope>
+			<biblScope unit="page">110826</biblScope>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Rethinking with retrieval: Faithful large language model inference</title>
+		<author>
+			<persName><forename type="first">Hangfeng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2301.00303</idno>
+		<idno>CoRR, abs/2301.00303</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Leveraging passage retrieval with generative models for open domain question answering</title>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.74</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="874" to="880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Billion-scale similarity search with GPUs</title>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthijs</forename><surname>Douze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hervé</forename><surname>Jégou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Big Data</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="535" to="547" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Dense passage retrieval for opendomain question answering</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.550</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6769" to="6781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Colbert: Efficient and effective passage search via contextualized late interaction over BERT</title>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Khattab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matei</forename><surname>Zaharia</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3397271.3401075</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd International ACM SIGIR conference on research and development in Information Retrieval</title>
+		<meeting>the 43rd International ACM SIGIR conference on research and development in Information Retrieval<address><addrLine>China</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2020-07-25">2020. July 25-30, 2020</date>
+			<biblScope unit="page" from="39" to="48" />
+		</imprint>
+	</monogr>
+	<note>SIGIR 2020, Virtual Event</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Natural questions: A benchmark for question answering research</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennimaria</forename><surname>Palomaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivia</forename><surname>Redfield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danielle</forename><surname>Epstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Kelcey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00276</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="452" to="466" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Zero-shot relation extraction via reading comprehension</title>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/K17-1034</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st Conference on Computational Natural Language Learning</title>
+		<meeting>the 21st Conference on Computational Natural Language Learning<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017. CoNLL 2017</date>
+			<biblScope unit="page" from="333" to="342" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Retrieval-augmented generation for knowledgeintensive nlp tasks</title>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heinrich</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="9459" to="9474" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Efficient and robust approximate nearest neighbor search using hierarchical navigable small world graphs</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Yury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><forename type="middle">A</forename><surname>Malkov</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yashunin</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/TPAMI.2018.2889473</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Pattern Anal. Mach. Intell</title>
+		<imprint>
+			<biblScope unit="volume">42</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="824" to="836" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Memorybased model editing at scale</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bosselut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<meeting><address><addrLine>Baltimore, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-07">2022. 17-23 July 2022</date>
+			<biblScope unit="volume">2022</biblScope>
+			<biblScope unit="page" from="15817" to="15831" />
+		</imprint>
+	</monogr>
+	<note>ICML</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Sentence bottleneck autoencoders from transformer language models</title>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Montero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Pappas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.137</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1822" to="1831" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Ray: A distributed framework for emerging AI applications</title>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Moritz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Nishihara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephanie</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Tumanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Liaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melih</forename><surname>Elibol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zongheng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Paul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Michael</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">13th USENIX Symposium on Operating Systems Design and Implementation, OSDI 2018</title>
+		<meeting><address><addrLine>Carlsbad, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>USENIX Association</publisher>
+			<date type="published" when="2018-10-08">2018. October 8-10, 2018</date>
+			<biblScope unit="page" from="561" to="577" />
+		</imprint>
+	</monogr>
+	<note>Jordan, and Ion Stoica</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">MS MARCO: A human generated machine reading comprehension dataset</title>
+		<author>
+			<persName><forename type="first">Tri</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mir</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xia</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Tiwary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rangan</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Cognitive Computation: Integrating neural and symbolic approaches 2016 co-located with the 30th Annual Conference on Neural Information Processing Systems (NIPS 2016)</title>
+		<meeting>the Workshop on Cognitive Computation: Integrating neural and symbolic approaches 2016 co-located with the 30th Annual Conference on Neural Information Processing Systems (NIPS 2016)<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-12-09">2016. December 9. 2016</date>
+			<biblScope unit="volume">1773</biblScope>
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Mitigating false-negative contexts in multi-document question answering with retrieval marginalization</title>
+		<author>
+			<persName><forename type="first">Ansong</forename><surname>Ni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pradeep</forename><surname>Dasigi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.497</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6149" to="6161" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">GPT-4 technical report</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2303.08774</idno>
+		<idno>CoRR, abs/2303.08774</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Edlira Vakaj, Mauro Dragoni, and amien Graux. 2023a. Large language models and knowledge graphs: Opportunities and challenges</title>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Razniewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan-Christoph</forename><surname>Kalo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sneha</forename><surname>Singhania</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaoyan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Dietze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hajira</forename><surname>Jabeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janna</forename><surname>Omeliyanenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Lissandrini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerard</forename><surname>Biswas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>De Melo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bonifati</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>Transactions on Graph Data and Knowledge</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Vassilis Tzouvaras, and Ian Horrocks. 2005. f-SWRL: A Fuzzy Extension of SWRL</title>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giorgos</forename><surname>Stamou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICANN 2005, Special section on &quot;Intelligent multimedia and semantics</title>
+		<meeting>of ICANN 2005, Special section on &quot;Intelligent multimedia and semantics</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Exploiting Linked Data and Knowledge Graphs in Large Organisations</title>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guido</forename><surname>Vetere</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-319-45654-6</idno>
+		<editor>José Manuél Gómez-Pérez, and Honghan Wu</editor>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<publisher>Springer</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">2023b. Knowledgein-context: Towards knowledgeable semi-parametric language models</title>
+		<author>
+			<persName><forename type="first">Xiaoman</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenlin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianshu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICLR2023</title>
+		<meeting>of ICLR2023</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Hindsight: Posterior-guided training of retrievers for improved open-ended generation</title>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Paranjape</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Khattab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matei</forename><surname>Zaharia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">KILT: a benchmark for knowledge intensive language tasks</title>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Majid</forename><surname>Yazdani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><forename type="middle">De</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Thorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Maillard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vassilis</forename><surname>Plachouras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.200</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter</title>
+		<meeting>the 2021 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2523" to="2544" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">A Possibilistic Extension of Description Logics</title>
+		<author>
+			<persName><forename type="first">Guilin</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiu</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of DL</title>
+		<meeting>of DL</meeting>
+		<imprint>
+			<date type="published" when="2007">2007. 2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">140</biblScope>
+			<biblScope unit="page" from="1" to="67" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">A meta-analysis of overfitting in machine learning</title>
+		<author>
+			<persName><forename type="first">Rebecca</forename><surname>Roelofs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vaishaal</forename><surname>Shankar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Recht</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Fridovich-Keil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moritz</forename><surname>Hardt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Schmidt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 32: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS; Vancouver, BC, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-12-08">2019. 2019. 2019. December 8-14, 2019</date>
+			<biblScope unit="page" from="9175" to="9185" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Recipes for building an open-domain chatbot</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Roller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Da</forename><surname>Ju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mary</forename><surname>Williamson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">Michael</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y-Lan</forename><surname>Boureau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.24</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="300" to="325" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Retrieval augmentation reduces hallucination in conversation</title>
+		<author>
+			<persName><forename type="first">Kurt</forename><surname>Shuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Spencer</forename><surname>Poff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moya</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-emnlp.320</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2021</title>
+		<meeting><address><addrLine>Punta Cana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3784" to="3803" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Handling imprecise knowledge with fuzzy description logic</title>
+		<author>
+			<persName><forename type="first">Giorgos</forename><surname>Stoilos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giorgos</forename><forename type="middle">B</forename><surname>Stamou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2006 International Workshop on Description Logics (DL2006)</title>
+		<meeting>the 2006 International Workshop on Description Logics (DL2006)<address><addrLine>Windermere, Lake District, UK</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006-05-30">2006. May 30 -June 1, 2006</date>
+			<biblScope unit="volume">189</biblScope>
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">FEVER: a large-scale dataset for fact extraction and VERification</title>
+		<author>
+			<persName><forename type="first">James</forename><surname>Thorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christos</forename><surname>Christodoulopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arpit</forename><surname>Mittal</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1074</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="809" to="819" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">FastRAT: Fast and Efficient Crosslingual Text-to-SQL Semantic Parsing</title>
+		<author>
+			<persName><forename type="first">Pavlos</forename><surname>Vougiouklis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikos</forename><surname>Papasarantopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danna</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Tuckey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenxin</forename><surname>Diao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhili</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IJCNLP-AACL</title>
+		<meeting>of IJCNLP-AACL</meeting>
+		<imprint>
+			<date type="published" when="2023">2023. 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kewen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rodney</forename><forename type="middle">W</forename><surname>Topor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Grigoris</forename><surname>Antoniou</surname></persName>
+		</author>
+		<title level="m">Eliminating Concepts and Roles from Ontologies in Expressive Descriptive Logics</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="205" to="232" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>In NeurIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">KG-FiD: Infusing knowledge graph in fusion-in-decoder for opendomain question answering</title>
+		<author>
+			<persName><forename type="first">Donghan</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenguang</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuwei</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuohang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichong</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Zeng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.340</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4961" to="4974" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">How language model hallucinations can snowball</title>
+		<author>
+			<persName><forename type="first">Muru</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Merrill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alisa</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2305.13534</idno>
+		<idno>CoRR, abs/2305.13534</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Verify-and-edit: A knowledge-enhanced chain-of-thought framework</title>
+		<author>
+			<persName><forename type="first">Ruochen</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingxuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shafiq</forename><surname>Joty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengwei</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidong</forename><surname>Bing</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.320</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5823" to="5840" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

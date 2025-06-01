@@ -1,0 +1,1211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Conversation Style Transfer using Few-Shot Learning</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Shamik</forename><surname>Roy</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Raphael</forename><surname>Shu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Nikolaos</forename><surname>Pappas</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Elman</forename><surname>Mansimov</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yi</forename><surname>Zhang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Saab</forename><surname>Mansour</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Conversation Style Transfer using Few-Shot Learning</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">72B7E835482D5A7449567D80D549F473</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:39+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Conventional text style transfer approaches focus on sentence-level style transfer without considering contextual information, and the style is described with attributes (e.g., formality). When applying style transfer in conversations such as task-oriented dialogues, existing approaches suffer from these limitations as context can play an important role and the style attributes are often difficult to define in conversations. In this paper, we introduce conversation style transfer as a few-shot learning problem, where the model learns to perform style transfer by observing only a few example dialogues in the target style. We propose a novel in-context learning approach to solve the task with stylefree dialogues as a pivot. Human evaluation shows that by incorporating multi-turn context, the model is able to match the target style while having better appropriateness and semantic correctness compared to utterance/sentence-level style transfer. Additionally, we show that conversation style transfer can also benefit downstream tasks. For example, in multi-domain intent classification tasks, the F1 scores improve after transferring the style of training data to match the style of the test data.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Recent advances in neural dialogue models <ref type="bibr" target="#b9">(Gao et al., 2018;</ref><ref type="bibr" target="#b35">Zhang et al., 2020;</ref><ref type="bibr">Ni et al., 2022)</ref> enabled the handling of complex conversational scenarios. However, one key challenge that still remains in conversational AI is to obtain the desired conversation style. Conversations in nature are dynamic and the style requirement of utterances in a conversation depends on many factors including domain (e.g., banking vs restaurant), situation (e.g., conversation with someone angry vs depressed), the speaker demographics (e.g., senior vs youngster) among others, making style transfer of the whole conversation more challenging compared to style transfer of a single utterance. * Correspondence to royshami@amazon.com</p><p>[Agent] I am sorry to hear that. What is your ID?</p><p>[Agent] I can help with that. What is your ID? Existing studies on Text Style Transfer (TST) focus on transferring the style at the sentence level from one known style to another <ref type="bibr" target="#b21">(Pavlick and Tetreault, 2016;</ref><ref type="bibr" target="#b23">Rao and Tetreault, 2018;</ref><ref type="bibr" target="#b20">Niu et al., 2018;</ref><ref type="bibr" target="#b32">Wang et al., 2019;</ref><ref type="bibr" target="#b4">Briakou et al., 2021)</ref> by ignoring contextual information, such as the previous turns in a conversation. However, as demonstrated in Figure <ref type="figure" target="#fig_0">1</ref>, the context plays an important role in defining conversation style.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Style Transfer Model</head><p>In this paper, we explore a novel task: few-shot learning for conversation style transfer. Here, a style transfer model is expected to convert the style of an input conversation based on a few example conversations in the target style. This is in contrast with the common methodologies in TST, where the style is assumed to be describable with known and well-defined attributes (e.g., politeness, friendliness) <ref type="bibr" target="#b36">(Zhang et al., 2018;</ref><ref type="bibr" target="#b16">Madaan et al., 2020;</ref><ref type="bibr" target="#b24">Reif et al., 2022)</ref>. For conversations, defining such attributes is challenging due to the dynamic nature and domain dependency. Also, the style of a conversation may be a combination of many attributes.</p><p>Examples from the TWCS dataset <ref type="bibr" target="#b0">(Axelbrooke, 2017)</ref> in Table <ref type="table" target="#tab_0">1</ref> show that the agent responses from Chipotle and VirginTrains services are identified to have similar politeness scores by an offthe-shelf politeness classifier <ref type="bibr" target="#b8">(Danescu-Niculescu-Mizil et al., 2013)</ref>, however, their actual styles are drastically different upon a closer look.</p><p>Our proposed few-shot conversation style transfer task addresses several key challenges. Firstly, the interpretation of style attributes of the source/target dialogues is no longer required rather the style is defined solely through a few example dialogues. Secondly, it does not require parallel data in the form of source-to-target pairs, which is expensive and difficult to collect. Finally, conversation style transfer is performed with only a few example dialogues in the target style. In this paper, we show that transferring the conversation style in such a setting helps downstream applications such as chatbot personalization and domain adaptation for training.</p><p>Tailored for the proposed few-shot learning problem, we propose a novel method based on incontext learning <ref type="bibr" target="#b5">(Brown et al., 2020)</ref>. We propose to perform source-to-target style transfer with stylefree dialogues as pivots. In this approach, we first prompt pre-trained large language models (LLMs) to perform style reduction on source dialogue, then use another set of prompts to rewrite the style-free dialogue to match the target style (Figure <ref type="figure">2</ref>).</p><p>To accurately and efficiently evaluate the quality of conversation style transfer using different models, we conduct human evaluation on style strength, appropriateness, and semantic correctness. The appropriateness assessment is unique to conversation style transfer, which evaluates whether the transferred utterances are out-of-context. Appropriateness is critical for Task-Oriented Dialogue (TOD) applications as inappropriate responses (as shown in Figure <ref type="figure" target="#fig_0">1</ref>) can result in degraded user experience. As supplementary metrics, we report automatic scores on classifier-based style strength and semantic similarity. We observe that utterance-level style transfer without contextual information can achieve the highest style strength scores, however, results in low appropriateness and low semantic correctness. On the other hand, by including contextual information, although, with lower style strength, the transferred utterances are more appropriate and semantically correct.</p><p>Conversation style transfer can be applied in downstream tasks as a data augmentation or domain adaptation technique. We perform an extrinsic evaluation of style transfer in such a setting for intent classification task, where the training and test data for the task are from different style domains. We apply few-shot conversation style transfer on the training data to convert it to the test style before training. As a result, we observe improvement in intent classification F1 scores across three domains, demonstrating the usefulness of style transfer of conversations in such downstream applications.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Problem Formulation: Few-Shot Conversation Style Transfer</head><p>In this section, we propose the novel task of conversation style transfer, based on a few non-parallel examples, that does not rely on style attribute definitions (an example is illustrated in Figure <ref type="figure" target="#fig_0">1</ref>). Given a conversation in source style A and a few shot nonparallel conversations in target style B, the task is to transfer the style of the conversation in source style A to style B. We address the following limitations of the state-of-the-art models in this task.</p><p>Few-shot availability of the target style examples: Most of the existing works in style transfer assume that a large amount of text is available in the target style to train a model <ref type="bibr" target="#b20">(Niu et al., 2018;</ref><ref type="bibr"></ref> In-Context Learning</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>In-Context Learning</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Source Conversation in Style A</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Source Conversation without any style</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Source Conversation in Style B</head><p>Step-1: Style Reduction</p><p>Step-2: Transfer to Target Style</p><p>[Customer] I want to change my address on my account.</p><p>[Agent] May I get your account number please?</p><p>[Customer] I want to change my address on my account.</p><p>[Agent] What is your account number?</p><p>[Customer] I want to change my address on my account.</p><p>[Agent] Sure I can help you with that. To assist you further I need your account number.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input conversation in</head><p>Style A (formal, direct)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Style-free input conversation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input conversation in Style B (formal, conversational)</head><p>Figure <ref type="figure">2</ref>: The proposed two-step in-context learning-based approach for conversation style transfer: (Step 1) The style in the source conversation is reduced and it is converted to a style-free conversation. (Step 2) The style-free conversation is converted to the target style. Both conversion steps are learned in context. <ref type="bibr" target="#b32">Wang et al., 2019;</ref><ref type="bibr" target="#b36">Zhang et al., 2018;</ref><ref type="bibr" target="#b4">Briakou et al., 2021;</ref><ref type="bibr" target="#b16">Madaan et al., 2020;</ref><ref type="bibr" target="#b6">Cheng et al., 2020;</ref><ref type="bibr" target="#b24">Reif et al., 2022)</ref>. But this assumption may not hold in real-world settings. Hence, we limit target style data availability to a few dialogues.</p><p>Style transfer to arbitrary style: Existing works explicitly define style attributes (e.g., politeness) and transfer a text with a known style attribute to a style with another known attribute, for example, impolite to polite <ref type="bibr" target="#b16">(Madaan et al., 2020)</ref>. However, the style of a conversation can be difficult to define with a fixed set of attributes as shown in Table <ref type="table" target="#tab_0">1</ref>, and conversation style may be a combination of many attributes as conversations are dynamic. Hence, we study the problem of style transfer of conversations where the style attributes of the source and the target styles are not necessarily known.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Non-parallel examples:</head><p>To train a model for transferring the style of a conversation from a source to a target style with a few examples, ideally, we want parallel conversations in the source and the target styles <ref type="bibr" target="#b24">(Reif et al., 2022;</ref><ref type="bibr" target="#b30">Suzgun et al., 2022)</ref>. However, parallel data is difficult to obtain and scale to many styles (including out-of-domain styles) due to challenges in determining conversational style attributes and stylizing conversations. Hence, we assume access to a few examples in the source and the target styles that are not parallel.</p><p>Evaluation criteria: A successful conversation style transfer model is expected to produce dialogues matching the target style, while preserving the original semantics and appropriateness of the turns. So in this paper, we evaluate our models on the following metrics.</p><p>• Style strength: Following previous studies <ref type="bibr" target="#b24">(Reif et al., 2022;</ref><ref type="bibr" target="#b11">Han et al., 2022)</ref> we evalu-ate the target style strength of utterances produced by a style transfer model. The style strength scores are higher if the transferred utterances match the target style.</p><p>• Semantic correctness: In the context of TODs, we define semantic correctness as the preservation of intents in style-transferred conversations.</p><p>• Appropriateness of response: Appropriateness of response can be defined as the coherence of a response given the previous turns in a conversation. This is required in TODs to prevent the style-transferred utterances in a dialogue from being out-of-context.</p><p>Positive and negative examples of these metrics are shown in Table <ref type="table">2</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">In-Context Learning for Conversation Style Transfer</head><p>In this section, we propose a novel in-context learning based method using large language models (LLMs) for few-shot conversation style transfer.</p><p>The method is illustrated in Figure <ref type="figure">2</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">In-context learning with non-parallel examples in source and target styles</head><p>To tackle the problem of the unavailability of parallel conversations in source and target styles (as described in Section 2), in this paper, we propose a cheaper alternative solution, which prompts the language models with dialogues in one style and their style-free versions. Previous work by <ref type="bibr" target="#b16">Madaan et al. (2020)</ref> showed the effectiveness of style transfer after reducing the source text to a style-free format and then converting the style-free format to the target style (although they relied on large amount of training data for the purpose). Inspired from these [Customer] I had an accident and I want to file an auto insurance claim.</p><p>[Agent] What is your insurance number?</p><p>[Customer] I had an accident and I want to file an auto insurance claim.</p><p>[Agent] I am sorry to hear that. Can I get your insurance number?</p><p>[Customer] I had an accident and I want to file an auto insurance claim.</p><p>[Agent] I am happy to hear that. Can I get your insurance number?</p><p>[Customer] I had an accident and I want to file an auto insurance claim.</p><p>[ The effectiveness of this approach is examined by comparing it with random prompt example selection method in Section 4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Baseline: Utterance level style transfer</head><p>Existing works study style transfer at the utterance level with in-context learning <ref type="bibr" target="#b24">(Reif et al., 2022;</ref><ref type="bibr" target="#b30">Suzgun et al., 2022)</ref>, hence, we use utterance-level style transfer as a baseline. We transfer the style of the utterances of one party in a dialogue utterance by utterance using the same procedure described above. For dynamic prompt selection, we measure semantic similarity between single utterances instead of concatenating all utterances of a participant in a dialogue. As existing models are either applicable to utterance level only <ref type="bibr" target="#b26">(Riley et al., 2021)</ref> or require a lot of training data <ref type="bibr" target="#b16">(Madaan et al., 2020)</ref> for style transfer, they are not applicable in conversation style transfer in a few-shot setting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>In this section, we present the evaluation setup and the results of the proposed approaches on style transfer quality including style strength, appropriateness, and semantic correctness. Then, we show the evaluation results of applying the approach on a downstream task, namely intent classification.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Setup</head><p>Dataset: Given that our focus is on TODs, we extract conversations from the following two TOD datasets for studying style transfer.</p><p>• TWCS dataset <ref type="bibr" target="#b0">(Axelbrooke, 2017)</ref>: Contains real-life human customer care agent dialogues with customers of different companies.</p><p>• Cross-domain conversational data from DSTC11 intent induction track 1 : Contains human-to-human (human agents) and humanto-bot (bot agents) dialogues.</p><p>To study style transfer, we select human agents dialogues (addressed as H 1 ) and bot agents dialogues (addressed as B) from DSTC11. Then we select Chipotle customer care agent dialogues from TWCS as another human style (addressed as H 2 ). We observe that the three styles, H 1 , H 2 , and B are holistically different. Some observed properties of the human styles (H 1 , H 2 ) are that they are engaging, conversational, and use diverse vocabulary (Table <ref type="table">3</ref>). Being conversational and engaging, 1 https://github.com/amazon-research/ dstc11-track2-intent-induction  humans can be formal or casual and may use different structures for their responses. For example, human style H 1 is formal (uses formal words such as 'mister') while the other human style H 2 is casual and friendly (uses millennial phrases such as 'cool', 'asap'). Additionally, in human style H 2 , human agents sign their names at the end of each response, implying a structural stylistic property of this human style. Some observed properties of the bot style are crispness and to-the-point while not being informal. These observed properties are summarized with quantitative and qualitative analyses in Tables <ref type="table">3</ref> and<ref type="table" target="#tab_4">4</ref>, and example conversations in these styles are presented in Appendix B. This analysis supports our claim that conversation styles are holistic and difficult to characterize using a fixed set of attributes.</p><p>We study style transfer with the three complex styles stated above where we are able to evaluate the style transfer performance on drastically different style pairs (e.g., human style H 1 /H 2 to/from bot style B), as well as pairs with nuanced differences (e.g., human style H 1 to human style H 2 ). The style directions we study in this paper and respective dataset statistics are shown in Table <ref type="table" target="#tab_6">5</ref>.</p><p>In-context Learning: We conduct in-context learning experiments with two decoder-only LLMs -GPT NeoX <ref type="bibr" target="#b1">(Black et al., 2022</ref>) (20B parameters) and Bloom<ref type="foot" target="#foot_0">2</ref> (176B parameters). Details of the LLMs can be found in Appendix F.</p><p>Prompt Settings: We tune two hyperparameters in the prompt: (1) the number of contextual turns from the dialogue history, (2) the number of examples in the prompt. For the number of contextual turns, we experiment with short segments (2 turns) and long segments (4-5 turns). For the number of examples, we select the hyperparameter based on the validation set (Table <ref type="table" target="#tab_6">5</ref>)<ref type="foot" target="#foot_1">3</ref> . Note that when increasing the number of turns further, the maximum context length of LLMs is reached quickly, therefore, we leave in-context learning with full dialogue context as a future work. In Appendix A, we show example prompts for baseline (utterancelevel), short-segment, and long-segment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Construction of Few-Shot Examples:</head><p>As mentioned in Section 3.1, we construct a few (styled, style-free) conversation pairs for each style domain using human supervision. Comparing the creation of true parallel data between source and target styles, such an approach is easy to execute for humans and results in reusable examples. Humans were asked to reduce the style of the whole conversation. It took approximately 5 minutes for a human to rewrite a 10-12 turns conversation to a style-free form. As the style reduction is a cheap one-time effort in our work, we leave automatic style reduction as a future work. The human annotation method, statistics, and examples can be found in Appendix B.2.</p><p>Automatic Evaluation: To measure the strength of the target style automatically, we train RoBERTa <ref type="bibr" target="#b15">(Liu et al., 2019)</ref> based binary text classifiers to classify between the source style and the target style. Training data for these classifiers were obtained from conversational data with both styles. The validation accuracy of the classifiers to differentiate between styles (H 1 , B), (H 1 , H 2 ), and (H 2 , B) were 99.89%, 93.3% and 100%, respectively. The details on these classifiers can be found in Appendix J. We treat the confidence scores of the classifiers as the style strength scores. For semantic similarity we measure the cosine distance between  SBERT embeddings <ref type="bibr" target="#b25">(Reimers and Gurevych, 2019)</ref> of a source utterance and the corresponding style transferred utterance. For the evaluation of appropriateness, we rely only on human evaluation as it is difficult to get an automatic method to measure appropriateness.</p><p>Human Evaluation: To obtain a direct assessment of the style transfer quality of different models efficiently, we perform a ranking-based human evaluation on style strength and appropriateness.</p><p>To evaluate style strength, we present human evaluators with utterances in the target style to train them on the properties of the target style. Then we present them with a source utterance and the style transferred versions of it by our proposed models and the baseline. The model names are kept hidden from them and the order of the utterances are shuffled. Then we ask the evaluators to rank all versions of the same utterance in a descending order based on the style similarity with the reference utterances. To evaluate appropriateness, we present human evaluators with a source agent utterance  and all versions of the style transferred utterances along with the immediate previous customer turn as context. Then we ask the evaluators to rank them based on the appropriateness of the agent response.</p><p>To evaluate semantic correctness, we present human evaluators with a source utterance and the corresponding style transferred utterances. We ask them for each style transferred version if it is semantically similar, partially similar, or dissimilar to the source utterance. Each data point is evaluated by three human evaluators who are professional data linguists. We do not include data points where all the models generated exactly the same response. The inter-annotator agreement scores for the three human evaluation tasks are presented in Table <ref type="table" target="#tab_7">6</ref>. We convert the rankings of the evaluators to a scale of 1 where a higher score means a higher rank (i.e., more appropriate or more similar in style). To aggregate scores we average ranking scores by three evaluators. The pairwise comparison statistics among the models can be found in Appendix D.5. For semantic correctness, we select the label by taking majority voting. Details on human evaluation data statistics, evaluation interfaces, inter-annotator agreement scores calculation, and rank-scaling can be found in Appendix D.</p><p>Ablation Study: We compare dynamic prompt selection with random prompt selection as described in Section 3.2. With the ablation on au-tomatic style strength metric using GPT-NeoX, we find that dynamic prompt selection outperforms the random prompt selection method by a large margin as shown in Table <ref type="table" target="#tab_9">7</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>We show human evaluation results on utterancelevel and conversation-level style transfer in Table 8. Models were run on test data (Table <ref type="table" target="#tab_6">5</ref>) using the best hyper-parameters and prompt selection method obtained in the ablation step. We first observe that the highest style strength rank score is achieved when performing utterance-level style transfer, however, this results in a lower appropriateness score. This observation shows that performing conversation style transfer without the dialogue context has a significant risk of resulting in inappropriate agent utterances (i.e., utterances do not fit in the context). We can also observe in Table <ref type="table" target="#tab_11">8</ref> that the smaller LLM GPT-NeoX suffers more from the problem of generation of inappropriate responses compared to the larger LLM Bloom. Next, we observe that if we increase context (4/5 turns) in the conversation style transfer, the style strength decreases but appropriateness is preserved. Interestingly, for the larger LLM Bloom, the semantic similarity decreases with the increase of context. We found out that sometimes Bloom generates new agent utterances different from the source utterances or swaps the agent utterance with the customer utterance when performing 4-5 turns conversation-level style transfer (examples are shown in Appendix I). Hence, resulting in semantically dissimilar utterances. Therefore, we conclude that the LLMs are still not successful in conditioning on a larger context when performing style transfer, hence, a limited context consisting of 2 utterances is the optimal setting for style transfer in our study. Automatic evaluation results on the test set resulted in the same pattern (shown in Appendix G). Examples of style-transferred conversations in all style directions by various versions of our model are shown in Appendix H and the effects of style transfer on the observed style properties in Table <ref type="table">3</ref> are discussed in Appendix K. We present examples of errors by various versions of the models in Table <ref type="table" target="#tab_12">9</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Evaluation on Downstream Task</head><p>Downstream applications of conversation style transfer are understudied. In this paper, we apply conversation style transfer to intent classification. human-to-human 92.3 ± 0.5 94.4 ± 2.1 89.7 ± 0.6 transferred human-to-bot 92.9 ± 0.5 97.7 ± 1.3 89.9 ± 0.5</p><p>Table 10: Intent classification results in terms of F1 score. Transferring the training data (human-to-human style) to test data style (human-to-bot style) improves the test F1 score in three domains: Insurance, Banking, and Finance. The significance of difference, pvalues for Insurance and Banking are p &lt; 0.05 and p &lt; 0.01, respectively. For Finance the improvement is non-significant.</p><p>We evaluate the setting where we have abundant of training data in one style and the test data is in a different style. We test our approach on three domains in the DSTC11 intent induction dataset: insurance, banking, and finance. Here, the training data is in human-to-human (h2h) style and the test data is in human-to-bot (h2b) style. We transfer the training data from h2h style to h2b style before training a RoBERTa-based intent classifier.</p><p>We run an ablation (using data from banking and finance domains) with utterance-level style transfer and short-conversation-level style transfer using GPT-NeoX and observe that training data transferred to h2b style using utterance-level style transfer results in higher intent classification F1 scores. We conjecture the reason is that utterancelevel style transfer has the strongest style strength score, benefiting the application of domain adaptation. We report results with this method on all three domains in Table <ref type="table" target="#tab_0">10</ref>. The intent classification results show statistically significant improvement in insurance and banking, and non-significant improvement in finance, compared to the baseline where the training data has h2h style. Data statistics, experimental details, and ablation studies can be found in Appendix E.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Works</head><p>Style transfer in NLP has been studied in many variations. One line of research studied this problem as transferring to/from the style of popular novelists to/from modern English. Such as <ref type="bibr" target="#b3">Boyd et al. (2020)</ref> used paraphrasing model for this purpose. Another variation is transferring style to a fictional movie/novel character's style as studied by <ref type="bibr" target="#b11">Han et al. (2022)</ref>. Other works studied style transfer by defining style attributes and transferring text style from one attribute to another (e.g., positive/nega-tive, informal/formal) <ref type="bibr" target="#b21">(Pavlick and Tetreault, 2016;</ref><ref type="bibr" target="#b23">Rao and Tetreault, 2018;</ref><ref type="bibr" target="#b20">Niu et al., 2018;</ref><ref type="bibr" target="#b32">Wang et al., 2019;</ref><ref type="bibr" target="#b4">Briakou et al., 2021;</ref><ref type="bibr" target="#b36">Zhang et al., 2018;</ref><ref type="bibr" target="#b16">Madaan et al., 2020;</ref><ref type="bibr" target="#b24">Reif et al., 2022)</ref>.</p><p>Existing style transfer approaches make different assumptions about data availability. Certain approaches assume the availability of a lot of training data in the target style and use either a sequenceto-sequence model <ref type="bibr" target="#b23">(Rao and Tetreault, 2018;</ref><ref type="bibr" target="#b20">Niu et al., 2018;</ref><ref type="bibr" target="#b26">Riley et al., 2021)</ref> or a controlled text generation model guided by a schema <ref type="bibr" target="#b31">(Tsai et al., 2021)</ref> or rules <ref type="bibr" target="#b32">(Wang et al., 2019)</ref>. Other approaches assume the availability of zero or a small number of training examples and leverage either auto-encoders for controlled text generation such as sentiment polarity transfer and tense alteration <ref type="bibr" target="#b27">(Shen et al., 2017;</ref><ref type="bibr" target="#b17">Mai et al., 2020;</ref><ref type="bibr" target="#b28">Shen et al., 2020;</ref><ref type="bibr" target="#b18">Montero et al., 2021;</ref><ref type="bibr" target="#b28">Shen et al., 2020)</ref> or in-context learning based on LLMs for specific attributes <ref type="bibr" target="#b24">(Reif et al., 2022;</ref><ref type="bibr" target="#b30">Suzgun et al., 2022;</ref><ref type="bibr" target="#b11">Han et al., 2022)</ref>.</p><p>Another line of research studied style transfer by mapping texts with different style attributes in a common latent space that is independent of the style attributes, however, preserves the semantic meaning. This approach is conceptually similar to our idea of using style-free utterances as pivots. For example, <ref type="bibr" target="#b27">Shen et al. (2017)</ref> assumed a shared latent content distribution across different text corpora, and proposed a method that aligns the latent representations to perform style transfer. They used an adversarial discriminator to align the latent spaces of different styles. Later <ref type="bibr" target="#b33">Yang et al. (2018)</ref> extended this idea by using language models as discriminators by addressing the instability of the error signals provided by the GAN-based discriminators. Several works have been done along the line <ref type="bibr" target="#b22">(Prabhumoye et al., 2018;</ref><ref type="bibr" target="#b10">Gao et al., 2019;</ref><ref type="bibr" target="#b16">Madaan et al., 2020)</ref> that utilized the concept of latent-space representation for style transfer. However, in a counter-study to such approaches that depend on the latent space representation for style transfer, <ref type="bibr" target="#b29">Subramanian et al. (2018)</ref> showed that the assumptions related to the latent space are not necessary and are not always met in practice.</p><p>Existing works mostly ignore the context beyond a single sentence while transferring the style and rely on style attribute definitions. Recently, a few attempts have been made in the domain of contextual style transfer. For example, <ref type="bibr" target="#b6">Cheng et al. (2020)</ref> studied style transfer of text in context where the context is defined as the paragraph where the input text appears. <ref type="bibr" target="#b11">Han et al. (2022)</ref> studied style transfer in a contextualized setting where the LLMs are prompted to answer a question in the style of fictional characters. The question is used as context. However, the styles of the fictional characters are too evident and characterized by special words and other fictional characters involved in the novels or movies. In contrast, in this paper, we study style transfer in Task-Oriented Dialogues where (1) the context is the previous turns among the speakers, (2) there are only a few examples of the target style available, and (3) the style attributes are unknown and the conversation style may be a combination of many style attributes.</p><p>Recent surveys have emphasized applications of text style transfer in domain adaptation <ref type="bibr" target="#b13">(Jin et al., 2022)</ref>. In this paper, we take the first step towards applying style transfer to adapt training data for the downstream task of intent classification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we study a novel problem of conversation style transfer using few-shot non-parallel examples. To solve this problem we propose a novel in-context learning approach that transfers the style of a source conversation to a target style using style-free conversations as pivots. Only a few non-parallel examples in source and target styles are needed for the purpose. We perform human and automatic evaluations to evaluate the style transfer quality for task-oriented dialogues on style strength, appropriateness, and semantic correctness. Quantitative and qualitative evaluations show that conversation style transfer yields more appropriate and semantically correct responses compared to utterancelevel style transfer, which is crucial when applying to chatbot personalization. Finally, the usage of conversation style transfer for domain adaptation of training data for downstream intent classification task showed improvement in F1 score.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>We construct styled-to-style-free parallel conversations manually using human supervision. This may be expensive to do when there are a large number of style domains. An automatic measure would be ideal for this purpose and this can be an interesting future work.</p><p>We ran our experiments only on one language, English. Various steps of the approach may be dif-ficult to perform if style transfer is done in other languages as styles in different languages depend highly on social cultures and norms. That is mostly because most of the Large Language Models are pre-trained only on English text and may not perform well in other languages. Replicating this study in other languages may be an interesting future work.</p><p>New LLMs of different parameter sizes have been proposed in recent times. Replicating our study with other available LLMs of different parameter sizes can be an interesting future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>In this paper, we did not annotate any new dataset rather we ran our models on publicly available datasets. The DSTC11 dataset is licensed under the Apache-2.0 License and the TWCS dataset is licensed under CC BY-NC-SA 4.0, both allow noncommercial use and distribution. The dataset references are cited and we provide detailed statistics of the dataset used.</p><p>The examples shown in Table <ref type="table" target="#tab_0">1</ref> are from real customer care agents from different companies and are taken from the TWCS dataset. The examples from these companies were selected only for studying the problem using real data, the authors in this paper have no connection to these companies. Note that, the identity of the individual agents is hidden in the original dataset. Hence, it does not contain any personal identification information. The signatures of names at the end of the response by the Chipotle agents from the TWCS dataset are already altered to hide the actual identity of the agents.</p><p>We performed a human evaluation of our proposed models in this paper. We made sure that the human evaluation UIs do not impose any cognitive bias towards a specific model. We ensured that by hiding model names, shuffling orders of model outputs, and so on. We provide inter-annotator agreement scores and the detailed human evaluation process in the paper and in the appendix. Corresponding appendices are appropriately referred to in the paper.</p><p>The model descriptions and all hyper-parameter details are provided in the paper. Hence, we believe our results are reproducible.</p><p>Any generated texts that are reported as examples in this paper are the outputs of machine learning models and do not represent the authors' or the organization's viewpoints in any way.</p><p>Language models are pre-trained on large amounts of human-generated text. Hence, recent studies <ref type="bibr" target="#b2">(Blodgett et al., 2020;</ref><ref type="bibr" target="#b5">Brown et al., 2020)</ref> have discussed that there may be inherent social and human biases in these models. However, probing the increasing number of Large Language Models for biases is a separate and broad research area and falls outside the scope of our study in this paper.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Prompting</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Prompt Structure</head><p>The structure of prompts for various versions of our model for converting a source conversation to style free conversation are shown in Figure <ref type="figure">3</ref>. The prompt structures for converting style free conversation to the target style are shown in Figure <ref type="figure">4</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Prompt Example</head><p>Examples for all types of prompt structures (as shown in Figure <ref type="figure">3</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Example Conversations from Various Domains</head><p>Example conversations for chatbot style (referred to as B) and the two human styles H 1 , H 2 are shown in Figure <ref type="figure" target="#fig_0">12</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 PMI-based Style Indicator Lemma Identification</head><p>For the identification of style indicator lemmas for each style domain, we use a Pointwise Mutual Information (PMI) <ref type="bibr" target="#b7">(Church and Hanks, 1990)</ref> based approach. We first take all of the agent utterances from each style domain and lemmatize each word used by the agents using the spaCy Python library. We ignore all punctuations and stopwords. Then for a lemma, w we calculate the pointwise mutual information (PMI) with a style domain t, I(w, t) using the following formula.</p><p>I(w, t) = log P (w|t) P (w)</p><p>Where P (w|t) is computed by taking all lemmas used in style t and computing count(w) count(all-lemmas) and similarly, P (w) is computed by counting lemma w over the set of utterances in all styles. Now, we rank lemmas for each style domain based on their PMI scores. To remove topic-specific lemmas and rarely used lemmas, we ignore lemmas that are used in more than 10% of the agent utterances in each style domain and used less than 0.5%, 0.3%, 0.3% of the time in case of styles H 1 , B, H 2 , respectively. The top 300 high PMI lemmas for each style domain are reported in Table <ref type="table" target="#tab_0">11</ref>. Hand-picked style indicator lemmas from this top 300 list are shown in Table <ref type="table" target="#tab_4">4</ref>. examples and prompt selection techniques by the automatically measured style strength of the target style after style transfer. We run this ablation study on the validation dataset shown in Table <ref type="table" target="#tab_6">5</ref> and use GPT-NeoX as the base LLM as it is cheaper to use compared to Bigscience-Bloom. The results are shown in Table <ref type="table" target="#tab_0">13</ref>. It can be seen that dynamic prompt selection outperforms random prompt selection in all of the cases. The optimum number of shots for utterance level style transfer and 2turns conversation level style transfer is 10 and for 4/5-turns conversation level style transfer it is 8.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Human Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1 Data Selection for Human Evaluation</head><p>Our goal with human evaluation is to compare different models. We used the test dataset described in Table <ref type="table" target="#tab_6">5</ref> for human evaluation. Note that the same conversation segments are used to evaluate various versions of our model and the baseline using GPT-NeoX and Bloom as LLMs. We evaluate only agent responses and we apply two types of filtering step on these datasets before human evaluation.</p><p>Filtering Step 1: When doing style transfer at 4/5-turn conversation level, it may result in non-parallel conversation compared to the source conversation because of turn reduction by the model. To match the non-parallel utterances with the source utterances, we rank the style transferred utterances based on their semantic similarity with the source utterances and pick the one with the highest similarity. We discard any style transferred utterance that has the highest semantic similarity of less than 0.2. Looking manually at those utterances it was observed that those were unrelated utterances generated by the LLMs.</p><p>Filtering Step 2: We filtered out all agent responses where none of the models (including the baseline) changes the source agent utterances or when the style transferred versions were the same from all models.</p><p>Application of the above two filtering steps resulted in 100+ agent utterances in each style direction. We perform the human evaluation on this filtered set. The statistics of the data after each Figure <ref type="figure">6</ref>: Prompt structure for transferring a style free conversation to the target style (in human agent style, H 1 ) using various versions of our model. For simplicity, 3, 2, 1 shots prompts are shown in case of utterance level style transfer, 2-turns conversation level style transfer and 4/5-turns conversation level style transfer, respectively.</p><p>Styles High PMI style indicator lemmas (written in descending order of the PMI scores) <ref type="bibr">receive, mister, payment, course, moment, correct, alright, sorry, nineteen, ready, process, agent, assist, due, anything, else, high, social, file, auto, claim, actually, website, thirty, dot, com, got, pull, mother, maiden, dollar, twenty, premium, mail, digit, ahead, rest, kindly, bye, monthly, second, choose, complete, proceed, basic, preferred, coverage, rate, quote, spell, life, petcare, eighty, offer, month, system, fifty, mhm, cancel, uh, log, um, survey, worry, huh, password, reset, morning, pleasure, easy, confirmation, sir, confirm, goodbye, fine, cost, ok, afternoon, number, yes, information, name, problem, great, may, need, today, understand, call, help, day, miss, yeah, take, also, add, update, rivertown, insurance, perfect, hold, oh, minute, say, well, enjoy, year, full, end, customer, find, thing, option, mean, go, send, good, bill, sure, care, thank, look, nice, change, pet, long, set, cover, see, provide, glad, use, get, account, still, mind, right, hello, contact, pay, way, online, think, link, back, tell, let, security, hope, definitely, next, speak, damage, come, start, happy, check, service, able, question, home, time, ask, email, policy, want, welcome, work, know, give, sound, billing, plan, make, try, first, hear, last, answer, please, detail, new, phone, car, birth, card, address, date, much, code, zip, happen, accident, type, credit B apartment, street, routing, relationship, state, live, mileage, complex, unit, rough, estimation, value, property, insure, insured, person, pass, cause, death, city, ssn, condo, frequency, period, checking, save, bank, expiration, vehicle, gender, tobacco, consumption, level, height, weight, amount, preexist, condition, driver, license, incident, enroll, dependent, health, breed, age, weigh, group, additional, purpose, doctor, total, enrol, encounter, model, cvv, issue, charge, away, credit, type, accident, zip, code, date, address, card, much, birth, car, visit, phone, new, answer, happen, last, first, billing, plan, please, give, policy, home, email, question, damage, start, detail, security, service, welcome, want, make, pay, hello, time, account, cover, set, check, pet, provide, bill, change, customer, year, know, insurance, rivertown H 2 every, though, note, touch, team, cool, lot, hopefully, never, remove, barbacoa, bring, ca, bean, 3, chat, manager, reach, steak, order, enough, feel, free, restaurant, really, inconvenience, always, feedback, management, loop, hand, exact, apology, leave, request, ounce, unprocessed, queso, wow, totally, particular, rice, keep, week, playlist, fan, hit, seem, improve, cheese, put, line, cs, black, taco, asap, item, odd, quick, frustrating, salsa, guest, unfortunately, stay, tuned, hey, sign, disappointing, meat, awesome, case, troubling, standard, specific, tortilla, guy, side, stop, solid, choice, man, already, foil, shoot, late, shortly, wrong, fresh, kind, wish, lunch, least, bad, usually, hour, little, dig, hesitate, sofritas, dinner, luck,future, double, gon, na, eat, place, far, ta, depend, suggestion, special, word, ah, gotcha, early, select, veggie, open, concern, friend, write, share, yet, amend, sad, serve, love, follow, menu, ingredient, chip, guac, burritos, meal, bowl, dm, soon, location, appreciate, area, trouble, portion, chicken, chipotle, different, people, bag, leadership, talk, dj, food, message, burrito, ever, real, fix, close, recipe, maybe, list, hang, someone, experience, info, something, bummer, wait, extra, hard,app, field, leaders, visit, away, charge, issue, hear, try, sound, happen, work, know, ask, able, happy, come, detail, speak,make, next, definitely, hope, let, tell, back, link, think, much, online, way, contact, right, mind, still, get, use, glad, check, see, time, welcome, long, want, nice, look, thank, care, sure, good, send, go, please, mean, option, thing, find, end, full, service, enjoy, well, say, minute, oh, hold, perfect, give, update, add, also, take, yeah, miss, day, help, call, new, understand, address, change, today, provide, start, need, phone, may, great, card, email, problem, date, customer, name, information, plan, yes, question, first, last, number</ref> Table 11: High PMI lemmas for each style domain. Bots (B) do not use many non-topic-specific words. Mostly formal words are used in human style H 1 and many informal and friendly words (e.g., bummer) are used in human style H 2 .  filtering step is shown in Table <ref type="table" target="#tab_15">14</ref>.</p><formula xml:id="formula_0">H 1 verify,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Human Evaluation Settings</head><p>Each data point was evaluated by three human evaluators. We worked with professional data linguists who are fluent in English. They were compensated at hourly basis which was in accordance with the standard compensation rate in the United States. They were first trained on the tasks. Specifically, they were briefed on what we mean by style strength, appropriateness, and semantic correctness. Worked-out examples were provided to them. The model names were hidden from the annotators and the four versions were presented in a randomly shuffled order for each example. For ranking-based evaluation in style strength and appropriateness, the human evaluators were instructed to rank the various style-transferred versions from various models based on their style strength and appropriateness. For example, when evaluating among 3 models, a rank of 1 means it has the highest style strength or Table <ref type="table" target="#tab_0">13</ref>: Ablation study for selecting number of shots and prompt selection method. Here, "N/S" means "Not Supported" because of token limit in prompt. GPT-NeoX was used as the base LLM in this ablation study. Dynamic prompt selection technique outperforms random prompt selection in all of the cases. The optimal number of shots for utterance level style transfer, 2-turns conversation level style transfer, and 4/5-turns conversation level style transfer are 10, 10, and 8 respectively. appropriateness and a rank of 3 means the lowest style strength or appropriateness. The annotators were instructed to provide two style-transferred versions the same rank if they were equal in style strength or appropriateness. For the evaluation of semantic correctness, the human evaluators were presented with the source utterance and the styletransferred versions of the source utterance by each of the models. Then we asked them for each style transferred version if it is semantically similar, partially similar, or dissimilar to the source utterance. Each data point in all of the evaluation metrics is evaluated by three human evaluators. The annotation UIs for style strength, appropriateness, and semantic correctness evaluation tasks are shown in Figures <ref type="figure" target="#fig_5">8,</ref><ref type="figure" target="#fig_6">9</ref>, 10, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3 Inter-Annotator Agreement</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3.1 Style Strength and Appropriateness</head><p>For measuring the inter-annotator agreement in ranking evaluations for style strength and appropriateness, we use Spearman's Rank Correlation Coefficient <ref type="bibr" target="#b34">(Zar, 2005)</ref>. We take the average Spearman's Rank Correlation Coefficient between each pair of human annotators for each data point as an agreement measure. It ranges from -1 to +1 where -1 means absolute disagreement and +1 means absolute agreement.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3.2 Semantic Correctness</head><p>For measuring inter-annotator agreement in semantic correctness evaluation task which is categorical, we use Krippendorff's α <ref type="bibr" target="#b14">(Krippendorff, 2004)</ref>. It  ranges from -1 to +1 where α = +1 means perfect agreement, and α = -1 means no agreement.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3.3 Agreement Scores</head><p>The inter-annotator agreement in all of the tasks are shown in Table <ref type="table" target="#tab_7">6</ref>. Note that, for calculating agreement in the semantic correctness evaluation task, all of the data points are aggregated to measure the agreement score as they represent categorical evaluation measures. On the other hand, that is not possible in case of ranking based evaluations for style strength and appropriateness. So, we measure the agreement for each data point and take the average agreement over all data points. We can see in the Table <ref type="table" target="#tab_7">6</ref> that in all of the cases we get strong agreement (&gt; 0.70) among the annotators for the style strength and appropriateness evaluation. The only exception is the case of style strength evaluation task in the direction of H 1 → H 2 , using the GPT-NeoX model. The agreement score is slightly lower (0.69) in this case. Our insight is that these two directions are basically human styles and difference between them is very subtle. As a result, it is difficult for humans as well to differentiate among them. This pattern is observed when doing the automatic evaluation as well.</p><p>In case of semantic correctness evaluation task, we always get strong agreement among annotators (&gt; 0.75).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.4 Scaling Ranking Scores</head><p>In the style strength and appropriateness evaluation tasks we use ranking based measure among the output from various models. For example, when evaluating among 3 models, a rank of 1 means it has highest style strength or appropriateness and a rank of 3 means the lowest style strength or appropriateness. We scale these rank scores in the range between 0 to 1 where a higher score means higher style strength or appropriateness. The ranking were scaled for each data point using the following formula.</p><p>For each data point, if the number of versions to be ranked is k and ranking of a version i (i ∈ 1, ..., k) is r i , then the reverse rank score, r rev i = kr i + 1. Now, the scaled rank score, r scaled i = r rev i -min j∈1,...,k r rev j max j∈1,...,k r rev j -min j∈1,...,k r rev j . We average over all human evaluators' scaled ranking score to get the final scaled ranking score for a data point.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.5 Pairwise Comparison Among Models</head><p>The pairwise comparison among various versions of the models for style strength and appropriateness are shown in Table <ref type="table" target="#tab_16">15</ref>. This table represents the statistics on the percentage of time a model is ranked higher in the style strength and appropriateness evaluation by humans, than the other in a pair-wise manner.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Downstream Application: Intent Classification E.1 Dataset</head><p>We take the three domains of DSTC11 dataset namely, Insurance, Banking and Finance for this task. In this dataset, mostly the customer utterances are annotated for intents. We take the human-tohuman conversations as training data and human-tobot conversations as test data. We consider intent classes having at least 20 training utterances for this study. Then we randomly select 90% of training data from each intent class as training set and select rest of the 10% as validation set. The training, test and validation data statistics for each of the domains are shown in Table <ref type="table" target="#tab_17">16</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2 Few-Shot Style Transfer of Training Data</head><p>In this dataset, mostly customer utterances are annotated for intent classes. So, we perform few-shot style transfer of the customer utterances only, using the same procedure that we followed for agent utterances style transfer. We found out that customers are more conversational when talking to a human agent compared to when talking to a chatbot agent. So, we use few-shot customer utterances from the human-to-bot conversations to transfer the style of customers in human-to-human conversations. Then use this style transferred data for training an intent classifier. We use a 10-shot setting with dynamic prompt selection based on semantic similarity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.3 Intent Classification Results</head><p>We compare the performance of the intent classifier when trained on human-to-human conversations vs. training on human-to-human conversations that are transferred to human-to-bot style. We ran an ablation where we experimented with utterance level style transfer and 2-turns conversation level style transfer as these two methods yielded better style strength in our studies. We ran this ablation using only banking and finance domains out of the thee domains. The classification was done 10 times with 10 random seeds for each domain. A RoBERTabased <ref type="bibr" target="#b15">(Liu et al., 2019)</ref> text classifier was used to perform the intent classification task. We encoded each utterance using RoBERTa where the embedding of the [CLS] token of the last layer was used as a representation of the utterance. This representation was used for intent classification. The average classification results are shown in Table <ref type="table" target="#tab_19">17</ref>.</p><p>Overall, the utterance level style transfer yields the best intent classification results as it achieves the best style strength of the test domain (human-to-bot style).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F LLM Hyperparameters and Infrastructure Used</head><p>We use top-k sampling with temperature, t <ref type="bibr" target="#b12">(Holtzman et al., 2019)</ref> as a decoding method for the large language models. t = 0.1 was set for all of our experiments. We ran all of the experiments using PyTorch. Both Bloom and GPT-NeoX were run on a computation node with 8 A100 GPUs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G Style Transfer Evaluation Results</head><p>Table <ref type="table" target="#tab_20">18</ref> and Table <ref type="table" target="#tab_21">19</ref> presents human and automatic evaluation results for various evaluation metrics with standard deviations. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>H Qualitative Examples</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>I Error Analysis for Bigscience-Bloom</head><p>Examples of some common types of errors observed in 4/5-turns conversation level style transfer using Bigscience-Bloom are shown in Table <ref type="table">20</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>J Style Discriminator Models</head><p>We train RoBERTa-based binary text classifiers to classify between the source and the target styles.</p><p>Training data for these classifiers are obtained from the residual data after selecting the test and the validation sets as described in Table <ref type="table" target="#tab_6">5</ref>. We treat the confidence scores of these classifiers as the style strength scores. We balance the training data for both of the classes when training these classifiers. For training the classifiers to differentiate between styles (H 1 , B), (H 1 , H 2 ), (H 2 , B), we randomly sampled 4, 875, 1, 792 and 1, 792 agent utterances from each class, respectively. 10% of the data were held out as a validation set. We  </p><formula xml:id="formula_1">GPT-NeoX (20B) Bigscience-Bloom (176B) Style Directions U &gt; C1 U &gt; C2 C1 &gt; U C1 &gt; C2 C2 &gt; U C2 &gt; C1 U &gt; C1 U &gt; C2 C1 &gt; U C1 &gt; C2 C2 &gt; U C2 &gt; C1</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>K Effect on Observed Style Properties after Style Transfer</head><p>In this section, we examine the effect of style transfer on the observed style properties as described in Table <ref type="table">3</ref>. Note that, our main observation in this paper is that conversation styles are difficult to determine and characterize using a fixed set of attributes (as described in Sections 2 and 4). However, we examine the effect of style transfer on the observed properties in Table <ref type="table">3</ref> for the sake of completeness of our experiments and sanity checking of our models' performances. As described in Section 4, conversation styles are rather holistic and the true style of the domains H 1 , H 2 , and B go beyond these observed properties and they are difficult to characterize using a fixed set of attributes.</p><p>We present the effect of style transfer on crispness, diversity in vocabulary, and the structural attribute -signing names at the end of responses in Table <ref type="table" target="#tab_0">21</ref>. We have observed in Table <ref type="table">3</ref> that chatbot agent (B) responses are crisper than human agent responses (H 1 , H 2 ). It can be observed in Table <ref type="table" target="#tab_0">21</ref> that when transferring from human style (H 1 ) to chatbot style (B), the average number of words per agent turn is decreased by all of the models to make them crisp. Conversely, the number of average words per agent turn is increased by most of the models when transferring from chatbot style (B) to human styles (H 1 , H 2 ) to make them more conversational.</p><p>We also observed in Table <ref type="table">3</ref> that human agents use diverse vocabulary compared to chatbot agents. Consequently, we observe in Table <ref type="table" target="#tab_0">21</ref> that vocabulary is made less diverse (compressed) when transferring from human (H 1 ) to chatbot style (B) and more diverse (expanded) when transferring from chatbot (B) to human styles (H 1 , H 2 ).</p><p>Signing names at the end of a response is a unique structural style property of the style H 2 (Table <ref type="table">3</ref>), hence, this style property is obtained by the models only when transferring a source style to  yes-partially-no yes-partially-no yes-partially-no yes-partially-no yes-partially-no yes-partially-no H1 → B 0.885-0.026-0.089 0.938-0.009-0.053 0.920-0.027-0.053 0.948-0-0.052 0.974-0-0.026 0.767-0.035-0.198 H1 → H2 0.921-0.007-0.071 0.964-0.007-0.029 0.943-0.021-0.036 0.894-0.009-0.097 0.956-0-0.044 0.841-0.009-0.150 B → H1 1-0-0 0.980-0-0.020 0.961-0.019-0.020 1-0-0 0.968-0-0.032 0.862-0-0.138 B → H2 0.993-0-0.007 1-0-0 1-0-0 1-0-0 0.992-0-0.008 0.880-0-0.120 Average 0.95-0.008-0.042 0.97-0.004-0.026 0.956-0.017-0.027 0.961-0.002-0.037 0.973-0-0.027 0.838-0.011-0.151 H 2 . We can observe in Table <ref type="table" target="#tab_0">21</ref> that all models successfully achieve this property when transferring a source style to the style H 2 except in the 4/5conversation-level-style-transfer using Bigscience-Bloom.</p><p>This evaluation proves that the proposed models can successfully achieve the observed style properties during style transfer. Table <ref type="table" target="#tab_0">21</ref>: Effects of style transfer on the observed style properties such as crispness, diversity in vocabulary, and signature at the end of responses (as described in Table <ref type="table">3</ref>). Note that, signing names at the end of a response is a unique structural style property of the style H 2 , hence, style property is obtained by the models only when transferring a source style to H 2 . The statistics are obtained on the test set as described in Table <ref type="table" target="#tab_6">5</ref>.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Transferring the style of an utterance from chatbot to human agent style based on three utterancelevel (single-turn) and conversation-level (multi-turn) examples as input. Additional conversational context helps the style transfer model to yield a more appropriate response as the dialogue contains useful information that can be leveraged during the generation process.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>and Figure 4) are shown in Figures 5 and 6.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Prompt examples for transferring a source conversation (in chatbot agent style, B) to a style free conversation using various versions of our model. For simplicity, 3-shot, 3-shot, and 2-shot prompts are shown in case of utterance level style transfer, 2-turns conversation level style transfer and 4/5-turns conversation level style transfer, respectively.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Example conversations from three domains (B, H 1 , H 2 ) are shown in the left hand side. Human annotated style-free versions of the corresponding conversations are shown in the right hand side. This parallel data is used for in-context learning. Here, H 1 , H 2 , B refer to human style from DSTC11 dataset, style of Chipotle agents (from TWCS dataset), and Chatbot style from DSTC11 dataset, respectively.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Human evaluation UI for the evaluation of style strength.</figDesc><graphic coords="18,70.87,70.86,453.55,242.00" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Human evaluation UI for the evaluation of appropriateness.</figDesc><graphic coords="18,70.87,346.73,453.55,242.00" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 10 :</head><label>10</label><figDesc>Figure 10: Human evaluation UI for the evaluation of semantic correctness.</figDesc><graphic coords="19,70.87,70.87,453.52,456.35" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 11</head><label>11</label><figDesc>Figure 11 presents style transfer examples in all directions by various versions of our model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Example of conversations of customer care agents from the TWCS dataset that show the limitation of style definitions using fixed attributes, here Politeness. Chipotle and VirginTrains customer care agents get roughly the same politeness score by an off-the-shelf politeness classifier<ref type="bibr" target="#b8">(Danescu-Niculescu-Mizil et al., 2013)</ref>, however, intuitively their style attributes are different as shown in the third column.</figDesc><table><row><cell>Example</cell><cell></cell><cell>Average</cell><cell>Intuitive style</cell></row><row><cell>conversations</cell><cell cols="2">politeness</cell><cell>attributes</cell></row><row><cell>CHIPOTLE [Customer] $3 burritos and I'm nowhere near a Chipotle [Agent] Bummer. I'm so sorry. How far away is the clos-est location? -Becky</cell><cell></cell><cell>0.51</cell><cell>Friendly, Conversational, Not-impolite</cell></row><row><cell>COMCAST</cell><cell></cell><cell></cell></row><row><cell>[Customer] My internet is down and xfinity talkin about</cell><cell></cell><cell></cell></row><row><cell>24-72 hours... y'all have the game messed up. [Agent] I understand this is a frustrating experience,</cell><cell></cell><cell>0.77</cell><cell>Formal, Task-oriented</cell></row><row><cell>please send a DM with your account information so I can</cell><cell></cell><cell></cell></row><row><cell>look into this matter for you</cell><cell></cell><cell></cell></row><row><cell cols="2">VIRGINTRAINS [Customer] See attached error message. I've tried leaving a voicemail several times in the past week. [Agent] Have you tried from another device?</cell><cell>0.50</cell><cell>Direct, To-the-point, Bot-like</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4</head><label>4</label><figDesc></figDesc><table><row><cell>: High PMI style indicator lemmas for each</cell></row><row><cell>style domain (details on PMI calculation can be found</cell></row><row><cell>in Appendix B.1). We can observe that chatbots (B)</cell></row><row><cell>are crisp and do not use many non-topic-specific words.</cell></row><row><cell>Mostly formal words are used in human style H 1 , and</cell></row><row><cell>many informal and friendly words (e.g., bummer) are</cell></row><row><cell>used in human style H 2 . Example conversations of each</cell></row><row><cell>style can be found in Appendix B.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Validation and test data statistics. Long conversations are divided into small segments consisting of 4-5 turns. We cover four style transfer directions to/from two human styles (H 1 , H 2 ) and bot style (B).</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>Inter-annotator agreement scores for the three human evaluation tasks. Standard deviations over all data points are shown in brackets for the style strength and appropriateness evaluation tasks. The detailed procedure for calculating the agreement scores can be found in Appendix D.</figDesc><table><row><cell></cell><cell></cell><cell>GPT-NEOX (20B)</cell><cell></cell><cell cols="2">BIGSCIENCE-BLOOM (176B)</cell><cell></cell></row><row><cell>Style Directions</cell><cell cols="6">Appropriateness Style Strength Semantic Correct. Appropriateness Style Strength Semantic Correct.</cell></row><row><cell>H 1 → B</cell><cell>0.98 (0.06)</cell><cell>0.88 (0.26)</cell><cell>0.80</cell><cell>0.96 (0.15)</cell><cell>0.82 (0.33)</cell><cell>0.78</cell></row><row><cell>H 1 → H 2</cell><cell>0.97 (0.06)</cell><cell>0.69 (0.31)</cell><cell>0.87</cell><cell>0.96 (0.08)</cell><cell>0.81 (0.23)</cell><cell>0.76</cell></row><row><cell>B → H 1</cell><cell>1 (0.02)</cell><cell>0.86 (0.12)</cell><cell>0.95</cell><cell>0.98 (0.08)</cell><cell>0.75 (0.27)</cell><cell>0.87</cell></row><row><cell>B → H 2</cell><cell>0.97 (0.05)</cell><cell>0.90 (0.08)</cell><cell>0.99</cell><cell>0.97 (0.14)</cell><cell>0.91 (0.08)</cell><cell>0.89</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 :</head><label>7</label><figDesc></figDesc><table /><note><p>Comparison between dynamic and random prompt selection on target style strength across utterance and conversation level style transfers.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 8 :</head><label>8</label><figDesc>Human evaluation results for utterance level (baseline) and conversation level style transfer with GPT-NeoX and Bloom LLMs using our model. The best average scores over all style dimensions are marked in bold. Utterance level style transfer achieves higher style strength but conversation level style transfers yield more appropriate and semantically correct responses. Statistics with standard deviations can be found in Appendix G.</figDesc><table><row><cell>Human Evaluation Scores</cell></row></table><note><p><p><p>Example-1</p>Previous Turn: [Customer] I don't think so. Oh! Yes, when will I get new cards for my son?</p>[Agent] I'm sorry to hear that. Can you please let me check on that for you? -</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 9 :</head><label>9</label><figDesc></figDesc><table /><note><p>Qualitative error analysis on hand-picked examples. Human evaluation scores associated with the output of various versions of the model (using Bigscience-Bloom as the LLM) are shown in the three rightmost columns. A score of 1 means the most appropriate or most target style strength.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 14 :</head><label>14</label><figDesc>Dataset statistics for human evaluation.</figDesc><table><row><cell></cell><cell></cell><cell cols="2">GPT-NEOX (20B)</cell><cell></cell><cell></cell><cell cols="2">BIGSCIENCE-BLOOM (176B)</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>No of agent</cell><cell>No of agent</cell><cell></cell><cell></cell><cell>No of agent</cell><cell>No of agent</cell></row><row><cell>Style</cell><cell>No of</cell><cell>No of agent</cell><cell>utterances</cell><cell>utterances after</cell><cell>No of</cell><cell>No of agent</cell><cell>utterances</cell><cell>utterances after</cell></row><row><cell>Directions</cell><cell>segments</cell><cell>utterances</cell><cell>after filtering</cell><cell>filtering step-1 &amp;</cell><cell>segments</cell><cell>utterances</cell><cell>after filtering</cell><cell>filtering step-1 &amp;</cell></row><row><cell></cell><cell></cell><cell></cell><cell>step-1</cell><cell>filtering step-2</cell><cell></cell><cell></cell><cell>step-1</cell><cell>filtering step-2</cell></row><row><cell>H 1 → B</cell><cell>65</cell><cell>164</cell><cell>135</cell><cell>113</cell><cell>65</cell><cell>164</cell><cell>117</cell><cell>116</cell></row><row><cell>H 1 → H 2</cell><cell>65</cell><cell>166</cell><cell>141</cell><cell>140</cell><cell>65</cell><cell>166</cell><cell>115</cell><cell>113</cell></row><row><cell>B → H 1</cell><cell>65</cell><cell>152</cell><cell>139</cell><cell>102</cell><cell>65</cell><cell>152</cell><cell>128</cell><cell>123</cell></row><row><cell>B → H 2</cell><cell>65</cell><cell>152</cell><cell>134</cell><cell>134</cell><cell>65</cell><cell>152</cell><cell>129</cell><cell>125</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_16"><head>Table 15 :</head><label>15</label><figDesc>Human evaluation results on style strength and appropriateness. The table presents a pair-wise comparison among three versions of our model -utterance level style transfer (denoted as U ), 2-turns conversation level style transfer (denoted as C 1 ), and 4/5-turns conversation level style transfer (denoted as C 2 ). Each cell represents the % of time a model is ranked higher than the other by the human evaluators. For example, column U &gt; C 1 represents the % of time the utterance level style transfer model is ranked higher than the 2-turns conversation level style transfer.</figDesc><table><row><cell>Style Strength</cell><cell>H1 → B H1 → H2 B → H1 B → H2 Average</cell><cell>31.0 24.3 14.7 62.7 33.2</cell><cell>48.7 31.4 44.1 67.9 48.0</cell><cell>11.5 24.3 13.7 1.5 12.8</cell><cell cols="2">30.1 19.3 44.1 28.4 30.5</cell><cell>12.4 25.7 17.6 3.0 14.7</cell><cell>9.7 16.4 20.6 3.7 12.6</cell><cell>25.9 15.9 35.0 34.4 27.8</cell><cell>37.1 67.3 26.0 78.4 52.2</cell><cell>5.2 31.0 17.9 17.6 17.9</cell><cell>26.7 69.9 21.1 74.4 48.0</cell><cell>16.4 13.3 46.3 2.4 19.6</cell><cell>21.6 8.8 48.8 3.2 20.6</cell></row><row><cell>Appropriate.</cell><cell>H1 → B H1 → H2 B → H1 B → H2</cell><cell>3.5 2.1 1.0 0.0</cell><cell>1.8 3.6 2.0 3.7</cell><cell>9.7 27.1 0.0 60.4</cell><cell>3.5 4.3 2.0 3.7</cell><cell></cell><cell>8.8 29.3 0.0 59.7</cell><cell>5.3 3.6 1.0 0.0</cell><cell>3.4 6.2 4.1 4.0</cell><cell>6.0 5.3 7.3 5.6</cell><cell>5.2 13.3 0.0 8.8</cell><cell>6.0 5.3 6.5 5.6</cell><cell>6.9 14.2 1.6 9.6</cell><cell>4.3 7.1 4.1 4.8</cell></row><row><cell></cell><cell>Average</cell><cell>1.7</cell><cell>2.8</cell><cell>24.3</cell><cell>3.4</cell><cell></cell><cell>24.5</cell><cell>2.5</cell><cell>4.4</cell><cell>6.1</cell><cell>6.8</cell><cell>5.9</cell><cell>8.1</cell><cell>5.1</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Insurance</cell><cell>Banking</cell><cell></cell><cell></cell><cell>Finance</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>(21 classes)</cell><cell cols="2">(9 classes)</cell><cell cols="2">(23 classes)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3"># of train. utterances</cell><cell>849</cell><cell>1095</cell><cell></cell><cell></cell><cell>1169</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3"># of valid. utterances</cell><cell>106</cell><cell>124</cell><cell></cell><cell></cell><cell>142</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2"># of test utterances</cell><cell></cell><cell>653</cell><cell>144</cell><cell></cell><cell></cell><cell>756</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_17"><head>Table 16 :</head><label>16</label><figDesc>Intent classification dataset statistics.</figDesc><table><row><cell>encoded each agent utterance using a RoBERTa</cell></row><row><cell>model where the embedding of the [CLS] token</cell></row><row><cell>of the last layer was used as a representation of</cell></row><row><cell>the utterance. We used this representation for the</cell></row><row><cell>classification of the style domain. We stopped train-</cell></row><row><cell>ing when the validation accuracy did not improve</cell></row><row><cell>for consecutive two epochs. The validation ac-</cell></row><row><cell>curacy of the classifiers to differentiate between</cell></row><row><cell>styles (H 1 , B), (H 1 , H 2 ), (H 2 , B) were 99.89%,</cell></row><row><cell>93.3% and 100%, respectively. Note that, style H 2</cell></row><row><cell>has a unique property that each agent signs their</cell></row><row><cell>name after their responses preceded by a hyphen. If</cell></row><row><cell>we train a classifier to identify style H 2 , it always</cell></row><row><cell>yielded an accuracy of 100% because of the spe-</cell></row><row><cell>cific signature format. As a result, other stylistic</cell></row><row><cell>properties such as vocabulary usage, crispness, con-</cell></row><row><cell>versational, and so on were missed out by the style</cell></row><row><cell>classifier. Hence, for training the classifiers involv-</cell></row><row><cell>ing this style class, we removed these signatures as</cell></row><row><cell>a preprocessing step.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_18"><head></head><label></label><figDesc>F1 score on test data (human-to-bot conversations)</figDesc><table><row><cell>Training data</cell><cell cols="3">Insurance (21 classes)</cell><cell></cell><cell cols="2">Banking (9 classes)</cell><cell cols="2">Finance (23 classes)</cell></row><row><cell></cell><cell>Macro F1</cell><cell cols="3">Micro F1 Weighted F1 Macro F1</cell><cell cols="3">Micro F1 Weighted F1 Macro F1</cell><cell>Micro F1 Weighted F1</cell></row><row><cell>hum.-to-hum. conv.</cell><cell cols="2">92.39 (0.5) 92.96 (0.4)</cell><cell>92.46 (0.5)</cell><cell cols="2">94.43 (2.1) 94.44 (2.0)</cell><cell>94.43 (2.1)</cell><cell cols="2">89.70 (0.6) 91.23 (0.6)</cell><cell>90.49 (0.5)</cell></row><row><cell>hum.-to-hum. conv. transferred</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>to hum.-to-bot style using 2-turns</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell cols="2">94.70 (1.7) 94.80 (1.7)</cell><cell>94.70 (1.7)</cell><cell cols="2">89.60 (0.8) 91.20 (0.6)</cell><cell>90.40 (0.6)</cell></row><row><cell>conversation level style transfer</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>hum.-to-hum. conv. transferred</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>to hum.-to-bot style using utter-</cell><cell cols="2">92.96 (0.5) 93.51 (0.5)</cell><cell>93.00 (0.5)</cell><cell cols="2">97.70 (1.3) 97.71 (1.2)</cell><cell>97.70 (1.3)</cell><cell cols="2">89.92 (0.5) 91.08 (0.4)</cell><cell>90.34 (0.4)</cell></row><row><cell>ance level style transfer</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_19"><head>Table 17 :</head><label>17</label><figDesc>Detailed Intent classification results. The ablation between two types of models -utterance level style transfer and 2-turns conversation level style transfer was performed on two domains -banking and finance. Overall, utterance level style transfer yields the best intent classification F1 scores as it achieves the highest style strength score as the test domain (human-to-bot).</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">GPT-NeoX (20B)</cell><cell></cell><cell></cell><cell cols="2">Bigscience-Bloom (176B)</cell><cell></cell></row><row><cell></cell><cell>Style</cell><cell>Original</cell><cell>Utterance Level</cell><cell cols="2">Conversation Level Style Transfer</cell><cell>Original</cell><cell>Utterance Level</cell><cell cols="2">Conversation Level Style Transfer</cell></row><row><cell></cell><cell>Directions</cell><cell>Utterances</cell><cell>Style Transfer</cell><cell>2-turns convo.</cell><cell>4/5-turns convo.</cell><cell>Utterances</cell><cell>Style Transfer</cell><cell>2-turns convo.</cell><cell>4/5-turns convo.</cell></row><row><cell></cell><cell></cell><cell>Avg. rank score</cell><cell>Avg. rank score</cell><cell>Avg. rank score</cell><cell>Avg. rank score</cell><cell>Avg. rank score</cell><cell>Avg. rank score</cell><cell>Avg. rank score</cell><cell>Avg. rank score</cell></row><row><cell>Style Strength</cell><cell>H1 → B H1 → H2 B → H1 B → H2 Average</cell><cell>0.392 (0.483) 0.15 (0.357) 0.574 (0.489) 0.043 (0.203) 0.290</cell><cell>0.864 (0.336) 0.854 (0.275) 0.851 (0.341) 0.989 (0.073) 0.890</cell><cell>0.714 (0.445) 0.855 (0.267) 0.846 (0.356) 0.805 (0.246) 0.805</cell><cell>0.561 (0.490) 0.838 (0.294) 0.690 (0.452) 0.690 (0.352) 0.695</cell><cell>0.435 (0.482) 0.125 (0.301) 0.378 (0.480) 0.024 (0.111) 0.241</cell><cell>0.876 (0.313) 0.895 (0.227) 0.692 (0.450) 0.958 (0.135) 0.855</cell><cell>0.719 (0.433) 0.924 (0.207) 0.622 (0.472) 0.897 (0.219) 0.791</cell><cell>0.720 (0.446) 0.538 (0.451) 0.856 (0.329) 0.484 (0.424) 0.650</cell></row><row><cell>Appropriate.</cell><cell>H1 → B H1 → H2 B → H1 B → H2</cell><cell>0.997 (0.054) 0.980 (0.139) 0.997 (0.057) 0.990 (0.099)</cell><cell>0.943 (0.231) 0.798 (0.402) 1.0 (0.0) 0.481 (0.500)</cell><cell>0.971 (0.169) 0.985 (0.121) 0.997 (0.057) 1.00 (0)</cell><cell>0.979 (0.142) 0.977 (0.147) 0.987 (0.114) 0.978 (0.148)</cell><cell>0.991 (0.092) 0.997 (0.054) 0.995 (0.073) 0.995 (0.073)</cell><cell>0.968 (0.175) 0.917 (0.275) 0.995 (0.073) 0.923 (0.267)</cell><cell>0.974 (0.159) 0.972 (0.163) 0.980 (0.139) 0.957 (0.202)</cell><cell>0.966 (0.183) 0.974 (0.161) 0.968 (0.177) 0.976 (0.153)</cell></row><row><cell></cell><cell>Average</cell><cell>0.991</cell><cell>0.806</cell><cell>0.988</cell><cell>0.980</cell><cell>0.995</cell><cell>0.951</cell><cell>0.971</cell><cell>0.971</cell></row><row><cell>Semantic Correct.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_20"><head>Table 18 :</head><label>18</label><figDesc>Human evaluation results for utterance level (baseline) and conversation level style transfer with GPT-NeoX and Bigscience-Bloom LLMs using our model. The best average score over all style dimensions are marked in bold. Utterance level style transfer achieves higher style strength but conversation level style transfers yield more appropriate and semantically correct responses.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">GPT-NeoX (20B)</cell><cell></cell><cell></cell><cell cols="2">Bigscience-Bloom (176B)</cell></row><row><cell></cell><cell>Style</cell><cell>Original</cell><cell>Utterance Level</cell><cell cols="2">Conversation Level Style Transfer</cell><cell>Original</cell><cell>Utterance Level</cell><cell cols="2">Conversation Level Style Transfer</cell></row><row><cell></cell><cell>Directions</cell><cell>Utterances</cell><cell>Style Transfer</cell><cell>2-turns convo.</cell><cell>4/5-turns convo.</cell><cell>Utterances</cell><cell>Style Transfer</cell><cell>2-turns convo.</cell><cell>4/5-turns convo.</cell></row><row><cell></cell><cell></cell><cell>Avg. target</cell><cell>Avg. target style</cell><cell>Avg. target style</cell><cell>Avg. target style</cell><cell>Avg. target</cell><cell>Avg. target style</cell><cell>Avg. target style</cell><cell>Avg. target style</cell></row><row><cell></cell><cell></cell><cell>style strength</cell><cell>strength</cell><cell>strength</cell><cell>strength</cell><cell>style strength</cell><cell>strength</cell><cell>strength</cell><cell>strength</cell></row><row><cell>Style Strength</cell><cell cols="2">H1 → B H1 → H2 0.129 (0.282) 0.038 (0.184) B → H1 0.001 (0.001) B → H2 0 Average 0.042</cell><cell>0.224 (0.406) 0.215 (0.349) 0.500 (0.493) 0.589 (0.464) 0.382</cell><cell>0.184 (0.373) 0.192 (0.340) 0.388 (0.485) 0.131 (0.324) 0.224</cell><cell>0.154 (0.358) 0.161 (0.308) 0.174 (0.377) 0 0.122</cell><cell>0.036 (0.181) 0.139 (0.200) 0.001 (0.001) 0 0.044</cell><cell>0.209 (0.400) 0.246 (0.370) 0.589 (0.485) 0.286 (0.386) 0.333</cell><cell>0.196 (0.388) 0.236 (0.381) 0.463 (0.496) 0.192 (0.342) 0.272</cell><cell>0.256 (0.427) 0.169 (0.308) 0.782 (0.410) 0.126 (0.328) 0.333</cell></row><row><cell>Semantic Correct.</cell><cell>H1 → B H1 → H2 B → H1 B → H2</cell><cell></cell><cell>Avg. semantic sim. to original utt. 0.827 (0.358) 0.774 (0.222) 0.860 (0.184) 0.749 (0.159)</cell><cell>Avg. semantic sim. to original utt. 0.875 (0.211) 0.842 (0.196) 0.844 (0.195) 0.801 (0.097)</cell><cell>Avg. semantic sim. to original utt. 0.912 (0.184) 0.875 (0.174) 0.919 (0.128) 0.828 (0.106)</cell><cell></cell><cell>Avg. semantic sim. to original utt. 0.795 (0.207) 0.752 (0.231) 0.863 (0.162) 0.756 (0.120)</cell><cell>Avg. semantic sim. to original utt. 0.855 (0.203) 0.802 (0.201) 0.850 (0.187) 0.748 (0.116)</cell><cell>Avg. semantic sim. to original utt. 0.778 (0.239) 0.793 (0.225) 0.787 (0.201) 0.781 (0.164)</cell></row><row><cell></cell><cell>Average</cell><cell></cell><cell>0.803</cell><cell>0.841</cell><cell>0.884</cell><cell></cell><cell>0.792</cell><cell>0.814</cell><cell>0.785</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_21"><head>Table 19 :</head><label>19</label><figDesc>Automatic style strength and semantic correctness evaluation results for utterance level (baseline) and conversation level style transfer with GPT-NeoX and Bigscience-Bloom LLMs using our model. Utterance level style transfer achieves higher style strength and conversation level style transfers yield more semantically similar responses.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_22"><head></head><label></label><figDesc>H 1 → B 12.76 ± 8.22 10.5 ± 8.43 11.47 ± 8.56 10.94 ± 8.43 9.12 ± 7.25 10.92 ± 8.35 8.63 ± 6.35 H 1 → H 2 12.76 ± 8.22 11.9 ± 7.43 12.05 ± 7.73 11.5 ± 7.55 11.02 ± 7.69 11.87 ± 7.41 9.22 ± 6.29</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Value after style transfer</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>GPT-NeoX (20B)</cell><cell></cell><cell cols="3">Bigscience-Bloom (176B)</cell></row><row><cell>Observed properties</cell><cell>Style directions</cell><cell>Value before style transfer</cell><cell>Utterance Level</cell><cell>2 Turns Conv. Level</cell><cell>4/5 Turns Conv. Level</cell><cell>Utterance Level</cell><cell>2 Turns Conv. Level</cell><cell>4/5 Turns Conv. Level</cell></row><row><cell>Avg. # of words</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>per agent turn (Crispness)</cell><cell>B → H 1 B → H 2</cell><cell>6.97 ± 1.85 6.97 ± 1.85</cell><cell>8.08 ± 3.96 9.18 ± 2.66</cell><cell>8.39 ± 3.94 6.71 ± 1.95</cell><cell>7.77 ± 3.86 6.53 ± 2.31</cell><cell>9.14 ± 4.66 8.75 ± 2.6</cell><cell>8.68 ± 4.11 7.6 ± 2.72</cell><cell>9.53 ± 7.07 5.69 ± 2.84</cell></row><row><cell></cell><cell>H 1 → B</cell><cell>527</cell><cell>477</cell><cell>489</cell><cell>458</cell><cell>424</cell><cell>488</cell><cell>371</cell></row><row><cell>Vocabulary size</cell><cell>H 1 → H 2</cell><cell>527</cell><cell>463</cell><cell>492</cell><cell>463</cell><cell>437</cell><cell>473</cell><cell>383</cell></row><row><cell>(Diversity)</cell><cell>B → H 1</cell><cell>97</cell><cell>106</cell><cell>126</cell><cell>149</cell><cell>125</cell><cell>139</cell><cell>186</cell></row><row><cell></cell><cell>B → H 2</cell><cell>97</cell><cell>125</cell><cell>103</cell><cell>119</cell><cell>117</cell><cell>145</cell><cell>134</cell></row><row><cell>% of responses with a signature at the end</cell><cell>H 1 → B H 1 → H 2 B → H 1 B → H 2</cell><cell>0% 0% 0% 0%</cell><cell>0% 100% 0% 100%</cell><cell>0% 100% 0% 100%</cell><cell>0% 96.08% 0% 89.73%</cell><cell>0% 99.40% 0% 100%</cell><cell>0% 98.19% 0% 99.34%</cell><cell>0% 58.74% 0% 61.54%</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>https://huggingface.co/bigscience/ bloom</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>We experiment with 5, 10, 20 examples in the prompt for utterance level style transfer and short segments, and</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_2"><p>4,8 examples for long segments on validation set. The best hyperparameters were 10, 10, and 8 for utterance-level, short segment, and long segment, respectively (Tab. 13, Appx. C).</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We gratefully acknowledge <rs type="person">Justin Sun</rs> for his help in setting up the LLMs and the members of the <rs type="institution">AWS AI Labs</rs> for providing valuable feedback on the project. We express our gratitude to the <rs type="institution">AWS AI Data Team</rs> for supporting us with the human evaluation. We would also like the thank the anonymous reviewers for their insightful comments.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Construction of parallel style free conversations using human supervision</head><p>A human annotator was presented with 5-7 conversations from each of the style domains (B, H 1 , H 2 ) and they were asked to rewrite those conversations in a style-free form. One parallel style-free example per style domain written by the human annotator is shown on the right-hand side of Figure <ref type="figure">7</ref>.</p><p>The human annotator is a researcher in NLP and it took approximately 5 minutes for them to rewrite a 10-12 turns conversation in a style-free format. These style-free parallel conversations are used for in-context learning as described in Section 3. The statistics of the annotated few shot examples per style domain are shown in Table <ref type="table">12</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Ablation Study</head><p>We perform ablation study to select number of shots and compare the effect of dynamic prompt selection. We experiment with 5, 10, 20 shot training for utterance level style transfer and 2-turns conversation level style transfer. Because of the limit of tokens in prompts we experiment with 4, 8 shot training for 4/5-turns conversation level style transfer. Note that with 4/5-turns context each training example contains many more tokens. In the cases of transferring to the second human style H 2 , 20 shot training is not supported because of the prompt limit and the conversations in this style being more conversational and greater in length. We measure the effectiveness of the number of training [Customer] Well Josh its not so good. For some reason you took out my payment four days early and for a higher amount and now my bank is overdrawn.</p><p>[Agent] I am sorry to hear that. I will help if I can. Let's start with the issue, I am assumung you use automatic billing service, correct?</p><p>[Customer] Obviously. It keeps changing days and now the bill is higher for some reason which I want to know why and now you cost me fees from my bank.</p><p>[Agent] Alright, how about you give me your full name, account number, and you date of birth?</p><p>[Agent] How can I help you? -James [Customer] Well Josh its not so good. For some reason you took out my payment four days early and for a higher amount and now my bank is overdrawn.</p><p>[Agent] I'm sorry to hear that. I will help if I can. Let's start with the issue, I'm assuming you use automatic billing service, correct? -AC</p><p>[Customer] Obviously. It keeps changing days and now the bill is higher for some reason which I want to know why and now you cost me fees from my bank.</p><p>[Agent] Thanks for the info. What is your full name, account number, and date of birth? -AC</p><p>[Agent] Hey, how can I help you? -AC [Customer] Well Josh its not so good. For some reason you took out my payment four days early and for a higher amount and now my bank is overdrawn.</p><p>[Agent] I'm sorry to hear that. I will help if I can. Let's start with the issue, I am assuming you use automatic billing service, correct? -AC</p><p>[Customer] Obviously. It keeps changing days and now the bill is higher for some reason which I want to know why and now you cost me fees from my bank.</p><p>[Agent] This is concerning. Can you please send me your full name, account number, and your date of birth? -AC</p><p>[Agent] How may I help you?</p><p>[Customer] I want to know why my payment was taken out four days early and for a higher amount.</p><p>-James</p><p>[Agent] I am sorry to hear that. Please write us at so we can follow up and make amends. -James (b) Style transfer from one human style (H1) to another human style (H2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Source Conversation in Chatbot Style (B)</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Conversation after style transfer to Human Style (H 1 ) Style transfer at utterance level Style transfer at 2-turns conversation level Style transfer at 4/5-turns conversation level</head><p>[Agent] How can I help you?</p><p>[Customer] hello, i want to pay your lastest bill.</p><p>[Agent] What period of time do you want to check your bill for?</p><p>[Customer] from last april til august 2020</p><p>[Agent] How much would you like to pay?</p><p>[Agent] Hello, thank you for calling Rivertown Insurance helpdesk. My name is Dale. How may I help you today?</p><p>[Customer] hello, i want to pay your lastest bill.</p><p>[Agent] Okay, so what period of time do you want to check your bill for?</p><p>[Customer] from last april til august 2020</p><p>[Agent] How much will you pay?</p><p>[Agent] Hello, thank you for calling Rivertown Insurance helpdesk. My name is Russ. How may I help you today?</p><p>[Customer] hello, i want to pay your lastest bill.</p><p>[Agent] Okay, what period of time do you want to check your bill for?</p><p>[Customer] from last april til august 2020</p><p>[Agent] How much will you pay?</p><p>[Agent] Thank you for calling Rivertown Insurance. This is Cecilia. How can I help you today?</p><p>[Customer] Hi. My name's Maria Jacobs. I'm on Walton Street. I think I need to pay your last bill.</p><p>[Agent] I can help you with that. Can you tell me what period of time you want to check your bill for?</p><p>[Customer] April to August 2020.</p><p>[Agent] How much would you like to pay?</p><p>[Customer] I would like to pay the full amount.</p><p>[Agent] Okay.</p><p>(c) Style transfer from one chatbot style (B) to human style (H1). [Agent] What is the amount of total charges?</p><p>[Customer] I think it's around $1,500.</p><p>[Agent] How much have you paid?</p><p>[Customer] The doctor's name is Raymond Price.</p><p>[Agent] I'm sorry to hear that. What is the total amount of charges? -AC</p><p>[Customer] I think it's around $1,500.</p><p>[Agent] That's really weird. We don't wanna be stingy. How much have you paid? -James</p><p>[Customer] The doctor's name is Raymond Price.</p><p>[Agent] What is the total amount of charges? -AC [Customer] I think it's around $1,500.</p><p>[Agent] That's a lot of money. How much have you paid? -James</p><p>[Customer] The doctor's name is Raymond Price. What is the amount of total charges?</p><p>[Agent] $1,500.</p><p>[Customer] How much have you paid?</p><p>[Agent] $1,000.   [Agent] That's not a problem. I can look it up for you!</p><p>[Customer] Great, thanks. Trying to register this car has been a nightmare. Hopefully this will be easier.</p><p>[Agent] I understand. When I registered mine it took almost a week. It was crazy.</p><p>[Agent] How may I help you?</p><p>[Customer] I need to register my car.</p><p>[Agent] May I have your policy number?</p><p>[Customer] I don't have it. . These three styles are holistically different. Some properties of the human styles are that they are conversational, sometimes formal, and sometimes casual and friendly. For example, the human style, H 2 is informal and friendly while the other human style, H 1 is formal while both of these two human styles are conversational. In human style H 2 , agents sign their names at the end of a response preceded by a hyphen. In the other human style, H 1 , this stylistic property is not observed. Some observed properties of the bot style are crispness and to-the-point while not being informal. The conversations in human style H 1 and bot style B presented in this table, are on the same situation showing the holistic difference between these two styles. Note that, the other human style H 2 is from a different domain, hence, a conversation on a similar situation could not be found.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Customer support on twitter</title>
+		<author>
+			<persName><forename type="first">Stuart</forename><surname>Axelbrooke</surname></persName>
+		</author>
+		<idno type="DOI">10.34740/KAGGLE/DSV/8841</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sid</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stella</forename><surname>Biderman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hallahan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Anthony</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leo</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurence</forename><surname>Golding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Horace</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Connor</forename><surname>Leahy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Mcdonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Phang</surname></persName>
+		</author>
+		<title level="m">Gpt-neox-20b: An open-source autoregressive language model. Challenges &amp; Perspectives in Creating Large Language Models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page">95</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Language (technology) is power: A critical survey of &quot;bias&quot; in nlp</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Solon</forename><surname>Blodgett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hal</forename><surname>Barocas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iii</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanna</forename><surname>Wallach</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5454" to="5476" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Large scale multi-actor generative dialog modeling</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Boyd</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raul</forename><surname>Puri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Shoeybi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostofa</forename><surname>Patwary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Catanzaro</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="66" to="84" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Olá, bonjour, salve! xformal: A benchmark for multilingual formality style transfer</title>
+		<author>
+			<persName><forename type="first">Eleftheria</forename><surname>Briakou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joel</forename><surname>Tetreault</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3199" to="3216" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Contextual text style transfer</title>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oussama</forename><surname>Elachqar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dianqi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingjing</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2915" to="2924" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Word association norms, mutual information, and lexicography</title>
+		<author>
+			<persName><forename type="first">Kenneth</forename><forename type="middle">Ward</forename><surname>Church</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Hanks</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="22" to="29" />
+			<date type="published" when="1990">1990</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A computational approach to politeness with application to social factors</title>
+		<author>
+			<persName><forename type="first">Cristian</forename><surname>Danescu-Niculescu-Mizil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moritz</forename><surname>Sudhof</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jure</forename><surname>Leskovec</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="250" to="259" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Neural approaches to conversational ai</title>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The 41st International ACM SIGIR Conference on Research &amp; Development in Information Retrieval</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1371" to="1374" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Structuring latent spaces for stylized response generation</title>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungjin</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Dolan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.05361</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Meet your favorite character: Opendomain chatbot mimicking fictional characters with only a few utterances</title>
+		<author>
+			<persName><forename type="first">Seungju</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beomsu</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename><forename type="middle">Yong</forename><surname>Yoo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seokjun</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sangbum</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enkhbayar</forename><surname>Erdenee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Buru</forename><surname>Chang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.377</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5114" to="5132" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The curious case of neural text degeneration</title>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Deep learning for text style transfer: A survey</title>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijing</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiting</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Vechtomova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rada</forename><surname>Mihalcea</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">48</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="155" to="205" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Measuring the reliability of qualitative text analysis data. Quality and quantity</title>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Krippendorff</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="787" to="800" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">Roberta: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Politeness transfer: A tag and generate approach</title>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amrith</forename><surname>Setlur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tanmay</forename><surname>Parekh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barnabás</forename><surname>Poczós</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><forename type="middle">W</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shrimai</forename><surname>Prabhumoye</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1869" to="1881" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Plug and play autoencoders for conditional text generation</title>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Mai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Pappas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Montero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6076" to="6092" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Sentence bottleneck autoencoders from transformer language models</title>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Montero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Pappas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1822" to="1831" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Vlad Pandelea, Fuzhao Xue, and Erik Cambria. 2022. Recent advances in deep learning based dialogue systems: A systematic survey</title>
+		<author>
+			<persName><forename type="first">Jinjie</forename><surname>Ni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence Review</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="101" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Multitask neural models for translating between styles within and across languages</title>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sudha</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marine</forename><surname>Carpuat</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th International Conference on Computational Linguistics</title>
+		<meeting>the 27th International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1008" to="1021" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">An empirical analysis of formality in online communication</title>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Pavlick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joel</forename><surname>Tetreault</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="61" to="74" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Style transfer through back-translation</title>
+		<author>
+			<persName><forename type="first">Yulia</forename><surname>Shrimai Prabhumoye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Tsvetkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><forename type="middle">W</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Black</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="866" to="876" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Dear sir or madam, may i introduce the gyafc dataset: Corpus, benchmarks and metrics for formality style transfer</title>
+		<author>
+			<persName><forename type="first">Sudha</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joel</forename><surname>Tetreault</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="129" to="140" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A recipe for arbitrary text style transfer with large language models</title>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Reif</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daphne</forename><surname>Ippolito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ann</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Coenen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="837" to="848" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Sentence-bert: Sentence embeddings using siamese bert-networks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3982" to="3992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Textsettr: Few-shot text style extraction and tunable targeted restyling</title>
+		<author>
+			<persName><forename type="first">Parker</forename><surname>Riley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandy</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">C</forename><surname>Uthus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zarana</forename><surname>Parekh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3786" to="3800" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Style transfer from non-parallel text by cross-alignment</title>
+		<author>
+			<persName><forename type="first">Tianxiao</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Educating text autoencoders: Latent representation guidance via denoising</title>
+		<author>
+			<persName><forename type="first">Tianxiao</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8719" to="8729" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">Michael</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludovic</forename><surname>Denoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc'aurelio</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y-Lan</forename><surname>Boureau</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1811.00552</idno>
+		<title level="m">Multipleattribute text style transfer</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Prompt-and-rerank: A method for zeroshot and few-shot arbitrary textual style transfer with small language models</title>
+		<author>
+			<persName><forename type="first">Mirac</forename><surname>Suzgun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Melas-Kyriazi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2195" to="2222" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Style control for schema-guided natural language generation</title>
+		<author>
+			<persName><forename type="first">Alicia</forename><surname>Tsai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shereen</forename><surname>Oraby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vittorio</forename><surname>Perera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiun-Yu</forename><surname>Kao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuheng</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anjali</forename><surname>Narayan-Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tagyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilek</forename><surname>Hakkani-Tur</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Natural Language Processing for Conversational AI</title>
+		<meeting>the 3rd Workshop on Natural Language Processing for Conversational AI</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="228" to="242" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Harnessing pre-trained neural networks with rules for formality style transfer</title>
+		<author>
+			<persName><forename type="first">Yunli</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Mou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhoujun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhan</forename><surname>Chao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3573" to="3578" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Unsupervised text style transfer using language models as discriminators</title>
+		<author>
+			<persName><forename type="first">Zichao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiting</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taylor</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page">31</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jerrold</forename><forename type="middle">H</forename><surname>Zar</surname></persName>
+		</author>
+		<title level="m">Spearman rank correlation. Encyclopedia of biostatistics</title>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="volume">7</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Recent advances and challenges in task-oriented dialog systems</title>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryuichi</forename><surname>Takanobu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyan</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science China Technological Sciences</title>
+		<imprint>
+			<biblScope unit="volume">63</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="2011" to="2027" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhirui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujie</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianyong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enhong</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1808.07894</idno>
+		<title level="m">Style transfer as unsupervised machine translation</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

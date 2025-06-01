@@ -1,0 +1,1720 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">VALLA: Standardizing and Benchmarking Authorship Attribution and Verification Through Empirical Evaluation and Comparative Analysis</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jacob</forename><surname>Tyo</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">Army Research Laboratory</orgName>
+								<orgName type="institution">Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bhuwan</forename><surname>Dhingra</surname></persName>
+							<email>bdhingra@cs.duke.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Duke University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zachary</forename><forename type="middle">C</forename><surname>Lipton</surname></persName>
+							<email>zlipton@cmu.edu</email>
+							<affiliation key="aff2">
+								<orgName type="institution">Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">VALLA: Standardizing and Benchmarking Authorship Attribution and Verification Through Empirical Evaluation and Comparative Analysis</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">F8558841FE05D4ECA85DC75BC7CA6106</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:51+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Despite decades of research on authorship attribution (AA) and authorship verification (AV), inconsistent dataset splits/filtering and mismatched evaluation methods make it difficult to assess the state of the art. In this paper, we present a survey of the fields, resolve points of confusion, introduce VALLA that standardizes and benchmarks AA/AV datasets and metrics, provide a large-scale empirical evaluation, and provide apples-to-apples comparisons between existing methods. We evaluate eight promising methods on fifteen datasets (including distribution shifted challenge sets) and introduce a new dataset based on texts archived by Project Gutenberg. Surprisingly, we find that a traditional Ngram-based model performs best on 5 (of 7) AA tasks, achieving an average macro-accuracy of 76.50% (compared to 66.71% for a BERT-based model). However, on the two AA datasets with the greatest number of words per author, as well as on the AV datasets, BERT-based models perform best. While AV methods are easily applied to AA, they are seldom included as baselines in AA papers. We show that through the application of hard-negative mining, AV methods are competitive alternatives to AA methods. VALLA and all experiment code can be found here: https://github.com/JacobTyo/Valla</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The statistical analysis of variations in literary style between one writer or genre and another, commonly known as stylometry, dates back as far as 500 AD. Computer-assisted stylometry first emerged in the early 1960s, when <ref type="bibr" target="#b40">Mosteller and Wallace (1963)</ref> explored the foundations of computer-assisted authorship analysis. Today automated tools for authorship analysis are common, finding practical use in the justice system to analyze evidence <ref type="bibr" target="#b32">(Koppel et al., 2008)</ref>, among social media companies to detect compromised accounts <ref type="bibr" target="#b5">(Barbon et al., 2017)</ref>, to link online accounts belonging one individual <ref type="bibr" target="#b57">(Sinnott and Wang, 2021)</ref>, and to detect plagiarism <ref type="bibr" target="#b61">(Stamatatos and Koppel, 2011)</ref>.</p><p>In the modern Natural Language Processing (NLP) literature, two problem formulations dominate the study of methods for determining the authorship of anonymous or disputed texts: Authorship Attribution (AA) and Authorship Verification (AV). In AA, the learner is given representative texts for a canonical set of authors in advance, and expected to attribute a new previously unseen text of unknown authorship to one of these a priori known authors. In AV, the learner faces a more general problem: given two texts, predict whether or not they were written by the same author.</p><p>While both problems have received considerable attention <ref type="bibr" target="#b41">(Murauer and Specht, 2021;</ref><ref type="bibr" target="#b1">Altakrori et al., 2021;</ref><ref type="bibr">Kestemont et al., 2021)</ref>, the state of the art is difficult to assess owing to inconsistencies in the datasets, splits, performance metrics, and variations in the framing of domain shift across studies. For example, a recent survey paper <ref type="bibr" target="#b42">(Neal et al., 2017)</ref> indicates that the state-of-the-art method is based on the Prediction by Partial Matching (PPM) text compression scheme and the cross-entropy of each text with respect to the PPM categories. By contrast, the PAN-2021 competition <ref type="bibr">(Kestemont et al., 2021)</ref> indicates that the state of the art is a hierarchical bi-directional LSTM with learned-CNN text encodings. Recent work <ref type="bibr" target="#b15">(Fabien et al., 2020)</ref> concludes that the transformer-based language model BERT is the highest-performing AA method. A recent analysis paper <ref type="bibr" target="#b1">(Altakrori et al., 2021)</ref> argue that the traditional approach of character n-grams and masking remains the best methodology to this day. Each of these sources compares methods against different baselines, on different datasets (sometimes on just a single small dataset), and with different problem variations (such as cross-topic, cross-genre, etc.).</p><p>In this paper, we start by sorting out this fragmented prior work through a brief survey of the literature. Then, to present a unified evaluation, we introduce VALLA. VALLA provides standardized versions of all the common AA and AV datasets with uniform evaluation metrics and standardized domain-shifted test sets, and implementations of all methods used in this paper. Additionally, we introduce a new large-scale dataset based on public domain books sourced from Project Gutenberg for both tasks. Then using this benchmark, we present an extensive evaluation of eight common AA and AV methods on their respective datasets with and without domain shift. We also make comparisons between AA and AV methods where applicable.</p><p>Recent work indicates that traditional methods still outperform pretrained language models (i.e. BERT) <ref type="bibr">(Kestemont et al., 2021;</ref><ref type="bibr" target="#b1">Altakrori et al., 2021;</ref><ref type="bibr" target="#b41">Murauer and Specht, 2021;</ref><ref type="bibr" target="#b63">Tyo et al., 2021;</ref><ref type="bibr" target="#b46">Peng et al., 2021;</ref><ref type="bibr" target="#b16">Futrzynski, 2021)</ref>, but we show that this narrative only appears to apply to datasets with a limited number of words per class. Furthermore, BERT-based models achieve new state-ofthe-art macro-accuracy on the IMDb62 (98.80%) and Blogs50 (74.95%) datasets and set the benchmark on our newly introduced Gutenberg dataset.</p><p>The applicability of AV methods to AA problems is frequently mentioned, yet these methods are not placed in competition. We provide this comparison and find that AA methods to outperform AV methods on AA problems, but only until hard-negative mining is used during AV training. Initially, AA outperform AV methods by 15% macro-accuracy, but hard negative mining improves the performance of AV models in the AA setting, increasing the macro-accuracy of BERT V (a verification formulation of the BERT model) to 72.42% on the tested dataset, making it a competitive alternative. In summary, we contribute the following:</p><p>• A survey of AA and AV.</p><p>• A benchmark that standardizes AA and AV datasets and method implementations • State-of-the-art accuracy on the IMDb62 (98.80%) and Blogs50 (74.95%) datasets. • A new dataset with long average text length.</p><p>• An evaluation of eight high-performing AA and AV methods on fifteen datasets • Evidence of the importance of hard-negative mining for authorship applications.</p><p>2 Brief Survey of the Literature <ref type="bibr" target="#b42">Neal et al. (2017)</ref> provide an overview of AA dataset characteristics and traditional AA methods.</p><p>The authors enumerate the wide array of textual features used for AA and provide an evaluation of these techniques on a single, small dataset. They conclude that the prediction using partial matching (PPM) method is the state of the art. Bouanani and Kassou (2014) provide a similar survey focusing on the enumeration of AA hand-engineered features. <ref type="bibr" target="#b58">Stamatatos (2009)</ref> discuss traditional AA methods from an instance-based (one text vs another) vs a profile-based (one text vs all authors) methodology, and include a computational requirement analysis. Among notable surveys, <ref type="bibr" target="#b38">Mekala et al. (2018)</ref> compare the benefits of the different traditional textual features; <ref type="bibr" target="#b2">Argamon (2018)</ref> detail the problems with applying many traditional AA methods in real-world scenarios; <ref type="bibr" target="#b0">Alhijawi et al. (2018)</ref> provide a meta-analysis of the field; and <ref type="bibr" target="#b35">Ma et al. (2020)</ref> point out the lack of advances from using transformer-based language models in AA. Critically, all of these prior surveys exclude recent advances due to deep learning, such as recurrent neural networks, transformers, word embeddings, and byte-pair encoding. In this section, we briefly cover more traditional techniques, and then discuss recent deep-learning-based approaches.</p><p>So far, we have outlined the work on AA surveys, but there are none to be found that focus on AV. The PAN competition overview <ref type="bibr">(Kestemont et al., 2021)</ref> is close, but limited to what appears in competition. Also of note, each year's competition focuses on a single dataset that changes every year.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Datasets</head><p>Murauer and Specht (2021) worked towards a benchmark for AA. They do not discuss AV or the domain shift present in many popular datasets. The test sets often contain novel topics (cross-topic -× t ), genres (cross-genre -× g ), or authors (unique authors -× a ). Table <ref type="table" target="#tab_0">1</ref> shows the statistical variability between the different datasets. The number of authors, documents, and words in a corpus is influential, but looking more closely at the number of documents per author (D/A) and the number of words per document (W/D) gives a better idea of how hard a corpus is. The larger the number of authors and the less text there is to work with, the harder the problem. Lastly, we measure the imbalance (imb) of datasets based on the standard deviation of the number of documents per author. The CCAT50 <ref type="bibr" target="#b34">(Lewis et al., 2004)</ref>, CMCC <ref type="bibr" target="#b18">(Goldstein et al., 2008)</ref>, Guardian <ref type="bibr" target="#b59">(Stamatatos, 2013)</ref> IMDb62 <ref type="bibr" target="#b55">(Seroussi et al., 2014)</ref>, and PAN20 &amp; PAN21 <ref type="bibr">(Kestemont et al., 2021)</ref> are used as they are in prior work, but with the distinction that we publish our train/validation/test splits to ensure comparability with future work.</p><p>Although the Blogs50 dataset <ref type="bibr" target="#b53">(Schler et al., 2006)</ref> is common (BlogsALL in Table <ref type="table" target="#tab_0">1</ref>), the statistics we present are different than those originally published. This discrepancy is due to a large number of exact duplicates (∼160,000) which we have removed. The most common form of this dataset is Blogs10 and Blogs50 (the texts only from the "top" 10 and 50 authors respectively). This is problematic because it isn't clear how these "top" authors are selected: the number of documents <ref type="bibr" target="#b15">(Fabien et al., 2020;</ref><ref type="bibr" target="#b45">Patchala and Bhatnagar, 2018)</ref>, the number of words, with minimum text length <ref type="bibr" target="#b31">(Koppel et al., 2011)</ref>, with spam (or other) filtering <ref type="bibr" target="#b67">(Yang and Chow, 2014;</ref><ref type="bibr" target="#b21">Halvani et al., 2017)</ref>, or as in most cases, not specified <ref type="bibr" target="#b25">(Jafariakinabad and Hua, 2022;</ref><ref type="bibr" target="#b66">Yang et al., 2018;</ref><ref type="bibr" target="#b68">Zhang et al., 2018;</ref><ref type="bibr" target="#b51">Ruder et al., 2016)</ref>. In our framework, we release standard splits and cleaning for this dataset.</p><p>Finally, we introduce the Gutenberg authorship dataset, as a new large-sclase authorship corpus with very long texts (each texts is about 17 times longer, on average, than the next longest corpus). While some prior work has used Project Gutenberg<ref type="foot" target="#foot_0">1</ref> as a dataset source (public domain books), they all use small subsets <ref type="bibr" target="#b3">(Arun et al. (2009)</ref>  Here we have collected all single-author English texts from Project Gutenberg resulting in almost 2 billion words and a very long average document length.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Metrics</head><p>One of the difficulties in comparing prior work is the use of different performance metrics. Some examples are accuracy <ref type="bibr" target="#b1">(Altakrori et al., 2021;</ref><ref type="bibr" target="#b60">Stamatatos, 2018;</ref><ref type="bibr" target="#b25">Jafariakinabad and Hua, 2022;</ref><ref type="bibr" target="#b15">Fabien et al., 2020;</ref><ref type="bibr" target="#b52">Saedi and Dras, 2021;</ref><ref type="bibr" target="#b68">Zhang et al., 2018;</ref><ref type="bibr" target="#b6">Barlas and Stamatatos, 2020)</ref>, F1 <ref type="bibr" target="#b41">(Murauer and Specht, 2021)</ref>, C@1 <ref type="bibr" target="#b4">(Bagnall, 2015)</ref>, recall <ref type="bibr" target="#b33">(Lagutina, 2021</ref><ref type="bibr">), precision (Lagutina, 2021)</ref>, macro-accuracy <ref type="bibr">(Bischoff et al., 2020)</ref>, AUC <ref type="bibr" target="#b4">(Bagnall, 2015;</ref><ref type="bibr" target="#b47">Pratanwanich and Lio, 2014)</ref>, R@8 (Rivera-Soto et al., 2021), and the unweighted average of F1, F0.5u, C@1, and AUC <ref type="bibr">(Manolache et al., 2021;</ref><ref type="bibr">Kestemont et al., 2021;</ref><ref type="bibr" target="#b63">Tyo et al., 2021;</ref><ref type="bibr" target="#b16">Futrzynski, 2021;</ref><ref type="bibr" target="#b46">Peng et al., 2021;</ref><ref type="bibr" target="#b11">Bönninghoff et al., 2021;</ref><ref type="bibr" target="#b9">Boenninghoff et al., 2020;</ref><ref type="bibr" target="#b14">Embarcadero-Ruiz et al., 2022;</ref><ref type="bibr" target="#b65">Weerasinghe et al., 2021)</ref>.</p><p>In AA and AV, we want to understand the discriminative power of each model, while avoiding metrics that are influenced too much by performance on a small subset of prolific authors. Thus, we adopt macro-averaged accuracy for AA (referred to as macro-accuracy), and AUC for AV. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Methods</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.1">Feature Based</head><p>Ngram The most commonly seen input representation (feature) used in AA and AV problems are of N-grams. N-grams provide a fast and simple vectorization method for text that ignores order, based on a given vocabulary of tokens. Granados et al. ( <ref type="formula">2011</ref>) introduced text distortion, which substitutes out-of-vocabulary items for a "*". Stamatatos (2018) and <ref type="bibr">Bischoff et al. (2020)</ref> further test these distortion methods and more complex domain-adversarial methods, showing that the simpler distortion methods are most effective.</p><p>The Ngram-based unmasking method <ref type="bibr" target="#b30">(Koppel and Schler, 2004)</ref>, is based on the idea that the style of texts from the same author differs only in a few features. At its core, this method iteratively trains classifiers to predict if two texts are from the same author, but with a decreasing number of features at each round. Then based on the accuracy degradation, a prediction of the same or different author is made. Similarly, <ref type="bibr" target="#b31">Koppel et al. (2011)</ref> keep score of how often each author is predicted after random subsets of features are selected, and then make a final prediction based on these scores, dubbed the imposter's method, and <ref type="bibr" target="#b7">Bevendorff et al. (2019)</ref> use oversampling with this method to deal with short texts. <ref type="bibr" target="#b54">Seroussi et al. (2011)</ref> use Latent Dirichlet Allocation (LDA), comparing the distance between text representations to determine authorship. They find that this topic-modeling approach can be competitive with the imposter's method while requiring less computation. <ref type="bibr" target="#b55">Seroussi et al. (2014)</ref> expand on this topic model approach, and while they present good results on the PAN'11 dataset, the performance of the topic modeling approaches lags behind the best methods. <ref type="bibr" target="#b68">Zhang et al. (2018)</ref> introduce a high-performing method that leverages sentence syntax trees and character n-grams as input to a CNN. <ref type="bibr" target="#b52">Saedi and Dras (2021)</ref> also presents good results with CNN models, but <ref type="bibr" target="#b43">Ordoñez et al. (2020)</ref> indicate that these CNN methods are no longer competitive. Summary Statistics While older methods focused on small sets of summary statistics, more modern methods are able to combine all of these into a single model. <ref type="bibr" target="#b65">Weerasinghe et al. (2021)</ref> provide the best example of this, calculating a plethora of handcrafted features and Ngrams for each document (distribution of word lengths, hapax-legomena, Maas' a 2 , Herdan's V m , and more). The authors take the difference between these large feature vectors for two texts and then train a logistic regression classifier to predict if the texts were written by the same author or not. Despite its simplicity, this method performs well. Co-occurance Graphs <ref type="bibr" target="#b3">Arun et al. (2009)</ref> construct a graph that represents a text based on the stopwords (nodes) and the distance between them (edge weights). Then to compare the two texts, their graphs are compared using the Kullback-Leibler (KL) divergence. Embarcadero-Ruiz et al. (2022) also construct a graph for each text but instead represent each node as a [word, POS_tag] tuple, and each vertex indicates adjacency frequency. After the graph is created for each text, it is encoded into a one-hot representation and used as input to a LEConv layer. After pooling, the absolute difference between the two document representations is passed through a fully connected network for final scoring.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.2">Embedding Based</head><p>Char Embedding <ref type="bibr" target="#b4">Bagnall (2015)</ref> use a characterlevel recurrent neural network (RNN) for authorship verification by sharing the RNN model across all authors but training a different head for each author in the dataset. To classify authors, they calculate the probability that each text was written by each author, predicting the author with the highest probability. <ref type="bibr" target="#b51">Ruder et al. (2016)</ref> use both CNNs to embed characters and words for AA. Their results show that the character-based method outperforms the word-based approach across several datasets. Compression-based methods, which leverage a compression algorithm (such as ZIP, RAR, etc.) to build text representations which are then compared with a distance metric, fall into this category as well <ref type="bibr" target="#b21">(Halvani et al., 2017)</ref>.</p><p>Word Embedding <ref type="bibr" target="#b10">Bönninghoff et al. (2019)</ref> leverage the Fasttext pre-trained word embeddings, concatenated with a learned CNN character embedding, as part of the input to a bi-directional Long Short Term Memory (BiLSTM) network. That output is then used as input to another network to produce a final document embedding. This neural network structure runs in parallel for two documents (i.e. as a Siamese network <ref type="bibr" target="#b29">(Koch et al., 2015)</ref>), and then optimized according to the contrastive loss function. This method was introduced by <ref type="bibr" target="#b10">Bönninghoff et al. (2019)</ref>, and then later modified to include Bayes factor scoring on the output by <ref type="bibr" target="#b9">Boenninghoff et al. (2020)</ref>, and by <ref type="bibr" target="#b11">Bönninghoff et al. (2021)</ref> to include an uncertainty adaptation layer for defining non-responses. This was the highest performing method at the PAN20 and PAN21 competitions <ref type="bibr">(Kestemont et al., 2021)</ref>. <ref type="bibr" target="#b25">Jafariakinabad and Hua (2022)</ref> build the equivalent of pre-trained word embeddings but for sentence structure (i.e. GloVe-like embeddings that map sentences with a similar structure close together but are agnostic of their meaning), by using the CoreNLP parse-tree and a traditional wordembedded sentence as input to two identical but separate BiLSTMs, and optimize via contrastive loss. The authors also compare against prior work <ref type="bibr" target="#b24">(Jafariakinabad and Hua, 2019)</ref> which embeds the POS-tags along with the word embeddings instead of using their custom structural embedding network, showing slight improvement and improved efficiency. CNN's have also been explored given word embeddings as input <ref type="bibr" target="#b23">(Hitschler et al., 2018;</ref><ref type="bibr" target="#b56">Shrestha et al., 2017;</ref><ref type="bibr" target="#b51">Ruder et al., 2016)</ref>, yet their results are not among the highest.</p><p>Transformers Rivera-Soto et al. ( <ref type="formula">2021</ref>) build universal representations for AA and AV by exploring the zero-shot transferability of different methods between three different datasets. The authors train a Siamese BERT model <ref type="bibr" target="#b48">(Reimers and Gurevych, 2019)</ref> on one dataset and then test the performance on another without updating. Unfortunately, the results seem to indicate more about the underlying datasets then the ability of these models to uncover a universal authorship representation. <ref type="bibr">Manolache et al. (2021)</ref> also explore the applicability of BERT to AA by using BERT embeddings as the feature set for the unmasking method. Comparing this to Siamese BERT, Character BERT <ref type="bibr" target="#b13">(El Boukkouri et al., 2020)</ref>, and BERT for classification, they find that simple fine-tuning outperforms the more complicated unmasking setup.</p><p>Following <ref type="bibr" target="#b4">Bagnall (2015)</ref>, <ref type="bibr" target="#b6">Barlas and Stamatatos (2020)</ref> approach the AA problem by using a shared language model with a different network head for each author. They then compare different shared language model architectures (RNN, BERT, GPT2, ULMFiT, and ELMo), finding that pretrained language models improve the performance of the original RNN architecture. However, the results are all from the small CMCC corpus. They repeat this 30 times, sampling different sections of the input texts, and then average over the 30 predictions for final classification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.3">Feature and Embedding Based</head><p>Fabien et al. ( <ref type="formula">2020</ref>) explore the applicability of BERT to authorship attribution. They combine the output of BERT with summary statistics via a logistic regression classifier, but find that the summary statistics did not boost performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">The VALLA Benchmark</head><p>In 1440, Lorenzo Valla proved that the Donation of Constantine (where Constantine I gave the whole of the Western Roman Empire to the Roman Catholic Church) was a forgery, using word choice and other vernacular stylistic choices as evidence <ref type="bibr" target="#b64">(Valla, 1922)</ref>. Inspired by this influential use of AA, we introduce VALLA: A standardized benchmark for authorship attribution and verification.<ref type="foot" target="#foot_1">2</ref> VALLA includes all datasets in Table <ref type="table" target="#tab_0">1</ref>, along with others from prior literature <ref type="bibr" target="#b28">(Klimt and Yang, 2004;</ref><ref type="bibr" target="#b36">Manolache et al., 2022;</ref><ref type="bibr" target="#b44">Overdorf and Greenstadt, 2016;</ref><ref type="bibr" target="#b1">Altakrori et al., 2021)</ref>, with standardized splits, cross-topic/cross-genre/unique author test sets, and usable in either AA or AV formulation. VALLA also includes five method implementations, and we use the subscript "A" or "V" to distinguish between the attribution and verification model formulations respectively.  <ref type="bibr" target="#b62">Teahan and Harper (2003)</ref> and best performing in <ref type="bibr" target="#b42">Neal et al. (2017)</ref>, this method uses the prediction by partial matching (PPM) compression model (a variant of PPM is used in the RAR compression software) to compute a character-based language model for each author <ref type="bibr" target="#b20">(Halvani and Graner, 2018)</ref>, and then the crossentropy between a test text and each author model is calculated. For use in an AV setup, one text is used to create a model and then the cross-entropy is calculated on the second text.</p><p>BERT With the highest reported performance on the AA dataset Blogs50 <ref type="bibr" target="#b15">(Fabien et al., 2020)</ref> and the most parameters (over 110 million), this method combines a BERT pre-trained language model with a dense layer for classification. For evaluation, we chunk the evaluation text into nonoverlapping sets of 512 tokens and take the majority vote of the predictions. For use in the AV setup, the BERT model is used as the base for a Siamese network and trained with contrastive loss <ref type="bibr" target="#b63">(Tyo et al., 2021)</ref>. For evaluation in the AV setup, we chunk two texts into K sets of 512 stratified tokens (such that the first 512 tokens of each text are compared, the second grouping is compared, etc.), and then take the majority vote of the K predictions.</p><p>pALM The best-performing model in <ref type="bibr" target="#b6">Barlas and Stamatatos (2020)</ref> was another variation on BERT where a different head was learned on top of the BERT language model for each known author. We refer to this method as the per-Author Language Model (pALM). To classify a text, it is passed through the model for each author, and then the author model with the lowest perplexity on the text is predicted. This is only used in AA formulations as in AV we would have only a single text to train a network head with.</p><p>HLSTM Originally introduced by <ref type="bibr" target="#b10">Bönninghoff et al. (2019)</ref>, this method leverages a hierarchical BiLSTM setup with Fasttext word embeddings and a custom word embedding learned using a character level CNN, as input to a Siamese network. This was the winning method at PAN20 and PAN21 <ref type="bibr">(Kestemont et al., 2021)</ref> and is only used in AV formulations. While this can be modified to work in AA, we follow prior work and use it only for AV.</p><p>All of these methods fall into two categories: those that predict an author class, and those that predict text similarity. The methods that predict an author class (whether via logistic regression, dense layer, etc.) need no post-processing. However, methods that predict similarity need postprocessing both for AA and AV problems. For AA, we build an author profile by randomly selecting 10 texts from each author and averaging their embeddings together. Then we can compare the unknown texts to each author profile and predict the author that is most similar (in euclidean space). For AV, we directly compare the text representations (again using euclidean distance) and then define a hard threshold based on a grid search on the evaluation set (although for computing AUC this threshold is irrelevant).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments and Discussion</head><p>All experiments were carried out on 8 V100 GPUs and consumed over 5,000 GPU hours. We optimized for hyperparameters on the validation set via random search, and report all values in the VALLA codebase. All results reported are from a single run that uses the best hyperparameters and is trained until there was no improvement for 2 epochs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">The State-of-the-Art in Authorship Attribution</head><p>We start by determining model performance on authorship attribution: given data that is directly attributable to a specific author, learn to classify the work of each author well (macro-accuracy).</p><p>After evaluating all methods in VALLA on the AA datasets listed in Table <ref type="table" target="#tab_0">1</ref>, we find that the traditional Ngram method is the highest performing on average as detailed in Table <ref type="table" target="#tab_2">2</ref>. However, we do see that the BERT A model closes the gap on (and can even exceed) the performance of the Ngram A method as the size of the training set increases. This correlation does not hold on the PAN20 dataset, where the best performing model is still Ngram A . This indicates that the state-of-the-art AA method is dependent upon the number of words per author available. While we do not provide a detailed analysis of the data requirements of each method, our results roughly indicate that Ngram A is the method of choice for datasets with less than 50, 000 words per author, while BERT A is the state-of-the-art method for datasets with over 100, 000 words per author. PPM A is simple to tune due to few hyperparameters, but it is both a low performer and it scales poorly to large datasets (rendering it unusable on the PAN20 and Gutenberg datasets). pALM A is the lowest performing method tested, is expensive to train, and scales poorly, so we did not get results on the larger datasets.</p><p>The macro-accuracy of BERT A on the IMDb62 and Blogs50 datasets presents a new state of the art, while defining the initial performance marks on the GutenbergAA and PAN20 datasets. 3 The performance on the Blogs50 dataset requires a bit more analysis due to our filtering of duplicates in the dataset. As a better comparison to prior reported performance, we first explore the performance of BERT A on the Blogs50 dataset without the filtering, and achieve a macro-accuracy of 64.3%. This represents the state-of-the-art accuracy on a version of the dataset more comparable with prior work (despite its issues) but indicates the strength of the result reported in Table <ref type="table" target="#tab_2">2</ref>.</p><p>Our results on the Guardian and CMCC datasets are hard to compare to prior work due to the previously mentioned standardization issues, most notably a i.i.d. split has not been used in prior work.  obtained by the AA methods.<ref type="foot" target="#foot_3">5</ref> </p><p>Hard-Negative Mining We find that AV methods do not necessarily perform well under an AA formulation. To correctly classify a text in the AA setting, a model must make harder comparisons (i.e., compare one text to all others, therefore it will encounter the hardest comparison), whereas an AV setting is strictly easier as it must compare to only a single text. This interpretation motivates the exploration of using hard-negative mining (updating a model during training only on the hardest examples in each batch) for improving the transferability of AV methods to AA problems.</p><p>In this section we take a single model (BERT V ) and train two versions of it: one with the contrastive loss and one using triplet loss with batch hard negative mining (specifically the per-batch hard negative mining methodology used in <ref type="bibr" target="#b22">Hermans et al. (2017)</ref>). Table <ref type="table" target="#tab_5">7</ref> details these results, showing two key findings. The first is that high AV AUC does not indicate high AA macro-accuracy, and the second is that training an AV method with hard negative mining has little effect on its AV AUC but drastically improves its AA macro-accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>After a survey of the AA and AV landscapes, we present VALLA: an open-source dataset and metric standardization benchmark, complete with implementations of all methods used herein. Using VALLA, we present an extensive evaluation of AA and AV methods in a wide variety of common formulations. We achieve a new state-of-theart macro-accuracy on the IMDb62 (98.81%) and Blogs50 (74.95%) datasets and provide benchmark results on the other datasets.</p><p>Our results show that the AV problem formulation is more effective for training deep models. After showing that the high-performing BERT V does not perform competitively in AA problems, we explore the effect of hard-negative mining on its performance and find that with no degradation in AV performance, it improves the AA macroaccuracy of BERT V by over 5%, making it a competitive method in the AA formulation. We hope that VALLA makes future work in AA and AV more easily approached, and more easily comparable.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Risks and Limitations</head><p>The main risks associated with the development and refinement of AA and AV methods is their misuse. The to accurately attribute a piece of text to its author holds profound implications, both positive and negative, that warrant careful consideration.</p><p>From a privacy perspective, an individual's right to anonymity could be compromised by the misuse of AA and AV methods. While in some circumstances the uncovering of an author's identity is beneficial, such as in forensics or in verifying the authenticity of historical documents, the same technology could also be exploited to unmask authors who wish to remain anonymous for personal, political, or safety reasons.</p><p>In this work, we evaluate only on the English language. Furthermore, substantial computational resources were used (over 5,000 GPU hours on V100s). Despite this large amount of compute, after extensive hyperparameter searching, we were only able to get a single run to report metrics on and leave understanding more about the distribution of these results to future work. Both a qualitative analysis, and evaluation of the latest release of large language models are also left to future work.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>use 10 authors, Gerlach and Font-Clos (2020) use the 20 most prolific authors, Menon and Choi (2011) use 14 authors, Rhodes (2015) use 6 authors, Khmelev and Tweedie (2001) get a 380 text subset, etc.).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>FigureFigure 1 :</head><label>1</label><figDesc>Figure 1 depicts our categorization.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>, An overview of datasets used for Authorship Attribution (AA) and Authorship Verification (AV). iid is an i.i.d. split, × t is a cross-topic split, × g is a cross-genre split, × a is an unknown author split, D is the number of documents, A is the number of authors, W is the number of words, W/D is the average length of documents, D/A is the average number of documents per author, W/D is the average number of words per document, and imb is the imbalance of the dataset measured by the standard deviation of the number of documents per author. ✓ indicates necessary data is available to create a standardized split, whereas -indicates it isn't.</figDesc><table><row><cell>Dataset</cell><cell>Text Type</cell><cell>Typical Setting</cell><cell cols="4">iid ×t ×g ×a</cell><cell>D</cell><cell>A</cell><cell>W</cell><cell cols="2">D/A W/D</cell><cell>imb</cell></row><row><cell>CCAT50</cell><cell>News</cell><cell>AA</cell><cell>✓</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>5k</cell><cell>50</cell><cell>2.5M</cell><cell>100</cell><cell>506</cell><cell>0</cell></row><row><cell>CMCC</cell><cell>Various</cell><cell>AA</cell><cell>✓</cell><cell>✓</cell><cell>✓</cell><cell>-</cell><cell>756</cell><cell>21</cell><cell>454k</cell><cell>36</cell><cell>601</cell><cell>0</cell></row><row><cell>Guardian</cell><cell>Opinion</cell><cell>AA</cell><cell>✓</cell><cell>✓</cell><cell>✓</cell><cell>-</cell><cell>444</cell><cell>13</cell><cell>467k</cell><cell>34</cell><cell>1052</cell><cell>6.7</cell></row><row><cell>IMDb62</cell><cell>Reviews</cell><cell>AA</cell><cell>✓</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>62k</cell><cell>62</cell><cell>21.6M</cell><cell>1000</cell><cell>349</cell><cell>2.6</cell></row><row><cell>Blogs50</cell><cell>Blogs</cell><cell>AA</cell><cell>✓</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>66k</cell><cell>50</cell><cell>8.1M</cell><cell>1324</cell><cell>122</cell><cell>553</cell></row><row><cell>BlogsAll</cell><cell>Blogs</cell><cell>AV</cell><cell>✓</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>520k</cell><cell>14k</cell><cell>121.6M</cell><cell>37</cell><cell>233</cell><cell>90</cell></row><row><cell>PAN20 &amp; 21</cell><cell>Various</cell><cell>AV</cell><cell>✓</cell><cell>✓</cell><cell>-</cell><cell>✓</cell><cell>443k</cell><cell>278k</cell><cell>1.7B</cell><cell>1.6</cell><cell>3922</cell><cell>2.3</cell></row><row><cell>Amazon</cell><cell>Reviews</cell><cell>AV</cell><cell>✓</cell><cell>✓</cell><cell>-</cell><cell cols="3">-1.46M 146k</cell><cell>91.9M</cell><cell>10</cell><cell>63</cell><cell>0</cell></row><row><cell>Gutenberg</cell><cell>Books</cell><cell>AA</cell><cell>✓</cell><cell>-</cell><cell>-</cell><cell>✓</cell><cell>29k</cell><cell>4.5k</cell><cell>1.9B</cell><cell>6</cell><cell cols="2">66350 10.5</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>Tyo et al. (2021) use a Siamese BERT setup with triplet loss and hard-negative mining for training. Futrzynski (2021) concatenate 28 tokens from each text and then use BERT's [CLS] output token for author classification. Peng et al. (2021) concatenate 256 tokens from each text to produce a 512 token input for BERT, and then after pooling use linear layers for same/different author prediction.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Macro-accuracy (%) of the authorship attribution models. The "Average"column represents the average macro-accuracy of each model across all datasets in this table, where -entries are counted as 0%.</figDesc><table><row><cell></cell><cell cols="8">CCAT50 CMCC Guardian IMDb62 Blogs50 PAN20 GutenburgAA Average</cell></row><row><cell>Ngram A PPM A BERT A pALM A</cell><cell>76.68 69.36 65.72 63.36</cell><cell>86.51 62.30 60.32 54.76</cell><cell>100 86.28 84.23 66.67</cell><cell>98.81 95.90 98.80 -</cell><cell>72.28 72.16 74.95 -</cell><cell>43.52 -23.83 -</cell><cell>57.69 -59.11 -</cell><cell>76.50 55.14 66.71 26.40</cell></row><row><cell cols="5">Ngram Being the best performing method in Al-</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">takrori et al. (2021), Murauer and Specht (2021),</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">Bischoff et al. (2020), and Stamatatos (2018), this</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">method creates character Ngram, part-of-speech</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">Ngram, and summary statistics for use as input</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">to an ensemble of logistic regression classifiers.</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">For use in the AV setting, we follow Weerasinghe</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">et al. (2021) by using the difference between the</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">Ngram feature vectors of two texts as input to the</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">logistic regression classifier.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">PPM Originally developed in</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Macro-accuracy (%)  of the authorship attribution models on domain shifted AA tests sets. × t represents cross-topic and × g represents cross-genre.</figDesc><table><row><cell>3 These are initial results because the PAN20 competition</cell></row><row><cell>was formulated as an AV problem, whereas here we use the</cell></row><row><cell>AA formulation</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>AUC of the AV models on the selected AV datasets.</figDesc><table><row><cell>The CCAT50 dataset, on the other hand, is directly</cell></row><row><cell>comparable to prior work. Currently, we show best</cell></row><row><cell>performing model as the Ngram. However, Jafari-</cell></row><row><cell>akinabad and Hua (2022) report the accuracy of a</cell></row><row><cell>CNN that takes the syntactic tree of a sentence as</cell></row><row><cell>input as 83.2% which is better than what we were</cell></row><row><cell>able to achieve. 4</cell></row><row><cell>4.2 The State-of-the-Art in Authorship</cell></row><row><cell>Attribution under Domain Shift</cell></row><row><cell>While dealing with domain shift is an open prob-</cell></row><row><cell>lem, exploration of domain shift in AA and AV</cell></row><row><cell>settings is common, even if not explicitly recog-</cell></row><row><cell>nized. Table 3 examines the performance of the</cell></row><row><cell>same AA models but focuses on the cross-topic and</cell></row><row><cell>cross-genre test sets of the CMCC and Guardian</cell></row><row><cell>datasets. In other terms, the topic (cross-topic) or</cell></row><row><cell>genre (cross-genre) of the training and test sets are</cell></row><row><cell>different, therefore giving a lens into how general</cell></row><row><cell>the models can under such iid violations. Just as in</cell></row><row><cell>the i.i.d. setting, the Ngram A method dominates</cell></row><row><cell>in all scenarios. It should be noted that all datasets</cell></row><row><cell>used in this domain shift scenario are small, so we</cell></row><row><cell>cannot verify that the BERT A method would begin</cell></row><row><cell>to dominate as the number of words per author in-</cell></row><row><cell>creases. We leave the exploration of domain shift</cell></row><row><cell>performance on larger datasets to future work, al-</cell></row><row><cell>though we expect that the BERT A model would</cell></row><row><cell>begin to outperform Ngram A .</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 7 :</head><label>7</label><figDesc>This table compares the performance of the same model (BERT V ), on the same data (Blogs50), just formulated in different ways, using different performance metrics (column header). w/HNM represents training with hard negative mining.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://www.gutenberg.org</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Valla can be found here: https://github.com/ JacobTyo/Valla</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>CCAT50 is a balanced dataset, so the macro-accuracy and accuracy are equal.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>We note that the lower performance of the pretrained H-LSTM on Blogs50 than its non-pretrained version is due to the vocabulary selection. This method chooses its vocabulary based on the pretraining corpus, causing transfer issues.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">The State-of-the-Art in Authorship Verification</head><p>Now we determine model performance on authorship verification: given two texts, determine if they were written by the same author or not. Keeping in line with prior work, the distinction between domain shifted datasets is less clear when formulated as an AV problem. The PAN21 test set is comprised of authors that do not appear in the training set. However the remainder of the datasets (AmazonAV, BlogsAV, and GutenbergAV) are all iid dataset splits. Table <ref type="table">4</ref> details the performance of the AV methods on selected AV datasets. While we saw the Ngram A method dominating on most AA datasets, here we see that the deep learning-based HLSTM V and BERT V methods attain the highest AUC across the board. However, in AV there are only two classes (same and different author), and therefore all of the datasets have a very large number of words per class (vs classes with limited data in AA). Seemingly because of this key difference, AV formulations tend to be more effective for training deep learning methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Comparing AA and AV methods</head><p>Despite the prominence of comments indicating how AV is the fundamental problem of AA, there is no evidence of how well their performance actually transfers. Table <ref type="table">5</ref> shows the performance of LSTM V and BERT V on the i.i.d. AA datasets, both when trained only on the dataset as well as starting from a pretrained version of the models (the PAN20 training set was used for pretraining). Here, and in Table <ref type="table">6</ref> for the × t and × g settings, we see notably lower performance than what was</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Text-based authorship identification-a survey</title>
+		<author>
+			<persName><forename type="first">Bushra</forename><surname>Alhijawi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Safaa</forename><surname>Hriez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arafat</forename><surname>Awajan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2018 Fifth International Symposium on Innovation in Information and Communication Technology (ISI-ICT)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1" to="7" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">The topic confusion task: A novel evaluation scenario for authorship attribution</title>
+		<author>
+			<persName><forename type="first">Malik</forename><surname>Altakrori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jackie</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kit</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><forename type="middle">C M</forename><surname>Fung</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-emnlp.359</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2021</title>
+		<meeting><address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4242" to="4256" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Computational forensic authorship analysis: Promises and pitfalls</title>
+		<author>
+			<persName><forename type="first">Shlomo</forename><surname>Argamon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Language and Law/Linguagem e Direito</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="7" to="37" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Stopword graphs and authorship attribution in text corpora</title>
+		<author>
+			<persName><forename type="first">Rajkumar</forename><surname>Arun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Venkatasubramaniyan</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Veni Madhavan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2009 IEEE international conference on semantic computing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="192" to="196" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Author identification using multi-headed recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Bagnall</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Working Notes of CLEF 2015 -Conference and Labs of the Evaluation forum</title>
+		<meeting><address><addrLine>Toulouse, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-09-08">2015. September 8-11, 2015</date>
+			<biblScope unit="volume">1391</biblScope>
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Authorship verification applied to detection of compromised accounts on online social networks</title>
+		<author>
+			<persName><forename type="first">Sylvio</forename><surname>Barbon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rodrigo</forename><forename type="middle">Augusto</forename><surname>Igawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bruno</forename><surname>Bogaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zarpelão</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Multimedia Tools and Applications</title>
+		<imprint>
+			<biblScope unit="volume">76</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="3213" to="3233" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Crossdomain authorship attribution using pre-trained language models</title>
+		<author>
+			<persName><forename type="first">Georgios</forename><surname>Barlas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Efstathios</forename><surname>Stamatatos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IFIP International Conference on Artificial Intelligence Applications and Innovations</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="255" to="266" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Generalizing unmasking for short texts</title>
+		<author>
+			<persName><forename type="first">Janek</forename><surname>Bevendorff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benno</forename><surname>Stein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Hagen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Potthast</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1068</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="654" to="659" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Bischoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niklas</forename><surname>Deckers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcel</forename><surname>Schliebs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Thies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Hagen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.14714</idno>
+		<title level="m">Efstathios Stamatatos, Benno Stein, and Martin Potthast. 2020. The importance of suppressing domain style in authorship analysis</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Deep bayes factor scoring for authorship verification</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Benedikt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Boenninghoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><forename type="middle">M</forename><surname>Rupp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dorothea</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kolossa</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Working Notes of CLEF 2020 -Conference and Labs of the Evaluation Forum</title>
+		<meeting><address><addrLine>Thessaloniki, Greece, Septem</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020. 2020</date>
+			<biblScope unit="volume">22</biblScope>
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Explainable authorship verification in social media via attention-based similarity learning</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Bönninghoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hessler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kolossa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Nickel</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/BigData47090.2019.9005650</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2019 IEEE International Conference on Big Data (Big Data)</title>
+		<meeting><address><addrLine>Los Alamitos, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="36" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">O2D2: out-of-distribution detector to capture undecidable trials in authorship verification</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Benedikt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><forename type="middle">M</forename><surname>Bönninghoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dorothea</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kolossa</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum</title>
+		<meeting>the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum<address><addrLine>Bucharest, Romania</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-09-21">2021. September 21st -to -24th, 2021</date>
+			<biblScope unit="volume">2936</biblScope>
+			<biblScope unit="page" from="1846" to="1857" />
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Authorship analysis studies: A survey</title>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Computer Applications</title>
+		<editor>
+			<persName><forename type="first">Sara</forename><forename type="middle">El</forename></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Manar</forename><forename type="middle">El</forename><surname>Bouanani</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ismail</forename><surname>Kassou</surname></persName>
+		</editor>
+		<imprint>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page">86</biblScope>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">CharacterBERT: Reconciling ELMo and BERT for word-level open-vocabulary representations from characters</title>
+		<author>
+			<persName><forename type="first">Hicham</forename><forename type="middle">El</forename><surname>Boukkouri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Ferret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Lavergne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hiroshi</forename><surname>Noji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Zweigenbaum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun'ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.609</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6903" to="6915" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Graph-based siamese network for authorship verification</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Embarcadero-Ruiz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Helena</forename><surname>Gómez-Adorno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Embarcadero-Ruiz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerardo</forename><surname>Sierra</surname></persName>
+		</author>
+		<idno type="DOI">10.3390/math10020277</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Mathematics</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">BertAA : BERT finetuning for authorship attribution</title>
+		<author>
+			<persName><forename type="first">Maël</forename><surname>Fabien</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esau</forename><surname>Villatoro-Tello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Petr</forename><surname>Motlicek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shantipriya</forename><surname>Parida</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th International Conference on Natural Language Processing (ICON)</title>
+		<meeting>the 17th International Conference on Natural Language Processing (ICON)<address><addrLine>Patna, India</addrLine></address></meeting>
+		<imprint>
+			<publisher>NLP Association of India (NLPAI)</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="127" to="137" />
+		</imprint>
+		<respStmt>
+			<orgName>Indian Institute of Technology Patna</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Author classification as pretraining for pairwise authorship verification. In Proceedings of the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum</title>
+		<author>
+			<persName><forename type="first">Romain</forename><surname>Futrzynski</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">CEUR Workshop Proceedings</title>
+		<meeting><address><addrLine>Bucharest, Romania</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-09-21">2021. September 21st -to -24th, 2021</date>
+			<biblScope unit="volume">2936</biblScope>
+			<biblScope unit="page" from="1945" to="1952" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A standardized project gutenberg corpus for statistical analysis of natural language and quantitative linguistics</title>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Gerlach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesc</forename><surname>Font-Clos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Entropy</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">126</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Creating and using a correlated corpus to glean communicative commonalities</title>
+		<author>
+			<persName><forename type="first">Jade</forename><surname>Goldstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kerri</forename><surname>Goodwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Sabin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ransom</forename><surname>Winder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Sixth International Conference on Language Resources and Evaluation (LREC&apos;08)</title>
+		<meeting>the Sixth International Conference on Language Resources and Evaluation (LREC&apos;08)</meeting>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Reducing the loss of information through annealing text distortion</title>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Granados</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Cebrian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Camacho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Borja</forename><surname>Rodriguez</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/TKDE.2010.173</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Knowledge and Data Engineering</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="1090" to="1102" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Cross-domain authorship attribution based on compression. Working Notes of CLEF</title>
+		<author>
+			<persName><forename type="first">Oren</forename><surname>Halvani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukas</forename><surname>Graner</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">On the usefulness of compression models for authorship verification</title>
+		<author>
+			<persName><forename type="first">Oren</forename><surname>Halvani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukas</forename><surname>Graner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th international conference on availability, reliability and security</title>
+		<meeting>the 12th international conference on availability, reliability and security</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1" to="10" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Hermans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bastian</forename><surname>Leibe</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1703.07737</idno>
+		<title level="m">defense of the triplet loss for person reidentification</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Authorship attribution with convolutional neural networks and pos-eliding</title>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Hitschler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Stylistic Variation</title>
+		<meeting>the Workshop on Stylistic Variation<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-09-08">2018. 2017. September 8, 2017</date>
+			<biblScope unit="page" from="53" to="81" />
+		</imprint>
+	</monogr>
+	<note>Esther Van Den Berg, and Ines Rehbein. The Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Styleaware neural model with application in authorship attribution</title>
+		<author>
+			<persName><forename type="first">Fereshteh</forename><surname>Jafariakinabad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kien</forename><forename type="middle">A</forename><surname>Hua</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICMLA.2019.00061</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2019 18th IEEE International Conference On Machine Learning And Applications (ICMLA)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="325" to="328" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A selfsupervised representation learning of sentence structure for authorship attribution</title>
+		<author>
+			<persName><forename type="first">Fereshteh</forename><surname>Jafariakinabad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kien</forename><forename type="middle">A</forename><surname>Hua</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3491203</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Knowl. Discov. Data</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Efstathios Stamatatos, Benno Stein, and Martin Potthast. 2021. Overview of the cross-domain authorship verification task at pan 2021</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Kestemont</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enrique</forename><surname>Manjavacas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilia</forename><surname>Markov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janek</forename><surname>Bevendorff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matti</forename><surname>Wiegmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CLEF (Working Notes)</title>
+		<imprint>
+			<biblScope unit="page" from="1743" to="1759" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Using markov chains for identification of writer</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Dmitri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fiona</forename><forename type="middle">J</forename><surname>Khmelev</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Tweedie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Literary and linguistic computing</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="299" to="307" />
+			<date type="published" when="2001">2001</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">The enron corpus: A new dataset for email classification research</title>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Klimt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European conference on machine learning</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="217" to="226" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Siamese neural networks for one-shot image recognition</title>
+		<author>
+			<persName><forename type="first">Gregory</forename><surname>Koch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML deep learning workshop</title>
+		<meeting><address><addrLine>Lille</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page">0</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Authorship verification as a one-class classification problem</title>
+		<author>
+			<persName><forename type="first">Moshe</forename><surname>Koppel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Schler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the twenty-first international conference on Machine learning</title>
+		<meeting>the twenty-first international conference on Machine learning</meeting>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page">62</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Authorship attribution in the wild</title>
+		<author>
+			<persName><forename type="first">Moshe</forename><surname>Koppel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Schler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shlomo</forename><surname>Argamon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Language Resources and Evaluation</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="83" to="94" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Authorship attribution in law enforcement scenarios</title>
+		<author>
+			<persName><forename type="first">Moshe</forename><surname>Koppel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Schler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eran</forename><surname>Messeri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">NATO Security Through Science Series D-Information and Communication Security</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="page">111</biblScope>
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Comparison of style features for the authorship verification of literary texts. Modeling and analysis of information systems</title>
+		<author>
+			<persName><forename type="first">Kseniya</forename><surname>Vladimirovna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lagutina</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="250" to="259" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Rcv1: A new benchmark collection for text categorization research</title>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>David D Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tony</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Russell-Rose</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="361" to="397" />
+			<date type="published" when="2004-04">2004. Apr</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Towards improved model design for authorship identification</title>
+		<author>
+			<persName><forename type="first">Weicheng</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruibo</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soroush</forename><surname>Vosoughi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2009.14445</idno>
+	</analytic>
+	<monogr>
+		<title level="m">A survey on writing style understanding</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Manolache</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florin</forename><surname>Brad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Barbalau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radu</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tudor</forename><surname>Ionescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marius</forename><surname>Popescu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2207.03477</idno>
+		<title level="m">Veridark: A large-scale benchmark for authorship verification on the dark web</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Antonio Barbalau, Radu Ionescu, and Marius Popescu. 2021. Transferring bert-like transformers&apos; knowledge for authorship verification</title>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Manolache</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florin</forename><surname>Brad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Burceanu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2112.05125</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">A survey on authorship attribution approaches</title>
+		<author>
+			<persName><forename type="first">Sreenivas</forename><surname>Mekala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishnu</forename><surname>Vardan Bulusu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raghunadha</forename><surname>Reddy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Int. J. Comput. Eng. Res.(IJCER)</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Domain independent authorship attribution without domain adaptation</title>
+		<author>
+			<persName><forename type="first">Rohith</forename><surname>Menon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference Recent Advances in Natural Language Processing</title>
+		<meeting>the International Conference Recent Advances in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011">2011. 2011</date>
+			<biblScope unit="page" from="309" to="315" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Inference in an authorship problem</title>
+		<author>
+			<persName><forename type="first">Frederick</forename><surname>Mosteller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">L</forename><surname>Wallace</surname></persName>
+		</author>
+		<idno type="DOI">10.1080/01621459.1963.10500849</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Statistical Association</title>
+		<imprint>
+			<biblScope unit="volume">58</biblScope>
+			<biblScope unit="issue">302</biblScope>
+			<biblScope unit="page" from="275" to="309" />
+			<date type="published" when="1963">1963</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Developing a benchmark for reducing data bias in authorship attribution</title>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Murauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Günther</forename><surname>Specht</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eval4nlp-1.18</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Evaluation and Comparison of NLP Systems</title>
+		<meeting>the 2nd Workshop on Evaluation and Comparison of NLP Systems<address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="179" to="188" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Surveying stylometry techniques and applications</title>
+		<author>
+			<persName><forename type="first">Tempestt</forename><surname>Neal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalaivani</forename><surname>Sundararajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aneez</forename><surname>Fatima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingfei</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Damon</forename><surname>Woodard</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3132039</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Comput. Surv</title>
+		<imprint>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page">50</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Will longformers pan out for authorship verification</title>
+		<author>
+			<persName><forename type="first">Juanita</forename><surname>Ordoñez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rafael</forename><forename type="middle">Rivera</forename><surname>Soto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><forename type="middle">Y</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">Working Notes of CLEF</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Blogs, twitter feeds, and reddit comments: Cross-domain authorship attribution</title>
+		<author>
+			<persName><forename type="first">Rebekah</forename><surname>Overdorf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rachel</forename><surname>Greenstadt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proc. Priv. Enhancing Technol</title>
+		<imprint>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="155" to="171" />
+			<date type="published" when="2016">2016. 2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Authorship attribution by consensus among multiple features</title>
+		<author>
+			<persName><forename type="first">Jagadeesh</forename><surname>Patchala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raj</forename><surname>Bhatnagar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th International Conference on Computational Linguistics</title>
+		<meeting>the 27th International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2766" to="2777" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Encoding text information by pre-trained model for authorship verification</title>
+		<author>
+			<persName><forename type="first">Zeyang</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leilei</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongyuan</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Sun</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum</title>
+		<meeting>the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum<address><addrLine>Bucharest, Romania</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-09-21">2021. September 21st -to -24th, 2021</date>
+			<biblScope unit="volume">2936</biblScope>
+			<biblScope unit="page" from="2103" to="2107" />
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Who wrote this? textual modeling with authorship attribution in big data</title>
+		<author>
+			<persName><forename type="first">Naruemon</forename><surname>Pratanwanich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pietro</forename><surname>Lio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2014 IEEE International Conference on Data Mining Workshop</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="645" to="652" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Sentence-bert: Sentence embeddings using siamese bert-networks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Author attribution with cnns</title>
+		<author>
+			<persName><forename type="first">Dylan</forename><surname>Rhodes</surname></persName>
+		</author>
+		<ptr target="https://www.semanticscholar.org/paper/Author-Attribution-with-Cnn-s-Rhodes/" />
+		<imprint>
+			<date type="published" when="2015-08">2015. August 2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Learning universal authorship representations</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Rafael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivia</forename><forename type="middle">Elizabeth</forename><surname>Rivera-Soto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juanita</forename><surname>Miano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><forename type="middle">Y</forename><surname>Ordonez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleem</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Bishop</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Andrews</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.70</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="913" to="919" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Parsa</forename><surname>Ghaffari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">G</forename><surname>Breslin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.06686</idno>
+		<title level="m">Character-level and multi-channel convolutional neural networks for large-scale authorship attribution</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Siamese networks for large-scale author identification</title>
+		<author>
+			<persName><forename type="first">Chakaveh</forename><surname>Saedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Dras</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.csl.2021.101241</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Speech &amp; Language</title>
+		<imprint>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="page">101241</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Effects of age and gender on blogging</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Schler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moshe</forename><surname>Koppel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shlomo</forename><surname>Argamon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><forename type="middle">W</forename><surname>Pennebaker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI spring symposium: Computational approaches to analyzing weblogs</title>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="199" to="205" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Authorship attribution with latent dirichlet allocation</title>
+		<author>
+			<persName><forename type="first">Yanir</forename><surname>Seroussi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ingrid</forename><surname>Zukerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabian</forename><surname>Bohnert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the fifteenth conference on computational natural language learning</title>
+		<meeting>the fifteenth conference on computational natural language learning</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="181" to="189" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Authorship attribution with topic models</title>
+		<author>
+			<persName><forename type="first">Yanir</forename><surname>Seroussi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ingrid</forename><surname>Zukerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabian</forename><surname>Bohnert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">40</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="269" to="310" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Convolutional neural networks for authorship attribution of short texts</title>
+		<author>
+			<persName><forename type="first">Prasha</forename><surname>Shrestha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Sierra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><forename type="middle">A</forename><surname>González</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Montes-Y Gómez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paolo</forename><surname>Rosso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thamar</forename><surname>Solorio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EACL</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="669" to="674" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Linking user accounts across social media platforms</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Sinnott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijian</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2021 IEEE/ACM 8th International Conference on Big Data Computing, Applications and Technologies (BD-CAT&apos;21)</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="18" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<analytic>
+		<title level="a" type="main">A survey of modern authorship attribution methods</title>
+		<author>
+			<persName><forename type="first">Efstathios</forename><surname>Stamatatos</surname></persName>
+		</author>
+		<idno type="DOI">10.1002/asi.21001</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Society for Information Science and Technology</title>
+		<imprint>
+			<biblScope unit="volume">60</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="538" to="556" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<analytic>
+		<title level="a" type="main">On the robustness of authorship attribution based on character n-gram features</title>
+		<author>
+			<persName><forename type="first">Efstathios</forename><surname>Stamatatos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Law and Policy</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="421" to="439" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<analytic>
+		<title level="a" type="main">Masking topic-related information to enhance authorship attribution</title>
+		<author>
+			<persName><forename type="first">Efstathios</forename><surname>Stamatatos</surname></persName>
+		</author>
+		<idno type="DOI">10.1002/asi.23968</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Association for Information Science and Technology</title>
+		<imprint>
+			<biblScope unit="volume">69</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="461" to="473" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<analytic>
+		<title level="a" type="main">Plagiarism and authorship analysis: introduction to the special issue</title>
+		<author>
+			<persName><forename type="first">Efstathios</forename><surname>Stamatatos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moshe</forename><surname>Koppel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Language Resources and Evaluation</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="4" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<monogr>
+		<title level="m" type="main">Using Compression-Based Language Models for Text Categorization</title>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">J</forename><surname>Teahan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">J</forename><surname>Harper</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-94-017-0171-6_7</idno>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="page" from="141" to="165" />
+			<pubPlace>Netherlands, Dordrecht</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<analytic>
+		<title level="a" type="main">Siamese bert for authorship verification</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Tyo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhuwan</forename><surname>Dhingra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Lipton</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum</title>
+		<meeting>the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum<address><addrLine>Bucharest, Romania</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-09-21">2021. September 21st -to -24th, 2021</date>
+			<biblScope unit="volume">2936</biblScope>
+			<biblScope unit="page" from="2169" to="2177" />
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<monogr>
+		<title level="m" type="main">Discourse on the forgery of the alleged donation of constantine. Latin and English</title>
+		<author>
+			<persName><forename type="first">Lorenzo</forename><surname>Valla</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1922">1922</date>
+			<pubPlace>Trans. Christopher B. Coleman; New Haven</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<analytic>
+		<title level="a" type="main">Feature vector difference based authorship verification for open-world settings</title>
+		<author>
+			<persName><forename type="first">Janith</forename><surname>Weerasinghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rhia</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rachel</forename><surname>Greenstadt</surname></persName>
+		</author>
+		<ptr target="CEUR-WS.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum</title>
+		<meeting>the Working Notes of CLEF 2021 -Conference and Labs of the Evaluation Forum<address><addrLine>Bucharest, Romania</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-09-21">2021. September 21st -to -24th, 2021</date>
+			<biblScope unit="volume">2936</biblScope>
+			<biblScope unit="page" from="2201" to="2207" />
+		</imprint>
+	</monogr>
+	<note>CEUR Workshop Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<analytic>
+		<title level="a" type="main">A topic drift model for authorship attribution</title>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaojun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenting</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyu</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jia</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiang</forename><surname>Qu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neurocomputing</title>
+		<imprint>
+			<biblScope unit="volume">273</biblScope>
+			<biblScope unit="page" from="133" to="140" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b67">
+	<analytic>
+		<title level="a" type="main">Authorship attribution for forensic investigation with thousands of authors</title>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kam-Pui</forename><surname>Chow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IFIP International Information Security Conference</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="339" to="350" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b68">
+	<analytic>
+		<title level="a" type="main">Syntax encoding with application in authorship attribution</title>
+		<author>
+			<persName><forename type="first">Richong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongyi</forename><surname>Mao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1294</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2742" to="2753" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

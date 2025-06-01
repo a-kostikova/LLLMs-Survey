@@ -1,0 +1,2006 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Uncertainty Estimation for Debiased Models: Does Fairness Hurt Reliability?</title>
+				<funder ref="#_5aHK3Jd">
+					<orgName type="full">Russian Science Foundation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Gleb</forename><surname>Kuzmin</surname></persName>
+							<email>kuzmin@airi.net</email>
+							<affiliation key="aff1">
+								<orgName type="laboratory">FRC CSC RAS 6 TII</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Artem</forename><surname>Vazhentsev</surname></persName>
+							<email>vazhentsev@airi.net</email>
+						</author>
+						<author>
+							<persName><forename type="first">Artem</forename><surname>Shelmanov</surname></persName>
+							<email>artem.shelmanov@mbzuai.ac.ae</email>
+						</author>
+						<author>
+							<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+							<email>xudong.han@mbzuai.ac.ae</email>
+						</author>
+						<author>
+							<persName><forename type="first">Simon</forename><surname>Šuster</surname></persName>
+							<email>simon.suster@unimelb.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Melbourne</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Maxim</forename><surname>Panov</surname></persName>
+							<email>maxim.panov@mbzuai.ac.ae</email>
+						</author>
+						<author>
+							<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+							<email>panchenko@airi.net</email>
+						</author>
+						<author>
+							<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Melbourne</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><surname>Skoltech</surname></persName>
+						</author>
+						<author>
+							<persName><surname>Airi</surname></persName>
+						</author>
+						<title level="a" type="main">Uncertainty Estimation for Debiased Models: Does Fairness Hurt Reliability?</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">CE013B63DE07C6DF3462A6A91240784F</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:57+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>When deploying a machine learning model, one should aim not only to optimize performance metrics such as accuracy but also care about model fairness and reliability. Fairness means that the model is prevented from learning spurious correlations between a target variable and socio-economic attributes, and is generally achieved by applying debiasing techniques. Model reliability stems from the ability to determine whether we can trust model predictions for the given data. This can be achieved using uncertainty estimation (UE) methods. Debiasing and UE techniques potentially interfere with each other, raising the question of whether we can achieve both reliability and fairness at the same time. This work aims to answer this question empirically based on an extensive series of experiments combining state-of-the-art UE and debiasing methods, and examining the impact on model performance, fairness, and reliability. 1 * Research was conducted while working at TII.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>When deploying a machine learning (ML) model in production, care should be taken to look beyond prediction performance metrics such as accuracy or F1. We believe that modern ML-based applications should be evaluated along two additional critical dimensions: reliability and fairness.</p><p>A reliable system should not only perform well on average but also be capable of identifying situations when it is unable to make accurate predictions. By incorporating mechanisms to detect such cases, we can implement appropriate fallback mechanisms such as involving human operators or more advanced models for final decision-making <ref type="bibr" target="#b11">(El-Yaniv et al., 2010;</ref><ref type="bibr" target="#b16">Geifman and El-Yaniv, 2017)</ref>. This is especially crucial in safety-critical domains like medicine, where the cost of mistakes is high, or in high-load applications where it is impossible to rely solely on automatic decisions (e.g. user content moderation). The better these mechanisms work, the better the model is in terms of reliability. In a broader context, a reliable model is characterized by its consistent performance across decision-making tasks involving the uncertainty of predictions <ref type="bibr">(Tran et al., 2022b)</ref>. In this work, we consider two tasks: selective classification (Geifman and El-Yaniv, 2017), i.e. the ability to abstain from potentially erroneous predictions; and out of distribution (OOD) detection <ref type="bibr" target="#b23">(Hendrycks and Gimpel, 2017)</ref>, i.e. recognizing instances that are different from the domain of the training set.</p><p>Fairness is another critical dimension that needs careful consideration. ML models often exhibit biases due to artifacts in training data or pre-trained language models that can cause, for example, unfair decisions correlated with race, gender, and other demographic and socio-economic factors <ref type="bibr" target="#b8">(Díaz et al., 2019;</ref><ref type="bibr" target="#b41">Park et al., 2018;</ref><ref type="bibr" target="#b0">Badjatiya et al., 2019)</ref>. It is important to address these biases as they can lead to inequity in user experience, perpetuate stereotypes, and cause other forms of representational harm to users <ref type="bibr" target="#b2">(Blodgett et al., 2020)</ref>.</p><p>While standard prediction performance metrics indicate how well a model is performing in general, they do not capture how a model may behave inconsistently across different conditions or protected groups <ref type="bibr" target="#b10">(Dwork et al., 2012)</ref>. Therefore, both reliability and fairness are not captured by standard prediction performance metrics, and generally cannot be achieved without deliberate effort.</p><p>Enhancing reliability can be accomplished through the use of advanced uncertainty estimation (UE) techniques <ref type="bibr" target="#b29">(Lakshminarayanan et al., 2017;</ref><ref type="bibr" target="#b14">Gal and Ghahramani, 2016;</ref><ref type="bibr" target="#b33">Lee et al., 2018;</ref><ref type="bibr" target="#b36">Liu et al., 2020;</ref><ref type="bibr" target="#b42">Podolskiy et al., 2021;</ref><ref type="bibr" target="#b52">Xin et al., 2021;</ref><ref type="bibr" target="#b54">Yoo et al., 2022)</ref>. Promoting model fairness entails defining fairness metrics and employing special debiasing techniques <ref type="bibr" target="#b12">(Elazar and Goldberg, 2018;</ref><ref type="bibr" target="#b51">Wang et al., 2019;</ref><ref type="bibr" target="#b43">Ravfogel et al., 2020;</ref><ref type="bibr" target="#b53">Han et al., 2021</ref><ref type="bibr">Han et al., , 2022a,d;,d;</ref><ref type="bibr" target="#b1">Baldini et al., 2022)</ref>.</p><p>Just as debiasing methods have been observed to make models more vulnerable to adversarial attacks <ref type="bibr" target="#b53">(Xu et al., 2021;</ref><ref type="bibr">Tran et al., 2022a)</ref>, they have the potential to impact model reliability in terms of selective classification and OOD detection performance. While the majority of research has focused on the trade-off between model fairness and performance <ref type="bibr" target="#b35">(Liang et al., 2021;</ref><ref type="bibr">Han et al., 2022b,d)</ref>, no work has investigated the trade-off between fairness and reliability. As such, the main research questions of this work are: (a) whether there is interference between debiasing and UE techniques; (b) whether it is possible to achieve fairness and model reliability simultaneously; and (c) what combinations of techniques lead to the best trade-offs. We address these questions by conducting a large-scale empirical investigation that combines state-of-the-art UE and debiasing methods. For evaluation, we employ text classification datasets and various transformer-based models.</p><p>Our main findings are as follows: (a) debiasing can have a more substantial negative impact on selective classification performance than accuracy; (b) the results depend on the distribution of target classes and protected attributes in the test set; (c) rejecting predictions in selective classification can impact relative fairness between different debiasing methods; and (d) OOD detection is also vulnerable to debiasing, but can be mitigated with proper UE techniques. On the basis of our experiments, we suggest best-practice approaches to achieve a good trade-off between model reliability and fairness.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Debiasing and Fairness</head><p>Consider we have a labeled dataset D = (x i , y i , g i ) n i=1 , where x i ∈ X is an input text, y i ∈ Y is a label of a target variable (e.g., sentiment), and g i ∈ G is a private attribute associated with x i (e.g., author gender). In the context of debiasing, our objective is to train a model using the dataset D that not only achieves high accuracy in predicting Y but also exhibits fairness. Specifically, we aim to minimize the disparity in true positive rates (TPR) across different protected attributes, which is known as equal opportunity fairness <ref type="bibr">(Hardt et al., 2016)</ref>: GAP TPR = |TPR g -TPR ¬g |, where TPR g and TPR ¬g designate TPR within protected groups g and ¬g.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Debiasing Methods</head><p>For our experiments, we selected state-of-the-art techniques from extrinsic debiasing methods available in the Fairlib library <ref type="bibr">(Han et al., 2022d)</ref>: "preprocessing", "at-training", and "post-processing". For quick reference, all the methods and their corresponding acronyms are summarized in Table <ref type="table" target="#tab_4">1</ref> in Appendix A.</p><p>Pre-processing methods adjust the training set to be balanced across protected groups via resampling or reweighting instances. Balanced Training with Joint balance (BTJ; Lahoti et al. ( <ref type="formula">2020</ref>)) reweights training instances to balance the joint distribution of protected attributes and target labels. A similar method, Balanced Training with Equal Opportunity (BTEO; <ref type="bibr">Han et al. (2022a)</ref>), balances the protected attributes within "advantage" classes through resampling instances based on equal opportunity objectives. BTEO and BTJ are equivalent when the target distribution is inherently balanced. However, when it is not, the approach adopted in BTEO helps to mitigate the susceptibility of BTJ to small-sized minority groups.</p><p>At-training methods modify the training procedure or objective. Adversarial Training (Adv; <ref type="bibr" target="#b12">Elazar and Goldberg (2018)</ref>) extends the training objective with a discriminator component responsible for making the model unlearn the protected attributes. The Diverse Adversaries approach (DAdv; <ref type="bibr" target="#b53">Han et al. (2021)</ref>) strengthens Adv by adding an ensemble of adversaries to the loss and subjects them to a diversity constraint for learning orthogonal hidden representations from one another. This approach improves the stability of the training and reduces bias compared to the Adv. Group Difference (GD; <ref type="bibr" target="#b46">Shen et al. (2022)</ref>) adds a loss component that minimizes the loss gap between different groups. We use the variant of this method GD diff that minimizes the differences across protected groups within each class. Fair Batch Selection (FairBatch; <ref type="bibr" target="#b44">Roh et al. (2021)</ref>) dynamically adjusts the probability of resampling instances in each minibatch during training to achieve loss disparity across protected groups.</p><p>A post-processing method, Iterative Null-space Projection (INLP; <ref type="bibr" target="#b43">Ravfogel et al. (2020)</ref>), removes protected information from an already trained model by iteratively projecting its hidden representations to the null-space of protected attribute discriminators. The purified representations are subsequently employed for classification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Uncertainty Estimation and Reliability</head><p>Model reliability refers to its capacity to perform well across a wide range of uncertainty-related tasks <ref type="bibr">(Tran et al., 2022b)</ref>, such as selective classification, OOD detection, and adversarial attack detection. Uncertainty is a score that quantifies the amount of our trust in a model prediction on a given instance and is intended to correlate with the chance of making a mistake. Estimated uncertainty scores are commonly used as a decision rule in the aforementioned tasks. For example, in selective classification, instances x with a high uncertainty score u(x) are rejected or replaced with predictions of human experts or more advanced systems. Similarly, uncertainty exceeding a given threshold u(x) &gt; u ood indicates a high likelihood that the instance is OOD. In information theory, uncertainty has a concrete manifestation as the entropy of some distribution (e.g., a predictive distribution u(x) = H[p(y|x)]). However, in a general sense, any score that demonstrates commendable performance in the aforementioned tasks can be considered as a measure of uncertainty. It is common to distinguish two types of uncertainty that arise from two different sources: (a) aleatoric uncertainty arises from irreducible noise in data and inherent ambiguity in tasks that persists even with perfect knowledge and modeling techniques; and (b) epistemic uncertainty reflects the lack of knowledge about optimal model parameters, and can be mitigated by gathering more training data. Their sum (total uncertainty) is commonly used as an indicator of mistakes in selective classification; epistemic uncertainty is also crucial for OOD detection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Uncertainty Estimation Methods</head><p>We experiment with various widely used UE methods that capture different types of uncertainty: aleatoric, epistemic, and total uncertainty. As a baseline, we use Softmax Response (SR; <ref type="bibr" target="#b5">Cordella et al. (1995)</ref>; Geifman and El-Yaniv (2017)), which simply uses maximum probability from the softmax layer as a confidence score.</p><p>A widely-used computationally intensive approach to UE is based on Monte-Carlo dropout (MC; <ref type="bibr" target="#b14">Gal and Ghahramani (2016)</ref>). In this work, we use the following UE scores: Bayesian Active Learning with Disagreement (BALD; <ref type="bibr" target="#b25">Houlsby et al. (2011)</ref>) and Sampled Maximum Probability (SMP; <ref type="bibr" target="#b15">Gal et al. (2017)</ref>). BALD captures epistemic uncertainty, while SMP captures the total uncertainty. Methods based on the modeling probability density of hidden instance representations are computationally efficient alternatives that have been shown to be effective for epistemic UE. One robust method of this type is Mahalanobis Distance (MD; <ref type="bibr" target="#b33">Lee et al. (2018)</ref>; <ref type="bibr" target="#b42">Podolskiy et al. (2021)</ref>), which is based on estimating the minimal classconditional probability of an input instance x that follows a Gaussian distribution. The uncertainty score is computed as the Mahalanobis distance between latent instance representations of x and the closest centroid of a class.</p><p>To measure aleatoric uncertainty, we use Deep Fool <ref type="bibr" target="#b9">(Ducoffe and Precioso, 2018)</ref>, whereby we compute the l 2 norm of the minimum perturbation vector that is required to apply to a latent representation to change the prediction of a model. The smaller the norm, the higher the uncertainty.</p><p>In addition, we combine MD and DeepFool into a single score, which we call Hybrid Uncertainty Quantification (HUQ; <ref type="bibr" target="#b50">Vazhentsev et al. (2023)</ref>). Depending on whether the instance lies close to the out-of-distribution area of the feature space, or around the discriminative border between classes, we use different types of uncertainty. Details of the Hybrid UQ method are presented in Appendix H.</p><p>For quick reference, all the methods and their corresponding acronyms are summarized in Table <ref type="table" target="#tab_4">1</ref> in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experimental Setup</head><p>We evaluate the performance of UE techniques over the tasks of selective classification and OOD detection and compare standard models with models where we have applied a debiasing method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Datasets</head><p>We experiment with two text classification datasets widely used for the evaluation of debiasing techniques in previous work: Moji <ref type="bibr" target="#b3">(Blodgett et al., 2016)</ref> and Bios <ref type="bibr" target="#b6">(De-Arteaga et al., 2019)</ref>.</p><p>The Moji dataset is a collection of English tweets paired with a binary protected attribute that represents the ethnicity of the tweet author. It captures the usage of English in two registers: Standard American English (SAE) and African American English (AAE). The target variable is a binary sentiment of tweets (HAPPY and SAD).</p><p>Bios comprises biographies annotated with 28 profession classes as the target variable. Due to the extreme scarcity of some classes in the dataset, we  have chosen to use a subsample that focuses on the nine most prevalent classes. The protected attribute is the binary gender.</p><p>As debiasing aims to remove the discrepancy between the distribution learned by the model from the training set and a "desired" distribution that is pure from the influence of stereotypes and prejudices in the data, we consider it important to report evaluation results for two versions of the datasets. In the first version, which we call "imbalanced", the distributions p(g|y) are the same in train, validation, and test sets. This reflects the common ML setting, where the test data is similar to training data and inherits all biases present in it. In the second version, which we call "balanced", the distribution p(g|y) in the test and validation sets is balanced, which means there is no preferable protected attribute within each class. In both cases, the training distribution is not changed. The statistics of the datasets and theoretical motivation behind the various test distributions are presented in Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Models</head><p>For experiments, we use three models that were employed in previous work on fairness and demonstrated strong performance on the respective tasks: pre-trained BERT model ("bert-base-cased"; Devlin et al. ( <ref type="formula">2019</ref>)) for Bios, BERTweet <ref type="bibr" target="#b40">(Nguyen et al., 2020)</ref> for Moji, and a frozen DeepMoji encoder <ref type="bibr" target="#b13">(Felbo et al., 2017)</ref> with a three-layer perceptron (MLP) as a classification head from Shen et al. ( <ref type="formula">2022</ref>) also for Moji. All parameters of BERT and BERTweet are fine-tuned on the training sets, while for DeepMoji+MLP, we fine-tune only the MLP head. The hyperparameter optimization process is discussed in detail in Section 3.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Metrics</head><p>The models are evaluated according to their performance on the classification task via accuracy, a gap-based fairness metric, and the quality of UE.</p><p>Debiasing. The quality of debiasing methods is evaluated according to the equal opportunity fairness metric. It measures a lack of disparity in true positive rate across groups formed by the protected attribute <ref type="bibr" target="#b20">(Han et al., 2023)</ref>. Since the details of this   metric vary in the literature, we provide a step-bystep algorithm for its calculation in Appendix D.</p><p>Uncertainty Estimation. UE methods are evaluated on selective classification and OOD detection tasks. In selective classification, we test the ability to detect and reject model mistakes using uncertainty scores as predictors. The standard metric for this task is RC-AUC <ref type="bibr" target="#b11">(El-Yaniv et al., 2010)</ref> -the area under the risk-coverage curve, where the coverage is the percentage of retained instances with the lowest uncertainty, and the risk is the average loss over these instances; lower is better. Following <ref type="bibr" target="#b52">Xin et al. (2021)</ref>, we use a binary loss for calculating the risk. And example of a risk-coverage curve is presented in Figure <ref type="figure" target="#fig_7">6</ref> in Appendix E.</p><p>To evaluate the quality of OOD detection, we mix the test set of the target dataset (Moji or Bios) with a series of datasets considered to be OOD. Then, we calculate the ROC-AUC metric, considering the uncertainty score as a predictor of an instance from an OOD dataset. We obtain ROC-AUC for each OOD dataset and average metric values across them all. This is a standard approach adopted in the UE literature <ref type="bibr" target="#b24">(Hendrycks et al., 2019;</ref><ref type="bibr" target="#b27">Hu and Khan, 2021;</ref><ref type="bibr" target="#b55">Zhou et al., 2021)</ref>.</p><p>We cannot use the CLINC <ref type="bibr" target="#b32">(Larson et al., 2019)</ref> and ROSTD <ref type="bibr" target="#b45">(Schuster et al., 2019)</ref> datasets, which are other commonly used benchmarks for OOD detection since these datasets do not provide annotation of protected attributes. The details of the datasets used to represent an OOD domain are described in Appendix C.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Hyperparameter Optimization</head><p>We split the hyperparameter selection into two steps. In the first step, we select hyperparameters for training models without debiasing by optimizing the model accuracy. We tune learning rate, batch size, and weight decay via grid search (see the grid and the optimal values in Appendix B).</p><p>In the second step, we select hyperparameters of debiasing methods on a fixed grid. We optimize a multi-criteria objective Distance To the Optimum (DTO; <ref type="bibr" target="#b38">Marler and Arora (2004)</ref>; <ref type="bibr">Han et al. (2022a)</ref>). The optimum is a utopia point assumed to be a model that achieves 100% performance in terms of accuracy and fairness:</p><formula xml:id="formula_0">DTO = (1 -Perf.) 2 + (1 -Fairness) 2 .</formula><p>To mitigate the problem with different absolute values of performance and fairness metrics achievable for the considered task, we use a balanced version of DTO, where evaluation scores are normalized by their maximum values in the set of experiments (e.g. for checkpoints from different epochs, in the case of training or for models with different hyperparameters, in the case of hyperparameter optimization).</p><p>Having optimized the hyperparameters, we conduct experiments with five random seeds to report mean and confidence intervals. The hyperparameter grid for each debiasing method and computational resources involved in experiments are presented in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Selective Classification</head><p>First of all, consider the selective classification performance (RC-AUC) individually without relation to fairness. Complete results for Bios are presented in Tables <ref type="table" target="#tab_7">13</ref> and<ref type="table" target="#tab_4">14</ref>, the results for Moji are presented in Tables 15 to 18 in Appendix F. TPR values for each individual class and protected attribute are presented in Tables 21 to 26 in Appendix I.</p><p>On Bios, the SR baseline is substantially outperformed by DeepFool, Monte-Carlo dropout, and HUQ, while density-based methods MD and DDU usually do not provide any improvements. The poor performance of the latter methods might be due to the Bios test set not having a marked covariate shift, and subsequently, not containing many OOD instances that could be spotted by density-based methods. The hybrid method, which mixes multiple uncertainty scores, most often outperforms other UE methods for both versions of the dataset. For example, on Bios with an imbalanced test set, HUQ outperforms other UE methods for all debiasing techniques except DAdv and FairBatch, where it also has substantial improvements over the SR baseline. For the standard model and Adv, it improves RC-AUC by more than 14% compared to the SR baseline, for GD diff and INLP, by around 30%, and for BTEO and BTJ, by around 10%.</p><p>On Moji, none of the UE techniques are able to outperform the SR baseline, except in the case of INLP, where the baseline has a very high RC-AUC. In this case, density-based methods and HUQ substantially improve the result, though it is much worse than other methods.</p><p>Since HUQ often achieves the best results for selective classification, we use it to perform further analysis of debiasing techniques.</p><p>Results on the Imbalanced Test Sets. In Figures 1a and 2a, we present the trade-off between RC-AUC and fairness and between accuracy and fairness for models debiased using various methods. From these figures, we can see that on both Moji and Bios, higher fairness results in worse selective classification performance over the imbalanced test sets. Comparing the results for RC-AUC and accuracy, we see that in some cases the malignant increase in RC-AUC is much more substantial than the loss in accuracy. For example, while accuracy for the BTEO and GD diff methods on Bios is reduced by only 0.9% and 1.5% in relative terms, RC-AUC increases by more than 25% and 34%, respectively.</p><p>On both Moji and Bios, the best trade-off between fairness and reliability is achieved by BTJ. On Moji, it gives the smallest increase in RC-AUC, while giving a boost in fairness comparable with other methods. On Bios, this method does not increase RC-AUC at all, while also giving a substantial improvement in fairness. Considering the results on Bios, it is also worth noting that Adv, DAdv, and BTEO also achieve a good trade-off: while they worsen RC-AUC, they also lead to a big improvement in fairness. INLP affects both fairness and RC-AUC only slightly.</p><p>Results on the Balanced Test Sets. Figures 1b and 2b present accuracy and RC-AUC obtained on the balanced test sets. Since in these test sets, the protected attribute ratios for each of the target classes are balanced, the results are very different from the previous case. In this setting, we can see that on Moji, debiasing positively affects both the accuracy and the selective classification performance (Figure <ref type="figure" target="#fig_0">1b</ref> and Figure <ref type="figure">8</ref> in Appendix F). All debiasing methods while improving fairness also substantially improve accuracy and RC-AUC, with BTEO and BTJ offering the best trade-offs. These results are strictly opposite to the results obtained on the imbalanced test sets (Figure <ref type="figure" target="#fig_0">1a</ref> and Figure <ref type="figure">7</ref> in Appendix F). This phenomenon could be attributed to the fact that, during the process of removing bias accumulated from the training set, the modeled probability is adjusted to align more closely with the "desired" distribution. Therefore, testing on the dataset that is closer to this "desired" distribution also demonstrates the improvement in model performance due to debiasing (see theoretical justification in Appendix C.1).</p><p>On Bios, debiasing still does not help obtain no- table improvements in RC-AUC or accuracy. However, in this setting, some debiasing methods do not diminish the performance. While we saw performance degradation for Adv, DAdv, and BTEO in the setting with an imbalanced test set, in this case, there is no gap of note. Overall, for Bios, the best trade-off is achieved by BTJ, DAdv, Adv, and BTEO as they lie in the upper part of the chart, providing high fairness with little or no degradation of RC-AUC.</p><p>Effect of Various Hyperparameters in Debiasing Methods. Figure <ref type="figure" target="#fig_3">3</ref> presents the results with varying hyperparameters of the debiasing methods. The hyperparameters related to model training are still optimal. We keep only Pareto optimal points in the chart: points where both fairness and RC-AUC deteriorate are not shown. The standard model and models debiased with BTEO and BTJ have only one point since they do not have variable hyperparameters. The presented results show that for some methods like Adv, DAdv, GD diff it is possible to further improve fairness in exchange for the heavily deteriorated RC-AUC.</p><p>How Does Rejecting Predictions Affect Fairness? Figures <ref type="figure" target="#fig_4">4a</ref> and<ref type="figure" target="#fig_4">4b</ref> depict the dependence of fairness on the rejection rate, in presenting the percentage of predictions that were replaced by the ground-truth. This setting could be considered as an emulation of a human-machine system, where most uncertain instances are processed by humans. As expected, with a greater rejection rate, fairness increases, because the overall performance improves and the average performance gap reduces. However, we note that these charts reveal a discrepancy between the results of different debiasing methods on different rejection rates. On Bios, we see that GD diff in the setting without rejection (0% rejection rate) demonstrates a similar level of fairness with other methods, but starting from 15%, it falls well behind them and the standard model. BTJ on the contrary, demonstrates slightly inferior fairness at the beginning of the curve and starts to outperform other debiasing methods after the rejection rate exceeds 20%. Together with BTEO, it achieves higher performance than other methods on Moji along almost the whole range of rejection rates.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Out-of-Distribution Detection</head><p>The detailed results for OOD detection on both datasets are presented in Tables <ref type="table" target="#tab_4">19</ref> and<ref type="table" target="#tab_5">20</ref> in Appendix G. As expected, DDU substantially improves the OOD detection performance compared to SR in most cases. Figures <ref type="figure" target="#fig_5">5a</ref> and<ref type="figure" target="#fig_5">5b</ref> demonstrate how the OOD detection performance changes after applying debiasing techniques compared to the standard model. We see that some debiasing methods have a strong negative impact on OOD detection performance. For the SR baseline, applying any debiasing technique on Moji results in substantial performance losses, with the biggest drops of around 15% points for INLP and FairBatch despite the increase in accuracy (Figure <ref type="figure" target="#fig_0">1b</ref>). On Bios, we see a large decrease in OOD detection performance for INLP and GD diff .</p><p>At the same time, we see that the more advanced DDU method is much less vulnerable to debiasing. On Moji, the performance drop can be seen only for methods that modify the training loss function: Adv, DAdv, and GD diff . Note also that for Adv and DAdv the drop is slightly smaller than the drop for SR. On Bios, a small drop can be seen for FairBatch, while for other methods there is no performance drop at all. Moreover, for BTJ, DAdv, and BTEO there is a small improvement.</p><p>Overall, we can see that the combinations of BTJ, BTEO, and INLP with DDU perform consistently well on OOD detection across both datasets, without any deterioration due to debiasing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>Great interest in the problem of model fairness within the NLP community in recent years has spurred the development of numerous debiasing techniques <ref type="bibr">(Han et al., 2022a;</ref><ref type="bibr" target="#b12">Elazar and Goldberg, 2018;</ref><ref type="bibr" target="#b46">Shen et al., 2022;</ref><ref type="bibr" target="#b43">Ravfogel et al., 2020)</ref>   our study, we conduct experiments with state-ofthe-art methods selected across the methodological spectrum. There is also ongoing research related to analyzing debiasing methods under various conditions, including different synthetic distributions of protected attributes in the training set <ref type="bibr">(Han et al., 2022c)</ref>. The approach used in this paper differs from previous work since it analyzes performance, fairness, and reliability over various distributions of protected attributes in the test set, which has not been done before.</p><p>NLP models have been increasingly deployed in safety-critical applications in healthcare, finance, and legal domains. This has led to a notable research interest in UE. The most notable UE techniques investigated in NLP are Monte Carlo dropout (Malinin and Gales, 2021), training loss regularization <ref type="bibr" target="#b52">(Xin et al., 2021;</ref><ref type="bibr" target="#b54">Zhang et al., 2019)</ref>, and density-based methods <ref type="bibr" target="#b36">(Liu et al., 2020;</ref><ref type="bibr" target="#b39">Mukhoti et al., 2023;</ref><ref type="bibr" target="#b42">Podolskiy et al., 2021;</ref><ref type="bibr" target="#b54">Yoo et al., 2022)</ref>. We conduct experiments with recent widely-used UE methods and also with a prominent hybrid technique that mixes multiple uncertainty scores.</p><p>The interference between debiasing and UE techniques recently has been noted in adversarial attack detection. <ref type="bibr">Tran et al. (2022a)</ref> show that debiased models are more vulnerable to attacks because debiasing reduces the distance to the classifier decision boundary. <ref type="bibr">Xu et al. (</ref> <ref type="formula">2021</ref>) also find that promoting robustness using adversarial training tends to introduce disparity of performance between different protected groups. However, to our knowledge, debiasing in conjunction with reliability tasks such as selective classification and OOD detection has not been investigated before.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Further Discussion and Conclusion</head><p>In this work, we have investigated the influence of debiasing techniques on model reliability. We discovered that debiasing can substantially reduce the quality of selective classification, particularly when the test set is imbalanced, i.e. it has a similar biased distribution p(g|y) to the training set. The worsening of selective classification performance is more pronounced than in the case of accuracy. Furthermore, we demonstrate that the decrease in performance due to debiasing can be eliminated (results on Bios) or even turned into improvements (results on Moji) when evaluation is conducted on the balanced test sets. The discrepancy in results demonstrates the importance of conducting an evaluation of debiasing methods not only on various training distributions but also on balanced and imbalanced test distributions. Our experiments reveal that the best trade-off between fairness and selective classification performance is achieved by methods based on instance reweighting: BTJ <ref type="bibr">(Lahoti et al., 2020)</ref> and BTEO <ref type="bibr">(Han et al., 2022a)</ref>.</p><p>We also found that rejecting predictions in selective classification can impact relative fairness between various methods and models. For example, after a certain percentage of rejections, the fairness of a debiased model may decrease even below the fairness level of a standard model. This is similar to increased accuracy disparities observed in a rejection scenario <ref type="bibr" target="#b28">(Jones et al., 2021)</ref> but has not been shown in a debiasing setup before. However, it is worth noting that BTJ consistently demonstrates robustly good fairness across all rejection rates.</p><p>Lastly, our experiments reveal that OOD detection is also vulnerable to debiasing when using the baseline UE technique of softmax response. However, applying a more advanced approach such as DDU alleviates this issue providing similar performance with the standard model for most debiasing methods. BTJ and BTEO combined with DDU also demonstrate very robust performance in this scenario. These combinations result in better fairness with no penalties for OOD detection compared to the standard model.</p><p>Overall, methods based on instance reweighting emerge as the most favorable choices for simultaneously obtaining fairness, good performance, and high reliability. Returning to the main research question, when using the right combination of techniques, it is possible to achieve both model fairness and reliability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitations</head><p>• We focused exclusively on equal opportunity fairness in this paper, despite the myriad of different definitions of fairness in the litera-ture, such as demographic parity. Therefore, in Appendix D, we provide a comprehensive description of the calculation process for the fairness metric. Although different fairness criteria may yield slightly different results, we hypothesize that these variations would not significantly alter the relationship between fairness and reliability. We leave further investigation of this matter to future research. • We conducted experiments only on English.</p><p>However, all methods are language-agnostic and are compatible with any transformerbased model. We do not expect there to be major deviations in results for other languages. • We investigated group fairness under the assumption that we have an access to protected attributes, which is not always true for realworld datasets. On the other hand, this is a common assumption in work in the debiasing literature.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Ethical Considerations</head><p>In this work, we consider the trade-off between the performance, fairness, and reliability of a model. We used only publicly-available models and datasets, and only according to the intended use; to avoid any harm to users, we used only attributes that users have self-disclosed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Acronyms Acronym Full name Description</head><p>Debiasing methods     </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>BTJ</head><formula xml:id="formula_1">1 C C c=1 ( 1 N N n=1 (p c n -1 N n log p c n ) 2 )</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Hyperparameters and Computational Resources</head><p>For hyperparameter optimization, we employed the standard grid-search with accuracy on the validation set as an optimization target for the standard model and with DTO for the debiased models. The grid and the best parameters are described in Tables <ref type="table" target="#tab_5">2 to 4</ref>. For each debiasing method we tuned method-specific parameters, namely: adv_lambda for Adv, adv_lambda/adv_diverse_lambda for DAdv, INLP_discriminator_reweighting/INLP_by_class for INLP, DyBTalpha for FairBatch and GD diff . The remaining parameters are given by default in the Fairlib framework <ref type="bibr">(Han et al., 2022d)</ref>. All experiments were conducted on a cluster with Nvidia V100 GPUs. The total amount of GPU hours and the number of model parameters are specified in Table <ref type="table">6</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Dataset Statistics and Test Set Distributions</head><p>In this section, we present the statistics of the datasets used in our experiments, including a joint probability distribution of the target value and protected attribute: Tables <ref type="table" target="#tab_4">7 to 10</ref>. We note that in Moji, the original distribution in test and validation is balanced, so we manipulated this distribution to create the "imbalanced" version. In Bios, on the contrary, the test and validation follow the training distribution, so we modify them to create the "balanced" version. Below, we provide a theoretical justification for performing such manipulations of the test distributions. We also present statistics of datasets used as OOD domains in Tables <ref type="table" target="#tab_4">11</ref> and<ref type="table" target="#tab_5">12</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Theoretical Justification for Experimenting with Various Test Distributions</head><p>Consider a dataset consisting of n instances D = {(x i , y i , z i )} n i=1 , where x i is an input vector to the classifier, y i ∈ [0, 1] represents binary target class label, and z i ∈ [g, ¬g] is the binary group label, such as gender. n c,g denotes the number of instances in a subset with target label c and protected label g. A vanilla model (m) makes prediction, ŷ = m(x).</p><p>When evaluating the accuracy of a model m,</p><formula xml:id="formula_2">Accuracy = TP + TN TP + TN + FP + FN = TP g + TP ¬g + TN g + TN ¬g TP + TN + FP + FN (1)</formula><p>Since the denominator in Equation ( <ref type="formula">1</ref>) is a constant number for a particular dataset (which is the total number of instances in the test set), to simplify the analysis, we will focus on the numerator hereafter TP g + TP ¬g + TN g + TN ¬g .</p><p>How does Equation (1) related to Equal Opportunity Fairness? Recall that equal opportunity fairness is measured by the equality of true positive rate (TPR), e.g., the TPR gap, |TPR g -TPR ¬g |, between two demographic groups.</p><p>Let * denote the results after bias mitigation, e.g. TP * g is the TP of group g after debiasing, and assuming that bias mitigation w.r.t. equal opportunity fairness only changes the prediction w.r.t. positive instances, Accuracy -Accuracy * = 1 TP + TN + FP + FN (TP g + TP ¬g -TP * g -TP * ¬g )</p><p>Moreover, by definition, TPR = TP TP+FN , therefore, Equation (2) can be expressed based on TPR:</p><formula xml:id="formula_4">n(Accuracy -Accuracy * ) = (n 1,g TPR g + n 1,¬g TPR ¬g -n 1,g TPR * g -n 1,¬g TPR * ¬g )<label>(3)</label></formula><p>where, as introduced before, n = TP + TN + FP + FN, n 1,g = TP g + FN g , and n 1,¬g = TP ¬g + FN ¬g . By grouping TPR by groups, we can see that</p><formula xml:id="formula_5">n(Accuracy -Accuracy * ) = n 1,g (TPR g -TPR * g ) + n 1,¬g (TPR ¬g -TPR * ¬g )<label>(4)</label></formula><p>Let ∆ g = TPR g -TPR * g and ∆ ¬g = TPR ¬g -TPR * ¬g denote the changes in TPR after debiasing for group g and ¬g, respectively. Although debiasing may decrease the TPR of the majority group, a good debiasing method should result in a larger increase in terms of the TPR of the minority group, i.e., ∆ g + ∆ ¬g &lt; 0. For example, the vanilla model achieves TPR g = 0.8 and TPR ¬g = 0.2, and a debiased model achieves TPR * g = 0.7 and TPR * ¬g = 0.5. In this example,</p><formula xml:id="formula_6">∆ g + ∆ ¬g = 0.1 + (-0.3) = -0.2</formula><p>How does the test set distribution affect the accuracy evaluation? If the test set is balanced (i.e., n 1,g = n 1,¬g = 1 2 n 1 ), Equation ( <ref type="formula" target="#formula_5">4</ref>) can be simplified as:</p><formula xml:id="formula_7">Accuracy -Accuracy * = n 1 2n (∆ g + ∆ ¬g ),</formula><p>showing that the debiased method could improve the accuracy score by -n 1 2n (∆ g + ∆ ¬g ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Details of Fairness Metric Calculation</head><p>1. We calculate the true positive rate (TPR) for each of the protected groups in a dataset:</p><p>T P R = T P T P + F N .</p><p>(5)</p><p>2. We group-wise aggregate TPR gap according to the following formula:</p><formula xml:id="formula_8">β c = g |T P R c,g -T P R c |.<label>(6)</label></formula><p>Here, T P R c stands for T P R c,g averaged across groups. 3. We aggregate acquired β c class-wise:</p><formula xml:id="formula_9">δ = 1 C c β 2 c .<label>(7)</label></formula><p>4. Finally, we subtract δ from 1 to align fairness with accuracy. Optionally, we multiply it by 100 for easy comparison to other metrics:</p><formula xml:id="formula_10">F airness = 100 • (1 -δ).<label>(8)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Example of a Risk-Coverage Curve</head><p>Figure <ref type="figure" target="#fig_7">6</ref> presents the risk-coverage curve for the Bios dataset with the standard BERT model. In this example, HUQ is used as an uncertainty estimation method for rejecting instances.  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Trade-off between RC-AUC of selective classification with HUQ and fairness (left) and between accuracy and fairness (right) on Moji (the BERTweet model). We removed results for INLP and FairBatch from this figure due to extremely high RC-AUC values for these debiasing methods. The fairness scores are presented alongside each method for better comparison.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Bios with the balanced test and validation sets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Trade-off between RC-AUC of selective classification with HUQ and fairness (left), and between accuracy and fairness (right) on Bios (the BERT model). The fairness scores are presented alongside each method for better comparison.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Effect of varying hyperparameters for debiasing methods on Bios with the imbalanced test and validation sets (BERT model).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Dependence of fairness from a rejection rate with HUQ on the balanced test and validation sets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: The ROC-AUC difference between debiased and standard models for OOD detection on various datasets with imbalanced test and validation sets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>C = number of classes, N = number of stochastic passes, and p c n = probability of class c during the stochastic pass n.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: The example of the RC curve for the Bios dataset with the standard model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>. In</figDesc><table><row><cell></cell><cell>100</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>100</cell><cell></cell><cell></cell></row><row><cell></cell><cell>95</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>98</cell><cell></cell><cell></cell></row><row><cell>Fairness</cell><cell>80 85 90</cell><cell></cell><cell></cell><cell cols="2">Standard BTEO Adv DAdv FairBatch GDdiff BTJ INLP</cell><cell>Fairness</cell><cell>90 92 94 96</cell><cell></cell><cell></cell><cell>Standard BTEO Adv DAdv FairBatch GDdiff BTJ INLP</cell></row><row><cell></cell><cell>0.0</cell><cell>0.2</cell><cell>0.4 Rejection rate, HUQ 0.6</cell><cell>0.8</cell><cell>1.0</cell><cell></cell><cell>0.0</cell><cell>0.2</cell><cell>0.4 Rejection rate, HUQ 0.6</cell><cell>0.8</cell><cell>1.0</cell></row><row><cell></cell><cell></cell><cell cols="3">(a) Moji (BERTweet model).</cell><cell></cell><cell></cell><cell></cell><cell cols="2">(b) Bios (BERT model).</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 1 :</head><label>1</label><figDesc>Short-list of acronyms used in the paper.</figDesc><table><row><cell>Dataset</cell><cell>Debiasing Method</cell><cell>Num. Epochs</cell><cell>Batch Size</cell><cell>Learning Rate</cell><cell>Weight Decay</cell><cell>Debiasing Parameter</cell></row><row><cell></cell><cell>Standard</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>BTEO</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>Adv</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>1.0</cell></row><row><cell>Bios (imbalanced)</cell><cell>DAdv INLP</cell><cell>20 20</cell><cell>16 16</cell><cell>5e-6 5e-6</cell><cell>0 0</cell><cell>1.0/1.0 True/False</cell></row><row><cell></cell><cell>FairBatch</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>0.05</cell></row><row><cell></cell><cell>GDdiff</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>0.5</cell></row><row><cell></cell><cell>BTJ</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>Standard</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>BTEO</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>Adv</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>1.0</cell></row><row><cell>Bios (balanced)</cell><cell>DAdv INLP</cell><cell>20 20</cell><cell>16 16</cell><cell>5e-6 5e-6</cell><cell>0 0</cell><cell>1.0/1.0 False/True</cell></row><row><cell></cell><cell>FairBatch</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>0.05</cell></row><row><cell></cell><cell>GDdiff</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>0.5</cell></row><row><cell></cell><cell>BTJ</cell><cell>20</cell><cell>16</cell><cell>5e-6</cell><cell>0</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 2 :</head><label>2</label><figDesc>Optimal training hyperparameters for BERT on Bios with various debiasing methods. We use a grid search with the following grid values: batch size:[16, 32], learning rate: [1e-6, 5e-6, 1e-5, 3e-5, 5e-5], weight decay: [0, 1e-4]. For all models, dropout rate is 0.1. The number of epochs is determined by early-stopping.</figDesc><table><row><cell>Dataset</cell><cell>Debiasing Method</cell><cell>Num. Epochs</cell><cell>Batch Size</cell><cell>Learning Rate</cell><cell>Weight Decay</cell><cell>Debiasing Parameter</cell></row><row><cell></cell><cell>Standard</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>BTEO</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>Adv</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>1.0</cell></row><row><cell>Moji (imbalanced)</cell><cell>DAdv INLP</cell><cell>20 20</cell><cell>32 32</cell><cell>1e-6 1e-6</cell><cell>0 0</cell><cell>1.0/1.0 False/True</cell></row><row><cell></cell><cell>FairBatch</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>0.5</cell></row><row><cell></cell><cell>GDdiff</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>0.5</cell></row><row><cell></cell><cell>BTJ</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>Standard</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>BTEO</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>-</cell></row><row><cell></cell><cell>Adv</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>1.0</cell></row><row><cell>Moji (balanced)</cell><cell>DAdv INLP</cell><cell>20 20</cell><cell>32 32</cell><cell>1e-6 1e-6</cell><cell>0 0</cell><cell>1.0/1.0 False/False</cell></row><row><cell></cell><cell>FairBatch</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>0.5</cell></row><row><cell></cell><cell>GDdiff</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>0.5</cell></row><row><cell></cell><cell>BTJ</cell><cell>20</cell><cell>32</cell><cell>1e-6</cell><cell>0</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 3 :</head><label>3</label><figDesc>Optimal training hyperparameters for BERTweet on Moji with various debiasing methods. We use a grid search with the following grid values: batch size:[16, 32], learning rate: [1e-6, 5e-6, 1e-5, 3e-5, 5e-5], weight decay: [0, 1e-4]. For all models, dropout rate is 0.1. The number of epochs is determined by early-stopping.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 13 :</head><label>13</label><figDesc>Performance of selective classification (RC-AUC) for various debiasing methods on Bios with imbalanced test and validation sets (BERT model). The best results for each debiasing method are highlighted with bold font.</figDesc><table><row><cell cols="7">F Additional Experimental Results for Selective Classification</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Method</cell><cell>Metric</cell><cell>Standard</cell><cell>BTEO</cell><cell>Adv</cell><cell>DAdv</cell><cell>FairBatch</cell><cell>GD diff</cell><cell>BTJ</cell><cell>INLP</cell></row><row><cell>-</cell><cell>Fairness ↑</cell><cell>90.5±0.5</cell><cell>93.4±0.8</cell><cell>92.9±0.4</cell><cell>92.7±0.4</cell><cell>90.9±0.5</cell><cell>91.8±0.6</cell><cell>92.6±0.4</cell><cell>91.0±0.4</cell></row><row><cell>-</cell><cell>Accuracy ↑</cell><cell>89.7±0.2</cell><cell>88.9±0.4</cell><cell>89.4±0.2</cell><cell>89.4±0.3</cell><cell>89.2±0.1</cell><cell>89.0±0.2</cell><cell>89.5±0.3</cell><cell>89.5±0.2</cell></row><row><cell>-</cell><cell>DTO ↓</cell><cell>14.0±0.2</cell><cell>13.0±0.3</cell><cell>12.8±0.3</cell><cell>12.8±0.4</cell><cell>14.1±0.2</cell><cell>13.8±0.3</cell><cell>12.8±0.4</cell><cell>13.8±0.3</cell></row><row><cell>MD</cell><cell cols="9">RC-AUC ↓ 430.8±15.8 595.0±85.9 517.3±70.0 575.8±203.3 478.4±84.2 640.4±120.2 504.2±38.5 455.6±27.6</cell></row><row><cell>MC (SMP)</cell><cell cols="4">RC-AUC ↓ 379.5±11.0 480.1±72.2 421.7±14.6</cell><cell>416.1±21.6</cell><cell>416.7±14.9</cell><cell cols="3">619.7±48.5 391.1±22.2 455.8±38.4</cell></row><row><cell>MC (PV)</cell><cell cols="3">RC-AUC ↓ 379.0±17.6 469.0±60.2</cell><cell>438.3±4.0</cell><cell>438.9±35.7</cell><cell>427.6±8.2</cell><cell cols="3">545.1±60.2 404.5±24.9 451.2±22.7</cell></row><row><cell>MC (BALD)</cell><cell cols="4">RC-AUC ↓ 373.7±15.4 469.7±62.9 444.6±16.0</cell><cell>460.0±73.7</cell><cell>420.1±7.6</cell><cell cols="3">567.3±88.6 416.3±27.7 437.0±24.6</cell></row><row><cell cols="5">HUQ (DeepFool + MD) RC-AUC ↓ 368.8±17.2 464.4±77.5 408.1±13.1</cell><cell>436.0±77.1</cell><cell>456.1±59.4</cell><cell cols="3">525.2±55.3 377.1±21.8 386.2±26.4</cell></row><row><cell>DeepFool</cell><cell cols="4">RC-AUC ↓ 402.7±17.3 466.3±53.4 430.7±48.4</cell><cell>428.7±33.4</cell><cell>447.3±41.6</cell><cell cols="3">628.0±64.9 389.8±21.4 919.8±272.4</cell></row><row><cell>DDU</cell><cell cols="9">RC-AUC ↓ 719.3±31.3 915.1±92.4 706.3±133.4 812.8±91.8 586.4±106.7 877.2±93.8 785.2±54.1 709.4±26.5</cell></row><row><cell>Baseline (SR)</cell><cell cols="4">RC-AUC ↓ 429.1±18.9 509.5±66.3 478.0±54.3</cell><cell>463.3±50.9</cell><cell>527.9±76.0</cell><cell cols="3">738.4±54.9 419.6±26.8 587.7±66.6</cell></row><row><cell>Method</cell><cell>Metric</cell><cell>Standard</cell><cell>BTEO</cell><cell>Adv</cell><cell>DAdv</cell><cell>FairBatch</cell><cell>GD diff</cell><cell>BTJ</cell><cell>INLP</cell></row><row><cell>-</cell><cell>Fairness ↑</cell><cell>90.5±0.5</cell><cell>93.4±1.1</cell><cell>92.8±0.6</cell><cell>93.1±0.6</cell><cell>90.5±0.9</cell><cell>93.0±1.3</cell><cell>92.5±0.6</cell><cell>90.7±0.5</cell></row><row><cell>-</cell><cell>Accuracy ↑</cell><cell>89.1±0.2</cell><cell>88.7±0.1</cell><cell>89.3±0.2</cell><cell>89.1±0.3</cell><cell>88.3±0.1</cell><cell>88.7±0.4</cell><cell>89.2±0.1</cell><cell>88.9±0.3</cell></row><row><cell>-</cell><cell>DTO ↓</cell><cell>14.5±0.4</cell><cell>13.2±0.6</cell><cell>12.9±0.3</cell><cell>12.9±0.5</cell><cell>15.1±0.6</cell><cell>13.4±0.7</cell><cell>13.1±0.4</cell><cell>14.5±0.2</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 21 :</head><label>21</label><figDesc>Disaggregated TPR values for various debiasing methods on Moji with the imbalanced test and validation sets (DeepMoji+MLP model).</figDesc><table><row><cell>Group</cell><cell cols="2">Metric Standard</cell><cell>BTEO</cell><cell>Adv</cell><cell>DAdv</cell><cell>FairBatch</cell><cell>GD diff</cell><cell>BTJ</cell><cell>INLP</cell></row><row><cell>SAE</cell><cell>TPR</cell><cell cols="2">75.5±1.7 73.1±1.5</cell><cell cols="6">78.2±1.0 78.8±1.0 78.0±1.1 77.8±1.3 79.4±0.6 72.5±2.7</cell></row><row><cell>AAE</cell><cell>TPR</cell><cell cols="2">67.2±0.9 69.8±2.5</cell><cell cols="6">68.7±0.9 70.9±0.5 69.9±0.8 70.6±0.5 70.8±0.8 64.2±4.3</cell></row><row><cell>SAE Sad</cell><cell>TPR</cell><cell cols="2">89.7±2.4 92.6±1.5</cell><cell cols="6">77.5±9.1 77.4±7.1 73.9±1.9 70.6±6.0 81.3±4.1 77.2±10.6</cell></row><row><cell>AAE Sad</cell><cell>TPR</cell><cell cols="8">43.9±2.8 73.5±7.0 66.7±10.1 63.2±6.3 64.9±3.8 57.7±5.5 67.3±6.3 59.1±14.6</cell></row><row><cell cols="2">SAE Happy TPR</cell><cell cols="2">61.3±5.8 53.6±4.4</cell><cell cols="6">78.8±8.2 80.3±6.3 82.1±2.1 84.9±4.5 77.4±5.2 67.9±7.6</cell></row><row><cell cols="2">AAE Happy TPR</cell><cell cols="8">90.6±1.2 66.1±11.7 70.7±11.4 78.7±5.7 75.0±5.0 83.6±5.0 74.2±6.8 69.3±8.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 22 :</head><label>22</label><figDesc>Disaggregated TPR values for various debiasing methods on Moji with the balanced test and validation sets (DeepMoji+MLP model).</figDesc><table><row><cell>Group</cell><cell cols="2">Metric Standard</cell><cell>BTEO</cell><cell>Adv</cell><cell>DAdv</cell><cell>FairBatch</cell><cell>GD diff</cell><cell>BTJ</cell><cell>INLP</cell></row><row><cell>SAE</cell><cell>TPR</cell><cell cols="8">77.4±1.2 82.8±0.8 82.6±0.7 82.9±0.5 79.3±1.7 84.0±1.1 81.6±1.5 71.3±10.5</cell></row><row><cell>AAE</cell><cell>TPR</cell><cell cols="8">66.2±0.6 70.4±0.4 70.7±1.0 70.9±0.8 68.2±3.0 69.7±0.7 71.0±0.4 60.5±5.3</cell></row><row><cell>SAE Sad</cell><cell>TPR</cell><cell cols="8">92.5±0.8 85.1±1.9 85.1±2.2 84.5±1.4 80.6±9.7 83.7±1.7 89.2±0.8 84.0±6.8</cell></row><row><cell>AAE Sad</cell><cell>TPR</cell><cell cols="8">45.8±1.6 66.3±3.1 69.1±2.6 68.0±1.9 63.3±14.8 64.0±3.2 69.7±1.7 50.7±13.3</cell></row><row><cell cols="2">SAE Happy TPR</cell><cell cols="8">62.3±3.0 80.6±3.3 80.1±3.4 81.4±2.0 78.0±8.4 84.4±3.5 74.0±3.8 58.6±17.1</cell></row><row><cell cols="2">AAE Happy TPR</cell><cell cols="8">86.6±0.7 74.5±3.7 72.3±3.3 73.8±3.0 73.0±9.6 75.3±2.6 72.4±1.7 70.3±22.3</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 23 :</head><label>23</label><figDesc>Disaggregated TPR values for various debiasing methods on Moji with the imbalanced test set (BERTweet model).</figDesc><table><row><cell>Group</cell><cell cols="2">Metric Standard</cell><cell>BTEO</cell><cell>Adv</cell><cell>DAdv</cell><cell>FairBatch</cell><cell>GD diff</cell><cell>BTJ</cell><cell>INLP</cell></row><row><cell>SAE</cell><cell>TPR</cell><cell cols="8">77.4±0.8 82.2±0.8 82.3±0.5 82.3±1.7 78.0±1.9 83.9±0.7 81.6±1.0 68.8±10.8</cell></row><row><cell>AAE</cell><cell>TPR</cell><cell cols="8">67.6±0.2 70.6±0.5 70.3±0.9 70.3±0.7 67.8±3.6 69.9±0.3 71.1±0.5 59.8±7.7</cell></row><row><cell>SAE Sad</cell><cell>TPR</cell><cell cols="8">92.4±0.6 85.4±2.2 84.6±1.8 81.7±3.2 75.8±10.5 82.4±0.9 88.8±0.8 88.0±8.7</cell></row><row><cell>AAE Sad</cell><cell>TPR</cell><cell cols="8">48.5±0.4 67.2±3.3 67.8±2.1 65.6±1.3 71.9±12.0 62.6±1.1 69.3±1.4 60.9±21.5</cell></row><row><cell cols="2">SAE Happy TPR</cell><cell cols="8">62.5±2.0 79.0±3.7 80.1±2.5 82.8±0.8 80.1±10.3 85.3±1.2 74.3±2.8 49.6±25.5</cell></row><row><cell cols="2">AAE Happy TPR</cell><cell cols="8">86.8±0.4 74.0±4.1 72.8±2.9 75.0±1.8 63.6±18.9 77.2±0.9 72.8±2.2 58.8±33.6</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 24 :</head><label>24</label><figDesc>Disaggregated TPR values for various debiasing methods on Moji with the balanced test set (BERTweet model). 9±1.5 86.3±1.7 86.5±2.3 86.6±2.3 85.8±0.8 87.0±1.3 86.6±1.4 86.7±0.9 Male dentist TPR 77.0±2.2 71.0±5.1 75.9±1.9 76.0±1.8 76.7±1.4 70.1±1.8 77.0±1.3 77.1±1.6 Female dentist TPR 53.8±0.9 54.2±3.3 58.0±1.9 57.3±2.0 54.5±2.1 49.1±1.7 58.0±2.1 55.1±0.6 Male nurse TPR 74.4±1.5 74.1±2.2 75.5±2.2 76.6±3.7 74.3±0.7 72.8±3.5 76.6±2.0 73.9±2.0 Female nurse TPR 78.4±1.5 76.3±1.5 77.5±1.7 78.9±2.5 77.9±0.8 77.6±3.2 79.4±1.8 78.1±1.1</figDesc><table><row><cell>Group</cell><cell cols="2">Metric Standard</cell><cell>BTEO</cell><cell>Adv</cell><cell>DAdv</cell><cell>FairBatch</cell><cell>GD diff</cell><cell>BTJ</cell><cell>INLP</cell></row><row><cell>Male</cell><cell>TPR</cell><cell cols="8">86.1±0.4 85.6±0.7 86.4±0.3 86.4±0.5 85.5±0.1 85.4±0.4 86.7±0.7 86.0±0.4</cell></row><row><cell>Female</cell><cell>TPR</cell><cell cols="8">86.3±0.2 85.7±0.5 86.5±0.2 86.5±0.4 86.0±0.2 85.4±0.4 86.6±0.4 86.3±0.3</cell></row><row><cell>Male teacher</cell><cell>TPR</cell><cell cols="8">93.6±0.4 93.2±0.4 93.2±0.4 93.7±0.9 92.9±0.2 93.8±0.3 92.8±0.8 93.4±0.3</cell></row><row><cell>Female teacher</cell><cell>TPR</cell><cell cols="8">92.8±0.7 92.8±0.5 93.1±0.2 93.5±0.7 92.2±0.5 93.4±0.5 92.9±0.8 92.9±0.1</cell></row><row><cell>Male attorney</cell><cell>TPR</cell><cell cols="8">94.5±0.4 94.2±0.6 94.6±0.3 95.0±0.2 93.8±0.6 95.1±0.3 94.1±1.7 94.3±0.5</cell></row><row><cell>Female attorney</cell><cell>TPR</cell><cell cols="8">97.7±0.2 97.2±0.3 97.7±0.2 97.7±0.1 97.2±0.5 97.8±0.2 97.2±1.0 97.7±0.3</cell></row><row><cell>Male photographer</cell><cell>TPR</cell><cell cols="8">88.0±1.5 89.2±1.3 89.0±1.7 87.6±2.8 86.6±1.3 88.4±2.7 89.3±0.7 87.2±0.9</cell></row><row><cell cols="2">Female photographer TPR</cell><cell cols="8">88.7±1.0 89.5±1.5 90.1±1.8 88.6±2.3 87.8±1.2 88.3±3.2 89.7±0.8 87.7±0.5</cell></row><row><cell>Male psychologist</cell><cell>TPR</cell><cell cols="8">74.5±1.1 77.0±1.3 78.3±1.9 78.3±2.0 75.0±0.5 74.5±1.4 78.9±3.4 75.7±2.0</cell></row><row><cell cols="2">Female psychologist TPR</cell><cell cols="8">88.3±1.1 83.2±1.8 84.4±1.6 85.1±1.8 88.1±0.9 83.8±1.0 84.7±0.3 88.5±2.1</cell></row><row><cell>Male physician</cell><cell>TPR</cell><cell cols="8">94.2±0.7 94.0±0.4 94.4±0.4 93.6±0.3 94.3±0.4 94.6±0.8 94.2±0.9 94.2±0.5</cell></row><row><cell>Female physician</cell><cell>TPR</cell><cell cols="8">91.7±0.8 93.3±0.6 92.9±0.6 92.5±0.7 91.9±0.7 92.8±1.3 93.2±0.5 91.6±0.6</cell></row><row><cell>Male surgeon</cell><cell>TPR</cell><cell cols="8">91.7±1.1 91.0±1.3 89.8±1.2 90.2±0.6 91.3±0.3 91.9±1.2 90.1±1.4 91.9±0.9</cell></row><row><cell>Female surgeon</cell><cell>TPR</cell><cell cols="8">98.0±0.2 98.3±0.2 98.2±0.1 98.1±0.2 98.1±0.1 98.4±0.2 98.1±0.2 98.0±0.3</cell></row><row><cell>Male journalist</cell><cell>TPR</cell><cell cols="8">86.9±0.7 86.9±2.2 87.0±2.3 86.8±1.6 84.7±0.4 87.7±1.5 86.9±1.2 86.6±0.6</cell></row><row><cell>Female journalist</cell><cell>TPR</cell><cell>86.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 25 :</head><label>25</label><figDesc>Disaggregated TPR values for various debiasing methods on Bios with imbalanced test and validation sets (BERT model).</figDesc><table><row><cell>Group</cell><cell cols="2">Metric Standard</cell><cell>BTEO</cell><cell>Adv</cell><cell>DAdv</cell><cell>FairBatch</cell><cell>GD diff</cell><cell>BTJ</cell><cell>INLP</cell></row><row><cell>Male</cell><cell>TPR</cell><cell cols="8">86.0±0.3 85.4±0.5 86.4±0.5 86.4±0.6 85.5±0.3 84.6±1.2 86.8±0.4 85.9±0.3</cell></row><row><cell>Female</cell><cell>TPR</cell><cell cols="8">86.1±0.2 85.3±0.3 86.2±0.2 86.1±0.5 85.6±0.2 84.6±0.9 86.6±0.4 86.2±0.3</cell></row><row><cell>Male teacher</cell><cell>TPR</cell><cell cols="8">94.5±0.3 93.5±1.4 94.1±0.3 93.9±0.9 93.5±0.4 94.8±0.2 93.2±0.9 94.4±0.3</cell></row><row><cell>Female teacher</cell><cell>TPR</cell><cell cols="8">92.9±0.8 92.5±1.5 93.3±0.3 93.2±0.8 92.1±0.5 93.6±0.4 92.4±1.0 92.8±0.4</cell></row><row><cell>Male attorney</cell><cell>TPR</cell><cell cols="8">94.0±0.6 93.6±0.4 93.7±0.4 94.2±0.3 92.6±0.6 94.2±0.4 93.6±0.8 93.9±0.6</cell></row><row><cell>Female attorney</cell><cell>TPR</cell><cell cols="8">97.7±0.3 97.2±0.3 97.7±0.2 97.6±0.3 97.2±0.3 97.6±0.3 97.4±0.4 97.9±0.3</cell></row><row><cell>Male photographer</cell><cell>TPR</cell><cell cols="8">87.7±1.4 90.2±1.2 89.2±2.4 88.8±3.7 86.4±0.9 89.6±1.6 89.9±0.8 87.8±0.9</cell></row><row><cell cols="2">Female photographer TPR</cell><cell cols="8">88.9±1.1 90.0±1.4 89.9±1.8 89.4±2.9 87.7±0.9 89.5±1.5 90.3±1.1 88.6±1.5</cell></row><row><cell>Male psychologist</cell><cell>TPR</cell><cell cols="8">73.7±1.4 76.2±1.3 76.6±0.9 78.4±1.9 74.5±0.2 74.0±1.8 79.1±4.0 74.2±1.0</cell></row><row><cell cols="2">Female psychologist TPR</cell><cell cols="8">86.2±2.8 82.2±0.8 82.5±1.2 83.8±2.2 87.7±1.0 82.1±1.8 83.7±2.0 87.4±1.9</cell></row><row><cell>Male physician</cell><cell>TPR</cell><cell cols="8">95.3±1.0 94.2±1.1 94.9±0.6 94.0±0.4 94.9±0.2 95.4±0.9 94.5±0.9 94.8±0.4</cell></row><row><cell>Female physician</cell><cell>TPR</cell><cell cols="8">93.0±1.4 93.1±1.2 93.1±0.8 92.4±0.7 92.1±0.7 93.8±1.7 93.4±0.7 92.1±0.9</cell></row><row><cell>Male surgeon</cell><cell>TPR</cell><cell cols="8">91.9±0.6 91.0±1.4 90.3±0.5 90.6±1.2 91.5±0.6 92.1±1.3 89.2±0.8 91.9±0.4</cell></row><row><cell>Female surgeon</cell><cell>TPR</cell><cell cols="8">98.2±0.1 98.3±0.3 98.2±0.1 97.9±0.4 97.8±0.3 98.4±0.3 97.9±0.1 98.2±0.2</cell></row><row><cell>Male journalist</cell><cell>TPR</cell><cell cols="8">86.7±0.5 85.9±1.9 87.2±2.0 86.6±1.8 84.6±0.7 87.7±2.4 86.9±1.4 85.9±0.7</cell></row><row><cell>Female journalist</cell><cell>TPR</cell><cell cols="8">85.6±1.9 84.5±1.7 85.8±1.7 85.0±2.2 84.6±1.9 86.5±1.9 86.0±1.3 85.0±1.1</cell></row><row><cell>Male dentist</cell><cell>TPR</cell><cell cols="8">76.6±2.1 70.0±5.8 74.7±3.3 74.5±4.5 77.0±2.9 62.9±8.7 78.1±1.7 76.5±1.0</cell></row><row><cell>Female dentist</cell><cell>TPR</cell><cell cols="8">53.0±1.1 53.3±2.6 56.3±1.4 56.6±3.4 53.7±2.1 45.5±6.2 58.8±1.9 54.1±1.5</cell></row><row><cell>Male nurse</cell><cell>TPR</cell><cell cols="8">73.6±2.4 74.0±2.7 76.4±1.8 76.9±3.5 74.2±1.0 70.9±2.9 76.4±1.2 73.9±1.7</cell></row><row><cell>Female nurse</cell><cell>TPR</cell><cell cols="8">79.0±2.5 76.8±2.2 79.4±2.0 79.2±2.5 77.8±1.1 74.8±3.1 79.1±0.8 79.3±1.7</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 26 :</head><label>26</label><figDesc>Disaggregated TPR values for various debiasing methods on Bios with balanced test and validation sets (BERT model).</figDesc><table /></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We are grateful to <rs type="person">Trevor Cohn</rs> for his suggestions and help regarding the theoretical justification for experimenting with various test distributions (Appendix C.1). The work of <rs type="person">Alexander Panchenko</rs> (Sections 3 and 4) was supported by the <rs type="funder">Russian Science Foundation</rs> grant <rs type="grantNumber">20-71-10135</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_5aHK3Jd">
+					<idno type="grant-number">20-71-10135</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>On the other hand, if the test set is imbalanced, let's explore the condition when debiasing does not affect accuracy:</p><p>In our previous example, where ∆ g = 0.1 and ∆ ¬g = -0.3, the debiasing method does not affect accuracy if  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>H Details of the Hybrid Uncertainty Quantification Method</head><p>We combine aleatoric and epistemic uncertainty in a single score, which we call Hybrid Uncertainty Quantification (HUQ). Consider we have a training dataset D. We define D ID = {x ∈ D : U E (x) ≤ δ min } as in-distribution instances from D; X ID = {x : U E (x) ≤ δ min } as arbitrary in-distribution instances; X IDA = {x∈ X ID : U A (x) &gt; δ max } as ambiguous in-distribution instances (instances that lie on the discriminative border of the trained classifier). Here, δ min , δ max are thresholds selected on the validation dataset. Consider we are given measures of aleatoric U A (x) and epistemic U E (x) uncertainty. To make different UE scores comparable, we define a ranking function R(u, D) as a rank of u over a sorted dataset D, where u 1 &gt; u 2 implies R(u 1 , D) &gt; R(u 2 , D). For a given measure of aleatoric and epistemic uncertainty, we compute total uncertainty U T (x) as a linear combination U T (x) =(1 -α)R(U E (x), D) + αR(U A (x), D), where α is a hyperparameter selected on the validation dataset. Finally, we define HUQ as follows:</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Stereotypical bias removal for hate speech detection task using knowledge-based generalizations</title>
+		<author>
+			<persName><forename type="first">Pinkesh</forename><surname>Badjatiya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manish</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vasudeva</forename><surname>Varma</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3308558.3313504</idno>
+	</analytic>
+	<monogr>
+		<title level="m">The World Wide Web Conference</title>
+		<meeting><address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>WWW</publisher>
+			<date type="published" when="2019-05-13">2019. 2019. May 13-17, 2019</date>
+			<biblScope unit="page" from="49" to="59" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Your fairness may vary: Pretrained language model fairness in toxic text classification</title>
+		<author>
+			<persName><forename type="first">Acm</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioana</forename><surname>Baldini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dennis</forename><surname>Wei</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.176</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2245" to="2262" />
+		</imprint>
+	</monogr>
+	<note>Karthikeyan Natesan Ramamurthy, Moninder Singh, and Mikhail Yurochkin</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Language (technology) is power: A critical survey of &quot;bias&quot; in NLP</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Solon</forename><surname>Blodgett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hal</forename><surname>Barocas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iii</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanna</forename><surname>Wallach</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.485</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5454" to="5476" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Demographic dialectal variation in social media: A case study of African-American English</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lisa</forename><surname>Blodgett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brendan O'</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Connor</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D16-1120</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1119" to="1130" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Findings of the 2016 Conference on Machine Translation</title>
+		<author>
+			<persName><forename type="first">Ondřej</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rajen</forename><surname>Chatterjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Federmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yvette</forename><surname>Graham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Huck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Jimeno Yepes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christof</forename><surname>Monz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Negri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurélie</forename><surname>Névéol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariana</forename><surname>Neves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Popel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raphael</forename><surname>Rubino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carolina</forename><surname>Scarton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Turchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karin</forename><surname>Verspoor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W16-2301</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Conference on Machine Translation</title>
+		<meeting>the First Conference on Machine Translation<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="131" to="198" />
+		</imprint>
+	</monogr>
+	<note>Shared Task Papers</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A method for improving classification reliability of multilayer perceptrons</title>
+		<author>
+			<persName><forename type="first">Luigi</forename><forename type="middle">P</forename><surname>Cordella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claudio</forename><forename type="middle">De</forename><surname>Stefano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Tortorella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Vento</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Neural Networks</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1140" to="1147" />
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Bias in bios: A case study of semantic representation bias in a high-stakes setting</title>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>De-Arteaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Romanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanna</forename><surname>Wallach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennifer</forename><surname>Chayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Borgs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Chouldechova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sahin</forename><surname>Geyik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Krishnaram</forename><surname>Kenthapadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Tauman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalai</forename></persName>
+		</author>
+		<idno type="DOI">10.1145/3287560.3287572</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Fairness, Accountability, and Transparency, FAT* &apos;19</title>
+		<meeting>the Conference on Fairness, Accountability, and Transparency, FAT* &apos;19<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="120" to="128" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Addressing agerelated bias in sentiment analysis</title>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Díaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isaac</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Lazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anne</forename><forename type="middle">Marie</forename><surname>Piper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Darren</forename><surname>Gergle</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2019/852</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Eighth International Joint Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Eighth International Joint Conference on Artificial Intelligence<address><addrLine>Macao, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-08-10">2019. 2019. August 10-16, 2019</date>
+			<biblScope unit="page" from="6146" to="6150" />
+		</imprint>
+	</monogr>
+	<note>ijcai.org</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Adversarial active learning for deep networks: a margin based approach</title>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Ducoffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frédéric</forename><surname>Precioso</surname></persName>
+		</author>
+		<idno>abs/1802.09841</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">ArXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Fairness through awareness</title>
+		<author>
+			<persName><forename type="first">Cynthia</forename><surname>Dwork</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moritz</forename><surname>Hardt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Toniann</forename><surname>Pitassi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Reingold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Zemel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Innovations in Theoretical Computer Science Conference</title>
+		<meeting>the 3rd Innovations in Theoretical Computer Science Conference</meeting>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="214" to="226" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">On the foundations of noisefree selective classification</title>
+		<author>
+			<persName><forename type="first">Ran</forename><surname>El-Yaniv</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Adversarial removal of demographic attributes from text data</title>
+		<author>
+			<persName><forename type="first">Yanai</forename><surname>Elazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1002</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="11" to="21" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Using millions of emoji occurrences to learn any-domain representations for detecting sentiment, emotion and sarcasm</title>
+		<author>
+			<persName><forename type="first">Bjarke</forename><surname>Felbo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Mislove</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1169</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1615" to="1625" />
+		</imprint>
+	</monogr>
+	<note>Iyad Rahwan, and Sune Lehmann</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Dropout as a Bayesian approximation: Representing model uncertainty in deep learning</title>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+		<ptr target="JMLR.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 33nd International Conference on Machine Learning, ICML 2016</title>
+		<meeting>the 33nd International Conference on Machine Learning, ICML 2016<address><addrLine>New York City, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-06-19">2016. June 19-24, 2016</date>
+			<biblScope unit="volume">48</biblScope>
+			<biblScope unit="page" from="1050" to="1059" />
+		</imprint>
+	</monogr>
+	<note>JMLR Workshop and Conference Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Deep Bayesian active learning with image data</title>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Riashat</forename><surname>Islam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning, ICML 2017</title>
+		<meeting>the 34th International Conference on Machine Learning, ICML 2017<address><addrLine>Sydney, NSW</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-08-11">2017. Australia, 6-11 August 2017</date>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="page" from="1183" to="1192" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Selective classification for deep neural networks</title>
+		<author>
+			<persName><forename type="first">Pmlr</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Geifman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ran</forename><surname>El-Yaniv</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-09">2017. 2017. December 4-9, 2017</date>
+			<biblScope unit="page" from="4878" to="4887" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Diverse adversaries for mitigating bias in training</title>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.239</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter</title>
+		<meeting>the 16th Conference of the European Chapter</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2760" to="2765" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">2022a. Balancing out bias: Achieving fairness through balanced training</title>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="11335" to="11350" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">2022b. Towards equal opportunity fairness through adversarial learning</title>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<idno>abs/2203.06317</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">ArXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Fair enough: Standardizing evaluation and model selection for fairness research in NLP</title>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th Conference of the European Chapter</title>
+		<meeting>the 17th Conference of the European Chapter</meeting>
+		<imprint>
+			<publisher>the Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="297" to="312" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Timothy Baldwin, and Lea Frermann. 2022c. Systematic evaluation of predictive fairness</title>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aili</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<biblScope unit="page" from="68" to="81" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">2022d. fairlib: A unified framework for assessing and improving classification fairness</title>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aili</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lea</forename><surname>Frermann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing (EMNLP 2022) Demo Session</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing (EMNLP 2022) Demo Session<address><addrLine>Abu Dhabi, UAE</addrLine></address></meeting>
+		<imprint>
+			<publisher>Moritz Hardt, Eric Price, and Nati Srebro</publisher>
+			<date type="published" when="2016">2016. 2016</date>
+			<biblScope unit="page" from="3315" to="3323" />
+		</imprint>
+	</monogr>
+	<note>Advances in Neural Information Processing Systems 29: Annual Conference on Neural Information Processing Systems</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">A baseline for detecting misclassified and out-of-distribution examples in neural networks</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In 5th International Conference on Learning Representations. OpenReview.net</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Deep anomaly detection with outlier exposure</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mantas</forename><surname>Mazeika</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><forename type="middle">G</forename><surname>Dietterich</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">7th International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Bayesian active learning for classification and preference learning</title>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Houlsby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ferenc</forename><surname>Huszar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Máté</forename><surname>Lengyel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1112.5745</idno>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Toward semantics-based answer pinpointing</title>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurie</forename><surname>Gerber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ulf</forename><surname>Hermjakob</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deepak</forename><surname>Ravichandran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First International Conference on Human Language Technology Research</title>
+		<meeting>the First International Conference on Human Language Technology Research</meeting>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Uncertainty-aware reliable text classification</title>
+		<author>
+			<persName><forename type="first">Yibo</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Latifur</forename><surname>Khan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery &amp; Data Mining</title>
+		<meeting>the 27th ACM SIGKDD Conference on Knowledge Discovery &amp; Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="628" to="636" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Fairness without demographics through adversarially reweighted learning</title>
+		<author>
+			<persName><forename type="first">Erik</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiori</forename><surname>Sagawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pang</forename><surname>Wei Koh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ananya</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="middle">Net</forename><surname>Openreview</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Alex</forename><surname>Preethi Lahoti</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jilin</forename><surname>Beutel</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Kang</forename><surname>Chen</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Flavien</forename><surname>Lee</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nithum</forename><surname>Prost</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Xuezhi</forename><surname>Thain</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ed</forename><surname>Wang</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Chi</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2020">2021. 2020. 2020</date>
+		</imprint>
+	</monogr>
+	<note>9th International Conference on Learning Representations</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Simple and scalable predictive uncertainty estimation using deep ensembles</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Balaji Lakshminarayanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Pritzel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Blundell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-09">2017. 2017. December 4-9, 2017</date>
+			<biblScope unit="page" from="6402" to="6413" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">NewsWeeder: Learning to filter netnews</title>
+		<author>
+			<persName><forename type="first">Ken</forename><surname>Lang</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/b978-1-55860-377-6.50048-7</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twelfth International Conference on Machine Learning</title>
+		<meeting>the Twelfth International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="1995">1995</date>
+			<biblScope unit="page" from="331" to="339" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Kaufmann</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">An evaluation dataset for intent classification and out-ofscope prediction</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Larson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anish</forename><surname>Mahendran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">J</forename><surname>Peper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Parker</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><forename type="middle">K</forename><surname>Kummerfeld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Leach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">A</forename><surname>Laurenzano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingjia</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Mars</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1131</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1311" to="1316" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">A simple unified framework for detecting outof-distribution samples and adversarial attacks</title>
+		<author>
+			<persName><forename type="first">Kimin</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kibok</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglak</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinwoo</forename><surname>Shin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 31: Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2018">2018. 2018</date>
+			<biblScope unit="page" from="7167" to="7177" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Learning question classifiers</title>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING 2002: The 19th International Conference on Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Towards understanding and mitigating social biases in language models</title>
+		<author>
+			<persName><forename type="first">Paul Pu</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chiyu</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Louis-Philippe</forename><surname>Morency</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Machine Learning</title>
+		<meeting>the 38th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">139</biblScope>
+			<biblScope unit="page" from="6565" to="6576" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Simple and principled uncertainty estimation with deterministic deep learning via distance awareness</title>
+		<author>
+			<persName><forename type="first">Jeremiah</forename><forename type="middle">Z</forename><surname>Pmlr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shreyas</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dustin</forename><surname>Padhy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tania</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Balaji</forename><surname>Bedrax-Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lakshminarayanan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020. 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Association for Computational Linguistics. Andrey Malinin and Mark J. F. Gales. 2021. Uncertainty estimation in autoregressive structured prediction</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">L</forename><surname>Maas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raymond</forename><forename type="middle">E</forename><surname>Daly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">T</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="142" to="150" />
+		</imprint>
+	</monogr>
+	<note>Learning word vectors for sentiment analysis. In 9th International Conference on Learning Representations. OpenReview.net</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Survey of multi-objective optimization methods for engineering. Structural and Multidisciplinary Optimization</title>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Marler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jasbir S</forename><surname>Arora</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="page" from="369" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Deep deterministic uncertainty: A new simple baseline</title>
+		<author>
+			<persName><forename type="first">Jishnu</forename><surname>Mukhoti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Kirsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joost</forename><surname>Van Amersfoort</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Hs Torr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="24384" to="24394" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">BERTweet: A pre-trained language model for English tweets</title>
+		<author>
+			<persName><forename type="first">Thanh</forename><surname>Dat Quoc Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anh</forename><forename type="middle">Tuan</forename><surname>Vu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nguyen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.2</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9" to="14" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Reducing gender bias in abusive language detection</title>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Park</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamin</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1302</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2799" to="2804" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Revisiting mahalanobis distance for transformerbased out-of-domain detection</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Podolskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Lipin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrey</forename><surname>Bout</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Thirty-Fifth AAAI Conference on Artificial Intelligence</title>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="13675" to="13682" />
+		</imprint>
+	</monogr>
+	<note>Ekaterina Artemova, and Irina Piontkovskaya</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Null it out: Guarding protected attributes by iterative nullspace projection</title>
+		<author>
+			<persName><forename type="first">Shauli</forename><surname>Ravfogel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanai</forename><surname>Elazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hila</forename><surname>Gonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Twiton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.647</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7237" to="7256" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Fairbatch: Batch selection for model fairness</title>
+		<author>
+			<persName><forename type="first">Yuji</forename><surname>Roh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kangwook</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><forename type="middle">Euijong</forename><surname>Whang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changho</forename><surname>Suh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">9th International Conference on Learning Representations</title>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Cross-lingual transfer learning for multilingual task oriented dialog</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonal</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rushin</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1380</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3795" to="3805" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Optimising equal opportunity fairness in model training</title>
+		<author>
+			<persName><forename type="first">Aili</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lea</forename><surname>Frermann</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.299</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4073" to="4084" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Recursive deep models for semantic compositionality over a sentiment treebank</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Perelygin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="1631" to="1642" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">Ferdinando Fioretto, and Pascal Van Henternyck. 2022a. Fairness increases adversarial vulnerability</title>
+		<author>
+			<persName><forename type="first">Cuong</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keyu</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno>abs/2211.11835</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">ArXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">2022b. Plex: Towards reliability using pretrained large model extensions</title>
+		<author>
+			<persName><forename type="first">Dustin</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeremiah</forename><forename type="middle">Zhe</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">W</forename><surname>Dusenberry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Du</forename><surname>Phan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Collier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kehang</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zelda</forename><forename type="middle">E</forename><surname>Mariet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huiyi</forename><surname>Hu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">First Workshop on Pretraining: Perspectives, Pitfalls, and Paths Forward at ICML 2022</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Hybrid uncertainty quantification for selective text classification in ambiguous tasks</title>
+		<author>
+			<persName><forename type="first">Artem</forename><surname>Vazhentsev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gleb</forename><surname>Kuzmin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akim</forename><surname>Tsvigun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxim</forename><surname>Panov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikhail</forename><surname>Burtsev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Artem</forename><surname>Shelmanov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.652</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="11659" to="11681" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Balanced datasets are not enough: Estimating and mitigating gender bias in deep image representations</title>
+		<author>
+			<persName><forename type="first">Tianlu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jieyu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Yatskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vicente</forename><surname>Ordonez</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICCV.2019.00541</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2019 IEEE/CVF International Conference on Computer Vision, ICCV 2019, Seoul, Korea (South)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019-10-27">2019. October 27 -November 2, 2019</date>
+			<biblScope unit="page" from="5309" to="5318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">The art of abstention: Selective prediction and error regularization for natural language processing</title>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Xin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raphael</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaoliang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.84</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1040" to="1051" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">To be robust or to be fair: Towards fairness in adversarial training</title>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaorui</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaxin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anil</forename><forename type="middle">K</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Machine Learning</title>
+		<meeting>the 38th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">139</biblScope>
+			<biblScope unit="page" from="11492" to="11501" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Detection of adversarial examples in text classification: Benchmark and baseline via robust density estimation</title>
+		<author>
+			<persName><forename type="first">Kiyoon</forename><surname>Yoo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jangho</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiho</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nojun</forename><surname>Kwak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">; Xuchao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanglan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang-Tien</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naren</forename><surname>Ramakrishnan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1316</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Dublin, Ireland; Minneapolis</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2022. 2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3126" to="3136" />
+		</imprint>
+	</monogr>
+	<note>Findings of the Association for Computational Linguistics: ACL 2022</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Contrastive out-of-distribution detection for pretrained transformers</title>
+		<author>
+			<persName><forename type="first">Wenxuan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhao</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.84</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1100" to="1111" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>SMP) RC-AUC ↓ 293.2±16.4 347.9±28.8 283.9±14.1 286.1±8.7 305.3±9.9 462.4±53.0 293.7±19.8 328.7±42.9</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>PV) RC-AUC ↓ 290.3±16.9 337.8±26.4 288.8±8.8 301.4±16.6</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>BALD) RC-AUC ↓ 287.6±21.7 338.0±33.7 291.8±7.4 312.9±36.8</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">+</forename><surname>Huq (deepfool</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Md</surname></persName>
+		</author>
+		<idno>RC-AUC ↓ 285.0±22.4 327.5±25.8 297.0±14.6 286.4±5.8 323.0±19.3 396.0±63.1 283.7±18.1 312.7±63.3</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Baseline</surname></persName>
+		</author>
+		<idno>SR) RC-AUC ↓ 326.2±14.3 369.3±21.9 309.3±20.6 312.3±15.0 362.2±32.8 519.6±37.1 310.8±15.9 452.2±123.8</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<monogr>
+		<title level="m" type="main">The best results for each debiasing method are highlighted with bold font. Method Metric Standard BTEO Adv DAdv FairBatch GD diff BTJ INLP -Fairness ↑</title>
+		<imprint/>
+	</monogr>
+	<note>Table 14: Performance of selective classification (RC-AUC) for various debiasing methods on Bios with balanced test and validation sets (BERT model)</note>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<monogr>
+		<title level="m" type="main">Table 15: Performance of selective classification for various debiasing methods on Moji with the imbalanced test and validation sets (DeepMoji+MLP model)</title>
+		<imprint/>
+	</monogr>
+	<note>The best results for each debiasing method are highlighted with bold font. Method Metric Standard BTEO Adv DAdv FairBatch GD diff BTJ INLP -Fairness ↑</note>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Rc-Auc ↓</forename><surname>Md</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2086">2086</date>
+		</imprint>
+	</monogr>
+	<note>3±212.7 2115.1±126.9 2151.5±145.2 2190.7±213.9 2325.3±147.2 2537.9±145.8 1869.7±313.8 2314.5±361.5</note>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>SMP) RC-AUC ↓ 1358.9±50.4 1327.4±77.6 1252.8±117.4 1088.7±31.3 1127.5±69.8 1158.2±140.9 1049.3±41.0 1814.7±464.8</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>PV) RC-AUC ↓ 1504.2±77.6 1397.7±131.1 1662.5±243.2 1256.8±104.5 1216.5±79.6 1902.0±124.3 1128.2±54.9 1901.9±461.5</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>BALD) RC-AUC ↓ 1697.8±127.9 1499.2±218.0 1756.1±212.5 1476.8±169.1 1364.8±100.2 2171.6±82.9 1249.6±123.4 2013.5±471.9 HUQ (SR + MD) RC-AUC ↓ 1360.6±50.2 1325.9±78.1 1236.5±132.3 1086.5±35.1 1125.3±68.9 1158.9±144.4 1049.0±41.2 1719.0±434.9</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b67">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Baseline</surname></persName>
+		</author>
+		<idno>SR) RC-AUC ↓ 1360.6±50.2 1326.1±78.2 1255.8±118.8 1089.1±32.8 1128.7±69.3 1159.5±143.8 1049.2±41.6 1823.3±468.2</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b68">
+	<monogr>
+		<title level="m" type="main">The best results for each debiasing method are highlighted with bold font. Method Metric Standard BTEO Adv DAdv FairBatch GD diff BTJ INLP -Fairness ↑</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+		</imprint>
+	</monogr>
+	<note>Performance of selective classification for various debiasing methods on Moji with the balanced test set (DeepMoji+MLP model)</note>
+</biblStruct>
+
+<biblStruct xml:id="b69">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>PV) RC-AUC ↓ 410.0±21.8 582.5±32.5 637.4±45.5 621.9±24.7 958.4±308.8 794.4±123.4 521.6±11.2 1428.4±883.0</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b70">
+	<monogr>
+		<title level="m" type="main">HUQ (SR + MD) RC-AUC ↓ 392</title>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>BALD) RC-AUC ↓ 447.7±31.0 631.7±34.9 655.8±47.8 638.7±28.4 1078.1±315.2 847.2±119.5 558.9±14.2 1517.1±814.3</idno>
+		<imprint/>
+	</monogr>
+	<note>1±11.3 532.0±25.4 660.3±49.3 646.0±22.5 681.7±218.9 560.3±20.2 502.6±10.7 877.4±682.5</note>
+</biblStruct>
+
+<biblStruct xml:id="b71">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Baseline</surname></persName>
+		</author>
+		<idno>SR) RC-AUC ↓ 392.7±11.5 532.4±25.2 681.5±49.3 664.6±22.6 702.5±246.5 585.9±19.0 502.9±10.8 1086.6±882.9</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b72">
+	<monogr>
+		<title level="m" type="main">The best results for each debiasing method are highlighted with bold font. Method Metric Standard BTEO Adv DAdv FairBatch GD diff BTJ INLP -Fairness ↑</title>
+		<imprint/>
+	</monogr>
+	<note>Table 17: Performance of selective classification for various debiasing methods on Moji with the imbalanced test set (BERTweet model)</note>
+</biblStruct>
+
+<biblStruct xml:id="b73">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>SMP) RC-AUC ↓ 1294.6±25.4 935.5±35.1 1077.4±40.7 1157.4±158.1 1391.9±355.8 1034.9±10.5 918.7±26.9 2488.7±1066.2</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b74">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>PV) RC-AUC ↓ 1440.3±58.4 1077.8±35.7 1113.8±53.1 1239.2±191.9 1715.4±185.1 1448.2±205.9 1021.3±22.3 2977.7±1346.9</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b75">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mc</surname></persName>
+		</author>
+		<idno>BALD) RC-AUC ↓ 1565.5±82.4 1187.7±37.7 1152.2±57.8 1276.7±182.0 1921.6±203.1 1526.9±181.3 1111.0±21.2 3082.1±1253.9 HUQ (SR + MD) RC-AUC ↓ 1299.7±22.5 954.2±37.8 1100.2±48.5 1154.0±115.4 1290.9±315.5 1023.0±27.0 953.8±34.6 2096.0±884.9</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b76">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Rc-Auc ↓</forename><surname>Deepfool</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1299">1299</date>
+		</imprint>
+	</monogr>
+	<note>3±22.7 954.5±37.6 1109.4±48.9 1157.7±109.2 1334.7±329.1 1045.7±14.8 954.2±35.1 3323.6±1923.2</note>
+</biblStruct>
+
+<biblStruct xml:id="b77">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Rc-Auc ↓</forename><surname>Ddu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1709">1709</date>
+		</imprint>
+	</monogr>
+	<note>7±179.9 1541.7±106.2 1266.5±50.7 1271.3±69.4 1913.1±337.7 1455.0±113.3 1379.6±33.4 2158.5±593.6</note>
+</biblStruct>
+
+<biblStruct xml:id="b78">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Baseline</surname></persName>
+		</author>
+		<idno>SR) RC-AUC ↓ 1299.7±22.5 954.2±37.8 1108.4±49.8 1160.2±115.5 1339.0±331.7 1045.6±14.8 953.8±34.6 2430.2±1184.2</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b79">
+	<monogr>
+		<title level="m" type="main">Performance of selective classification for various debiasing methods on Moji with the balanced test set (BERTweet model). The best results for each debiasing method are highlighted with bold font</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

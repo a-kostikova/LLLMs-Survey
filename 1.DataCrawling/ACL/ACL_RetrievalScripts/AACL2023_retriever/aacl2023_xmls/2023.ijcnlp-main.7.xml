@@ -1,0 +1,1184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SYNC: A Structurally guided Hard Negative Curricula for Generalizable Neural Code Search</title>
+				<funder ref="#_ZdZbF3S">
+					<orgName type="full">SERB</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Atharva</forename><surname>Naik</surname></persName>
+							<email>atharvanaik2018@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Carnegie Mellon University</orgName>
+								<address>
+									<addrLine>2 Synopsys</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Soumitra</forename><surname>Das</surname></persName>
+							<email>soumitradas1999@gmail.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Jyothi</forename><surname>Vedurada</surname></persName>
+							<email>jyothiv@cse.iith.ac.in</email>
+							<affiliation key="aff1">
+								<orgName type="department">Department of CSE</orgName>
+								<address>
+									<country>IIT Hyderabad</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Somak</forename><surname>Aditya</surname></persName>
+							<email>saditya@cse.iitkgp.ac.in</email>
+							<affiliation key="aff2">
+								<orgName type="department">Department of CSE</orgName>
+								<address>
+									<country>IIT Kharagpur</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SYNC: A Structurally guided Hard Negative Curricula for Generalizable Neural Code Search</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">FE89B59DBE60F6EC673457D662DEFB5B</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>In neural code search, a Transformers-based pre-trained language model (such as Code-BERT) is used to embed both the query (NL) and the code snippet (PL) into a joint representation space; which is used to retrieve the relevant PLs satisfying the query. These models often make mistakes such as retrieving snippets with incorrect data types, and incorrect method names or signatures. The generalization ability beyond training data is also limited (as the code retrieval datasets vary in the ways NL-PL pairs are collected). In this work, we propose a novel contrastive learning technique (SYNC) that enables efficient finetuning of code LMs with soft and hard negatives, where the hard negatives are constructed using a set of structure-aware AST-based perturbations; targeted towards possible syntactic and semantic variations. Our method achieves significant improvements in retrieval performance for three code LMs (CodeBERT, GraphCode-BERT, UniXCoder) over four Python code retrieval datasets. We also open source our code for reproducibility 1 .</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Learning dense representations for programming languages using NLP techniques has proven effective for various downstream tasks. Akin to the evolution of NLP models, contextualized Transformers-based representations such as Code-BERT <ref type="bibr" target="#b4">(Feng et al., 2020), and</ref><ref type="bibr">GraphCodeBERT (Guo et al., 2020)</ref>, universal cross-modal models such as UniXCoder <ref type="bibr" target="#b5">(Guo et al., 2022)</ref> and generative models such as AlphaCode <ref type="bibr">(Li et al., 2022b)</ref> have achieved state-of-the-art in public benchmarks. Unlike natural language tasks, (ideally) the output programming language is expected to be consumed by compilers (or interpreters) which expect the code to follow well-defined syntax and semantics. In this work, we explore whether such information about syntax and semantics expressed in natural languages is preserved while retrieving corresponding code snippets in the code retrieval task (primarily for Python). Our initial exploration shows that the Transformers-based code embedding models consistently make mistakes such as retrieving snippets with wrong data types (sets instead of lists), wrong method names or signatures and wrong arguments; indicating a loss of structural information. For example in a python code retrieval dataset, for the query "sorting a list of lists in python", the top retrieved snippet using Code-BERT is sorted(list_of_strings,key=lambda s: s.split(',') <ref type="bibr">[1]</ref>), which sorts a list of strings instead (more examples in appendix).</p><p>To preserve such structural information, we adopt contrastive learning using dynamic structureaware negative sampling. Recently, researchers <ref type="bibr" target="#b20">(Robinson et al., 2021;</ref><ref type="bibr" target="#b0">Ahrabian et al., 2020)</ref> have shown how synthesized hard negative sampling can be used along with a contrastive loss objective to learn efficient representations. We utilize a mix of random negative samples along with hard negatives <ref type="bibr" target="#b28">(Xuan et al., 2020)</ref> generated using perturbations of the Abstract Syntax Tree (AST) for the positive NL-PL pair. To balance the hardness and the learning state of the model, we use a mastering rate-based curriculum approach <ref type="bibr" target="#b26">(Willems et al., 2020)</ref> to sample a mix of soft and hard negatives, while hard negatives are further sampled using a parameterized distribution over model scores <ref type="bibr" target="#b20">(Robinson et al., 2021)</ref>. We observe that our approach helps boost learning efficiency for three code embedding models across four code retrieval datasets <ref type="bibr">(CoNaLa, PyDocs, CodeSearchNet, and WebQuery)</ref>. Our experiments show that the proposed contrastive learning approach (SYNC) using an AST-based curriculum can be used to effectively integrate structure information of programming languages during the fine-tuning stage for SOTA code embedding models, including ones such as UniX-coder, which is exposed to ASTs in the pre-training stage. Specifically, our contributions are the following. We propose 1) a novel contrastive finetuning approach based on (mastering rate-based) curriculum to learn from both hard and soft negatives, where hard negatives are created through structure-aware AST perturbation rules. Through ablations, we observe proposed set of rules work better than existing ones (such as in DISCO). 2) Our comprehensive evaluation shows our approach achieves best OOD performance (with comparable or better ID results) for 3 SOTA models across 4 retrieval datasets; against varying curriculum and 3) strong contrastive learning baselines <ref type="bibr">(DISCO, CodeRetriever)</ref>. We evaluate the representation further through analogy testing &amp; analyzing qualitative examples. 4) We will make the code available, including the contrastive baselines. Observations. More specifically: 1) SYNC achieves best OOD performance for 3 models, 3 datasets across 4 metrics (Tab. 2); 2) several baseline variations and strong contrastive baselines, show an ID-OOD tradeoff where these methods reach comparable or better performance (as ours) for CoNaLa test set (NL/PL: 365/490), but failing to generalize for other 3 datasets (NL/PL: 365/416, 523/803, 21k/22k; Tabs. 9,12). 3) For CoNaLa examples (ID), where SYNC performs poorly (compared to CodeRetriever), CodeBLEU scores suggest the top retrieved codes are more lexically and structurally similar to the gold code snippet ( §5). 4) We show the effect of curriculum by comparing against varying curricula (Tab. 10) and plotting the effect on validation recall as soft-to-hard negative sampling ratio changes for CodeBERT (Fig. <ref type="figure">8</ref>). We also perform hyperparameter ablations, ablations over the chosen set of rules in Appendix.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Neural Code Search. For neural code search, both encoder-only and encoder-decoder pretrained architectures <ref type="bibr" target="#b11">(Kanade et al., 2019;</ref><ref type="bibr" target="#b4">Feng et al., 2020)</ref> perform well, with decoder-only models <ref type="bibr" target="#b22">(Svyatkovskiy et al., 2020;</ref><ref type="bibr" target="#b16">Lu et al., 2021)</ref> being more successful for generative tasks <ref type="bibr" target="#b5">(Guo et al., 2022)</ref>. CodeBERT <ref type="bibr" target="#b4">(Feng et al., 2020)</ref> is an encoderonly model trained using replaced token detection (RTD) and masked language modeling (MLM) objectives. <ref type="bibr">GraphCodeBERT (Guo et al., 2020)</ref> incorporates dataflow information and additional pretraining objectives of edge prediction and node alignment. SYNCOBERT <ref type="bibr" target="#b24">(Wang et al., 2021)</ref>, Ast-BERT <ref type="bibr" target="#b14">(Liang et al., 2022), and</ref><ref type="bibr">TreeBERT (Jiang et al., 2021)</ref> utilize abstract syntax tree (AST) representation during pre-training. Contrastive Learning for Code Representations. Several contrastive learning methods have been proposed for code representation learning. <ref type="bibr">Li et al. (2022a)</ref> proposed a contrastive objective combining unimodal and bimodal text-code losses to improve code search. <ref type="bibr">Ding et al. (2021)</ref> used AST and dataflow-guided perturbations to create negative and positive examples for data augmentation and achieve improvements in code clone detection and vulnerability detection. <ref type="bibr" target="#b23">Wang et al. (2022)</ref> proposed a hierarchical contrastive learning objective to improve code clustering, classification, and clone detection. <ref type="bibr" target="#b21">Shi et al. (2022)</ref> propose soft data augmentation by masking random tokens to create positive samples to improve code search. These approaches do not address training stability issues encountered when using hard negatives in contrastive learning. Contrastive Learning with Hard Negatives. Mining hard negatives for efficient contrastive learning is popular in image processing. <ref type="bibr" target="#b28">Xuan et al. (2020)</ref> shows that hard negatives lead to unstable training behavior but can be useful with some simple fixes. <ref type="bibr" target="#b20">Robinson et al. (2021)</ref> proposes a parametrized distribution that uses hardness scoring to sample suitable hard negatives that can maximally benefit the learning process. Hard negatives are difficult to learn in the early stages of training, which prompted researchers to explore curriculum learning strategies <ref type="bibr" target="#b2">(Chu et al., 2021)</ref>. However, <ref type="bibr" target="#b2">Chu et al. (2021)</ref> proposes a static curriculum where negative samples are scored, sorted from easy-tohard, and batched. We employ a mastering ratebased curriculum <ref type="bibr" target="#b26">(Willems et al., 2020</ref>) that guides the model (dynamically) to learn from both soft (randomly sampled) and hard AST-guided negatives while considering the model learning state. Inducing Bugs in Software. Our AST-guided perturbations for generating hard negatives draw upon literature to induce bugs in software. <ref type="bibr" target="#b18">Pradel and Sen (2018)</ref> use simple code transformations to create artificially induced bugs with swapped arguments, incorrect binary operators, and operands for JavaScript code. <ref type="bibr" target="#b1">Allamanis et al. (2021)</ref> propose PyBugLab, a code rewriting-based approach for Python to induce bugs such as function argument swapping, operator substitution, etc. Ding </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>For code search, transformer-based pre-trained models are fine-tuned on annotated NL-PL pairs. Our method (Figure <ref type="figure" target="#fig_0">1</ref>) targets improving the learned representation during this fine-tuning stage, by utilizing carefully synthesized hard negative samples. We follow the triplet network architecture <ref type="bibr" target="#b7">(Hoffer and Ailon, 2015)</ref>, where a textual query (x), a positive PL snippet (y + ), and a negative PL (y -) snippet are sampled, and fed to a network individually. Generally, this network is a unified representation learner trained to embed text and code into a joint embedding space. We use transformer-based code LMs as encoders. After encoding the triplet, we use the contrastive loss to minimize the relative distances between the positive pair (⟨x, y + ⟩) and negative pair (⟨x, y -⟩). Negative sampling is the core of our method. We propose an improvement on the regular contrastive learning, by additionally fine-tuning the network with synthesized hard negatives (negative PL snippets) through well-specified AST-based perturbation rules. The set of rules is inspired by generic code constructs and the syntactic and semantic errors the SOTA models are observed to make. These perturbation rules are targeted to infuse the representation learners with targeted structural information. As these synthesized hard negatives are harder to distinguish (i.e., not easy to learn from) in the initial phases of learning, we further adopt the mastering rate-based curricu-lum learning <ref type="bibr" target="#b26">(Willems et al., 2020)</ref> approach to learn from both soft and hard negatives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Negative samples with AST perturbation</head><p>Most errors made by Transformers-based SOTA methods in code retrieval can be attributed to specific code structure violations with respect to the intent. We group such violations into three broad categories: Type-1 (Data type mismatch): incorrect data types or data structures used (e.g. list comprehension instead of set comprehension) Type-2 (Function call errors): Incorrect function is called or correct function is called with incorrect arguments. Type-3 (Incorrect conditional checks): Incorrect branching, comparison ("==" instead of "!="), or logical operators <ref type="bibr">(and, or)</ref>. These errors motivate forcing transformer-based models to learn structural aspects, for which we use contrastive learning with synthesized hard negatives <ref type="bibr">(Ding et al., 2021)</ref> and improve it using curriculum learning. We first generate a set of candidate hard negatives and sample the final hard negatives using the underlying code search model dynamically. We explain the two steps below. Generation of Candidate Hard Negatives. We use AST-perturbation rules to generate hard negatives, as outlined in Table <ref type="table">1</ref>. We carefully design these rules to capture potential syntactic and semantic violations, inspired by previous works <ref type="bibr" target="#b1">(Allamanis et al., 2021;</ref><ref type="bibr" target="#b25">Wen et al., 2019)</ref>. AST-perturbation rules replace one type of AST node with another producing negative examples with similar forms but different semantics. Next, we will explain how the rules directly address the above violations.</p><p>Rule-1 addresses Type-2 violations, by replacing standard library functions with the closest library function based on function name and signature. To find the closest library functions, we retrieve k(=10) functions from a list of 5.9k function specifications gathered from standard python modules and some well-known data science libraries (like NumPy, pandas, etc. present in the dataset) by scoring their similarity based on lexical and function signature overlap (detailed in Appendix A.2). Rule-4 addresses violations of Type-1 by replacing integer or floating point constants with quoted string versions of them (e.g. x+3 to x+"3") and replacing string constants with integer or float constants equal to the string lengths (e.g. "hi"*n to 2*n). Finally rules 5, 6, 7, and 9 address violations of Type-3 by removing branching (rule 9), flipping conditional expressions (rule 5, 6), or altering composite conditions (rule 7). We do not chain the application of multiple rules, as it can lead to a code snippet that ends up satisfying the original intent. For example, if x == True:print("Hello") would be semantically equivalent to if x != False:print("Hello"), which can be obtained from the original code snippet by chained application of rules 5 and 6.</p><p>Our AST perturbation Algorithm 1 (in Appendix) applies the appropriate rules to create a set of corrupted code candidates. We use Python's AST parser (Foundation, 2023a) to parse the code snippets into ASTs. Following the node-level substitutions, we unparse the AST using unparser (Foundation, 2023b) to get the corresponding code. Sampling of Hard Negatives. After generating a set of candidate hard negatives c i through AST perturbation, we use the current model weights to score them against the NL intent or query q and sample hard negatives by using the probability distribution given by the softmax over the scores, as e βq T c i i e βq T c i similar to <ref type="bibr" target="#b20">Robinson et al. (2021)</ref> (equivalent to von Mises-Fisher distribution with uniform prior over candidates). The concentration parameter β controls the hardness of the sample hard negatives. A high beta leads to a distribution that picks candidates that the model thinks are most similar to the intent, leading to harder negatives, while a low beta is close to a uniform distribution, making each hard negative candidate equally likely, leading to softer negatives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Training Curriculum</head><p>To carefully learn from both soft and hard negatives <ref type="bibr" target="#b30">(Zhan et al., 2021)</ref>, we use a mastering-rate <ref type="bibr" target="#b26">(Willems et al., 2020)</ref> based curriculum approach. <ref type="bibr" target="#b26">Willems et al. (2020)</ref> defines curriculum learning by 1) a curriculum i.e. a set of tasks C = {c 1 , . . . , c n }, where a task is set of examples of similar type with a sampling distribution, and 2) a program which for each training step defines the tasks to train the learner given its learning state and the curriculum. Formally, the program d : N → D C , is a sequence of distributions over C. To learn tasks that are learnable but not learnt yet, the mastering-rate based algorithm requires as input a directed graph over tasks in C. An edge from A to B indicates that learning task A before B is preferable. The learnability for each task depends on mastering rate (M c (t)) estimated from the normalized mean accuracy for that task at time-step t. To estimate the distribution over examples, at each time-step, the algorithm computes attention (a : N → A C ) over the tasks (a c (t)) from mastering rates of its ancestors and successors (in the DAG). Finally, it uses an attention-to-distribution converter (∆ : A C → D C ) which converts the attention to a distribution over C, which is used to sample minibatches during training.</p><p>For our curriculum, we consider two sub-tasks, i.e., hard negative and soft negative learning, where learning from soft negatives is preferable before hard negatives. We generate a distribution over these two tasks as a function of the current mastering rate (windowed triplet accuracy) for each learning task. We compute the mastering rate for a task L at the t th step using</p><formula xml:id="formula_0">M (t) L = k i=0 (Ta) (t-i) L k , where (T a ) (t-i) L</formula><p>is the triplet accuracy at the (ti) th step for L, and k is the window size. The mastering rates are used to determine the attention over the hard (a (t) h ) and soft negative (a (t) s ) learning tasks at the t th step as follows:</p><formula xml:id="formula_1">a (t) s = (δ • (1 -M (t) s ) + (1 -δ) • γlinreg s (t)) • (1 -M (t) h ) a (t) h = (M (t) s ) p • (δ • (1 -M (t) h ) + (1 -δ) • γlinreg s (t))</formula><p>Here γlinreg s is the slope of the linear regression over the values of the triplet accuracy for the last k steps (window size), while δ is a coefficient that weighs the contribution of the mastering rates</p><formula xml:id="formula_2">M (t) s and M (t)</formula><p>h , and γlinreg s . Finally, we compute ∆(a (t) ), the probability distribution over the two learning tasks at the t th step, as shown in Eqn. 1 as the weighted combination between the softmax over the attention weights and a bias distribution ∆ bias with epsilon being the weight of the bias distribution. <ref type="bibr" target="#b26">(Willems et al., 2020</ref>) assume a uniform distribution as the bias distribution, but we find a weight of 0.8 for soft negatives and 0.2 for hard negatives to be more suitable for our setting.</p><formula xml:id="formula_3">∆(a (t) ) := (1 -ϵ) • e a (t) c c ′ e a (t) c ′ + ϵ • ∆ Bias (1)</formula><p>We compute the triplet accuracy T a to estimate the mastering rates</p><formula xml:id="formula_4">M (t)</formula><p>S and M (t) H using Eqn. 2:</p><formula xml:id="formula_5">T a = N i=0 1 ∥x i -y + i ∥ 2 &lt;∥x i -y - i ∥ 2 N ,<label>(2)</label></formula><p>where x i , y + i , and y + i represent the anchor text, positive code snippet and negative code snippet representations respectively, while 1 i is an indicator variable which is 1 if i &gt; 0 and 0 otherwise). Loss function We use the following triplet loss function:</p><formula xml:id="formula_6">L ϕ (x i , y + i , y - i ) = max{∥x i -y + i ∥ 2 - ∥x i -y - i ∥ 2 + 1, 0}</formula><p>, where x i , y + i and y - i represent the intent, positive code sample and negative code sample respectively. We use default margin of 1. Ablations with different margins for hard and soft negatives don't lead to better performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Setup</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>We conduct our experiments on four Python code retrieval datasets, namely CoNaLa, PyDocs, Web-Query and CodeSearchNet. CoNaLa. CoNaLa <ref type="bibr" target="#b29">(Yin et al., 2018)</ref> has 600k automatically mined intent-snippet pairs from Stack-Overflow, alongwith 2.9k manually annotated pairs (2.4k/500 train/test). Due to its size, we utilize CoNaLa as the pre-training corpus for our experiments. Based on Xu et al. ( <ref type="formula">2020</ref>) and our pilot studies (see Tab. 6 in Appendix), we utilize a subset of 100k most relevant NL-PL pairs to reduce noise and achieve superior performance. PyDocs. Xu et al. ( <ref type="formula">2020</ref>) heuristically generated function calls from the specifications and queries from Python's standard library API documentation. They then resample the data to match the CoNaLa NL-PL pair distribution, using a weighted distribution (with temperature) to balance between uniform and CoNaLa-induced distribution. We use the data corresponding to the lowest temperature (2, i.e., most similar to CoNaLa) and set aside 365 queries and 416 documents as a test set. The remaining training&amp; validation data have 9.7k NL-PL pairs. WebQuery. The WebQuery test set is a part of the CoSQA corpus curated by <ref type="bibr" target="#b8">Huang et al. (2021)</ref>. The text queries in this dataset are "web queries" with a code search intent. The code candidates are functions that are annotated as relevant to the query using the docstring, the function header, and the body. WebQuery test set has 523 NL queries and 803 unique code candidates. CodeSearchNet. The CodeSearchNet corpus <ref type="bibr" target="#b9">(Husain et al., 2019)</ref> is collected from open-source GitHub repositories for six programming languages including Python. Authors extracted functiondocumentation pairs from these code bases. We utilize the Python test set which has 21.5k queries and 22k documents. As the queries are function documentation written by developers, they have a different distribution than web search queries.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Experiments</head><p>Training. We train the models on both CoNaLa and PyDocs to compare generalization performance (Tab. 5) and proceed with CoNaLa mined pairs based on the results. Additionally, we also compare the effect of using the top 100k most relevant NL-PL pairs instead of the whole dataset (Tab. 6). We train the transformer models on the CoNaLa 100k data with regular fine-tuning, dynamic negative sampling-based fine-tuning (DNS), and our AST-guided curriculum, and show the results over all 4 test sets described in §4.1, in Tab. 2. For all experiments, we use zero as the random seed. Model Selection. We use a retrieval style validation with 14k queries and 18.3k code candidates and the recall@5 metric to pick the best model. Testing. We test all the models, except UniXcoder on all 4 datasets. UniXcoder is not evaluated on CodeSearchNet as it is part of its pre-training corpus. The summary statistics of each test set are shown in Table <ref type="table" target="#tab_8">4</ref>. We average the metrics over all test sets to report the generalization performance and use the average performance barring CoNaLa to report out-of-domain (OOD) generalization. Metrics. We report Normalized Discounted Cumulative Gain (NDCG), recall@k (k = 5, 10), and Mean Reciprocal Rank (MRR) as the metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Baselines</head><p>As baselines, we include a few simple modeling baselines (CNN/RNN/n-Bow) based on <ref type="bibr" target="#b9">(Husain et al., 2019)</ref> (in appendix E). We further propose several contrastive learning-based baselines. We had to adapt and re-implement these baselines for the python code retrieval scenario.</p><p>• CodeRetriever: We propose a strong baseline based on the unimodal and bimodal contrastive learning objectives in <ref type="bibr">Li et al. (2022a)</ref>. We adapt their objective based on differences in the training corpora. We use the negative euclidean distance instead of cosine similarity as the similarity measure s(x, y) in Eqn. 3). Additionally, <ref type="bibr">Li et al. (2022a)</ref> use "NameMatcher" and "DocMatcher" retrieval to create code pairs (y, y + ) of functions for CodeSearchNet. CoNaLa has code snippets instead of functions and Stack Overflow post titles as the intent so we can not replicate this step. Instead, we pair code snippets sharing the same intent. Also, we drop the code-comment bimodal objective used in the original paper as most code snippets in CoNaLa don't have comments. We also use temperature τ = 1. proposed AST-guided rule-based perturbations for data augmentation to leverage contrastive learning for tasks such as code-clone and vulnerability detection. As the original rules are for C/C++ and Java, we adapt them for Python (see Table <ref type="table" target="#tab_10">8</ref>). Additionally, we transform the objective to a bimodal one (Eqn. 4) for intent representation x, code representation y, and AST perturbed negative sample y -) as the original DISCO approach only deals with code representations. For this conversion, we use the intent representation x instead of the code representations obtained from semantics-preserving changes. Also similar to the CodeRetriever baseline we use the negative euclidean distance for similarity and temperature τ = 1. We also simplify the objective by dropping the MLM and local AST node-type MLM terms.</p><formula xml:id="formula_7">L ϕ (x, y) = -log( e s(x,y)/τ y ′ ∈Y e s(x,y ′ )/τ )+ log( e s(y,y + )/τ y ′ ∈Y e s(y,y ′ )/τ ) ,<label>(3)</label></formula><formula xml:id="formula_8">L ϕ (x, y) = -log( e s(x,y)/τ N n=1 e s(x,yn)/τ + e s(x,y - n )/τ )<label>(4)</label></formula><p>• Dynamic Negative Sampling (DNS): We propose a strong baseline loosely based on the STAR and ADORE algorithms <ref type="bibr" target="#b30">(Zhan et al., 2021)</ref>. STAR uses static hard negatives and randomly sampled soft negatives to simultaneously train the query and document encoder. ADORE freezes the document encoder and trains the query encoder while using the document encoder to dynamically retrieve hard negatives from the whole dataset. The original paper applies the STAR approach first and further trains the query encoder with ADORE. However, since we have a shared query and code encoder, we strike a balance by performing an ADORElike retrieval but only over the documents of each mini-batch (Fig. <ref type="figure" target="#fig_3">3</ref> in the Appendix). We find this approach to be stable during training and see significant improvements in performance for CodeBERT and GraphCodeBERT as outlined in section 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results and Discussion</head><p>The code retrieval results are in Tab. 2. Based on all metrics, our proposed AST-guided curriculum achieves the best OOD generalization out of all the methods for all 3 transformer models, with the biggest improvements in GraphCodeBERT. We also observe that the DISCO implementation performs worse than the base variants on OOD performance. Our approach achieves better ID performance than the DNS approach, but slightly lower performance as compared to the CodeRetriever and DISCO approaches. Our approach achieves the best "total" performance in terms of the metrics averaged across all test sets for CodeBERT and GraphCodeBERT. The OOD corpora, i.e This ID-OOD tradeoff can be observed even while adding more negatives to CodeBERT (Tab. 9), which matches our ID performance on CoNaLa, while lagging behind in OOD performance.</p><p>For DISCO, the OOD performance is worse than the base variants (UX/GCB/CB rows) trained with soft negatives and a triplet margin loss. We performed additional ablations over the CodeRetriever objective to tease out the influence of the loss function (triplet margin loss vs. cross-entropy loss) and the effect of the unimodal loss component (in Appendix C.1). The results suggest that the choice of triplet margin loss leads to better OOD performance at the cost of ID performance and the unimodal code similarity objective also improves the OOD performance at the cost of the ID performance, which explains why CodeRetriever outperforms DISCO on OOD data, while DISCO does better on ID data. This aligns with the intuition that margins add robustness to models and prevent overfitting, motivating our choice of triplet margin loss as the objective for the AST-guided curriculum.</p><p>Qualitative Analysis. We show some motivating examples in Appendix Tab. 13. For the first example, all the top 5 retrieved code snippets us-ing the AST model invoke the correct function call extend() compared to the base model. In the second example, three of the top five retrieved code snippets for the AST model have a tuple of tuples or a list of tuples data structure, while the baseline model retrieval results feature 1D lists instead. Finally, for the third example, the highest-ranked candidate gets all 3 function arguments correct. We also perform analogy testing (of the form a:b::c:? for each rule) over the code representations to quantify their sensitivity to the perturbation patterns introduced by our AST-guided hard negatives. We observe improvements for CodeBERT and GraphCodeBERT and a slight drop for some rules in UniXcoder in Tabs. 14 &amp; 15.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>For neural code search, Transformers-based pretrained models make certain common mistakes which indicates loss of syntactic and semantic information, while learning the representation. To learn robust structure-preserving representation during fine-tuning, we propose a structure-aware hard negative sampling through AST perturbation along with a mastering-rate-based curriculum, where our AST perturbation rules are motivated by common semantic and syntactic variations of code. Our experiments show significant improvement over standard contrastive learning for three SOTA transformer models on four code retrieval datasets (in ID and OOD settings), outperforming competitive contrastive learning baselines like DISCO and CodeRetriever over OOD generalization. Interestingly, our method shows improvement even for UniXCoder which is exposed to the underlying AST structure of the code snippets during pre-training. Additionally, CodeBLEU scores show that even when models trained using our approach makes mistakes in retrieval, it still exhibits comparably better structural similarity with gold truth code snippets. ous work) to create hard negatives around common grammatical (and semantic) constructs. While we do not assume "necessity" or "sufficiency" of the rules, it is still hard to define any such properties for a collection of rules.</p><p>• Our approach mitigates the problem of training instability and susceptibility to local optima encountered in hard negative mining while achieving the best OOD generalization. However it fails to achieve the best ID performance (compared to other contrastive learning approaches). Some of these limitations stem from the choice of the triplet margin loss function that improves the OOD performance at the expense of the ID performance as shown by the CodeRetriever ablations (Appendix). We will investigate this further as part of future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Consideration</head><p>In current work, we utilize python code retrieval datasets that are publicly available. Some of the datasets are semi-automatically curated from scraping StackOverflow and Python standard library API reference. To the best of our knowledge, we have not noted any offensive or adult content in the datasets. Secondly, current code language models are targeted towards high-resource language such as English. If our work is accepted, we also plan to work on local low-resource language and this is a reason we use models such as UniXCoder that have the potential to be extended to multiple languages. Apart from this, we do not foresee any specific ethical considerations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Method</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Algorithm Outline for AST perturbation</head><p>We discuss the pseudo-code of our AST perturbation in algorithm 1. To detect valid sites for each rule application we use checks on the type of the node (each node type has a dedicated Python class representation). In fact Python's ast module provides visit functions for each type of node (for e.g. visit_List for nodes of List type). The function visit_Type is called whenever a node of type Type is visited, and we override these functions to keep a track of certain nodes which are sites for valid rule applications. An additional detail that might not be apparent from the pseudo-code is that </p><formula xml:id="formula_9">exp 1 == exp 2 exp 1 != exp 2 exp 1 &lt; exp 2 exp 1 &gt; exp 2 exp 1 ≥ exp 2 exp 1 ≤ exp 2 exp 1 != exp 2 exp 1 == exp 2 exp 1 ≥ exp 2 exp 1 ≤ exp 2 exp 1 &lt; exp 2 exp 1 &gt; exp 2</formula><p>Flip comparators &lt;to &gt;=, &gt;to &lt;=, == to !=, "is" to "is not", "in" to "not in" and vice-versa    "False", while rule 6 replaces boolean "and" operator leaf node with an "or" leaf node, rule 7 flips the "==" leaf nodes to "!=" leaf nodes and finally rule 9 replaces the code snippet with the body of the if statement "print('Hello')". Rule 9 is not shown due to a lack of space.</p><formula xml:id="formula_10">7</formula><formula xml:id="formula_11">f (exp 1 , . . . exp n ) v op= f (exp 1 , . . . exp n ) v = exp ′ op f (exp 1 , . . . exp n ) f v op= f v = exp ′ op f</formula><p>Algorithm 1: Pseudocode for AST guided code perturbation we successively apply a rule on all of its valid sites at a time, but we apply at most one rule at a time. For e.g. while applying rule 5 on if x == True and y == False, we substitute all occurrences of True with False and False with True, to obtain if x == False and y == True. Our procedure is guaranteed to give syntactically correct corrupted codes as output, as the unparse module fails to recover the code string if the transformed AST is invalid. Now we will briefly cover the approach we use to score and rank candidate function calls for the function call substitution rule (rule 1 in 1). Fig. <ref type="figure" target="#fig_2">2</ref> shows our algorithm in action for if x != True and y != False: print("Hello").</p><formula xml:id="formula_12">Data: ρ, R *[r]ρ is program snippet, R is set of rules Result: P = {ρ ′ 1 , . . . ρ ′ n } *[r]ρ ′ i is i th corrupted program snippet 1 T ← parseAST(ρ); 2 S ← ∅*[r]Traverse AST &amp; collect</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Function similarity scoring for function call substitution (rule 1)</head><p>For a target, function call F i to be substituted by a target function call F j we compute the score s ij as the sum of the function name match score s n ij and the function signature match score s s ij (s ij = s n ij + s s ij ). We compute s n ij using the token_sort_ratio measure, implemented by the fuzzwuzzy 2 python package, between the function strings after replacing underscores with spaces and normalizing it to be between 0 to 1, instead of 0 to 100. s s ij also has two components: a return 2 https://pypi.org/project/fuzzywuzzy/ type match score s ret ij and a parameter match score s p ij and is compute as</p><formula xml:id="formula_13">s p ij = s ret ij + s p ij .</formula><p>s ret ij is 1 if both function calls have the same return type and 0 otherwise, while s p ij attempts to match the parameter kinds (positional argument vs keyword argument) and default values, from left to right and normalizes it by the maximum possible score. We do not use the data type information for function arguments, as it is not available for several of the function calls (Python doesn't require explicit data types in function specifications and data type information can only be given as optional hints or annotations). Each component score in s ij , varies between 0 to 1, leading to s ij itself ranging from 0 to 3 (as</p><formula xml:id="formula_14">s ij = s n ij + s ret i j + s p ij ).</formula><p>We recognize that prior work like <ref type="bibr" target="#b17">(Patra and Pradel, 2022)</ref> has applied learned semantic embeddings to match code entities, but we avoid doing it for function names here to enable faster matching over larger candidate sets (≈ 5.9k candidates). Efficient ways to incorporate learned embeddings or even the current model weights to match candidate functions could be a promising extension of our work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Dataset Statistics</head><p>We show number of unique queries and documents (code snippets) alongwith representative examples for each of the four test sets in from CoNaLa in the way queries are expressed. WebQuery and CodeSearchNet contain larger code snippets compared to PyDocs and CoNaLa.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Filtering CoNaLa Corpus</head><p>As mentioned in the Experiments section, we use 100k most relevant pairs of CoNaLa for fine-tuning, as it achieves comparable or better performance on the CoNaLa test set. Details are shown in Table <ref type="table">6</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Ablation Studies C.1 Ablation I: Utilizing CodeRetriever objective With CodeBERT</head><p>We perform the following ablations for the CodeRetriever objective with CodeBERT: 1. Impact of unimodal loss: To test the impact of the unimodal loss component, we run an experiment without it, using only the bimodal loss. 2. Impact of choice of loss function: We test the tradeoffs involved in choosing triplet margin loss instead of cross-entropy loss. Under this setting, both the unimodal and bimodal loss are triplet margin losses instead of cross entropy losses. 3. No. of epochs: Impact of no. of training steps/epochs on ID and OOD performance. We test this out with 5, 10, and 15 epochs. 4. Similarity measure: Using cosine similarity vs using negative euclidean distance.</p><p>We summarize the results of these ablations in Table 7.</p><p>The results indicate that performance usually degrades over epochs meaning fewer training steps are better. Notably, it is the OOD performance that drops drastically while the ID performance does decrease much, which indicates overfitting to noise. Using cosine similarity leads to very poor performance as compared to the negative euclidean distance, prompting us to use the latter as the similarity measure for DISCO as well. We also see that the loss type affects the ID and OOD breakdown. Using triplet margin loss greatly degrades the ID but also achieves the best OOD performance, however the average performance is poor. Finally, we observe that removing the unimodal loss improves the ID at the expense of the OOD performance, which indicates that it potentially acts as a regularization to prevent overfitting the bimodal loss.   hard negative attention calculation for the mastering rate curriculum) for UniXcoder. We observe that increasing p generally leads to better performance, which indicates that hard negative attention needs to be sensitive to a drop in the mastering rate/accuracy of the soft negative learning task. Additionally, we see that very low βs (almost uniform distribution over hard negatives) lead to a better performance with lower values of p, peaking a p = 2. This intuitively makes sense, as low βs correspond to softer hard negatives, reducing the gap between hard and soft negative learning tasks. However , while for GraphCode-BERT a batch size of 32 was used, leading to 7500 steps per epoch, so we investigate variations in warmup steps in increments of 1000 for UniXcoder (Fig. <ref type="figure">7</ref>) and CodeBERT (Fig. <ref type="figure" target="#fig_4">5</ref>) and for increments of 2500 for GraphCodeBERT (Fig. <ref type="figure">6</ref>). These experiments indicate a general upward trend in performance, with a lot of fluctuations between consecutive points. For UniXcoder the upward trend is a lot weaker, which leads to the fluctuations being more significant overall. We also observe that varying the warmup steps seems to have more impact on the performance than p and β. We find that p = 2, β = 0.01 &amp; 17k warmup steps work best for CodeBERT, while p = 2, β = 0.0001 &amp; 13k warmup steps work best for UniXcoder and p = 2, β = 0.01 &amp; 12.5k warmup steps work best for GraphCodeBERT. For all experiments, we used ϵ = 0.8 and δ = 0.5. Future work would also examine the effect of these parameters on the overall performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 Ablation III: Effect of Adding More Negatives</head><p>We conduct experiments with 10 soft negatives per NL-PL pair instead of 3 as used in the previous triplet margin loss-based experiments and this seems to boost both the OD and IID performance of the model as shown in table 9, at the expense of three to four times increased training time. While this achieves slightly better in-domain performance than SYNC, it still lags behind in the out-of-domain performance which shows our method can achieve better generalization with fewer (one-third) negatives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.4 Ablation IV: Effect of curriculum</head><p>We examine the impact of the curriculum design by trying some simple variations, like using only soft negatives ("soft neg"), using only hard negatives ("hard neg"), using a naive or random curriculum ("rand curr") where we sample soft or hard negative instances with equal probability and our mastering rate curriculum ("MR curr"). The results are outlined in Table <ref type="table">10</ref>. We see that using hard negatives only leads to the worst performance while just introducing some soft negatives through the random curriculum greatly improves the performance, but still doesn't do as well as just using soft negatives. This shows how challenging it is to design a curriculum like the mastering rate-based curriculum used here to make the most of the hard negatives and achieve better performance than just using soft negatives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.5 Ablation V: Effect of different perturbation rule sets</head><p>We conducted experiments with different sets of perturbation rules to measure the impact of the rule choice as shown in table 11. Each setting is explained below: SYNC rules: The standard setting where we use the rules outlined in table <ref type="table" target="#tab_6">3</ref>.</p><p>DISCO rules: For this setting we use the rules outlined in table 8 which we implemented for the DISCO baseline for Python.</p><p>Natural rules: For this setting we considered the union of SYNC and DISCO rules with "unnatural rules" being removed. We classed unnatural rules as rules that induce bugs that a Python developer is unlikely to make. These unnatural rules included the following rules from table 3: rule 4, rule 8, and from "VarMisuse: Replace variables with each other" and "Division-by-zero error introduced" table 8.</p><p>In Python string constants (like "Hello World") and floating point/integer (like 1.0 or 1) constants are very unlikely to be confused with each other or used in similar contexts explaining the choice of excluding rule 4, for rule 8 an experienced developer is unlikely to declare a variable with the name of common python functions like "print" (often highlighted in a different color by IDEs). Finally, the VarMisuse error would swap all occurrences of two randomly picked variables while a user is more likely to make errors where they swap just one occurrence and for the division, by zero-error, we replace denominators in division operators with zero, which a developer is unlikely to do (it is more likely to occur due to a mistake in an equation or numerical instability). Top-12 rules: for this experiment we again take the union of DISCO and SYNC rules and then used the regularly fine-tuned CodeBERT model to see the triplet separation accuracy (accuracy of projecting the correct code closer to the intent as compared to the hard negative) for each rule. We considered this to be the rule difficulty and picked the top-12 rules based on this score.</p><p>The results show that our originally chosen set of rules for SYNC works the best (except ID recall@5), especially for OOD performance, indicating some sensitivity of our approach to the choice of rules.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Additional Experimental Results,</head><p>Qualitative Analysis and Analogy Tests  To evaluate the performance we measure all pairs' euclidean distance between the embeddings c + b -a and d and rank all possible candidates in the 1800 sample test set for each (a, b, c) triple. We assign an analogy score of 1 to a sample if the correct d is among the top 5 retrieved candidates out of 1800 (similar to recall@5). The overall performance is just the mean over each sample and rule-wise performance is the mean over the samples involving transformations of a particular rule class.</p><p>We observe an improvement or similar performance in each rule category for all the models except UniXcoder where we see slightly worse performance for rules 1, 8, and 9. The highest performance drop is on rule 8 which substitutes a function call with the function's name as an identifier. This is a somewhat strange kind of error for a developer to make and we theorize that since UniXcoder has been pre-trained on CodeSearchNet data having function code and corresponding comments, it might not be sensitive to unnatural perturbations like this.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Details about Simple Baseline Architectures</head><p>We train a few simple modeling-based, baselines in a siamese configuration similar to <ref type="bibr" target="#b9">Husain et al. (2019)</ref> but use the same architecture for both the text &amp; code encoders to create a universal encoder. We train them using a binary cross entropy loss function objective where x and y are the code snippet and intent representation, whereas 1 n is an indicator variable which is 1 if intent and snippet are related to each other and 0 otherwise.</p><formula xml:id="formula_15">L ϕ (x, y) = -[1 n • log( 1 1 + e -x T y ) + (1 -1 n ) • log(</formula><p>e -x T y 1 + e -x T y )], (5)</p><p>We obtain binary classification data of roughly 950k NL-PL pairs for training and 237.6k for validation with a roughly even class distribution from the CoNaLa data by random sampling of negatives.</p><p>• Neural Bag of Words (n-BOW): Here, we treat the intent and code snippet as a bag of words and computes their representation via a 1-D mean pool over all the tokens. We use CodeBERT tokenizer to obtain the tokens, and the token-level embeddings are initialized from the 768 dimensional embedding layer of CodeBERT.</p><p>• CNN Baseline: For the CNN baseline, we use three successive 1-D convolutions with a kernel of width 16. We use padding, residual connections and dropout of 0.2 at each layer. Finally, we pool across the sequence by using an attention-like weighted sum. The architecture closely follows the CNN baseline proposed in <ref type="bibr" target="#b9">(Husain et al., 2019)</ref>.</p><p>• RNN Baseline: We use a 2-layered Bi-LSTM architecture with a dropout of 0.2. Similar to <ref type="bibr" target="#b9">(Husain et al., 2019)</ref>, we use a final attention-like weighted sum layer across all hidden states to calculate the final representation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Computational Budget</head><p>We used 16 GB Tesla P100 GPUs for training with roughly 2.5 hrs/epoch (roughly 3 times more for the increased hard negatives experiment) and 5 epochs for each experiment. We carried out roughly 170 experiments including the various ablations and some exploration. The CodeBERT and GraphCodeBERT models are RoBERTa <ref type="bibr" target="#b15">(Liu et al., 2019)</ref> based encoders with roughly 123M parameters (same as RoBERTa-base) while UniXcoder has both an encoder and a decoder, but roughly the same number of parameters at 125M.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: SYNC: Various stages of the proposed AST-guided curriculum.</figDesc><graphic coords="3,70.87,70.86,453.53,181.91" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>•</head><label></label><figDesc>(DIs)-Similarity of Source Code from Program Contrasts (DISCO): Ding et al. (2021)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: AST perturbation in action: For the given code snippet, rule 5, 6, 7 &amp; 9 are applicable, leading to 4 AST-based hard negative candidates. Rule 5 flips the leaf nodes corresponding to the named constants "True" &amp; "False", while rule 6 replaces boolean "and" operator leaf node with an "or" leaf node, rule 7 flips the "==" leaf nodes to "!=" leaf nodes and finally rule 9 replaces the code snippet with the body of the if statement "print('Hello')". Rule 9 is not shown due to a lack of space.</figDesc><graphic coords="11,70.87,471.45,453.53,194.47" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: We create a feedback loop in the model training by using the current model weights to pair each intent-snippet pair with the closest snippet from another intent. These create the hardest negatives at a batch level, which are expected to be harder than randomly sampled negatives.</figDesc><graphic coords="13,306.14,547.62,218.27,141.71" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Effect of warmup steps on the performance of CodeBERT over all 4 metrics, with p = 2 &amp; β = 0.01</figDesc><graphic coords="15,70.87,387.77,218.27,163.70" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 6 :Figure 7 :</head><label>67</label><figDesc>Figure 6: Effect of warmup steps on the performance of GraphCodeBERT over all 4 metrics, with p = 2 &amp; β = 0.01</figDesc><graphic coords="15,306.14,70.87,218.27,163.70" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Library function substitutionf (exp 1 , exp 2 , . . . exp n ) f ′ (exp 1 , exp 2 , . . . exp n ) , exp 2 , ...exp n ] [x for x in exp 1 if exp 2 ]{exp 1 , exp 2 , . . . exp n } {x for x in exp 1 if exp 2 } ; else s 2 ; if exp 1 : s 1 ; elif exp 2 : s 2 ; . . . else: s n ; exp 1 if exp 2 else exp 3</figDesc><table><row><cell></cell><cell>Rule</cell><cell>Input Pattern</cell><cell>Perturbed Output</cell><cell>Description</cell></row><row><cell cols="5">1 Replace standard library functions with closest library function based</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>on function name and signature</cell></row><row><cell>2</cell><cell>List comprehension to set comprehension</cell><cell cols="3">[exp 1 Replace list comprehension with set comprehension (Box brackets to curly brackets)</cell></row><row><cell>4</cell><cell>Convert integer/float constants to strings and vice versa</cell><cell>dig 1 . . . dig n dig 1 . . . dig n .dig ′ 1 . . . dig ′ m "char 1 . . . char n " "char 1 . . . char n "</cell><cell>"dig 1 . . . dig n " "dig 1 . . . dig n .dig ′ 1 . . . dig ′ m " n n.0</cell><cell>Substitute integer constant with string (enclose in quotation marks) and replace string with integer or floating value equal to the length of the string</cell></row><row><cell cols="2">5 Flip boolean constants</cell><cell>exp == True exp != False</cell><cell>exp == False exp != True</cell><cell>Replace 'True' with 'False' and vice-versa</cell></row><row><cell cols="2">7 Flip boolean operators</cell><cell>exp 1 or exp 2 exp 1 and exp 2</cell><cell>exp 1 and exp 2 exp 1 or exp 2</cell><cell>Replace "and" with "or" and vice-versa in composite boolean expressions</cell></row><row><cell>9</cell><cell>Replace If-Else statement or expression with its body</cell><cell cols="2">if exp: s 1 s 1 s 1 exp 1</cell><cell>Remove branching in the form of if-else statements, if-else if ladders or inline if-else expressions with the body of the if statement</cell></row></table><note><p>Table 1: Representative AST perturbation rules and their corresponding grammars in Python's Abstract Syntax Description Language (ASDL). ASL has 4 inbuilt data types: identifier, int, string, constant. Full list in Tab. 3</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table><row><cell></cell><cell></cell><cell>MRR</cell><cell></cell><cell></cell><cell>NDCG</cell><cell></cell><cell></cell><cell>Recall@5</cell><cell></cell><cell cols="2">Recall@10</cell></row><row><cell>Model</cell><cell>ID</cell><cell cols="2">OOD Total</cell><cell>ID</cell><cell cols="2">OOD Total</cell><cell>ID</cell><cell cols="2">OOD Total</cell><cell>ID</cell><cell>OOD Total</cell></row><row><cell>n-BOW</cell><cell>6.19</cell><cell>6.13</cell><cell cols="2">6.15 20.76</cell><cell cols="2">18.7 19.21</cell><cell>8</cell><cell>6.73</cell><cell>7.05</cell><cell cols="2">9.6 10.37 10.17</cell></row><row><cell>CNN</cell><cell>6.05</cell><cell>1.93</cell><cell cols="4">2.96 21.88 15.05 16.76</cell><cell>5.4</cell><cell>1.67</cell><cell>2.6</cell><cell>10.4</cell><cell>3.45</cell><cell>5.19</cell></row><row><cell>RNN</cell><cell>13.02</cell><cell>4.59</cell><cell cols="2">6.7 29.28</cell><cell cols="2">18.8 21.42</cell><cell>16.2</cell><cell>5.55</cell><cell>8.21</cell><cell>25.6</cell><cell>9.52 13.54</cell></row><row><cell>CB (zero shot)</cell><cell>2.77</cell><cell>2.79</cell><cell cols="3">2.78 16.77 15.35</cell><cell>15.7</cell><cell>3</cell><cell>3.28</cell><cell>3.21</cell><cell>5</cell><cell>4.96</cell><cell>4.97</cell></row><row><cell>CB</cell><cell cols="6">54.99 44.21 46.91 65.65 56.27 58.62</cell><cell cols="3">62.8 53.25 55.64</cell><cell cols="2">78.4 63.73</cell><cell>67.4</cell></row><row><cell>CB+DNS</cell><cell cols="6">54.51 48.59 50.07 65.51 59.94 61.33</cell><cell cols="3">65 57.55 59.41</cell><cell cols="2">79.2 67.26 70.25</cell></row><row><cell>CB+CR</cell><cell cols="6">58.03 48.55 50.92 68.43 59.89 62.02</cell><cell cols="3">70.4 57.78 60.79</cell><cell cols="2">83.2 67.05 71.09</cell></row><row><cell>CB+DISCO</cell><cell cols="6">58.27 40.48 44.93 68.63 52.87 56.81</cell><cell cols="3">67.4 49.23 53.77</cell><cell>80.2</cell><cell>59.7 64.82</cell></row><row><cell>CB+SYNC</cell><cell cols="6">56.28 50.95 52.28 66.89 61.93 63.17</cell><cell cols="3">67.8 60.34 62.21</cell><cell cols="2">81.8 70.51 73.33</cell></row><row><cell>GCB (zero shot)</cell><cell cols="6">9.89 18.64 16.45 23.72 29.48 28.04</cell><cell>12</cell><cell cols="4">22.2 19.65 17.22 24.77 22.88</cell></row><row><cell>GCB</cell><cell>57.4</cell><cell cols="5">48.4 50.65 67.78 59.94 61.19</cell><cell cols="3">69.8 58.84 61.58</cell><cell>83.2</cell><cell>69.1 72.62</cell></row><row><cell>GCB+DNS</cell><cell cols="6">59.28 50.87 52.97 69.26 62.08 63.88</cell><cell cols="3">67.6 60.59 62.34</cell><cell cols="2">80.8 71.45 73.79</cell></row><row><cell>GCB+CR</cell><cell cols="4">59.2 50.16 52.42 69.28</cell><cell cols="2">61.3 63.29</cell><cell cols="3">70.2 59.47 62.16</cell><cell cols="2">83.8 69.51 73.08</cell></row><row><cell>GCB+DISCO</cell><cell cols="6">61.84 42.75 47.52 71.45 54.82 58.98</cell><cell>74</cell><cell cols="2">51.8 57.35</cell><cell>84.2</cell><cell>61</cell><cell>66.8</cell></row><row><cell>GCB+SYNC</cell><cell cols="6">58.28 55.44 56.15 68.37 65.73 66.39</cell><cell cols="3">68.4 63.99 65.09</cell><cell cols="2">83.6 73.38 75.93</cell></row><row><cell>UX (zero shot)</cell><cell cols="3">20.7 56.24 44.39</cell><cell cols="3">34.9 67.32 56.51</cell><cell cols="3">24 63.88 50.59</cell><cell cols="2">30.4 70.61 57.21</cell></row><row><cell>UX</cell><cell cols="2">59.82 65.79</cell><cell cols="2">63.8 69.53</cell><cell cols="2">75.3 73.37</cell><cell cols="3">69.6 74.59 72.92</cell><cell cols="2">83 83.49 83.33</cell></row><row><cell>UX+DNS</cell><cell cols="2">59.13 66.74</cell><cell cols="4">64.2 69.02 76.01 73.68</cell><cell cols="3">72.4 75.79 74.66</cell><cell cols="2">84.2 82.99 83.39</cell></row><row><cell>UX+CR</cell><cell cols="2">64.35 66.98</cell><cell cols="7">66.1 73.21 76.23 75.23 75.66 74.93 75.15</cell><cell>88.8</cell><cell>82.8</cell><cell>84.8</cell></row><row><cell>UX+DISCO</cell><cell>65.24</cell><cell cols="5">65.5 65.41 73.91 75.11 74.71</cell><cell cols="3">77 73.08 74.39</cell><cell cols="2">84.6 81.51 82.54</cell></row><row><cell>UX+SYNC</cell><cell>60.21</cell><cell cols="5">67.6 65.13 70.06 76.83 74.58</cell><cell cols="3">72.4 76.05 74.83</cell><cell cols="2">84.8 84.61 84.68</cell></row></table><note><p>In-domain (ID) performance of the models when trained on CoNaLa and the out-of-domain (OOD) performance averaged over PyDocs, WebQuery, and CodeSearchNet (excluded for UniXcoder). CB: CodeBERT, GCB: GraphCodeBERT, UX: UniXcoder, CR: CodeRetriever. "Total": average performance with equal weights for all datasets. If we weigh the datasets relative to their sizes, UX+SYNC also achieves the best "Total" performance.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>., Code-SearchNet has 60 times more queries than CoNaLa test set, and thus the generalization results holds more significance in terms of the number and type of queries that our models can answer. As CodeSearchNet is excluded from test for UniXcoder, the gain of our approach in OOD performance doesn't reflect in total score in comparison to CodeRetriever and DISCO(MRR and NDCG). We analyze the drop in in-domain performance of UX+SYNC against UX+CR by finding instances where the UX+CR approach retrieves the correct document within the top 5 results and our approach doesn't. There are 23 such instances. Among these, 5 are labeling errors, 6 are incorrect operation invoke and 5 are correct function with incorrect arguments (more in Tab. 16). We further analyze the CodeBLEU (Ren et al., 2020) scores of the top-ranked code candidates for each query. UX+SYNC and UX+CR achieves a CodeBLEU score of 71.65 and 73.56 ID performance resp.ly. Interestingly, for the error instances by UX+SYNC (i.e., where the correct document is not in the top-5 candidates) we achieve a CodeBLEU score of 18.36 as compared to 16.62 by UX+CR. This implies that our model retrieves syntactically and lexically closer snippets to the gold labels compared to UX+CR. For the OOD data (WebQuery and Py-Docs), UX+SYNC achieves a CodeBLEU score of 60.91 compared to 57.97 achieved by UX+CR, and a score of 10.69 as compared to 9.47 for mistakes, showing the trend of better structural similarity holds for OOD as well.</figDesc><table><row><cell>We analyze this in more detail later. Finally we</cell></row><row><cell>observe the simple modeling baselines fail to reach</cell></row><row><cell>zero-shot performance of structure-aware LMs like</cell></row><row><cell>UniXcoder, highlighting the importance of incor-</cell></row><row><cell>poration of structure for code search.</cell></row><row><cell>Comparison of errors made by our approach</cell></row><row><cell>(UX+SYNC) and CodeRetriever (UX+CR) for</cell></row><row><cell>UniXcoder.</cell></row></table><note><p>Why do CodeRetriever and DISCO have better ID performance but worse OOD performance? Both DISCO and CodeRetriever use cross-entropy loss instead of triplet margin loss (which is used for our approach) and gain ID performance at the expense of OOD generalization.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>, exp 2 , . . . exp n ) f ′ (exp 1 , exp 2 , . . . exp n ) , exp 2 , ...exp n ] [x for x in exp 1 if exp 2 ] {exp 1 , exp 2 , . . . exp n } {x for x in exp 1 if exp 2 } , exp 2 , . . . exp n } {x for x in exp 1 if exp 2 } [exp 1 , exp 2 , . . . exp n ] [x for x in exp 1 if exp 2 ]</figDesc><table><row><cell></cell><cell>Rule</cell><cell>Input Pattern</cell><cell>Perturbed Output</cell><cell>Description</cell></row><row><cell cols="2">1 Library function substitution</cell><cell cols="3">f (exp 1 Replace standard library functions with closest library function based</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>on function name and signature</cell></row><row><cell>2</cell><cell>List comprehension to set comprehension</cell><cell cols="3">[exp 1 Replace list comprehension with set comprehension (Box brackets to curly brackets)</cell></row><row><cell>3</cell><cell>Set comprehension to list comprehension</cell><cell cols="3">{exp 1 Replace set comprehension with list comprehension (Curly brackets to box brackets)</cell></row><row><cell>4</cell><cell>Convert integer/float constants to strings and vice versa</cell><cell>dig 1 . . . dig n dig 1 . . . dig n .dig ′ 1 . . . dig ′ m "char 1 . . . char n " "char 1 . . . char n "</cell><cell>"dig 1 . . . dig n " "dig 1 . . . dig n .dig ′ 1 . . . dig ′ m " n n.0</cell><cell>Substitute integer constant with string (enclose in quotation marks) and replace string with integer or floating value equal to the length of the string</cell></row><row><cell cols="2">5 Flip boolean constants</cell><cell>exp == True exp != False</cell><cell>exp == False exp != True</cell><cell>Replace 'True' with 'False' and vice-versa</cell></row><row><cell cols="2">6 Flip comparators</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>Flip boolean operators exp 1 or exp 2 exp 1 and exp 2 exp 1 and exp 2 exp 1 or exp 2</figDesc><table><row><cell></cell><cell>Replace "and" with "or" and</cell></row><row><cell></cell><cell>vice-versa in composite</cell></row><row><cell></cell><cell>boolean expressions</cell></row><row><cell>8</cell><cell>Replace function calls with identifier name</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table /><note><p>All AST perturbation rules and their corresponding grammars in Python's Abstract Syntax Description Language (or ASDL) format. ASL has 4 inbuilt data types: identifier, int, string, and constant.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head></head><label></label><figDesc>applicable rule sites η ← getRoot(T );</figDesc><table><row><cell cols="2">3 W ← {η} ;</cell></row><row><cell cols="2">4 while W ̸ = ∅ do</cell></row><row><cell>5</cell><cell>η ← W.pop();</cell></row><row><cell>6</cell><cell>for r ∈ R do</cell></row><row><cell>7</cell><cell>if isValidSite(η, r) then</cell></row><row><cell>8</cell><cell>S.push(⟨η, r⟩)*[r]Collect valid candidate rule sites without modifying AST</cell></row><row><cell>9</cell><cell>for n ∈ succ(η) do</cell></row><row><cell>10</cell><cell>W.push(n);</cell></row><row><cell cols="2">11 P ← ∅;</cell></row></table><note><p>12 for ⟨η, r⟩ ∈ S do 13 T c ← copy(T )*[r]Create a copy of the AST to modify later into a corrupted program snippet T c ← applyRule(T c , η, r)*[r]Apply rule on valid site node and transform AST ρ ′ ← unparseAST(T c )*[r]Regain program snippet from transformed AST P.push(ρ ′ )*[r]Collect set of corrupted program snippets</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 4 .</head><label>4</label><figDesc>Notably, PyDocs, WebQuery and CodeSearchNet all vary</figDesc><table><row><cell>Dataset</cell><cell cols="3">#Queries #Docs Intent</cell><cell>Code Snippet</cell></row><row><cell>CoNaLa</cell><cell>365</cell><cell>490</cell><cell>How can I send a signal from a python program?</cell><cell>os.kill(os.getpid(), signal.SIGUSR1)</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Return the current collection</cell><cell></cell></row><row><cell>PyDocs</cell><cell>365</cell><cell>416</cell><cell>counts as a tuple of</cell><cell>gc.get_count()</cell></row><row><cell></cell><cell></cell><cell></cell><cell>(count0, count1, count2).</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>def latest_commit(self) -&gt;git.Commit:</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>""":return: latest commit :rtype: git.Commit object"""</cell></row><row><cell>WebQuery</cell><cell>523</cell><cell>803</cell><cell>python git get latest commit</cell><cell>latest_commit: git.Commit = self.repo.head.commit</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>LOGGER.debug('latest commit: %s', latest_commit)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>return latest_commit</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>def sina_xml_to_url_list(xml_data):</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>rawurl = []</cell></row><row><cell>CodeSearchNet</cell><cell>21504</cell><cell>22176</cell><cell>str-&gt;list Convert XML to URL List. From Biligrab</cell><cell>dom = parseString(xml_data) for node in dom.getElementsByTagName('durl'): url = node.getElementsByTagName('url')[0]</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>rawurl.append(url.childNodes[0].data)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>return rawurl</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 4 :</head><label>4</label><figDesc>Statistics of each dataset: CoNaLa, PyDocs, WebQuery, CodeSearchNet.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 8 :</head><label>8</label><figDesc>== to !=, &lt;to &gt;=, &gt;to &lt;=, 'is' to 'is not', 'in' to 'not in' and vice versa for each case A comparison of the perturbation rules implemented in our adaptation of the DISCO baseline for Python. We remove rules like "Misuse of Pointers" that don't have any Python equivalents but were proposed in the original DISCO paper for C/C++</figDesc><table><row><cell>Our implementation</cell><cell>Original DISCO</cell></row><row><cell>of DISCO</cell><cell>implementation</cell></row><row><cell>Change 'int'/'float' constant to 'str'</cell><cell>DataType Misuse</cell></row><row><cell cols="2">Flip comparators: Change of</cell></row><row><cell></cell><cell>Conditional</cell></row><row><cell></cell><cell>Statements</cell></row><row><cell>Replace If-Else statement with if's body</cell><cell>Change of Conditional Statements</cell></row><row><cell>Swap function arguments</cell><cell>Change of Function Calls</cell></row><row><cell>Replace If-Else statement with else's body</cell><cell>Change of Conditional Statements</cell></row><row><cell>Change 'str' constant to 'int'</cell><cell>DataType Misuse</cell></row><row><cell>Change 'str' constant to 'float'</cell><cell>DataType Misuse</cell></row><row><cell>VarMisuse: Replace variables with each other</cell><cell>Misuse of Variables</cell></row><row><cell>Division-by-zero error introduced</cell><cell>Misuse of Values</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 13 :</head><label>13</label><figDesc>Qualitative examples illustrating how our AST-guided curriculum corrects errors</figDesc><table><row><cell>test bed of 1800 examples of the form a:b; c:d with</cell></row><row><cell>200 samples per rule category. Some examples are</cell></row><row><cell>shown in table 17. During the sampling process,</cell></row><row><cell>we also filter out code snippets smaller than 30</cell></row><row><cell>characters, to ensure example quality.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 14 :</head><label>14</label><figDesc>ModelRule 1 Rule 2 Rule 3 Rule 4 Rule 5 Rule 6 Rule 7 Rule 8 Rule 9 Total Score Analogy test results (recall@5) for the retrieval task of fetching d given b+c-a from 1800 candidates from the CoNaLa dataset. Rule-wise and overall performance are shown, with 200 samples from each rule (transformation corresponding to the rule generates b from a and d from c). Euclidean distance is used here to score similarity between b + c -a and candidate ds.</figDesc><table><row><cell>CodeBERT</cell><cell>82.5</cell><cell>96</cell><cell>93</cell><cell>94</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>86.5</cell><cell>92.5</cell><cell>92.611</cell></row><row><cell>CodeBERT+SYNC</cell><cell>85</cell><cell>96.5</cell><cell>93.5</cell><cell>95.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>89</cell><cell>93</cell><cell>93.5</cell></row><row><cell>GraphCodeBERT</cell><cell>86.5</cell><cell>94</cell><cell>90.5</cell><cell>94.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>85</cell><cell>92</cell><cell>92.389</cell></row><row><cell>GraphCodeBERT+SYNC</cell><cell>87</cell><cell>96.5</cell><cell>90.5</cell><cell>94.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>90</cell><cell>95</cell><cell>93.611</cell></row><row><cell>UniXcoder</cell><cell>89.5</cell><cell>96.5</cell><cell>94.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>95</cell><cell>96.5</cell><cell>95.278</cell></row><row><cell>UniXcoder+SYNC</cell><cell>89</cell><cell>96.5</cell><cell>95.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>91</cell><cell>95.5</cell><cell>94.778</cell></row><row><cell>Model</cell><cell cols="10">Rule 1 Rule 2 Rule 3 Rule 4 Rule 5 Rule 6 Rule 7 Rule 8 Rule 9 Total Score</cell></row><row><cell>CodeBERT</cell><cell>82.5</cell><cell>96</cell><cell>93.5</cell><cell>94</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>86</cell><cell>93</cell><cell>92.667</cell></row><row><cell>CodeBERT+SYNC</cell><cell>83.5</cell><cell>96.5</cell><cell>93.5</cell><cell>95</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>89.5</cell><cell>93.5</cell><cell>93.389</cell></row><row><cell>GraphCodeBERT</cell><cell>86</cell><cell>94</cell><cell>90.5</cell><cell>94.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>85</cell><cell>93</cell><cell>92.444</cell></row><row><cell>GraphCodeBERT+SYNC</cell><cell>87</cell><cell>96.5</cell><cell>90.5</cell><cell>94.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>90</cell><cell>95</cell><cell>93.611</cell></row><row><cell>UniXcoder</cell><cell>89</cell><cell>96.5</cell><cell>94.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>94</cell><cell>96.5</cell><cell>95.111</cell></row><row><cell>UniXcoder+SYNC</cell><cell>89</cell><cell>96.5</cell><cell>95.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96.5</cell><cell>96</cell><cell>91</cell><cell>96</cell><cell>94.833</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head>Table 15 :</head><label>15</label><figDesc>Analogy test results similar to Table 14 using cosine similarity instead of euclidean distance to rank ds for a given b + c -a</figDesc><table><row><cell>Error</cell><cell>Freq</cell><cell>Description</cell></row><row><cell></cell><cell></cell><cell>Correct data structure</cell></row><row><cell>correct data structure, incorrect operation</cell><cell>5</cell><cell>or object used but incorrect operation</cell></row><row><cell></cell><cell></cell><cell>invoked</cell></row><row><cell>correct function call, incorrect arguments</cell><cell>6</cell><cell>Correct function called with incorrect arguments</cell></row><row><cell></cell><cell></cell><cell>At least one function</cell></row><row><cell>extra function call</cell><cell>1</cell><cell>call which shouldn't</cell></row><row><cell></cell><cell></cell><cell>have been invoked</cell></row><row><cell>incorrect data structure</cell><cell>2</cell><cell>Wrong data structure or object is operated on</cell></row><row><cell>incorrect function call</cell><cell>3</cell><cell>Incorrect function call invoked</cell></row><row><cell>labeling error</cell><cell>5</cell><cell></cell></row><row><cell></cell><cell></cell><cell>Correct solution involves</cell></row><row><cell>missing function calls</cell><cell>1</cell><cell>multiple function calls and at least one or more</cell></row><row><cell></cell><cell></cell><cell>are missing</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 16 :</head><label>16</label><figDesc>Analysis of the types and frequencies of errors made by our approach over the CodeRetriever approach for in-domain performance (i.e., on CoNaLa test set.)</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/atharva-naik/SYNC</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>The work was partially supported by <rs type="funder">SERB</rs> <rs type="grantNumber">SRG/2022/000648</rs>, grant (<rs type="projectName">PI: Somak Aditya</rs>). For computational requirements, we thank and acknowledge the use of Paramshakti Supercomputing Facilities by <rs type="institution">IIT Kharagpur</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_ZdZbF3S">
+					<idno type="grant-number">SRG/2022/000648</idno>
+					<orgName type="project" subtype="full">PI: Somak Aditya</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>• In our approach, we use a set of AST perturbation rules (manually written by us and following previ-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Trained on MRR NDCG Recall@5 Recall@10   We explore variations of the various hyperparameters associated with the mastering-rate curriculum-learning algorithm and the von-Mises Fischer sampling. Intuitively, higher β samples harder negatives (negatives more similar to query) through von-Mises sampling, and higher p forces the curriculum to focus more on learning from soft negatives (i.e. mastering the soft negative task first); therefore creating a natural tradeoff.   Table <ref type="table">9</ref>: Table showing the impact of using more soft negatives per NL-PL pair with the triplet margin loss. CB refers to CodeBERT and 3 -ves implies 3 soft negatives are sampled per NL-PL pair (the default) setting, while 10 -ves represents a setting where 10 -ves are sampled per NL-PL pair. Clearly more negatives improve the ID and OOD performance but the OOD performance is still below SYNC (CB+SYNC) which uses 3 -ves per NL-PL pair.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Qualitative Analysis</head><p>We show the qualitative effect of our approach through examples in Table <ref type="table">13</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3 How does the curriculum help with hard negatives?</head><p>We analyze the variation in validation recall@5 between CodeBERT and CodeBERT+SYNC (our curriculum learning-based approach) with the weight of the soft negatives (soft negative attention) for CodeBERT+SYNC as determined by our curriculum. The results are shown in figure <ref type="figure">8</ref>. For the initial steps, the soft negative attention CoNaLa PyDocs WebQuery CodeSearchNet Model MRR NDCG R@5 R@10 MRR NDCG R@5 R@10 MRR NDCG R@5 R@10 MRR NDCG R@5 R@10 n-BOW      </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Structure aware negative sampling in knowledge graphs</title>
+		<author>
+			<persName><forename type="first">Kian</forename><surname>Ahrabian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aarash</forename><surname>Feizi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasmin</forename><surname>Salehi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">L</forename><surname>Hamilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avishek Joey</forename><surname>Bose</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.492</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6093" to="6101" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Self-supervised bug detection and repair</title>
+		<author>
+			<persName><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henry</forename><surname>Jackson-Flux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Brockschmidt</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>In NeurIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Cuco: Graph representation with curriculum contrastive learning</title>
+		<author>
+			<persName><forename type="first">Guanyi</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xunqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2021/317</idno>
+		<ptr target="ij-cai.org" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirtieth International Joint Conference on Artificial Intelligence, IJCAI 2021, Virtual Event</title>
+		<meeting>the Thirtieth International Joint Conference on Artificial Intelligence, IJCAI 2021, Virtual Event<address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-08">2021. 19-27 August 2021</date>
+			<biblScope unit="page" from="2300" to="2306" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Alessandro Morari, Baishakhi Ray, and Saikat Chakraborty. 2021. Towards learning (dis)-similarity of source code from program contrasts</title>
+		<author>
+			<persName><forename type="first">Yangruibo</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Buratti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Pujar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Codebert: A pre-trained model for programming and natural languages</title>
+		<author>
+			<persName><forename type="first">Zhangyin</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaocheng</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjun</forename><surname>Shou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daxin</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2002.08155</idno>
+		<ptr target="https://github.com/python/cpython/blob/3.7/Tools/parser/unparse.py" />
+	</analytic>
+	<monogr>
+		<title level="m">The Python Software Foundation. 2023a. Python 3.7 AST Grammar and Parsing</title>
+		<imprint>
+			<date type="published" when="2020">2020. 2023-5-23</date>
+			<biblScope unit="page" from="2023" to="2025" />
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>The Python Software Foundation. 2023b. Python 3.7 Unparser</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Daya Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanlin</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.03850</idno>
+		<title level="m">Unixcoder: Unified crossmodal pre-training for code representation</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Daya Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyin</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujie</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengyu</forename><surname>Svyatkovskiy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Fu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2009.08366</idno>
+		<title level="m">Graphcodebert: Pre-training code representations with data flow</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Deep metric learning using triplet network</title>
+		<author>
+			<persName><forename type="first">Elad</forename><surname>Hoffer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nir</forename><surname>Ailon</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+	<note>In SIMBAD</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">CoSQA: 20,000+ web queries for code search and question answering</title>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjun</forename><surname>Shou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daxin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.442</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5690" to="5700" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Codesearchnet challenge: Evaluating the state of semantic code search</title>
+		<author>
+			<persName><forename type="first">Hamel</forename><surname>Husain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongqi</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiferet</forename><surname>Gazit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Brockschmidt</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1909.09436</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Treebert: A tree-based pre-trained model for programming language</title>
+		<author>
+			<persName><forename type="first">Xue</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuoran</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Lyu</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Uncertainty in Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="54" to="63" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Pre-trained contextual embedding of source code</title>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Kanade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Petros</forename><surname>Maniatis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gogul</forename><surname>Balakrishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kensen</forename><surname>Shi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">2022a. Coderetriever: Unimodal and bimodal contrastive learning for code search</title>
+		<author>
+			<persName><forename type="first">Xiaonan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yeyun</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bolun</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhen</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daxin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Competition-level code generation with alphacode</title>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">H</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nate</forename><surname>Kushman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Leblond</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Eccles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Keeling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Agustin</forename><forename type="middle">Dal</forename><surname>Gimeno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Lago</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Hubert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cyprien</forename><surname>Choy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Masson D'autume</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyun</forename><surname>Babuschkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Po-Sen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sven</forename><surname>Welbl</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gowal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Alexey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Cherepanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">Jaymin</forename><surname>Molloy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esme</forename><surname>Mankowitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pushmeet</forename><surname>Sutherland Robson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nando</forename><surname>Kohli</surname></persName>
+		</author>
+		<author>
+			<persName><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koray</forename><surname>Freitas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vinyals</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2203.07814</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Astbert: Enabling language model for code understanding with abstract syntax tree</title>
+		<author>
+			<persName><forename type="first">Rong</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujie</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiehua</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuze</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2201.07984</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Roberta: A robustly optimized bert pretraining approach</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1907.11692</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Codexglue: A machine learning benchmark dataset for code understanding and generation</title>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Svyatkovskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ambrosio</forename><surname>Blanco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><forename type="middle">B</forename><surname>Clement</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Drain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daxin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ge</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidong</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjun</forename><surname>Shou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Tufano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neel</forename><surname>Sundaresan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengyu</forename><surname>Shao Kun Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujie</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Liu</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2102.04664</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Nalin: learning from runtime behavior to find name-value inconsistencies in jupyter notebooks</title>
+		<author>
+			<persName><forename type="first">Jibesh</forename><surname>Patra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Pradel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/ACM 44th International Conference on Software Engineering (ICSE)</title>
+		<imprint>
+			<date type="published" when="2022">2022. 2022</date>
+			<biblScope unit="page" from="1469" to="1481" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Deepbugs: A learning approach to name-based bug detection</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Pradel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koushik</forename><surname>Sen</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3276517</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Proc. ACM Program. Lang</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Codebleu: a method for automatic evaluation of code synthesis</title>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Shuo Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ambrosio</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Blanco</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ma</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2009.10297</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Contrastive learning with hard negative samples</title>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>David Robinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ching-Yao</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suvrit</forename><surname>Sra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefanie</forename><surname>Jegelka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">th International Conference on Learning Representations, ICLR 2021, Virtual Event</title>
+		<meeting><address><addrLine>Austria</addrLine></address></meeting>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2021-05-03">2021. May 3-7, 2021</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Enhancing semantic code search with multimodal contrastive learning and soft data augmentation</title>
+		<author>
+			<persName><forename type="first">Ensheng</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenchao</forename><surname>Gub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanlin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lun</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shi</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongmei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongbin</forename><surname>Sun</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2204.03293</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Intellicode compose: code generation using transformer</title>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Svyatkovskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengyu</forename><surname>Shao Kun Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neel</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sundaresan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Foundations of Software Engineering</title>
+		<meeting>the 28th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Foundations of Software Engineering</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Heloc: Hierarchical contrastive learning of source code representation</title>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xue</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuoran</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songlin</forename><surname>Hu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/ACM 30th International Conference on Program Comprehension (ICPC)</title>
+		<imprint>
+			<date type="published" when="2022">2022. 2022</date>
+			<biblScope unit="page" from="354" to="365" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pingyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2108.04556</idno>
+		<title level="m">Syncobert: Syntax-guided multi-modal contrastive pre-training for code representation</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Exposing library api misuses via mutation analysis</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yepang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rongxin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shing-Chi</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhendong</forename><surname>Su</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICSE.2019.00093</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2019 IEEE/ACM 41st International Conference on Software Engineering (ICSE)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="866" to="877" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Mastering rate based curriculum learning</title>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Willems</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salem</forename><surname>Lahlou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2008.06456</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Incorporating external knowledge through pre-training for natural language to code generation</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Frank</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengbao</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bogdan</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Vasilescu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Hard negative examples are hard, but useful</title>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Xuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abby</forename><surname>Stylianou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaotong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Pless</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ECCV</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Learning to mine aligned code and natural language pairs from stack overflow</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edgar</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bogdan</forename><surname>Vasilescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3196398.3196408</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Mining Software Repositories, MSR</title>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="476" to="486" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Optimizing dense retrieval model training with hard negatives</title>
+		<author>
+			<persName><forename type="first">Jingtao</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxin</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiqun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiafeng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaoping</forename><surname>Ma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 44th International ACM SIGIR Conference on Research and Development in Information Retrieval</title>
+		<meeting>the 44th International ACM SIGIR Conference on Research and Development in Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

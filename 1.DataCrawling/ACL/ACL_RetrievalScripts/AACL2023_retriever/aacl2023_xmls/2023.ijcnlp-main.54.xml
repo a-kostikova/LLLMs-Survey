@@ -1,0 +1,1623 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">FiRo: Finite-context Indexing of Restricted Output Space for NLP Models Facing Noisy Input</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Minh</forename><surname>Nguyen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Cornell University</orgName>
+								<address>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Nancy</forename><forename type="middle">F</forename><surname>Chen</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Institute for Infocomm Research (I2R)</orgName>
+								<address>
+									<region>A * STAR</region>
+									<country key="SG">Singapore</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="institution">CNRS@CREATE</orgName>
+								<address>
+									<country key="SG">Singapore</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff3">
+								<orgName type="laboratory">Centre for Frontier AI Research (CFAR)</orgName>
+								<address>
+									<region>A * STAR</region>
+									<country key="SG">Singapore</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">FiRo: Finite-context Indexing of Restricted Output Space for NLP Models Facing Noisy Input</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">E304488143E93E823A73960D1E549A65</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:48+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>NLP models excel on tasks with clean inputs, but are less accurate with noisy inputs. In particular, character-level noise such as humanwritten typos and adversarially-engineered realistic-looking misspellings often appears in text and can easily trip up NLP models. Prior solutions to address character-level noise often alter the content of the inputs (low fidelity), thus inadvertently lowering model accuracy on clean inputs. We proposed FiRo, an approach to boost NLP model performance on noisy inputs without sacrificing performance on clean inputs. FiRo sanitizes the input text while preserving its fidelity by inferring the noise-free form for each token in the input. FiRo uses finite-context aggregation to obtain contextual embeddings which is then used to find the noise-free form within a restricted output space. The output space is restricted to a small cluster of probable candidates in order to predict the noise-free tokens more accurately. Although the clusters are small, FiRo's effective vocabulary (union of all clusters) can be scaled up to better preserve the input content. Experimental results show NLP models that use FiRo outperforming baselines on six classification tasks and one sequence labeling task at various degrees of noise 1 .</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Extensive use of pretrained language models <ref type="bibr" target="#b42">(Radford et al., 2018;</ref><ref type="bibr" target="#b6">Devlin et al., 2019;</ref><ref type="bibr" target="#b24">Liu et al., 2019)</ref> has led to impressive performance on clean text. However, these models are not robust to natural noise (e.g. irregular capitalization, misspellings, creative mix of characters and digits) and adversarial noise <ref type="bibr" target="#b41">(Pruthi et al., 2019)</ref>. Thus, they often underperform when facing noisy inputs (e.g. social media text) during deployment <ref type="bibr" target="#b46">(Rosenthal et al., 2017;</ref><ref type="bibr" target="#b1">Belinkov and Bisk, 2018)</ref>.</p><p>Deployed models which analyze user inputs need to do well on both clean and noisy inputs.</p><p>Figure <ref type="figure">1</ref>: FiRo has better better fidelity-robustness tradeoff pre-processing text than other approaches do (including not doing pre-processing, i.e. raw). Thus, NLP models when using FiRo pre-processed text do better on both clean and noisy inputs than when using text preprocessed by other approaches. Text pre-processed by low-fidelity approaches may lead to poor performance on clean inputs while not doing pre-processing may lead to poor performance on noisy inputs. Also see Section 5.2 for actual fidelity-robustness estimation.</p><p>Thus, models need to balance between the tradeoffs of (1) sensitivity to semantic differences and (2) robustness to noise. A model sensitive to even minor input changes can differentiate semantic changes but is also not very robust. A model that always output the same prediction regardless of the inputs is extremely robust <ref type="bibr" target="#b17">(Jones et al., 2020)</ref> yet is of little use because it can only make trivial predictions. Models can be robustified by training with an additional denoising objective (e.g. BART <ref type="bibr" target="#b20">(Lewis et al., 2020)</ref>). However, they may need to be retrained to cope with additional types of input noise (e.g. noise faced when adapting to text input in new domains) and retraining could be costly because of the large number of parameters in these models. In contrast, lightweight methods such as Spell correctors <ref type="bibr" target="#b41">(Pruthi et al., 2019)</ref> and Robust Encoding <ref type="bibr" target="#b17">(Jones et al., 2020)</ref> can be adapted quickly, cheaply, and independently of the NLP models to cope with additional types of input noise.</p><p>Spell correctors <ref type="bibr" target="#b41">(Pruthi et al., 2019)</ref> and Robust Encoding <ref type="bibr" target="#b17">(Jones et al., 2020)</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original</head><p>Tom testified against John. Tom refused to turn on his friend. (NLI label: Contradiction) Perturbed Tom testified against John. Tim refused to turn on his friend. <ref type="bibr">(NLI label: Neutral?)</ref> Table <ref type="table">1</ref>: Impacts of altering input. (Above) Information lost due to robustification. RobEn replaces words with non-synonyms (e.g. host to heart). scRNN replaces infrequent words with UNK ([U]) tokens. (Below) Label flips due to adversarial noise altering a single word (invalid constant ground-truth label assumption).</p><p>to remove variations due to noise (see Table <ref type="table">1</ref>). Such modification may reduce semantic fidelity and make NLP models unable to perceive the semantic differences between text inputs. For example, spell correctors often have limited vocabulary so they replace low-frequency and OOV words with UNK (unknown) tokens while Robust Encoding may map non-synonymous words to the same token. This could lower the accuracy of downstream NLP models. Figure <ref type="figure">1</ref> illustrates this fidelityrobustness trade-off. Robust approaches (red and blue) lead to better downstream performance on noisy inputs while high-fidelity approaches (red and green) are more suitable than low-fidelity ones for clean inputs. A high-fidelity and robust approach leads to good performance across the noise spectrum and would be ideal for deployment.</p><p>We propose FiRo (stands for Fidelity-Robustness), a fidelity-preserving neural pre-processor that helps NLP models cope with input character-level noise. Given a noisy sequence of words, FiRo predicts the words' identities. FiRo can help downstream models achieve high accuracy on both clean and noisy inputs. Instead of using a common softmax covering all vocabularies, FiRo's output space is input-specific and is restricted to only probable vocabularies. The restricted output space makes FiRo's output less susceptible to input noise. Although the vocabulary size at each position is small, the effective model's vocabulary size (union of all softmaxes) can be sufficiently large. Since FiRo can scale up the effective vocabulary size with minimal penalty on robust lexical prediction accuracy, FiRo covers more low-frequency and OOV words than prior models, thus better maintains input fidelity. FiRo indexes into the restricted output spaces using contextual input token embeddings. However, context window is finite instead of spanning the whole sequence so as to localize the effect of input noise. Experiment results show that models that use FiRo achieve better results on six classification tasks and one sequence labeling task at various levels of character-level noise.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Realistic Imperceptible Character-Level Noise</head><p>Adversarial noise can flip models' prediction while being imperceptible to humans <ref type="bibr" target="#b51">(Szegedy et al., 2014)</ref>. Since the noise is imperceptible to humans, humans' prediction is invariant to the existence of the noise. Thus, if models change their prediction as the result of the injected imperceptible noise, they are not robust. However, if adversarial noise was perceptible, this type of robustness evaluation based on the invariant humans' prediction assumption might be invalid. This is because humans' prediction could have changed as humans perceive the input difference (see Table <ref type="table">1</ref>). In NLP, it is non-trivial to design imperceptible adversarial noise <ref type="bibr" target="#b59">(Zhao et al., 2018)</ref>, since sentencelevel noise <ref type="bibr" target="#b15">(Jia and Liang, 2017)</ref> or word-level noise <ref type="bibr" target="#b11">(Glockner et al., 2018)</ref> are perceptible to humans <ref type="bibr" target="#b0">(Alzantot et al., 2018)</ref>. In contrast, characterlevel noise <ref type="bibr" target="#b7">(Ebrahimi et al., 2018;</ref><ref type="bibr" target="#b1">Belinkov and Bisk, 2018</ref>) could be imperceptible to humans, as psycholinguistic studies demonstrated that humans may not be affected by jumbled internal characters <ref type="bibr" target="#b43">(Rawlinson, 1976;</ref><ref type="bibr" target="#b31">McCusker et al., 1981</ref>). Yet, experts disagree about what level of character-level noise would qualify as perceptible. <ref type="bibr" target="#b43">Rawlinson (1976)</ref> and <ref type="bibr" target="#b40">Perea and Rosa (2002)</ref> suggested that humans are unaffected by characterlevel noise created by permuting internal characters, altering font size, or mixing cases (capitalization). However, <ref type="bibr" target="#b30">Mayall et al. (1997)</ref>; <ref type="bibr" target="#b4">Davis (2003)</ref>, and <ref type="bibr" target="#b44">Rayner et al. (2006)</ref> showed that mixing cases and character swaps would be perceptible since it sometime causes humans to fail to comprehend the text. When noise that may cause comprehension failure is injected into the text, it is unreasonable to expect the same prediction from both humans and models. Given the lack of consensus, evaluation at one level of noise is inadequate since the chosen level may result in comprehension failure in humans, resulting in misleading conclusions. We evaluated our models using multiple levels of character-level noise to analyze model performance when faced with noisy input.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Controlled Noise Injection</head><p>As it is difficult to gather human-written text at different noise levels, we conducted experiments using data injected with different levels of adversarial noise. Adversarial noise is generated based on human error patterns (see Section 3.4) so it can appear naturalistic. However, results at high noise level must be interpreted with caution as groundtruth labels may flip unknowingly (see Table <ref type="table">1</ref>).</p><p>Adversarial noise can be created using whitebox attacks or black-box attacks. In white-box attacks <ref type="bibr" target="#b12">(Goodfellow et al., 2015)</ref>, attackers have access to either (a) the attacked model architecture and parameters, or (b) unlimited number of examples labeled by the attacked model. In black-box attacks <ref type="bibr" target="#b37">(Papernot et al., 2017)</ref>, attackers have no access to the attacked model parameters and only a limited number of examples labeled by the attacked model. Due to this constraint, an auxiliary model is usually needed to craft black-box attacks. In this work, we consider both black-box and white-box attacks since they are complementary. White-box attacks is harder to execute since the attackers must first gain access to the targeted ML model or collect a large labeled training set <ref type="bibr" target="#b37">(Papernot et al., 2017)</ref>. Black-box attacks are easier to execute but may be less effective. Nevertheless, commercial systems have been attacked successfully using only black-box attacks <ref type="bibr" target="#b23">(Liu et al., 2017)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Robustify Against Character-Level Noise</head><p>Although adversarial training can theoretically robustify models against character-level noise <ref type="bibr">(Liu et al., 2020b;</ref><ref type="bibr" target="#b21">Li et al., 2020;</ref><ref type="bibr" target="#b58">Zhao et al., 2021;</ref><ref type="bibr" target="#b50">Si et al., 2021)</ref>, in practice its impact can be limited <ref type="bibr" target="#b41">(Pruthi et al., 2019;</ref><ref type="bibr" target="#b16">Jia et al., 2019)</ref> as old weaknesses can resurface during training. An alternative is to integrate inductive biases such as character-permutation invariant representation <ref type="bibr" target="#b1">(Belinkov and Bisk, 2018;</ref><ref type="bibr" target="#b54">Wang et al., 2020;</ref><ref type="bibr">Liu et al., 2020a;</ref><ref type="bibr" target="#b49">Sankar et al., 2021)</ref> into models. For example, RoVe <ref type="bibr" target="#b29">(Malykh and Lyalin, 2018;</ref><ref type="bibr" target="#b27">Malykh, 2019;</ref><ref type="bibr" target="#b28">Malykh et al., 2023)</ref> generates word embed-dings that are invariant to character swaps by encoding each word as a bag of characters. Another example is Robust Encoding <ref type="bibr" target="#b17">(Jones et al., 2020)</ref>, a representation that is invariant to most perturbations within one-character edit distance. Nevertheless, both lines of work require re-training the models <ref type="bibr" target="#b8">(Eshel et al., 2017;</ref><ref type="bibr" target="#b32">Michel and Neubig, 2018;</ref><ref type="bibr" target="#b45">Ribeiro et al., 2018)</ref> which may be inconvenient or costly, especially as NLP models grow rapidly in size. General plug-and-play robustification techniques <ref type="bibr" target="#b2">(Contractor et al., 2010)</ref> are more appealing since they can be deployed right away, regardless of the tasks or the models. <ref type="bibr" target="#b41">Pruthi et al. (2019)</ref> proposed a plug-and-play model to sanitize the input text, obviating the need for re-training downstream models. However, this model struggles with unseen words due to its limited vocabulary. While <ref type="bibr" target="#b41">Pruthi et al. (2019)</ref> did propose back-off strategies to handle unseen words, such strategies may work only in specific tasks and may compromise fidelity.  (2) Retrieve cluster of words similar to input words (restricted output spaces). Predict output word from cluster using contextual input embedding. The cluster sizes (&lt;100) are much smaller than the vocabulary size (100k). Finite-Context Aggregation: First, the input string is tokenized into words and the words are turned into embeddings using the same approach used by <ref type="bibr" target="#b47">Sakaguchi et al. (2017)</ref>. Specifically, all characters in a word are mapped into character embeddings. Subsequently, the first character's embedding, the last character's embedding, and the average of the internal characters' embeddings are concatenated to form the word's embedding. Unlike word embeddings constructed using CNN or RNN, these word embeddings are invariant to noise induced by letter swaps <ref type="bibr" target="#b47">(Sakaguchi et al., 2017;</ref><ref type="bibr" target="#b1">Belinkov and Bisk, 2018)</ref>. Contextual input embeddings are then weighted averages of adjacent word embeddings (finite-context). Let h i be the word embedding at position i, the contextual embedding at position i is defined as</p><formula xml:id="formula_0">αh i + 0.5(1 -α)(h i-1 + h i+1 ). The coefficient α is learned during FiRo training.</formula><p>In humans, accurate word recognition also requires identifying constituent characters and surrounding context <ref type="bibr" target="#b55">(Whitney and Grainger, 2004</ref>). Higher-order linguistic knowledge and lexical context can refine the representation of individual characters in words and correct for perturbations induced by noise <ref type="bibr" target="#b14">(Heilbron et al., 2020)</ref>. While global self-attention <ref type="bibr" target="#b52">(Vaswani et al., 2017)</ref> is often used for contextual embeddings (a word attending to all other words), it will allow perturbation from a single position to potentially spread to all positions, leading to low robustness. Even though local selfattention <ref type="bibr" target="#b57">(Yang et al., 2018)</ref> is more robust than global self-attention as the effect of noise is curtailed to only local words, perturbations may still result in noisy keys that cause self-attention to fail to aggregate information from neighbors. By using local weighted averages, finite-context aggregation localizes the impact of perturbation while ensuring that contextual information from neighboring words is always considered (also see Section 5.1).</p><p>Restricted Output Space Indexing: At each position, the output space is restricted to a small variable-size cluster containing words similar to the input word. Like <ref type="bibr" target="#b17">Jones et al. (2020)</ref>, similarity is defined as one edit distance apart. In particular, for an input word A, all words that are within one edit distance of A are put into the cluster. Indexing into the output space is done by taking the softmax of the dot product of the input word's contextual embedding and the embeddings of words in the cluster. FiRo then outputs the word in the cluster with the highest probability. As the cluster sizes vary, so do the softmax sizes. As the clusters are much smaller in size than the full vocabulary (&lt;100 vs 100k), perturbing input words leads to limited and more predictable change to FiRo's output. Despite using small clusters, FiRo's effective vocabulary (union of all clusters) is considerable and can be scaled up (with minimal increase in cluster sizes) to avoid predicting UNK for infrequent and OOV words. Thus, FiRo can preserve input fidelity better while being robust to perturbations. In contrast, while Robust Encoding also use clusters to map input words to output words, its mapping ignores context, leading to input fidelity loss.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Baselines</head><p>We compared FiRo against 4 baselines: adversarial training, two variants of the scRNN spell correctors <ref type="bibr" target="#b41">(Pruthi et al., 2019)</ref>, and a variant of Robust Encoding called Agglomerative Cluster Encodings <ref type="bibr" target="#b17">(Jones et al., 2020)</ref>. Adversarial training is an end-to-end approach that fine-tunes the NLP model to make it more accurate when facing noisy inputs. In contrast, FiRo and the spell correctors do not change the NLP model's weights. Between the spell correctors, scRNNp is less robust since it lets OOVs pass through unmodified, exposing downstream models to (adversarial) noise. However, scRNNu is has lower fidelity since it maps OOVs to UNK. Among the baselines, RobEn is the most robust but also has the lowest fidelity (also see Section 5.2). Due to RobEn's low fidelity, a downstream model would not work outof-the-box on text encoded using RobEn. Hence, for RobEn specifically, downstream models are fine-tuned using RobEn encoded text instead of original text (similar to <ref type="bibr" target="#b17">Jones et al. (2020)</ref>). Although RoVe <ref type="bibr" target="#b28">(Malykh et al., 2023)</ref> and FiRo share some architectural similarities <ref type="bibr" target="#b47">(Sakaguchi et al., 2017)</ref>, using RoVe to robustify pretrained language models is much harder. This is because RoVe's outputs are sequences of embeddings instead of sequences of words. Thus, combining RoVe with pretrained language models requires replacing the input embeddings of the pretrained language models which may lead to low performances for tasks Figure <ref type="figure">3</ref>: Average GLUE accuracy as the number of adversarial changes introduced into the input text varies. "+raw": BERT fine-tuned using raw text. "+pp": BERT fine-tune using pre-processed text. Best approach from top panels are included in bottom panels for comparison. Using FiRo leads to higher accuracy than baselines in general.</p><p>with limited data for finetuning. Given this limitation, RoVe was not chosen as a baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Implementation Details</head><p>We used PyTorch <ref type="bibr" target="#b38">(Paszke et al., 2019)</ref> and transformers <ref type="bibr" target="#b56">(Wolf et al., 2020)</ref> libraries in this work. BERT is the NLP model and is fine-tuned for 3 epochs using a learning rate of 2e -5 and a batch size of 8 with AdamW <ref type="bibr" target="#b26">(Loshchilov and Hutter, 2018)</ref>. FiRo and scRNN are trained using Adam (Kingma and Ba, 2014) using a batch size of 50 until convergence (about 10 hours using an NVIDIA TitanXp GPU). We used the GLUE's training sets as data for training FiRo and scRNN.</p><p>The architecture of scRNN follows that in prior studies <ref type="bibr" target="#b41">(Pruthi et al., 2019;</ref><ref type="bibr" target="#b17">Jones et al., 2020)</ref> with the vocabulary size set at 10,000. scRNN is based on a bidirectional LSTM (Graves and Schmidhuber, 2005) with one layer of size 50. Similar to <ref type="bibr" target="#b17">Jones et al. (2020)</ref>, the 100,000 most frequent words from the COCA corpus <ref type="bibr" target="#b3">(Davies, 2008)</ref> are used as RobEn's vocabulary. FiRo's vocabulary is the same as RobEn's. For the adversarial training baseline, the fine-tuned BERT model is further trained using a equal mixed of normal and adversarial ex-amples until there is no further increase in accuracy for a hold-out adversarial set of data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Parameters of Character-Level Attacks</head><p>Assume that the attacked model is represented by a function f . For an input x with ground truth label y, the model predicts f (x) as the label. An adversarial input x * is an instance close to x, such that x * has the same ground truth as x, while f (x * ) ̸ = y <ref type="bibr" target="#b51">(Szegedy et al. (2014)</ref>; <ref type="bibr" target="#b23">Liu et al. (2017)</ref>). The 'closeness' between x and x * is denoted as d(x, x * ), the number of words that differ between x and x * due to some character perturbations. Let A denote the search for an adversarial example, Equation <ref type="formula">1</ref>and 2 show the two types of attacks. The auxiliary model used by the black-box attack is denoted f aux . Both attacks need to satisfy the 'closeness' constraint in Equation 3. The level of adversarial noise can be controlled by choosing the choice of character perturbations and the value of D (number of allowable modified words).</p><formula xml:id="formula_1">x * white-box = A(f, x, y) = arg x ′ f (x ′ ) ̸ = y (1) x * black-box = A(x, y) = arg x ′ f aux (x ′ ) ̸ = y (2) d(x, x * ) ≤ D (3)</formula><p>Adversarial attacks are valid when x and x * have the same ground-truth label <ref type="bibr" target="#b51">(Szegedy et al., 2014;</ref><ref type="bibr" target="#b23">Liu et al., 2017)</ref>. For tasks like natural language inference (NLI), even a single letter substitution could violate the label-invariant assumption (see Table <ref type="table">1</ref>). Thus, the types of character perturbations and the constant D must be chosen carefully to avoid drawing invalid conclusions.</p><p>We followed <ref type="bibr" target="#b10">Gao et al. (2018)</ref>; <ref type="bibr" target="#b41">Pruthi et al. (2019)</ref>; <ref type="bibr" target="#b17">Jones et al. (2020)</ref> by crafting characterlevel attacks using four basic operations: (1) character substitution, (2) character deletion, (3) character insertion, and (4) swapping of two adjacent characters. The operations must not cross word-boundary and the characters are picked at random. The assumption that x and x * have the same ground-truth label is more likely to be violated for larger D, so we evaluated for D in the range from 0 to 7.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Quantifying Robustness and Fidelity</head><p>We can empirically estimate (1) Robustness and (2) Fidelity of FiRo by comparing its denoised outputs against the clean input. For each clean input x, a set of perturbed inputs X * = {x * } is generated. For each noisy input x * in this set, FiRo outputs a denoised version z. This results in a set of denoised outputs Z = {z} for each x. The identity (i.e. x) is also included in Z. Robustness quantifies how similar the denoised outputs are (Equation <ref type="formula">4</ref>), while Fidelity quantifies how closely denoised outputs match the clean input (Equation <ref type="formula">5</ref>). Let |Z| be the size of Z; L be the length of z; uniq(Z) be the set of unique elements in Z; 1 be the indicator function; and z i be the ith token in z.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Robustness</head><formula xml:id="formula_2">= |Z| + 1 -|uniq(Z)| |Z| (4) Fidelity = 1 |Z| z∈Z 1 L 1≤i≤L 1 {z i =x i } (5)</formula><p>Robustness and Fidelity range from 0 to 1.</p><p>Robustness is maximized when all elements in Z are identical. Fidelity is maximized when all elements in Z are the same as x. For multiple x, the Robustness and Fidelity values are averaged. The same estimate can be calculated for the baselines. Specifically, we estimated the empirical robustness and fidelity using the GLUE data. For each input x, 10 noisy copies x * are created sequentially by sampling 10 positions in x and inject characterlevel noise into the tokens at these positions. Thus, the inputs x * have increasing level of noise.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">GLUE Experiment Setup</head><p>Followed <ref type="bibr" target="#b17">Jones et al. (2020)</ref>, we experimented on six GLUE <ref type="bibr" target="#b53">(Wang et al., 2019)</ref> tasks: MRPC, MNLI, QNLI, QQP, RTE, and SST-2. Approaches are evaluated using average task accuracy. We used the BERT <ref type="bibr" target="#b6">(Devlin et al., 2019)</ref> base uncased model as the backbone for all six classification tasks.</p><p>For each task, BERT is fine-tuned using the training set and evaluated on the validation set. For evaluation, the input text is first processed by FiRo, scRNN, or RobEn before being passed to BERT. There are two ways to fine-tune BERT. The first is to fine-tune BERT using the raw GLUE text. Thus, BERT is oblivious to the text pre-processor (i.e. FiRo, scRNN, or RobEn) and fine-tuning does not have to be redone every time the text pre-processor is changed or improved. The second is to fine-tune BERT using the pre-processed text (output of FiRo, scRNN, or RobEn). This allows BERT to adapt to the idiosyncrasies of the text pre-processor, resulting in more robust models although at the expense of frequently redoing fine-tuning. We evaluated the approaches using both ways of fine-tuning.</p><p>Adversarial examples are found using beamsearch with a beam size of 5 similar to <ref type="bibr" target="#b17">Jones et al. (2020)</ref>. For black-box attacks, beam search uses the backbone BERT model. For white-box attacks, beam search uses the combined model comprising of the backbone and a defender (e.g. FiRo or RobEn). The latter are white-box attacks because the combined model is queried without any limit (scaling linearly with the number of test examples).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results from GLUE Experiment</head><p>Figure <ref type="figure">3</ref> shows the average accuracy of 6 GLUE tasks under different adversarial attacks. Left panels show performance under black-box attacks. Right panels show performance under white-box attacks. BERT is fine-tuned using the raw GLUE text in the top panels while it is fine-tuned using the pre-processed text in the bottom panels.</p><p>For brevity, in this section, FiRo refers to the BERT model using FiRo preprocessed text and so on. FiRo outperforms scRNNp, scRNNu and adversarial training baselines in all scenarios. FiRo is better than RobEn when under black-box attacks. When under white-box attacks, FiRo is better when the noise is low (D ≤ 5 top right panel; D ≤ 3 bottom right panel), but RobEn is better when the noise is high. FiRo and scRNNp preserve the fi-Figure <ref type="figure">4</ref>: CoNLL-2003 NER performance as a function of D. "+raw": BERT fine-tuned using raw text. "+pp": BERT fine-tune using pre-processed text. BERT using FiRo pre-processed text obtains higher F1 and recall. delity of the input well since they did well on clean text (D = 0). However, as scRNNp lets unrecognized words (e.g. OOVs or words modified by adversarial attacks) pass through unmodified, it is less robust. In contrast, by supporting a large vocabulary using the scope output layer, FiRo can cover more infrequent words while also being quite robust. FiRo and RobEn are more robust than the other approaches since their accuracy drops less rapidly as the noise level increases.</p><p>Another advantage of FiRo is that it can be used out-of-the-box. When BERT is not adapted to the pre-processor models (top panels), FiRo is generally better than baselines. In addition, the bottom panels show that FiRo's performance when BERT is fine-tuned using raw GLUE text (dotted red line) is quite close to FiRo's performance when BERT is instead of processed GLUE text (solid red line). Being able to use FiRo straight away without having to redo fine-tuning the BERT model could lower the cost of NLP model deployment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">NER Experiment Setup</head><p>We use the CoNLL-2003 named entity recognition (NER) dataset <ref type="bibr" target="#b48">(Sang and De Meulder, 2003)</ref> for this experiment. We compare FiRo against scRNNu, scRNNp, and RobEn. We also use the BERT <ref type="bibr" target="#b6">(Devlin et al., 2019)</ref> base uncased model as the backbone and reuse the models (FiRo, scRNNu, and scRNNp) trained using the GLUE data. Training of the backbone model is done similar to the procedure in the sequence classification experiment. For sequence tagging, we only explore black-box attacks since, as far as we know, there is no prior work on conducting adversarial attack for tasks that are not classification. Similar to the GLUE experiment, adversarial examples are found using beam-search with a beam size of 5. For sequence tagging, the beam search's objective is maximizing the non-overlapped named entities between the ground truth entity set and the predicted entity set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Results from NER Experiment</head><p>Figure <ref type="figure">4</ref> shows the performance under varying degrees of black-box attack (D = 0, 1, 2, . . . 7). FiRo obtains higher F1 score and higher recall than the baselines across all scenarios due to FiRo's high fidelity. In contrast, RobEn and scRNNu underperform in this task because they fail to preserve the fidelity of the inputs. Although scRNNp does well for clean inputs (D = 0), its performance degrades quickly as the noise level increases.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Spell Correction Experiment</head><p>In the previous two experiments, FiRo was evaluated on data with synthetic character-level noise. Thus, we additionally evaluate FiRo's performance on a spell correction task with realistic characterlevel noise. However, it must be emphasized that although FiRo functions like a spell corrector with the current cluster design (clusters are defined based on textual edit distance; Section 3.1), FiRo is more general than a spell corrector because the cluster design can be adapted for other tasks (e.g. spoken language processing tasks).</p><p>For this experiment, we use the GitHub Typo Corpus <ref type="bibr" target="#b13">(Hagiwara and Mita, 2020)</ref> which comprises of typos (character-level noise) and grammatical errors collected from public code repositories on GitHub. Since this corpus includes multi-lingual text and diverse types of noise (e.g. character-level, word-level, capitalization noise), we exclude samples that are not typos in English. Specifically, text sequences that are kept must be: (1) written in English, (2) with high probability of being typos, (3) with low perplexity (≤ 5). Consequently, the remaining 53,154 samples are used to test spell correction performance. The models were trained using the GLUE data (see Section 3.3).  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method Precision</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Empirical Robustness-Fidelity Estimation</head><p>Table <ref type="table" target="#tab_3">3</ref> reports the empirical Robustness and Fidelity and their arithmetic, geometric, and harmonic mean (also see Section 3.5). FiRo has the best Robustness-Fidelity trade-off (highest arithmetic, geometric, and harmonic means). FiRo's Fidelity leads to good performance for clean input (D = 0) in Section 4.2 and 4.4. One limitation of the Robustness measure is that it cannot distinguish between "trivially" robust models and those that are genuinely robust. A "trivially" robust but vacuous model can achieve very high Robustness by predicting the same output regardless of inputs. Thus, Robustness should be considered in tandem with Fidelity instead of considered as a standalone metric. For models with similar Fidelity, those with higher Robustness would perform better overall and under noisy condition in particular. For example, FiRo and scRNNp have similar Fidelity but since FiRo has higher Robustness, FiRo beats scRNNp as the noise level increases (see Figure <ref type="figure">3</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion</head><p>In the tasks used to evaluate robustness, we only used synthetic noise. However, the design of the synthetic noise is motivated by observations from naturally generated data, i.e. noisy text written by humans. Besides, while it is true that the noise characteristics do not change between training and test, all methods evaluated exploit this understanding about the noise characteristics in their model architecture/algorithm to enable more robust text processing. Thus, FiRo does not benefit from any unfair advantages in this comparison setup. Furthermore, Section 4.6 shows that FiRo trained on synthetic noise can generalize to human typos. Robustification methods should avoid information loss (preserve fidelity) so as to be applicable to many different tasks. Some tasks can be completed using only a few clues from the input, therefore loss of information does not affect task accuracy. However, information loss can greatly affect performance in tasks that require exact phrasing (e.g. summarization, translation). Since FiRo can preserve input fidelity better than other approaches, it can be applied to a wider variety of tasks.</p><p>FiRo achieved a reasonable level of robustness without sacrificing word recognition performance chiefly due to its restricted output space. This allows FiRo to scale up the vocabulary size while still being robust to misspellings. Extending FiRo to natural noise would require expanding the output space to cover phenomena such as abbreviations and word play using phonetic spelling (e.g. using 'b4' for 'before', 'gr8' for 'great'). Orthographic and phonological similarity constraints have been explored to improve accuracy of correcting character-level misspellings in Chinese <ref type="bibr">(Nguyen et al., 2021)</ref>. However, this study is only feasible because of the relatively clear orthographic and phonological relationships between Chinese characters <ref type="bibr" target="#b33">(Nguyen et al., 2018</ref><ref type="bibr" target="#b34">(Nguyen et al., , 2020))</ref>. Such endeavors for English is beyond the scope of the current study, though there are on-going efforts to address the complex relationship between English spelling, pronunciation, and the presence of different sources of natural noise.</p><p>NLP models' lack of robustness to noise limits their usage since user-generated inputs can be noisy. Yet, sacrificing performance on clean inputs to increase robustness is also unacceptable as user-generated inputs can also be clean. We propose a input-sanitizing model named FiRo to help deployed NLP models process clean and noisy usergenerated text. By combining finite-context aggregation with restricted output space, FiRo largely preserves the semantic content of the input while imparting reasonable robustness to NLP models. Thus, FiRo can be applied to tasks other than classification, where task-completion requires precise semantic content such as named entity recognition or summarization. Experimental results show FiRo outperforming competitive baselines on six classification tasks and one sequence labeling task under various noise conditions. On-going work focus on extending FiRo to other noisy inputs such as social media text <ref type="bibr" target="#b5">(Derczynski et al., 2017)</ref> or conversation transcripts <ref type="bibr" target="#b18">(Kaplan, 2020;</ref><ref type="bibr" target="#b36">Nguyen and Yu, 2021;</ref><ref type="bibr" target="#b9">Fu et al., 2022)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>In this work, we focused on improving NLP models resistance to noisy input due to realistic adversarial misspellings. However, natural noise include other types beyond misspellings. For example, natural noise includes the use of emoticons (e.g. &lt;3), abbreviations (e.g. 'lol'), wordplay using phonetic spelling, mixed casing (capitalization) (e.g. 'so COOOOL'), LEET words <ref type="bibr" target="#b39">(Perea et al., 2008</ref>) (e.g. 'b4', 'R34D1NG'. . . ). Tackling natural noise would require integrating more explicit visual, phonemic and linguistic knowledge into modeling <ref type="bibr" target="#b1">(Belinkov and Bisk, 2018)</ref>. Besides, the clusters used by FiRo are hand-crafted. Learning the clusters from data may allow models to adapt more quickly to noisy data.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: FiRo. (1) Construct contextual embedding by finite-context aggregation.(2) Retrieve cluster of words similar to input words (restricted output spaces). Predict output word from cluster using contextual input embedding. The cluster sizes (&lt;100) are much smaller than the vocabulary size (100k).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 outlines</head><label>2</label><figDesc>Figure 2 outlines FiRo which processes noisy inputs in two steps: (1) Finite-Context Aggregation and (2) Restricted Output Space Indexing. Although FiRo operates at the word-level internally, FiRo outputs text sequences (by concatenating the output words) that can be analyzed by both wordbased or subword-based NLP models.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>•</head><label></label><figDesc>AdvT: Adversarial training • scRNNu: scRNN, predict UNK for OOV • scRNNp: scRNN, let OOV pass through • RobEn: Robust Encoding</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Average GLUE accuracy. Using finite-context aggregation (FiRo) results in higher accuracy than using local or global self-attention (SA).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>modify the inputs Original Alex Trebek, host of Jeopardy!, is recovering from a minor heart attack in Los Angeles. RobEn alex think, heart of jeopardy!, is recovering from a mother heart attack in less angeles. scRNN [U] [U], host of [U]!, is [U] from a minor heart attack in a los angeles.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>FiRo obtains higher precision, recall, and F1 score than scRNN. The performance of FiRo could be improved further with better cluster design since the clusters used are based on textual similarity of one edit distance apart but the GitHub corpus definitely contains more diverse typos.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>Recall</cell><cell>F1</cell></row><row><cell cols="2">scRNNu</cell><cell>0.076</cell><cell cols="2">0.294 0.120</cell></row><row><cell cols="2">scRNNp</cell><cell>0.306</cell><cell cols="2">0.298 0.302</cell></row><row><cell>FiRo</cell><cell></cell><cell>0.514</cell><cell cols="2">0.463 0.487</cell></row><row><cell cols="5">Table 2: Spell correction performance evaluated using</cell></row><row><cell cols="4">word-level metrics (precision, recall, F1)</cell></row><row><cell cols="5">4.6 Results from Spell Correction Experiment</cell></row><row><cell cols="5">Table 2 shows the spell correction performance of</cell></row><row><cell cols="5">FiRo and scRNN. RobEn is excluded because it is</cell></row><row><cell cols="5">not devised as a spell corrector. Although these</cell></row><row><cell cols="5">models were trained using the GLUE data injected</cell></row><row><cell cols="5">with synthetic character-level noise, they managed</cell></row><row><cell cols="5">to achieve decent spell correction performance on</cell></row><row><cell cols="5">the GitHub corpus which contained typos made</cell></row><row><cell cols="2">by humans. 5 Ablation</cell><cell></cell><cell></cell></row><row><cell cols="4">5.1 Finite-context Aggregation</cell></row><row><cell cols="5">Figure 5 shows that without context aggregation</cell></row><row><cell cols="5">(FiRo-ctx), FiRo performs worse. Using global self-</cell></row><row><cell cols="5">attention (Global-SA) or local self-attention with</cell></row><row><cell cols="5">the same neighborhood size as the finite-context ag-</cell></row><row><cell cols="5">gregation (Local-SA) results in less robust models.</cell></row><row><cell cols="5">Thus, finite-context aggregation seems to give the</cell></row><row><cell cols="5">best overall performance across noise spectrum.</cell></row><row><cell>Method</cell><cell>Fi</cell><cell>Ro</cell><cell cols="2">Arith Geo Har</cell></row><row><cell>RobEn</cell><cell cols="4">0.678 0.931 0.794 0.804 0.784</cell></row><row><cell cols="5">scRNNu 0.863 0.811 0.837 0.837 0.837</cell></row><row><cell cols="5">scRNNp 0.938 0.684 0.801 0.811 0.791</cell></row><row><cell>FiRo</cell><cell cols="4">0.910 0.962 0.936 0.936 0.935</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Estimates of Robustness (Ro) and Fidelity (Fi). Arith, Geo, and Har are the arithmetic, geometric, and harmonic means of Robustness and Fidelity.</figDesc><table /></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We thank <rs type="person">Gia H. Ngo</rs> and the anonymous reviewers for their helpful and constructive feedback.</p></div>
+			</div>			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Generating natural language adversarial examples</title>
+		<author>
+			<persName><forename type="first">Moustafa</forename><surname>Alzantot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yash</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Elgohary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo-Jhang</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mani</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2890" to="2896" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Synthetic and natural noise both break neural machine translation</title>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Belinkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Unsupervised cleansing of noisy text</title>
+		<author>
+			<persName><forename type="first">Danish</forename><surname>Contractor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Tanveer A Faruquie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subramaniam</forename><surname>Venkata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of COLING</title>
+		<meeting>COLING</meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="189" to="196" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">The corpus of contemporary american english (coca): 560 million words</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Davies</surname></persName>
+		</author>
+		<ptr target="https://www.english-corpora.org/faq.asp" />
+		<imprint>
+			<date type="published" when="1990">2008. 1990</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Psycholinguistic evidence on scrambled letters in reading</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Davis</surname></persName>
+		</author>
+		<ptr target="https://www.mrc-cbu.cam.ac.uk/" />
+		<imprint>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Results of the wnut2017 shared task on novel and emerging entity recognition</title>
+		<author>
+			<persName><forename type="first">Leon</forename><surname>Derczynski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Nichols</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marieke</forename><surname>Van Erp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nut</forename><surname>Limsopatham</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of W-NUT</title>
+		<meeting>W-NUT</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="140" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Hotflip: White-box adversarial examples for text classification</title>
+		<author>
+			<persName><forename type="first">Javid</forename><surname>Ebrahimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anyi</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Lowd</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dejing</forename><surname>Dou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="31" to="36" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Named entity disambiguation for noisy text</title>
+		<author>
+			<persName><forename type="first">Yotam</forename><surname>Eshel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kira</forename><surname>Radinsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaul</forename><surname>Markovitch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ikuya</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of CoNLL</title>
+		<meeting>CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="58" to="68" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">An effective, performant named entity recognition system for noisy business telephone conversation transcripts</title>
+		<author>
+			<persName><forename type="first">Xue-Yong</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Md</forename><surname>Tahmid Rahman Laskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Bhushan Tn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Corston-Oliver</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of W-NUT</title>
+		<meeting>W-NUT</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="96" to="100" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Black-box generation of adversarial text sequences to evade deep learning classifiers</title>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Lanchantin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mary</forename><forename type="middle">Lou</forename><surname>Soffa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanjun</forename><surname>Qi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Security and Privacy Workshops</title>
+		<imprint>
+			<biblScope unit="page" from="50" to="56" />
+			<date type="published" when="2018">2018. 2018</date>
+			<publisher>IEEE</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Breaking nli systems with sentences that require simple lexical inferences</title>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Glockner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vered</forename><surname>Shwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="650" to="655" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Framewise phoneme classification with bidirectional lstm and other neural network architectures</title>
+		<author>
+			<persName><forename type="first">Ian</forename><forename type="middle">J</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathon</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR. Alex Graves and Jürgen Schmidhuber</title>
+		<meeting>ICLR. Alex Graves and Jürgen Schmidhuber</meeting>
+		<imprint>
+			<date type="published" when="2005">2015. 2005</date>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="602" to="610" />
+		</imprint>
+	</monogr>
+	<note>Explaining and harnessing adversarial examples</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Github typo corpus: A large-scale multilingual dataset of misspellings and grammatical errors</title>
+		<author>
+			<persName><forename type="first">Masato</forename><surname>Hagiwara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Masato</forename><surname>Mita</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of LREC</title>
+		<meeting>LREC</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6761" to="6768" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Word contexts enhance the neural representation of individual letters in early visual cortex</title>
+		<author>
+			<persName><forename type="first">Micha</forename><surname>Heilbron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Richter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Ekman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Hagoort</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Floris P De</forename><surname>Lange</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature communications</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="11" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Adversarial examples for evaluating reading comprehension systems</title>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1215</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Certified robustness to adversarial word substitutions</title>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditi</forename><surname>Raghunathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kerem</forename><surname>Göksel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4120" to="4133" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Robust encodings: A framework for combating adversarial typos</title>
+		<author>
+			<persName><forename type="first">Erik</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditi</forename><surname>Raghunathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2752" to="2765" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">May i ask who&apos;s calling? named entity recognition on call center transcripts for privacy law compliance</title>
+		<author>
+			<persName><forename type="first">Micaela</forename><surname>Kaplan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of W-NUT</title>
+		<meeting>W-NUT</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1" to="6" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Adam: A Method for Stochastic Optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Bart</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Context-aware stand-alone neural spelling correction</title>
+		<author>
+			<persName><forename type="first">Xiangci</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hairong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP: Findings</title>
+		<meeting>EMNLP: Findings</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="407" to="414" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Joint character-level word embedding and adversarial stability training to defend adversarial text</title>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongzheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yipeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yige</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8384" to="8391" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Delving into transferable adversarial examples and black-box attacks</title>
+		<author>
+			<persName><forename type="first">Yanpei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Roberta: A robustly optimized bert pretraining approach</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno>cs.CL/1907.11692</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">De-co: A two-step spelling correction model for combating adversarial typos</title>
+		<author>
+			<persName><forename type="first">Zhengxiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fali</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyi</forename><surname>Yin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>IEEE</publisher>
+			<biblScope unit="page" from="554" to="561" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Decoupled weight decay regularization</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Loshchilov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Hutter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Robust to noise models in natural language processing tasks</title>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Malykh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL: Student Research Workshop</title>
+		<meeting>ACL: Student Research Workshop</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="10" to="16" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Robust word vectors: Contextinformed embeddings for noisy texts</title>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Malykh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taras</forename><surname>Khakhulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Mathematical Sciences</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="14" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Named entity recognition in noisy domains</title>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Malykh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladislav</forename><surname>Lyalin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Artificial Intelligence Applications and Innovations</title>
+		<meeting>the International Conference on Artificial Intelligence Applications and Innovations</meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="60" to="65" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Disruption to word or letter processing? the origins of case-mixing effects</title>
+		<author>
+			<persName><forename type="first">Kate</forename><surname>Mayall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Glyn</forename><forename type="middle">W</forename><surname>Humphreys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Olson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Experimental Psychology: Learning, Memory, and Cognition</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page">1275</biblScope>
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Word recognition inside out and outside in</title>
+		<author>
+			<persName><forename type="first">Philip</forename><forename type="middle">B</forename><surname>Leo X Mccusker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Randolph</forename><forename type="middle">G</forename><surname>Gough</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bias</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Experimental Psychology: Human Perception and Performance</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page">538</biblScope>
+			<date type="published" when="1981">1981</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Mtnt: A testbed for machine translation of noisy text</title>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="543" to="553" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Multimodal neural pronunciation modeling for spoken languages with logographic origin</title>
+		<author>
+			<persName><forename type="first">Minh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gia</forename><forename type="middle">H</forename><surname>Ngo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nancy</forename><forename type="middle">F</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2916" to="2922" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Hierarchical character embeddings: Learning phonological and semantic representations in languages of logographic origin using recursive neural networks</title>
+		<author>
+			<persName><forename type="first">Minh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gia</forename><forename type="middle">H</forename><surname>Ngo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nancy</forename><forename type="middle">F</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="461" to="473" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Domain-shift conditioning using adaptable filtering via hierarchical embeddings for robust chinese spell check</title>
+		<author>
+			<persName><forename type="first">Minh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gia</forename><forename type="middle">H</forename><surname>Ngo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nancy</forename><forename type="middle">F</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM Transactions on Audio, Speech, and Language Processing</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Improving named entity recognition in spoken dialog systems by context and speech pattern modeling</title>
+		<author>
+			<persName><forename type="first">Minh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhou</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SigDial</title>
+		<meeting>SigDial</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Practical black-box attacks against machine learning</title>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Papernot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Mcdaniel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Somesh</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Berkay Celik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ananthram</forename><surname>Swami</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACM ASIA CCS &apos;17</title>
+		<meeting>ACM ASIA CCS &apos;17</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="506" to="519" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Pytorch: An imperative style, high-performance deep learning library</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Massa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Lerer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregory</forename><surname>Chanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Killeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeming</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Natalia</forename><surname>Gimelshein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Antiga</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NeurIPS</title>
+		<meeting>NeurIPS</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="8026" to="8037" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">d1ng w0rd5 w1th numb3r5. Journal of Experimental Psychology: Human Perception and Performance</title>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Perea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jon</forename><forename type="middle">Andoni</forename><surname>Duñabeitia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Carreiras</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page">237</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Does &quot;whole-word shape&quot; play a role in visual word recognition? Perception &amp; psychophysics</title>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Perea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eva</forename><surname>Rosa</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="volume">64</biblScope>
+			<biblScope unit="page" from="785" to="794" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Combating adversarial misspellings with robust word recognition</title>
+		<author>
+			<persName><forename type="first">Danish</forename><surname>Pruthi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhuwan</forename><surname>Dhingra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><forename type="middle">C</forename><surname>Lipton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5582" to="5591" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Improving language understanding by generative pre-training</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>Tim Salimans, and Ilya Sutskever</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">The significance of letter position in word recognition</title>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Ernest</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rawlinson</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1976">1976</date>
+		</imprint>
+		<respStmt>
+			<orgName>University of Nottingham</orgName>
+		</respStmt>
+	</monogr>
+	<note>Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<author>
+			<persName><forename type="first">Keith</forename><surname>Rayner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><forename type="middle">J</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Liversedge</surname></persName>
+		</author>
+		<title level="m">Raeding wrods with jubmled lettres: There is a cost</title>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Semantically equivalent adversarial rules for debugging nlp models</title>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Tulio Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="856" to="865" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Semeval-2017 task 4: Sentiment analysis in twitter</title>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Rosenthal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noura</forename><surname>Farra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S17-2088</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval-2017</title>
+		<meeting>SemEval-2017</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="502" to="518" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Robsut wrod reocginiton via semi-character recurrent neural network</title>
+		<author>
+			<persName><forename type="first">Keisuke</forename><surname>Sakaguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note>In Proceedings of AAAI</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Introduction to the conll-2003 shared task: Languageindependent named entity recognition</title>
+		<author>
+			<persName><forename type="first">Erik</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fien</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meulder</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of CoNLL</title>
+		<meeting>CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="142" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">On-device text representations robust to misspellings via projections</title>
+		<author>
+			<persName><forename type="first">Chinnadhurai</forename><surname>Sankar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujith</forename><surname>Ravi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zornitsa</forename><surname>Kozareva</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EACL</title>
+		<meeting>EACL</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2871" to="2876" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Better robustness by more coverage: Adversarial training with mixup augmentation for robust fine-tuning</title>
+		<author>
+			<persName><forename type="first">Chenglei</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengyan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanchao</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL: Findings</title>
+		<meeting>ACL: Findings</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Intriguing properties of neural networks</title>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joan</forename><surname>Bruna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dumitru</forename><surname>Erhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rob</forename><surname>Fergus</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In Proceedings of ICLR</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NeurIPS</title>
+		<meeting>NeurIPS</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Glue: A multi-task benchmark and analysis platform for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Samuel R Bowman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Learning multi-level dependencies for robust word recognition</title>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songfan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gale</forename><forename type="middle">Yan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zitao</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9250" to="9257" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Does the huamn mnid raed wrods as a wlohe</title>
+		<author>
+			<persName><forename type="first">Carol</forename><surname>Whitney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Grainger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Trends in cognitive sciences</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="58" to="59" />
+			<date type="published" when="2004">2004</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-theart natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP: System Demonstrations</title>
+		<meeting>EMNLP: System Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Modeling localness for self-attention networks</title>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><forename type="middle">F</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fandong</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidia</forename><forename type="middle">S</forename><surname>Chao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4449" to="4458" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<analytic>
+		<title level="a" type="main">Robust neural text classification and entailment via mixup regularized adversarial training</title>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Penghui</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenji</forename><surname>Mao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SIGIR</title>
+		<meeting>SIGIR</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1778" to="1782" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<analytic>
+		<title level="a" type="main">Generating natural adversarial examples</title>
+		<author>
+			<persName><forename type="first">Zhengli</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dheeru</forename><surname>Dua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,808 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Learning a Better Initialization for Soft Prompts via Meta-Learning</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yukun</forename><surname>Huang</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Kun</forename><surname>Qian</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Zhou</forename><surname>Yu</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Columbia University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">Columbia University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff2">
+								<orgName type="institution">Columbia University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Learning a Better Initialization for Soft Prompts via Meta-Learning</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C6C082EFFD1E6CC73FB1FDF93D860D8C</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:50+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Prompt tuning (PT) is an effective approach to adapting pre-trained language models to downstream tasks. However, prompt tuning doesn't perform well under few-shot settings due to the poor initialization. So pre-trained prompt tuning (PPT) <ref type="bibr" target="#b6">(Gu et al., 2022)</ref> is proposed to adapt prompt tuning to few-shot settings by initializing prompts with source data. We propose Meta-learned Prompt Tuning (MetaPT) to further improve PPT's few-shot learning performance by considering latent structure within the source data. Specifically, we introduce the framework by first clustering source data into different meta-training tasks in an unsupervised manner. Then we leverage these tasks to metatrain prompts with a meta-learning algorithm. Such a process enables prompts to learn a better initialization by discovering commonalities among these meta-training tasks. We evaluate our method on seven downstream sentiment tasks. The results demonstrate that our MetaPT achieves better performance and stability than the state-of-the-art method.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Pre-trained language models (PLMs) have demonstrated outstanding performances in various downstream NLP tasks <ref type="bibr" target="#b1">(Devlin et al., 2019</ref><ref type="bibr" target="#b8">, Kale and Rastogi, 2020</ref><ref type="bibr" target="#b0">, Brown et al., 2020)</ref>. Full model tuning (FT) adapts PLMs to downstream tasks by introducing task-specific training objects and fine tuning all parameters of PLMs. Prompt tuning (PT) <ref type="bibr" target="#b10">(Lester et al., 2021)</ref> is an efficient alternative to FT by only tuning a small number of parameters. PT adds a series of tunable tokens (soft prompts) at the beginning of the sequence to modulate the behavior of the language model. When adapting pretrained language models to downstream tasks, PT freezes all parameters of pre-trained language models and only trains the soft prompts. PT achieves comparable performance to FT with sufficient data. * Equal Contribution But it performs poorly under few-shot settings due to its sensitivity to the initialization of soft prompts.</p><p>To adapt PT to few-shot settings, pre-trained prompt tuning (PPT) <ref type="bibr" target="#b6">(Gu et al., 2022)</ref> pre-trains soft prompts with a self-supervised source task and then apply pre-trained prompts to few-shot downstream tasks. PPT generally groups all text classification tasks into three formats and designs a selfsupervised source task for each format to pre-train prompts. PPT demonstrates its effectiveness when using large-scale PLMs. However, PPT mixes all source data points together and ignores the latent structure among them. PPT updates prompt parameters at every data point, it learns more about the specific feature of each data point rather than the general features of the entire task. As a result, PPT retains too much redundant information only relevant to the source task in the initialization of soft prompts, which consequently impedes model performance on downstream tasks.</p><p>To further improve the few-shot adaption capability of prompt tuning, we incorporate metalearning into prompt tuning. We first propose to use unsupervised methods to create meta-training tasks for prompts and then adopt a model-agnostic metalearning method to meta-train prompts. By our unsupervised clustering method, the latent structure of source data is represented by the distribution of meta-training tasks. Through meta-learning, general features are incorporated into the initialization of the soft prompts. Our meta-learned prompts achieve faster and more stable adaptation to downstream tasks. We named our method Meta-learned Prompt Tuning (MetaPT). Our experimental results show that MetaPT outperforms full-model tuning and pre-trained prompt tuning on the T5 model <ref type="bibr" target="#b8">(Kale and Rastogi, 2020)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Prompts There are two types of prompts that can probe the knowledge in PLMs without updating the parameters of PLMs: hard prompts and soft prompts. Hard prompts <ref type="bibr" target="#b0">(Brown et al., 2020)</ref> are human-designed discrete tokens while soft prompts are continuous embeddings of language models. Soft prompts methods train efficient parameters to perform prompting directly into the continuous embedding space of the model to get better representation ability and avoid involving human efforts. These efficient parameters can be prepended to each layer in the encoder stack <ref type="bibr" target="#b11">(Li and Liang, 2021)</ref>, input embedding <ref type="bibr" target="#b10">(Lester et al., 2021)</ref>, or both <ref type="bibr" target="#b12">(Liu et al., 2021)</ref>. Though the above soft prompts methods perform well with sufficient training data, they all become much worse under few-shot learning settings. Pre-trained prompt tuning <ref type="bibr" target="#b6">(Gu et al., 2022)</ref> is the current state-of-the-art soft prompts method under few-shot settings.</p><p>Meta-Learning Meta-Learning, also known as learning to learn, is famous for its effectiveness to extract domain-invariant features <ref type="bibr" target="#b19">(Sahoo et al., 2018)</ref> and enforces models to adapt to downstream tasks <ref type="bibr" target="#b3">(Finn et al., 2017)</ref>. Model-Agnostic Meta-Learning (MAML) proposed by <ref type="bibr" target="#b3">Finn et al. (2017)</ref> is a popular optimization-based meta-learning algorithm, which is adopted in various NLP tasks (e.g. <ref type="bibr" target="#b15">Qian et al., 2021</ref><ref type="bibr" target="#b5">, Gu et al., 2018</ref><ref type="bibr" target="#b22">, Yin, 2020</ref><ref type="bibr" target="#b16">, Qian and Yu, 2019</ref><ref type="bibr" target="#b2">, Dou et al., 2019)</ref>. Following MAML, works like REPTILE <ref type="bibr" target="#b13">(Nichol et al., 2018)</ref>, MetaOPT <ref type="bibr" target="#b9">(Lee et al., 2019)</ref> and TAML <ref type="bibr" target="#b7">(Jamal et al., 2019)</ref> etc. are proposed to further improve the model's learning capability. In this work, we focus more on exploring how soft prompts benefit from meta-learning. Therefore, we adopt the most widely used MAML algorithm.</p><p>3 Background: Prompt Tuning Prompt tuning modifies the embeddings of soft prompts prepended to the input sequence to adapt PLMs to downstream tasks. Specifically, let (x, y) be a sample from a downstream classification task T down , where x is the input text while y is its corresponding label. We first map the label y into a concrete token z in the vocabulary of the PLM. Next, we use H(•) to fit input text x to a hard prompt template. Take sentiment classification as an example, H("I like this movie") ="I like this movie. It was ⟨X⟩ ", where ⟨X⟩ is the mask token. Then, we prepend soft prompts P to the beginning of input sequence [P ; H(x)]. Finally, we freeze the parameters of the PLM and optimize the following log-likelihood objective: In this section, we describe our self-supervised model training pipeline. We first gather source data. Then, we utilize an unsupervised method to cluster source data into different groups as meta-training tasks. Finally, we use Prompt-MAML algorithm to train and find a good initialization for soft prompts.</p><p>Our algorithm helps the model adapt faster to downstream tasks in two ways. On one hand, the meta-learning method simulates the adaptation step during training, which provides an easilyoptimized parameter initialization. On the other hand, training across different clusters allows the model to focus more on the task's general features rather than domain-specific features.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Constructing Source Data</head><p>We construct source data by creating pseudo labels for sentences from open-domain corpus. For sentence classification, we first train a small model based on an existing dataset which shares similar label space to the downstream datasets. Then we use that model to annotate pseudo labels for the sentences in a large corpus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Designing Meta-training Tasks</head><p>After constructing source data, we use K-means to group the data into different clusters as metatraining tasks. We first implement sentence-BERT <ref type="bibr" target="#b17">(Reimers and Gurevych, 2019)</ref> to derive semantically meaningful sentence embeddings from source data samples. Then we apply unsupervised Kmeans to cluster source data into different classes according to their sentence embeddings.</p><p>K-means clustering group samples with similar sentence embeddings into the same task and reveal the latent structure within source data. Based on that structure, prompts could learn to incorporate some common internal features to the initialization through meta-learning. With such general information encoded in the initialization of prompts, the model can achieve great performance with limited training data from downstream tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Prompt-MAML Algorithm</head><p>After we get a set of meta tasks T obtained via an unsupervised method, we utilize MAML to learn Figure <ref type="figure">1</ref>: Pipelines of meta-learned prompt tuning. First, we prepare source data used for meta-learning. Second, we cluster source data into different groups as meta-training tasks (aka meta tasks). Then, we train prompts with model-agnostic meta-learning algorithm. Finally, we evaluate meta-learned prompts on downstream tasks. general features among these meta tasks. We first randomly initialize the parameter of soft prompts P . For each meta task T i , m training samples are sampled from that task. Taking in m samples, the model output f P . Then we calculate the average loss L T i (f P ) of these m samples and temporarily update soft prompts with gradient descent, where α is the learning rate for the inner loop.</p><formula xml:id="formula_0">P ′ i = P -α∇ P L T i (f P ) (1)</formula><p>After optimizing the prompts, we sampled another m samples and calculated the loss with the updated prompts. We add loss for T i to total loss and repeat the same process for other meta tasks until we go over all the meta tasks. Finally, we update the prompts by minimizing the final total loss, where β is the learning rate for the outer loop.</p><formula xml:id="formula_1">P ← P -β∇ P T i ∼p(T ) L T i (f P ′ i )<label>(2)</label></formula><p>This is a complete process of one-step updates for prompts. We keep optimizing the prompts until the validation accuracy of meta tasks stop growing. During meta-training, we simulate the adaptation step and therefore provide an easily-optimized soft prompts initialization. During the evaluation, the meta-learned prompts will be further tuned on downstream tasks and then make predictions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Setup</head><p>Our experiments are built on the T5-base model from HuggingFace <ref type="bibr" target="#b21">(Wolf et al., 2020)</ref>. </p><formula xml:id="formula_2">Downstream</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Main Results</head><p>As shown in Table <ref type="table">1</ref>, we mainly compare the performance of full-model tuning (FT), pre-trained prompt tuning (PPT) and meta-learned prompt tuning (MetaPT) on different sentiment classification tasks. We also include results of MetaPT (Y ) in the table, which is directly meta-trained on Yelp5. First, MetaPT consistently achieves higher accuracy than PPT (7/7 tasks) and FT(6/7 tasks). MetaPT also shows better stability facing different training samples. Second, MetaPT (Y ) also out-  <ref type="table">1</ref>: Classification accuracy results on seven downstream tasks. FT denotes full-model tuning. PPT denotes pre-trained prompt tuning. MetaPT denotes meta-learned prompt tuning. MetaPT is meta-trained on pseudo-labeled data while MetaPT (Y ) is meta-trained on Yelp5 directly. Our methods outperform the two other methods for most of the datasets. MetaPT not only achieve higher accuracy than PPT consistently, but also have a more stable performance with lower variance. performs PPT and FT. And it even achieves better results than MetaPT on five tasks. Even though it only trained on the restaurant domain, it can still be generalized to other domains. This suggests that our method can extract general features from data. Finally, as we increased the size of the pretrained language model from base to large, the performances of MetaPT become consistently better on all seven tasks.</p><p>In addition, as shown in Figure <ref type="figure" target="#fig_2">2</ref>, when the number of training samples of the downstream task grows from 10 to 2,560, MetaPT is consistently better than PPT and FT, while PPT also has a small advantage over FT. All three methods will converge to similar performance with sufficient training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Ablation Study</head><p>Scale of Source data As Figure <ref type="figure" target="#fig_3">3(a)</ref> shows, when we increase the number of source data points from 1,000 to 10,000, the accuracy grows rapidly. After </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>In this paper, we present the meta-learned prompt tuning framework. Specifically, we propose to cluster source data into different groups to create aux-iliary tasks for meta-learning, and then meta-train prompts with the Model-Agnostic Meta-Learning method. Our method tunes only 0.02% parameters but improves the accuracy by 3.8% compared with full model tuning on seven downstream tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitations</head><p>In this work, we mainly focus on sentiment classification tasks. Our method could be further explored on other natural language understanding tasks like sentence-pair classification and multiplechoice classification. Besides, our experiments are conducted on T5-base and T5-large models in this work. There are still other available larger pre-trained language models like T5-xl and T5-xxl.</p><p>The performance of our method on larger language models needs to be further investigated. In the future, we plan to apply our method to these two larger pre-trained language models. We also plan to extend our evaluation tasks from sentiment classification to other general natural language processing tasks, e.g. sentence pair classification, to explore the generalizability of our method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Ethical Considerations</head><p>We present a parameter-efficient method to adapt the large language models (LLMs) to few-shot learning tasks, which makes LLMs accessible to more people. However, as LLMs become more accessible, they are more likely to be used maliciously.</p><p>Our method might open up the potential for scams and fraud on a large scale. For example, a chatbot can be trained to extract sensitive information from users by tuning a few parameters with only a few labeled samples. As a result, a malicious chatbot can be easily trained to deceive users and extract their private information. Therefore, our method can only be put into real life when malicious goals of LLMs can be detected and the user can be warned about potential dangers. Table <ref type="table">2</ref>: Performance of different clustering methods on SST5. "K-means" denotes and "LDA" denotes . "Random" denotes the method which randomly splits the total source data into different groups. "Label" denotes the method which clusters the data samples with the same label into the same group. Pre-trained Prompt Tuning(PPT) plays the role as a baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Visualization</head><p>We use TSNE to visualize the clustering results for K-means when the cluster number equals 3, 6, 10 in Figure <ref type="figure" target="#fig_4">4</ref>. From the t-SNE of our K-means clusters, we could see that data is well grouped into different clusters according to their sentence embeddings. After we reduce the sentence features of different samples to two-dimensionality, different samples in the same clusters are close to each other and are distinguishable from samples in other clusters, which demonstrates that meta tasks derived from K-means indeed contain useful common latent features.</p><p>We conduct manual inspection on the resulting clusters of the source data (k=10). We find a few humaninterpretable structures. For example, some are more related to food, some have more numbers, dates, or symbols, and some include more short sentences. The pattern of other clusters is less interpretable. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Dataset Examples</head><p>Here we provide detailed information and examples for all the datasets we used. Source dataset includes Yelp5 <ref type="bibr" target="#b23">(Zhang et al., 2015)</ref>. The downstream datasets include SST-5 <ref type="bibr" target="#b20">(Socher et al., 2013)</ref>, SST-2 <ref type="bibr" target="#b20">(Socher et al., 2013)</ref>, Amazon-5 <ref type="bibr" target="#b23">(Zhang et al., 2015)</ref>, Amazon-2 <ref type="bibr" target="#b23">(Zhang et al., 2015)</ref>, Sentihood <ref type="bibr" target="#b18">(Saeidi et al., 2016)</ref>, and SemEval-2016 <ref type="bibr" target="#b14">(Pontiki et al., 2016)</ref>. SemEval-2016 has two tasks in different domains: restaurant and laptop. These two tasks are denoted by SemEval r and SemEval l respectively. Domains, number of classes and examples of all datasets are shown in Table <ref type="table">3</ref>. All datasets are in English. "unlike the speedy wham-bam effect of most hollywood offerings , character development -and more importantly , character empathy -is at the heart of italian for beginners" positive++ SST-2 movie 2 "jason x is positively anti-darwinian : nine sequels and 400 years later , the teens are none the wiser and jason still kills on auto-pilot " negative Amazon-5 product 5 "nice screen for a nice price but..... i compared a few different flat panels with review before i narrowed down my pick, which ended up with the sylvania as over well liked. the picture got great reviews which yes it does have a good picture to look at but there are other important qualities you enjoy that makes viewing tv all the better. for example: sound... how was that forgotten?in this flat panel, it was. what a disappointment. if this is consider stereo than why does it sound like its coming from a tin can with no base at all. then too boot, if you play the dvd, the sound drops and you have to really turn up the volume to hear.i want the whole package deal: space saving, great picture, and good sound. i want to enjoy the whole experience of watching and listening. how about you?" positive Amazon-2 product 2 "not an ultimate guide. firstly,i enjoyed the format and tone of the book (how the author addressed the reader). however, i did not feel that she imparted any insider secrets that the book promised to reveal. if you are just starting to research law school, and do not know all the requirements of admission, then this book may be a tremendous help. if you have done your homework and are looking for an edge when it comes to admissions, i recommend some more topic-specific books. for example, books on how to write your personal statment, books geared specifically towards lsat preparation (powerscore books were the most helpful for me), and there are some websites with great advice geared towards aiding the individuals whom you are asking to write letters of recommendation. yet, for those new to the entire affair, this book can definitely clarify the requirements for you." negative Sentihood neighbor 2 "a friend of mine lived in location1 and she liked it, though other people have told me it's a bit rough" negative SemEvalr restaurant 3 "if you've ever been along the river in weehawken you have an idea of the top of view the chart house has to offer" positive SemEval l labtop 3 "so if anyones looking to buy a computer or laptop you should stay far far away from any that have the name toshiba on it" negative Table <ref type="table">3</ref>: Detailed information about sentiment datasets, including domain, number of classes and a concrete example</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>⟨X⟩ = z|[P ; H(x)]; P ) 4 Meta-learned Prompt Tuning</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Datasets We focus on the sentiment classification tasks. Specifically, the downstream datasets include SST-5<ref type="bibr" target="#b20">(Socher et al., 2013)</ref>, SST-2<ref type="bibr" target="#b20">(Socher et al., 2013)</ref>, Amazon-5<ref type="bibr" target="#b23">(Zhang et al., 2015)</ref>, Amazon-2<ref type="bibr" target="#b23">(Zhang et al., 2015)</ref>, Sentihood<ref type="bibr" target="#b18">(Saeidi et al., 2016</ref>), and SemEval-2016<ref type="bibr" target="#b14">(Pontiki et al., 2016)</ref>. SemEval-2016 has two tasks in different domains: SemEval r (restaurant) and SemEval l (laptop). Detailed information on these datasets could be found in Appendix C. We randomly select 40 samples from the original dataset for both few-shot training and validation. Source Data we first train a RoBERTa-base model on Yelp5. Then we randomly sample 10GB of data from OpenWebText<ref type="bibr" target="#b4">(Gokaslan and Cohen, 2019)</ref> and apply the trained RoBERTa model to annotate labels for the sampled data. We only keep data samples with high confidence and throw away the samples which the model is unsure about. After balancing pseudo data, we get 1,000,000 balanced training samples with open domains.See Appendix A for detailed hyperparameters.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Performance comparison among FT, PPT, MPT on SST-5 as the number of training samples increases from 10 to 2,560</figDesc><graphic coords="4,92.69,248.57,174.62,176.79" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Analysis about MetaPT. (a) The performance of MetaPT varies when the number of pretraining samples changes from 1,000 to 3,000,000. (b)The performance of MetaPT varies when the number of meta tasks varies from 3 to 30</figDesc><graphic coords="4,310.39,252.54,100.80,103.83" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: T-SNE of K-means meta tasks clustering results. Cluster number K equals to 3, 6, 10 respectively</figDesc><graphic coords="8,70.87,372.10,453.54,142.69" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table</head><label></label><figDesc>MetaPT (Y ) 46.24±0.42 87.26±0.73 58.73±0.13 95.39±0.03 78.27±1.17 80.72±0.60 72.32±0.66 T5-large MetaPT 47.31±0.21 89.61±0.09 55.76±0.15 95.23±0.03 85.78±0.10 85.96±0.08 77.49±0.11 '</figDesc><table><row><cell>Model</cell><cell>Methods</cell><cell>SST5</cell><cell>SST2</cell><cell>Amazon5</cell><cell>Amazon2</cell><cell>Sentihood SemEvalr SemEval l</cell></row><row><cell></cell><cell>FT</cell><cell cols="5">43.57±2.56 88.27±1.03 48.40±1.48 92.35±0.68 82.11±1.30 71.01±1.16 62.48±3.23</cell></row><row><cell>T5-base</cell><cell>PPT MetaPT</cell><cell cols="5">42.90±1.08 87.42±1.15 51.15±1.56 93.28±0.21 80.06±3.31 62.04±3.34 56.37±4.11 45.26±0.39 89.47±0.12 55.47±0.34 94.43±0.08 80.38±0.46 76.93±1.19 70.86±1.95</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Training Settings</head><p>Hyperparameters Following <ref type="bibr" target="#b10">Lester et al. (2021)</ref>, we set the soft-prompt as 100 tunable tokens for all methods. We provide detailed training settings used for full-model tuning (FT), pre-trained prompt tuning (PPT) and meta-learned prompt tuning (MetaPT). Instead of following <ref type="bibr" target="#b6">Gu et al. (2022)</ref>, we find another set of hyperparameters. Both FT and PPT achieve better performances on T5-base model than results reported in <ref type="bibr" target="#b6">Gu et al. (2022)</ref>. We run FT, PPT and MetaPT on T5-base (220M). For MetaPT, we also run experiments on T5-large (770M). All the models in our work could be fit in a single NVIDIA RTX A6000. For few-shot settings, we randomly select 40 training samples and 40 validation samples from the data five times with random seed in <ref type="bibr">[1,</ref><ref type="bibr">2,</ref><ref type="bibr">3,</ref><ref type="bibr">4,</ref><ref type="bibr">5]</ref>. We report the averaged accuracy as well as the standard deviation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Full-model Tuning</head><p>We implement AdamW as the optimizer. We search the learning rate in [3e-3, 3e-4, 8e5, 3e-5, 3e-6], max epochs in <ref type="bibr">[50,</ref><ref type="bibr">100,</ref><ref type="bibr">200,</ref><ref type="bibr">300]</ref> and patience in <ref type="bibr">[1,</ref><ref type="bibr">3,</ref><ref type="bibr">5,</ref><ref type="bibr">8]</ref>. Then we choose the set of hyperparameters with best accuracy on validation set. We apply a linear scheduler with 20 warm up steps and set the learning rate to 0.00003. We set batch size to 4, max epochs to 200. We evaluate results on validation set every epoch and and set the patience for early stopping to 5. Full-model Tuning would take 1 hour in average.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Pre-trained Prompt Tuning</head><p>We apply source data created in section 5 as pre-training data for PPT. During the pre-training phase, we implement AdamW as the optimizer. We apply the linear scheduler with 20 warm-up steps and set the learning rate to 0.003. We search the evaluation steps in [20,000, 10,000, 5,000] and patience in <ref type="bibr">[1,</ref><ref type="bibr">3,</ref><ref type="bibr">5]</ref>. Then we choose the best set of hyperparameters for the pre-training phase. We set the batch size to 4 and the max epoch to 5 (1,250,000 max steps). We evaluate prompts on the validation set every 20,000 steps after the first epoch and set the patience of the early stop to 5. Pre-training phase would take around 36 hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Meta-learned Prompt Tuning</head><p>During the meta-learning phase, we use AdamW as the optimizer for the outer loop. We search the learning rate α in [0.8, 0.3, 0.08, 0.03, 0.008] and search the learning rate β in [0.3, 0.08, 0.03, 0.025, 0.008]. Then we choose the best set of hyperparameters for the meta-learning phase. We set the learning rate α to 0.08, learning rate β to 0.025, batch size to 4, early stop patience to 6, and the max updating step of MAML to 20,000. We evaluate the prompts every 500 steps. The meta-learning phase would take around 12 hours. We also run MetaPT on T5-large. We adopt a similar setting as T5-base. The meta-learning phase would take around 24 hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Downstream Prompt Tuning</head><p>After pre-training or meta-training the prompts, we adopt the same setting for prompt tuning on downstream tasks. We use the AdamW optimizer with a learning rate of 0.003. We apply the linear scheduler with 20 warm-up steps. We set the batch size to 4 and the gradient accumulation steps to 8. We set the max epoch to 200 and the patience of the early stop to 6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Clustering B.1 Clustering Methods</head><p>We compare four different methods of clustering to get meta-training tasks. They are K-means clustering (splitting data by K-means clustering based on sentence embeddings), LDA clustering (splitting data by Latent Dirichlet Allocation topic modeling), random clustering (splitting the data randomly), and label clustering (splitting data according to their pseudo labels). From the result shown in Table <ref type="table">2</ref>, we notice that K-means clustering is the most effective and LDA is next to it. When we cluster randomly or according to their labels, the performance of MetaPT degrades to the same level as PPT.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Investigating meta-learning algorithms for low-resource natural language understanding tasks</title>
+		<author>
+			<persName><forename type="first">Zi-Yi</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keyi</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1112</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1192" to="1197" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Model-agnostic meta-learning for fast adaptation of deep networks</title>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Gokaslan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vanya</forename><surname>Cohen</surname></persName>
+		</author>
+		<ptr target="http://Skylion007.github.io/OpenWebTextCorpus" />
+		<title level="m">Openwebtext corpus</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Meta-learning for lowresource neural machine translation</title>
+		<author>
+			<persName><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><forename type="middle">K</forename><surname>Victor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cho</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1398</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3622" to="3631" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">PPT: Pre-trained prompt tuning for few-shot learning</title>
+		<author>
+			<persName><forename type="first">Yuxian</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.576</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="8410" to="8423" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Task agnostic meta-learning for few-shot learning</title>
+		<author>
+			<persName><forename type="first">Muhammad</forename><surname>Abdullah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamal</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guo-Jun</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mubarak</forename><surname>Shah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<imprint>
+			<date type="published" when="2019">2019. 2019</date>
+			<biblScope unit="page" from="11711" to="11719" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Text-to-text pre-training for data-to-text tasks</title>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Rastogi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Conference on Natural Language Generation</title>
+		<meeting>the 13th International Conference on Natural Language Generation<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="97" to="102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Meta-learning with differentiable convex optimization</title>
+		<author>
+			<persName><forename type="first">Kwonjoon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhransu</forename><surname>Maji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avinash</forename><surname>Ravichandran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Soatto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE/CVF conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="10657" to="10665" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">The power of scale for parameter-efficient prompt tuning</title>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Lester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.243</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3045" to="3059" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Prefix-tuning: Optimizing continuous prompts for generation</title>
+		<author>
+			<persName><forename type="first">Lisa</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.353</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4582" to="4597" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">P-tuning v2: Prompt tuning can be comparable to fine-tuning universally across scales and tasks</title>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaixuan</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yicheng</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengxiao</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhilin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2110.07602</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">On first-order meta-learning algorithms</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Nichol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Achiam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1803.02999</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">SemEval-2016 task 5: Aspect based sentiment analysis</title>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Pontiki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitris</forename><surname>Galanis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haris</forename><surname>Papageorgiou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Androutsopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suresh</forename><surname>Manandhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Al-Smadi</forename><surname>Mohammad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mahmoud</forename><surname>Al-Ayyoub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanyan</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orphée</forename><surname>De Clercq</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Véronique</forename><surname>Hoste</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marianna</forename><surname>Apidianaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Tannier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Natalia</forename><surname>Loukachevitch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evgeniy</forename><surname>Kotelnikov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S16-1002</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Workshop on Semantic Evaluation (SemEval-2016)</title>
+		<meeting>the 10th International Workshop on Semantic Evaluation (SemEval-2016)<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="19" to="30" />
+		</imprint>
+	</monogr>
+	<note>Nuria Bel, Salud María Jiménez-Zafra, and Gülşen Eryigit</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A studentteacher architecture for dialog domain adaptation under the meta-learning setting</title>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Kun Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhou</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Domain adaptive dialog generation via meta learning</title>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhou</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1253</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2639" to="2649" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Sentence-BERT: Sentence embeddings using Siamese BERTnetworks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1410</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3982" to="3992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">SentiHood: Targeted aspect based sentiment analysis dataset for urban neighbourhoods</title>
+		<author>
+			<persName><forename type="first">Marzieh</forename><surname>Saeidi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Bouchard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Liakata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of COLING 2016, the 26th International Conference on Computational Linguistics: Technical Papers</title>
+		<meeting>COLING 2016, the 26th International Conference on Computational Linguistics: Technical Papers<address><addrLine>Osaka, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1546" to="1556" />
+		</imprint>
+	</monogr>
+	<note>The COLING 2016 Organizing Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Meta-learning with domain adaptation for few-shot learning under domain shift</title>
+		<author>
+			<persName><forename type="first">Doyen</forename><surname>Sahoo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hung</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenghao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven Ch</forename><surname>Hoi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Recursive deep models for semantic compositionality over a sentiment treebank</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Perelygin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="1631" to="1642" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Meta-learning for few-shot natural language processing: A survey</title>
+		<author>
+			<persName><forename type="first">Wenpeng</forename><surname>Yin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2007.09604</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Character-level convolutional networks for text classification</title>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junbo</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jake</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1509.01626</idno>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

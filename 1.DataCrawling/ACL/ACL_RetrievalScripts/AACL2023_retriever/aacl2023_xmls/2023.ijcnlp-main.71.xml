@@ -1,0 +1,1735 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">PACT: Pretraining with Adversarial Contrastive Learning for Text Classification</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Md</forename><surname>Tawkat</surname></persName>
+							<email>tawkat@cs.</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of British Columbia</orgName>
+								<address>
+									<country>♢ MBZUAI</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Islam</forename><surname>Khondaker</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of British Columbia</orgName>
+								<address>
+									<country>♢ MBZUAI</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Muhammad</forename><surname>Abdul-Mageed</surname></persName>
+							<email>muhammad.mageed@</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of British Columbia</orgName>
+								<address>
+									<country>♢ MBZUAI</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">♢</forename><surname>Laks</surname></persName>
+							<email>laks@cs.ubc.ca</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of British Columbia</orgName>
+								<address>
+									<country>♢ MBZUAI</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">V</forename><forename type="middle">S</forename><surname>Lakshmanan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of British Columbia</orgName>
+								<address>
+									<country>♢ MBZUAI</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">PACT: Pretraining with Adversarial Contrastive Learning for Text Classification</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C88B2C13AD8FA677577E48AF8BEA0838</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:53+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We present PACT (Pretraining with Adversarial Contrastive Learning for Text Classification), a novel self-supervised framework for text classification. Instead of contrasting against inbatch negatives, a popular approach in the literature, PACT mines negatives closer to the anchor representation. PACT operates by endowing the standard pretraining mechanisms of BERT with adversarial contrastive learning objectives, allowing for effective joint optimization of token-and sentence-level pretraining of the BERT model. Our experiments on 13 diverse datasets including token-level, singlesentence, and sentence-pair text classification tasks show that PACT achieves consistent improvements over SOTA baselines. We further show that PACT regularizes both token-level and sentence-level embedding spaces into more uniform representations, thereby alleviating the undesirable anisotropic phenomenon of language models. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Pretrained language models (PLM) like BERT <ref type="bibr" target="#b8">(Devlin et al., 2019)</ref> revolutionized several NLP tasks such as text classification, question answering, etc. With the success of PLMs, different pretraining objectives were proposed to further improve model performance <ref type="bibr" target="#b28">(Liu et al., 2019;</ref><ref type="bibr" target="#b23">Lan et al., 2020;</ref><ref type="bibr" target="#b7">Clark et al., 2020)</ref>. PLMs can also be finetuned on downstream task data <ref type="bibr">(Howard and Ruder, 2018)</ref>. One of the exciting lines of work aimed at sharpening PLM representations is related to contrastive learning (CL) <ref type="bibr" target="#b16">(Hadsell et al., 2006)</ref>. These works are motivated by recent success in computer vision <ref type="bibr">(Chen et al., 2020a;</ref><ref type="bibr" target="#b9">Dosovitskiy et al., 2014;</ref><ref type="bibr">Chen et al., 2020b</ref><ref type="bibr" target="#b4">Chen et al., , 2017))</ref>. The basic idea behind CL is to pull positive samples close to each other while pushing apart negative samples in the embedding space. While these positive and negative sam-Sim= 0.159 S im = 0 .9 9 8</p><p>The two dogs are running</p><p>The two dogs are sleeping</p><p>The two dogs are levant Anchor Antonym Ours sleeping levant running</p><p>Figure <ref type="figure">1</ref>: Visual comparison between our adversarial approach and existing approach on the token-level negative. Our approach adversarially generated token (levant) is closer to the anchor token (running) than the antonym token (sleeping) in the embedding space.</p><p>ples are already labeled and hence can be used for supervised finetuning <ref type="bibr" target="#b21">(Khosla et al., 2020;</ref><ref type="bibr" target="#b15">Gunel et al., 2021)</ref>, it is still challenging to mine positive and especially negative samples for self-supervised pretraining.</p><p>In NLP, CL has been used both for language model pretraining <ref type="bibr" target="#b11">(Gao et al., 2021;</ref><ref type="bibr" target="#b10">Fang et al., 2020;</ref><ref type="bibr" target="#b48">Yan et al., 2021;</ref><ref type="bibr" target="#b36">Qu et al., 2020)</ref> and finetuning <ref type="bibr" target="#b42">(Suresh and Ong, 2021;</ref><ref type="bibr">Zhang et al., 2022c)</ref>. Prior works on CL-based pretraining have applied different data augmentation methods such as dropout <ref type="bibr" target="#b11">(Gao et al., 2021)</ref>, backtranslation <ref type="bibr" target="#b10">(Fang et al., 2020)</ref>, adversarial attack, and token-shuffling <ref type="bibr" target="#b48">(Yan et al., 2021)</ref> for mining positive samples. However, these methods rely mostly on sampling independently from the training batch (in-batch negatives) to collect negative samples, regardless of how uninformative these negative samples may be for the learned representation. Effectively pretraining a language model requires informative negative examples that are mapped nearby the positive samples but should be far apart from one another (hard negatives) <ref type="bibr" target="#b38">(Robinson et al., 2021)</ref>. Existing works <ref type="bibr" target="#b44">(Wang et al., 2021)</ref> attempt to synthetically generate semantic negative examples by replacing some tokens with antonyms. However, such approaches require human cognitive and external knowledge resources (e.g., dictionary), and there is no guarantee that representations obtained by such replacements are close to the actual representation in the embedding space (i.e., there is no guarantee they are actually hard negatives).</p><p>Another issue with PLMs is that they suffer from anisotropy <ref type="bibr">(Ethayarajh, 2019;</ref><ref type="bibr" target="#b25">Li et al., 2020)</ref> in the embedding space. That is, representations obtained by PLMs tend to occupy a narrow cone in the hyperspace, making them less informative. This makes it harder for classifiers to push apart samples belonging to different classes. Although prior works attempt to address this issue using CL separately for token-level <ref type="bibr" target="#b40">(Su et al., 2022)</ref> embedding and sentence-level <ref type="bibr" target="#b11">(Gao et al., 2021)</ref>, the sentence-level work focused mainly on acquiring representations that practically work fine for semantic similarity tasks but not for sentence-level classification (e.g., sentiment analysis). In addition, it is yet to be explored how to jointly optimize both token-level and sentence-level representations to achieve better uniformity (i.e., to alleviate anisotropy).</p><p>To address issues above, we present PACT, our self-supervised pretraining method for text classification. First, we introduce adversarial masked language modeling (MLM) to mine negative tokens by adding a small perturbation to the masked token representation in order to reduce the maximum likelihood of the correct token. Since we regulate the perturbation within a small margin, it guarantees to produce adversarial tokens within the vicinity of the masked tokens (Figure <ref type="figure">1</ref>). Next, we adversarially perturb the next sentence prediction (NSP) objective of BERT to minimize the maximum likelihood of correct prediction. For the contrastive learning objective, we treat the obtained token-level and sentence-level representations as negative pairs. Since both of these are acquired with only small perturbations, their representations stand as hard negatives. Our proposed method is completely selfsupervised and simple in that it aligns with the original pretraining objective of BERT. We further show that the joint token-level and sentence-level pretraining ensures uniformity in acquired representations and thus alleviates anisotropy.</p><p>Our contributions are as follows:</p><p>1. We propose PACT, a novel pretraining framework for BERT which jointly optimizes tokenlevel and sentence-level representations using CL.</p><p>2. We introduce adversarial MLM and Sequence objectives to mine adversarial hard negative samples in a self-supervised fashion.</p><p>3. Our experiments on 13 different token and sentence classification tasks show that PACT achieves consistent improvement over the SOTA baselines.</p><p>4. We show that PACT demonstrates better sentence-level (Section 6.1) and token-level (Section 6.2) uniformity than other baselines that alleviate the problem of anisotrophy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Works</head><p>Contrastive Learning. CL aims to learn effective embeddings by pulling semantically close neighbors together while pushing apart nonneighbors <ref type="bibr" target="#b16">(Hadsell et al., 2006)</ref>. CL employs a similarity objective to learn the embedding representation in the hyperspace <ref type="bibr" target="#b4">(Chen et al., 2017;</ref><ref type="bibr" target="#b17">Henderson et al., 2017)</ref>. In computer vision, <ref type="bibr">Chen et al. (2020a)</ref> propose a framework (SimCLR) for CL of visual representations without specialized architectures or a memory bank. <ref type="bibr">Chen et al. (2020b)</ref> dynamically build a queue of in-batch negative samples. The authors use a moving-averaged encoder with the dynamic queue to facilitate unsupervised CL. <ref type="bibr" target="#b18">Hu et al. (2021)</ref> argue that such queue may not be able to track the change of the learned representations. Hence, the authors propose an adversarial contrast (AdCo) model consisting of two adversarial networks. One is a backbone representation network that encodes the representation of input samples. The other is a collection of negative adversaries that are used to discriminate against positive queries over a minibatch. By this way, AdCo updates negative samples as a whole by making them sufficiently challenging to train the representation network. In NLP, several memory-based methods have been explored in the context of sentence representation learning <ref type="bibr" target="#b20">(Karpukhin et al., 2020;</ref><ref type="bibr" target="#b12">Gillick et al., 2019;</ref><ref type="bibr" target="#b29">Logeswaran and Lee, 2018)</ref>. Self-Supervised CL. CL approaches in NLP can be broadly categorized into two types: (i) selfsupervised and (ii) supervised. For self-supervised CL, one of the most notable works is SimCSE <ref type="bibr" target="#b11">(Gao et al., 2021)</ref>, which augments an input sentence with another view of the same sentence after applying dropout. <ref type="bibr" target="#b31">Meng et al. (2021)</ref> introduce an auxiliary model to train the student model using corrupted text sequence through ELECTRAstyle <ref type="bibr" target="#b7">(Clark et al., 2020)</ref> pretraining. <ref type="bibr" target="#b10">Fang et al. (2020)</ref> pretrain BERT with back-translation and show improvement in natural language understanding (NLU) tasks. DeCLUTR <ref type="bibr" target="#b13">(Giorgi et al., 2021)</ref> adopts the architecture of SimCLR and jointly trains two encoders to maximize the agreement between a span of a sequence. <ref type="bibr" target="#b47">Wu et al. (2020)</ref> advances DeCLUTR with both word-and span-level data augmentation strategies. Supervised CL. For the supervised setting, <ref type="bibr" target="#b21">Khosla et al. (2020)</ref>; <ref type="bibr" target="#b15">Gunel et al. (2021)</ref> propose to directly use the representations of the same class as positive pairs and different classes as negative pairs. <ref type="bibr" target="#b33">Pan et al. (2022)</ref> propose adversarial perturbation of the word embedding layer of BERT during finetuning.</p><p>Similarly, <ref type="bibr" target="#b24">Lee et al. (2021)</ref> propose to generate adversarial tokens for text generation tasks. <ref type="bibr" target="#b42">Suresh and Ong (2021)</ref> introduce an additional weighting network to capture inter-label relationships for finegrained classification, while <ref type="bibr">Zhang et al. (2022c)</ref> initialize additional label embeddings to match the representations of instances and corresponding labels. Adversarial Learning. In the literature (e.g., <ref type="bibr" target="#b32">(Miyato et al., 2017;</ref><ref type="bibr" target="#b33">Pan et al., 2022;</ref><ref type="bibr" target="#b34">Qiu et al., 2021)</ref>), adversarial perturbation was used for data augmentation as a way to improve model robustness (i.e., by making the model invariant to adversarial samples). Diverging from the literature, we employ adversarial perturbation in a completely different way: instead of using adversarial samples as positive pairs to enhance robustness, we use the adversarial samples generated through selfsupervised learning as negative pairs. Therefore, our model learns to differentiate between the anchor and the adversarial representations instead of making them invariant in the embedding space. Thus, PACT is pretrained to be discriminative of negative samples closely located near the anchor representation in the embedding space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Proposed Framework</head><p>PACT introduces two novel CL objectives for BERT <ref type="bibr" target="#b8">(Devlin et al., 2019)</ref>, namely adversarial MLM and adversarial Sequence. For this purpose, we design a self-supervised framework consisting of three BERT-base models: one teacher model (teacher-BERT), one adversarial model (adv-BERT), and the main model (student-BERT). The purpose of teacher-BERT is to provide positive examples for student-BERT. We pass the same examples to teacher-BERT and student-BERT to generate both token-and sentence-level representations. Since these representations are obtained without further manipulation, we can consider them positive pairs for the contrastive learning (CL) objective. On the other hand, the purpose of adv-BERT is to provide negative examples that are closely located with the anchor examples (examples obtained from student-BERT) in the embedding space. After obtaining the representation from the adv-BERT, we add a small adversarial perturbation to minimize the likelihood of the correct representation (which means the likelihood of both the correctly predicted token and the next sentence prediction will be minimized). In this way, the manipulated representation coming from the adv-BERT is considered a negative pair for the anchor representation in CL objective. Now we describe the proposed two CL (adversarial MLM and adversarial Sequence) objectives. The overall framework is shown in Figure <ref type="figure" target="#fig_0">2</ref>. Adversarial MLM: BERT uses masked language modeling (MLM) objective, which takes an input sequence, X = {x 1 , x 2 , ... , x i , ... , x n }, masks out a random token (e.g. i-th token), and attempts to predict the original token given a contextualized representation of the sequence:</p><formula xml:id="formula_0">p M LM (x i | h(i)) = exp (ψ(x i ) T h(i)) xt∈V exp (ψ(x t ) T h(i))</formula><p>where, ψ(.) is the token embedding matrix and H = {h(i)} n i=1 is the contextualized vector representation generated by BERT. The pretraining objective is to minimize MLM loss and maximize the likelihood of the correct tokens at a set of masked positions M:</p><formula xml:id="formula_1">L M LM = E - i∈M log p M LM (x i | h(i))</formula><p>We introduce adversarial learning to this MLM objective of adv-BERT to perturb the contextualized representation of the masked token by a small margin so that the maximum likelihood of the correct token is minimized. For this purpose, we use the same MLM objective as BERT. BERT optimizes the masked representation by going along the direction of the gradient to predict the correct token. However, instead of taking the original masked embedding to predict the correct token, we manipulate it by adding a small perturbation. Unlike BERT, we take the opposite direction of the gradient and add it with the original masked representation. As a result of this perturbation, we get an adversarial token representation where the probability of predicting the correct token is minimized:</p><formula xml:id="formula_2">δ = arg min δ p M LM (x i | h(i) + δ) s.t. || δ|| &lt; ϵ, ϵ &gt; 0 h adv (i) = h(i) + δ</formula><p>We use fast gradient sign method (FGSM) <ref type="bibr" target="#b14">(Goodfellow et al., 2015)</ref> to approximate the perturbation δ with a linear approximation around h(i) and an L2 norm constraint:</p><formula xml:id="formula_3">h adv (i) = h(i) -g / ||g|| 2 where g = ∇ h(i) log p M LM (x i | h(i)).</formula><p>We normalize the gradient g by ||g|| 2 , to keep the adversarial representation h adv (i) close to h(i) in the embedding space.</p><p>We pass the contextualized representations (h(i), h T (i), h adv (i)) of the masked tokens of all three models through non-linear projection layers and take the average of the representations to obtain Z, Z T , and Z adv :</p><formula xml:id="formula_4">z(i) = ϕ(W.h(i) + b) Z = z(i) |z|</formula><p>We apply CL loss on the obtained Z, where for the i-th sample in the batch, the model learns to increase the similarity between the representation of the student model (Z (i) ) and the teacher model (Z T (i) ), while decreasing the similarity between the representation of the student model (Z (i) ) and the adversarial model (Z adv (i) ).</p><formula xml:id="formula_5">L M LM -CL = -N i=1 log exp(sim(Z (i) ,ZT (i) )/τ ) { Ẑ={Z T (i) }∪Z adv (i) } exp(sim(Z (i) , Ẑ(k) )/τ )</formula><p>Following <ref type="bibr" target="#b40">Su et al. (2022)</ref>, we further apply token-CL among the masked tokens of student-BERT and teacher-BERT:</p><formula xml:id="formula_6">L T = - N i=1 log exp(sim(h(i), h T (i))/τ ) N k=1 exp(sim(h(i), h T (k))/τ )</formula><p>Our final token-level CL is the summation of the above two losses:</p><formula xml:id="formula_7">L adv-M LM = L M LM -CL + L T</formula><p>Adversarial Sequence: Additionally, we propose to adversarially modify the next sentence prediction (NSP) objective of BERT. Given two sequences X 1 and X 2 , the NSP loss is based on the prediction of whether the two sequences are next to each other:</p><formula xml:id="formula_8">L N SP = E (-log p N SP (isN ext | C))</formula><p>where C is the contextualized representation of the [CLS] token, h([CLS]). Similar to adversarial MLM, we apply FGSM to the NSP<ref type="foot" target="#foot_1">2</ref> objective of adv-BERT to obtain C adv and use CL loss to push it apart from the [CLS] representation of student-BERT, C:</p><formula xml:id="formula_9">C adv = C -g / ||g|| 2 where g = ∇ C log p N SP (isN ext | C) L adv-Seq = -N i=1 log exp(sim(C (i) ,C T (i) )/τ ) { Ĉ={C T (i) }∪C adv (i) } exp(sim(C (i) , Ĉ(k) )/τ )</formula><p>To avoid catastrophic forgetting <ref type="bibr" target="#b30">(McCloskey and Cohen, 1989;</ref><ref type="bibr" target="#b41">Sun et al., 2019)</ref>, we continue pretraining student-BERT and adv-BERT with L M LM , L N SP objectives. The final loss function for student-BERT is the linear combination of the various loss terms: We initialize all three models with pretrained BERT-base weights at the start of training. We freeze teacher-BERT weights and update adv-BERT with L M LM , L N SP losses. We now present our experiments.</p><formula xml:id="formula_10">L = L M LM + L N SP + L adv-M LM + L adv-Seq<label>(1)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments 4.1 Datasets</head><p>To evaluate the efficacy of PACT, we conduct experiments on 13 diverse datasets from GLUE <ref type="bibr" target="#b43">(Wang et al., 2019)</ref> and XGLUE <ref type="bibr" target="#b26">(Liang et al., 2020)</ref> benchmarks. We cover both single-sentence and sentence-pair text classification tasks. We further experiment on named entity recognition (NER) and part-of-speech (POS) tagging datasets to evaluate the model's performance on the token-level classification tasks. A summary of the datasets that we experiment on is presented in Table <ref type="table" target="#tab_0">1</ref>. We describe the detailed experimental setup in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Baselines</head><p>We compare PACT with the following state-of-theart BERT-base models pretrained with contrastive learning objective:</p><p>• TaCL <ref type="bibr" target="#b40">(Su et al., 2022)</ref> propose token-level contrastive learning to produce diverse token representation from BERT.</p><p>• SimCSE <ref type="bibr" target="#b11">(Gao et al., 2021)</ref> propose dropoutbased data augmentation as positive pairs and in-batch examples as negative pairs.</p><p>• Mirror-BERT <ref type="bibr" target="#b27">(Liu et al., 2021)</ref> construct positive pairs by random span masking as well as different dropout masks.</p><p>• SCD <ref type="bibr" target="#b22">(Klein and Nabi, 2022</ref>) optimize a joint self-contrastive and decorrelation objective by leveraging the instantiation of standard dropout at different rates.</p><p>• DiffCSE <ref type="bibr" target="#b6">(Chuang et al., 2022)</ref> introduce an unsupervised contrastive learning framework that is sensitive to the difference between the original sentence and an edited sentence. The edited sentence is obtained by stochastically masking out the original sentence and then sampling from a masked language model.</p><p>• BERT-PT. In addition to comparing with BERT-base, we further pretrain it (i.e., BERTbase) with MLM and NSP objectives for an equal number of training steps as PACT to facilitate fair comparison.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>Sentence-level Classification: We report performance of the models for both single-sentence and sentence-pair classification tasks in Table <ref type="table" target="#tab_1">2</ref>. Token-level Classification: Table <ref type="table">3</ref> shows our evaluation results on token-level classification tasks. As observed, PACT outperforms other models in both NER and POS tagging tasks. This result highlights that PACT can also improve over token-level classification tasks by pretraining on token-level contrastive learning. Although TaCL is also pretrained on token-level CL, our adversarial MLM-based CL objective helps the model differentiate very similar tokens that may belong to different classes during the finetuning stage, which helps the model perform better on the downstream tasks.</p><p>Overall, PACT is pretrained to contrast both token-level and sentence-level adversarial hard negatives. Therefore, the joint optimization helps the model produce discriminative representations to improve on the downstream tasks.  In <ref type="bibr">Wang and Liu (2021)</ref>, the authors find that both uniformity and tolerance are the significant properties in contrastive learning. <ref type="bibr" target="#b45">Wang and Isola (2020)</ref> show that the contrastive loss can be disentangled into two parts, which encourages the positive features to be aligned and the representations to match a uniform distribution in a hypersphere. Therefore, we employ the uniformity metric with gaussian potential kernel proposed by <ref type="bibr" target="#b45">Wang and Isola (2020)</ref>; <ref type="bibr">Wang and Liu (2021)</ref>,</p><formula xml:id="formula_11">L unif ormity = log E x i ,x j ∼ p data e -t || f (x i ) -f (x j ) || 2 2</formula><p>Where, x i and x j are two different examples and f (.) is the model encoder. Following <ref type="bibr" target="#b11">Gao et al. (2021)</ref>; <ref type="bibr">Zhang et al. (2022b)</ref>, we set t = 2. On the contrary, we measure the tolerance using the mean similarities of samples belonging to the same class formulated as,</p><formula xml:id="formula_12">L tolerance = E x i ,x j ∼ p data (f (x i ) T f (x j ) ) . I l(x i ) = l(x j )</formula><p>Where l(x i ) is the class of example x i and I is a binary indicator function.</p><p>Ideally, models are expected to project the representations uniformly distributed in the embedding space and at the same time representations of the same class as closely as possible. We compute L unif ormity and L tolerance of the models taking samples from two single sentence classification tasks (SST-2 and NC) and plot them in Figure <ref type="figure" target="#fig_3">3</ref>. We observe that PACT achieves high uniformity while maintaining a good tolerance compared to all other models. 3 The uniformity achieved by PACT potentially stems from contrasting with the hard adversarial sentence-level representations during the pretraining. As a result, PACT achieves more discriminative capability and reduces anisotropy in the embedding space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Token-level Uniformity</head><p>Following <ref type="bibr" target="#b40">Su et al. (2022)</ref>, we conduct a qualitative experiment by visualizing the similarity among the tokens (Figure <ref type="figure" target="#fig_5">4</ref>). We pass an example sentence to BERT (Figure <ref type="figure" target="#fig_5">4a</ref>), TaCL (Figure <ref type="figure" target="#fig_5">4b</ref>), and PACT (Figure <ref type="figure" target="#fig_5">4c</ref>) to compute the cosine similarity between every two tokens. We observe that similarity along the diagonal is the highest for all the models because of the self-similarity. However, TaCL and PACT produce lower similarity scores along the off-diagonal compared to BERT. In fact, it is 3 While SCD produces better uniformity than PACT, SCD performs worst in terms of tolerance. noticeable that PACT even produces better distinguishable token representations than TaCL in some areas (red rectangular portion). This indicates that PACT produces token-level discriminative representation, like TaCL, resulting in an isotropic distribution in the embedding space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Data Imbalance</head><p>Since real-world datasets are usually imbalanced <ref type="bibr" target="#b1">(Cao et al., 2019;</ref><ref type="bibr" target="#b0">Bao et al., 2020)</ref>, we study how PACT performs on imbalanced scenarios. Following <ref type="bibr" target="#b1">Cao et al. (2019)</ref>  As can be seen from Table <ref type="table" target="#tab_2">4</ref>, performance decreases almost monotonically for all the models as ρ increases. However, PACT generally maintains a preferable performance compared to other methods. We conjecture that the higher sequence-level uniformity helps PACT to generate more discriminative representations, which make it easier to draw a boundary between two classes even with fewer examples from one class, resulting in an enhanced capability of the model to differentiate the classes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Label-Wise Similarity Distribution</head><p>We conduct an experiment to analyze the similarity distribution for different labels. Specifically, we   We further quantify the distributions by computing Earth Mover's Distance (EMD) <ref type="bibr" target="#b39">(Rubner et al., 2000;</ref><ref type="bibr" target="#b37">Ramdas et al., 2017)</ref> score. We present the result in Table <ref type="table" target="#tab_3">5</ref>. Ideally, the distribution of same class and the distribution of different classes (second column) should be well-apart (higher EMD). Moreover, the distribution of the same class (third column) should be close to one (lower EMD) while the distribution of the different classes (fourth column) should be close to zero (lower EMD), respec- tively. We observe that PACT differentiates the two distributions with higher EMD, by pushing them to opposite directions, corroborating Figure <ref type="figure" target="#fig_6">5</ref>. Although EMD score of the second column is higher for PACT compared to some other models, PACT achieves the lowest EMD in the third column. Overall, as PACT achieves higher sentence-level uniformity as a result of being pretrained on adversarial hard negatives, it has more discriminative representations for the different classes. This results in a lower similarity and EMD score across the different classes.</p><formula xml:id="formula_13">Same ∼ Diff. ↑ Same ∼ 1.0 ↓ Diff. ∼ 0.0 ↓ BERT 0.</formula><p>We  We conduct ablation studies to analyze the efficacy of our proposed two losses, L adv-M LM and L adv-Sequence . For this purpose, we experiment on the validation sets of one single-sentence (NC), one pair-sentence (PAWSX), and one token-level (NER) datasets and report performance in Table <ref type="table" target="#tab_5">6</ref>.</p><p>As we observe, removing L adv-M LM loss hurts performance on the NER dataset more than the other two datasets. This shows that L adv-M LM contributes mostly for the token-level tasks. On the other hand, if we remove L adv-Sequence loss, performance drops mostly on NC and PAWSX datasets, indicating its contribution to sentence-level tasks. Overall, performance degrades on all the datasets, if we remove any of these two losses, which highlights the positive contribution of each of the two losses.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Conclusion</head><p>We propose PACT, a contrastive learning selfsupervised framework for jointly optimizing tokenand sentence-level representations. We introduced adversarial MLM and Sequence objectives to mine adversarial hard negative samples close to the anchor representations in the embedding space. Our evaluation over 13 different tasks show that PACT achieves consistent improvements over the SOTA baselines. We further show that PACT exhibits better token-and sentence-level uniformity that alleviate the issue of anisotropy in PLMs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="10">Limitations</head><p>Although PACT improves over SOTA baselines on token-level and sentence-level classification tasks, we empirically find that it exhibits subpar performance on semantic text similarity (STS) tasks <ref type="bibr">(Table D.1)</ref>. We hypothesize the reason is that PACT does not explicitly attempt to align positive representations. This is in contrast to other self-supervised methods such as those based on exploiting dropout and back-translation that intrinsically learn another view of each data point (as these would function as the positive pairs), hence benefitting STS tasks. It is to be noted that our work is focused on text classification, while STS tasks are focused on generating similarity scores between two sentences (as opposed to text classification). Therefore, STS tasks are out of the scope of this work. Another limitation is related to the pretraining time and resources: pretraining PACT requires three BERT models, which costs additional GPU resources. However, we only pretrain the student-BERT and the adv-BERT, while keeping the parameters of the teacher-BERT fixed. To put this in perspective, the additional pretraining steps of the student-BERT and the adv-BERT (150K steps each) are still significantly lower than the original BERT (1M steps). Moreover, this pretraining is a one-time execution and after that we only use the student-BERT for the downstream tasks. Finally, we outline a series of negative results in Appendix D. We hope these negative results will spur further research in this area.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendices A Implementation Details</head><p>We use the pretrained BERT-base from Huggingface <ref type="bibr" target="#b46">(Wolf et al., 2020)</ref> as the backbone architecture. Following <ref type="bibr" target="#b40">Su et al. (2022)</ref>, we pretrain PACT on Wikipedia 150k steps with 10% of the total optimization steps for warm-up. During the pretraining, we set the learning rate to 1e-4 with a batch size of 256 on 4 Nvidia 40GB GPUs. As evident from Table 2 and Table <ref type="table">3</ref>, PACT improves the performance over the baselines without incorporating additional individual weights for each of the loss terms in the final objective function (Eqn. 1). Incorporating such weights could have further improved the performance of PACT on individual downstream tasks. However, we opt out from including such weighting hyperparameters for three reasons. First, we focus on the practical scenarios where searching for the optimal pretrained hyperparameters for each task is not a feasible option due to the computational cost of pretraining. Second, our main goal is to offer a method that is easy to deploy in the real world in that it can work well on a diverse range of downstream tasks. Third, we wanted to have fair comparisons to our baseline methods as not all of these search for the optimal values of the pretraining hyperparameters <ref type="bibr" target="#b40">(Su et al., 2022;</ref><ref type="bibr" target="#b22">Klein and Nabi, 2022)</ref>. Nevertheless, search for best pretraining hyperparamters can be investigated in the future.</p><p>During the finetuning on downstream tasks, we run CoLA, SST-2, and MRPC for 20 epochs and the others for 10 epochs. We set the batch size to 32, maximum sequence length to 256, and use the AdamW optimizer with initial learning rate as {5e-6, 1e-5, 2e-5, 3e-5, 4e-5, 5e-5} with linear learning scheduler. We choose the best model on the Dev set for reporting on the test set. Following the standard protocol, we use Matthew's correlation for CoLA, F 1 -score for MRPC and NER, and accuracy for other datasets as the evaluation metrics. For each task, we run the experiments three times with different random seeds and report the average score. We further conduct statistical significant test for PACT using t-test against finetuned BERT with p-value &lt; 0.05.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Finetuned Representation Transferability</head><p>Although we usually finetune a model on the same task the model is evaluated on, we were inquisitive about the transferability of our finetuned representations across tasks . To test this transferability, we select different sentence-pair classification datasets and study how the models perform when finetuned on one dataset and evaluated on another.</p><p>Although tasks are different across these sentencepair datasets, the core idea behind all these tasks is to measure sentence-pair relevance. Hence, we hypothesize a good model should be able to generalize across tasks by performing favorably in the zero-shot setting. Table <ref type="table" target="#tab_7">B</ref>.1 shows performance of the models finetuned on one dataset (first part of the pair) when evaluated on another (second part of the pair). We see that PACT outperforms other models for most of the pair combinations. We observe that PACT produces uniform representations in the embedding space, which allows the representations to be more informative. As a result, the learned representations increase the generalization capability of PACT and help the model perform better across the tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Difference Between Adversarial</head><p>Sample Generation in CV and NLP  In this section, we outline a series of experiments that did not exhibit promising results:</p><p>1. To improve tolerance, we added another probabilistic pretraining objective that teaches the model whether two segments of a sequence are the same. Motivated by SimCSE <ref type="bibr" target="#b11">(Gao et al., 2021)</ref>, we therefore, incorporated a dropout-based augmentation to align the positive examples. Although this objective indeed improves performance for some tasks such as paraphrase detection (PAWSX) and semantic text similarity (Table <ref type="table" target="#tab_8">D</ref>.2), it results in inferior performance in other classification tasks.</p><p>2. We attempted to add phrase-level CL on top of token-and sentence-level CL in a selfsupervised manner. For this purpose, we computed point-wise mutual information (PMI) to collect frequent bigram, trigram, and quadgram from Wikipedia instead of masking random spans. We considered sentences containing the same phrases as positive pairs, however, this new phrase-level objective did not improve performance. We conjecture that this objective is contradicting the token-level CL objective. That is, at the phrase-level, CL pulls tokens belonging to the same phrase together, while at the token-level, CL pushes non-identical tokens apart.</p><p>3. We further experimented on PACT's efficacy on low-resource data setting. Particularly, we sampled 10%, 25%, and 50% data from each class for multiple datasets to evaluate PACT, but it exhibited inferior performance. This can be potentially attributed to high uniformity of PACT. In low resource setting, we need to pull representations from the same class close together with limited data. Since PACT already distributes the representations uniformly in the embedding space, it makes it harder for PACT to pull them together with fewer training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Ethics Statement</head><p>E.1 Data Collection and Release.</p><p>We collect pretraining data from Wikipedia for academic research purpose. The code to collect the data is publicly available. We will also share the dataset we used for pretraining upon request.</p><p>For the downstream tasks, we use 13 benchmark datasets from GLUE and XGLUE (Table <ref type="table" target="#tab_0">1</ref>). To ensure proper credit assignment, we refer users to the original publications. We use the same train, dev, and test splits provided by the benchmark datasets.</p><p>E.2 Intended Use.</p><p>The intended use of PACT is for the text classification tasks. We aim to help researchers to pretrain the models with adversarially hard negative examples in the self-supervised setting. PACT can also be used for achieving better tokenand sentence-level uniformity, thus alleviating the</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Overview of our proposed framework. PACT consists of two principal CL objectives: (i) adv-MLM (top) and (ii) adv-Sequence (bottom). adv-MLM further consists of two losses: (a) L M LM -CL (top-left) and (b) L T (top-right). The core idea behind adv-MLM and adv-Sequence objectives is to pull the representations of teacher-BERT and student-BERT together and push the representations of student-BERT and adv-BERT apart.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Especially, PACT either outperforms other models (CoLA, NC) or maintains comparable performance (SST-2) with the published results on the singlesentence classification tasks. For sentence-pair classification tasks, PACT achieves the best score (QNLI, RTE, QADSM, and PAWSX) or the joint best score (QQP and QAM) except for MNLI. Overall, PACT improves performance for both singlesentence classification and sentence-pair classification tasks. The consistent improvement across 11 different sentence-level classification tasks shows the efficacy of the proposed sentence-level (adv-Sequence) contrastive objective.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Uniformity vs tolerance (higher is better). Uniformity indicates how uniformly the representations are distributed and tolerance indicates how closely the representations from the same class are located in the embedding space. PACT (red-circled) produces higher uniformity while maintaining impressive tolerance.</figDesc><graphic coords="6,327.97,120.83,174.62,108.26" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>and Zhang et al. (2022c), we construct imbalanced classification training datasets with different imbalance degrees, ρ = |class max | / |class min |, where |class max |, |class min | denotes the number of samples in the maximum and the minimum class respectively. We conduct this experiment on three binary classification datasets where we sample |class max | / ρ number of the minimum class for ρ = 2, 3, 4, 5, 10.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Self-similarity matrix visualization for token representations. Red-rectangle indicates the area where PACT produces more discriminative representation than TaCL.</figDesc><graphic coords="8,123.31,424.51,113.39,85.40" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Label-wise similarity distribution of the models. blue distribution indicates cosine similarity for representations of the same label and orange distribution indicates cosine similarity for representations of the different labels.</figDesc><graphic coords="8,306.14,454.15,90.70,61.09" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Summary of the datasets used in this paper.</figDesc><table><row><cell>Dataset</cell><cell>Task</cell><cell cols="2">Classification Type Source</cell></row><row><cell>CoLA</cell><cell>Linguistic acceptability</cell><cell>Single-sentence</cell><cell>GLUE</cell></row><row><cell>SST-2</cell><cell>Sentiment Analysis</cell><cell>Single-sentence</cell><cell>GLUE</cell></row><row><cell>NC</cell><cell>News Classification</cell><cell>Single-sentence</cell><cell>XGLUE</cell></row><row><cell>MRPC</cell><cell>Paraphrase Identification</cell><cell>Sentence-pair</cell><cell>GLUE</cell></row><row><cell>QQP</cell><cell>Question Paraphrase</cell><cell>Sentence-pair</cell><cell>GLUE</cell></row><row><cell>MNLI</cell><cell>Natural language inference</cell><cell>Sentence-pair</cell><cell>GLUE</cell></row><row><cell>QNLI</cell><cell>Question answer entailment</cell><cell>Sentence-pair</cell><cell>GLUE</cell></row><row><cell>RTE</cell><cell>Textual entailment</cell><cell>Sentence-pair</cell><cell>XGLUE</cell></row><row><cell>QAM</cell><cell>Question passage entailment</cell><cell>Sentence-pair</cell><cell>XGLUE</cell></row><row><cell cols="3">QADSM Query-Advertisement Matching Sentence-pair</cell><cell>XGLUE</cell></row><row><cell>PAWSX</cell><cell>Paraphrase Identification</cell><cell>Sentence-pair</cell><cell>XGLUE</cell></row><row><cell>NER</cell><cell>Named-entity recognition</cell><cell>Token-level</cell><cell>XGLUE</cell></row><row><cell>POS</cell><cell>Part-of-speech tagging</cell><cell>Token-level</cell><cell>XGLUE</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Performance of the models on single-sentence and sentence-pair classification tasks. We evaluate MRPC with F 1 -score, CoLA with Matthew's correlation and the others with accuracy. ∥: published in<ref type="bibr" target="#b8">Devlin et al. (2019)</ref> and ‡: published in<ref type="bibr" target="#b40">Su et al. (2022)</ref>. Best performance in our experiments that outperforms the results in published literature is highlighted in bold. Best performance in our experiments that does not outperform the published results is highlighted in red. Best performance in published works that also outperform our own experiments is highlighted in underline. ♣ indicates statistically significant result in t-test with p &lt; 0.05.</figDesc><table><row><cell></cell><cell></cell><cell cols="2">Single-Sentence</cell><cell></cell><cell></cell><cell></cell><cell cols="2">Sentence-Pair</cell><cell></cell></row><row><cell></cell><cell cols="2">Cola SST2</cell><cell>NC</cell><cell cols="7">MRPC QQP MNLI QNLI RTE QAM QADSM PAWSX</cell></row><row><cell>BERT ∥</cell><cell cols="2">52.1 93.5</cell><cell>-</cell><cell>88.9</cell><cell>89.2</cell><cell>84.6</cell><cell>90.5</cell><cell>66.4 -</cell><cell>-</cell><cell>-</cell></row><row><cell>BERT</cell><cell cols="2">52.1 92.7</cell><cell>92.8</cell><cell>88.2</cell><cell>89.2</cell><cell>84.4</cell><cell>90.6</cell><cell>66.9 69.0</cell><cell>71.5</cell><cell>93.3</cell></row><row><cell>BERT-PT</cell><cell cols="2">51.3 91.9</cell><cell>92.6</cell><cell>87.6</cell><cell>89.1</cell><cell>83.4</cell><cell>90.4</cell><cell>65.6 67.8</cell><cell>71.5</cell><cell>93.7</cell></row><row><cell>TaCL  ‡</cell><cell cols="2">52.4 92.3</cell><cell>-</cell><cell>90.8</cell><cell>-</cell><cell>84.4</cell><cell>91.1</cell><cell>62.8 -</cell><cell>-</cell><cell>-</cell></row><row><cell>TaCL</cell><cell cols="2">52.4 91.8</cell><cell>92.7</cell><cell>87.9</cell><cell>89.1</cell><cell>84.1</cell><cell>91.2</cell><cell>65.9 68.7</cell><cell>70.9</cell><cell>93.4</cell></row><row><cell>SimCSE</cell><cell cols="2">50.9 92.9</cell><cell>92.7</cell><cell>87.8</cell><cell>89.2</cell><cell>84.2</cell><cell>90.4</cell><cell>64.2 68.8</cell><cell>71.1</cell><cell>93.2</cell></row><row><cell>Mirror-BERT</cell><cell cols="2">52.8 92.3</cell><cell>92.8</cell><cell>86.8</cell><cell>89.2</cell><cell>84.2</cell><cell>90.9</cell><cell>66.5 68.9</cell><cell>72.2</cell><cell>93.5</cell></row><row><cell>SCD</cell><cell cols="2">52.0 92.2</cell><cell>92.8</cell><cell>86.9</cell><cell>89.1</cell><cell>84.3</cell><cell>90.2</cell><cell>65.3 68.8</cell><cell>71.4</cell><cell>92.7</cell></row><row><cell>DiffCSE</cell><cell cols="2">50.3 92.7</cell><cell>92.7</cell><cell>88.1</cell><cell>89.1</cell><cell>84.2</cell><cell>91.1</cell><cell>64.4 69.0</cell><cell>71.7</cell><cell>92.9</cell></row><row><cell>PACT</cell><cell cols="3">53.1 93.2 ♣ 93.1 ♣</cell><cell>89.1</cell><cell cols="4">89.2 ♣ 84.2 ♣ 91.4 ♣ 67.1 69.0</cell><cell>72.5 ♣</cell><cell>93.8 ♣</cell></row><row><cell></cell><cell></cell><cell>NER</cell><cell>POS</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERT</cell><cell></cell><cell>90.80</cell><cell>96.76</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">BERT-PT</cell><cell>90.64</cell><cell>96.64</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>TaCL</cell><cell></cell><cell>91.18</cell><cell>96.70</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">SimCSE</cell><cell>91.18</cell><cell>96.67</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">Mirror-BERT 90.49</cell><cell>96.71</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>SCD</cell><cell></cell><cell>90.51</cell><cell>96.41</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">DiffCSE</cell><cell>90.54</cell><cell>96.61</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>PACT</cell><cell></cell><cell cols="2">91.24 ♣ 96.85</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p><p><p><p><p><p>♣</p>Table</p>3</p>: Performance of the models on token-level classification tasks. Following</p><ref type="bibr" target="#b26">Liang et al. (2020)</ref></p>, we evaluate NER with F 1 -score and POS with accuracy. Best performance is highlighted in bold. ♣ indicates statistically significant result in t-test with p &lt; 0.05.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 4 :</head><label>4</label><figDesc>Performance of the models in data imbalance settings. Best performances are highlighted in bold.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>PAWSX</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>QADSM</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>QAM</cell><cell></cell><cell></cell></row><row><cell>ρ</cell><cell>2</cell><cell>3</cell><cell>4</cell><cell>5</cell><cell>10</cell><cell>2</cell><cell>3</cell><cell>4</cell><cell>5</cell><cell>10</cell><cell>2</cell><cell>3</cell><cell>4</cell><cell>5</cell><cell>10</cell></row><row><cell>BERT</cell><cell cols="5">91.9 89.6 89.3 88.4 82.9</cell><cell cols="5">68.2 63.5 63.5 52.8 53.0</cell><cell cols="5">67.1 64.7 61.8 60.6 55.3</cell></row><row><cell>BERT-PT</cell><cell cols="5">92.1 91.6 91.1 88.4 83.7</cell><cell cols="5">66.4 62.7 53.9 52.4 52.3</cell><cell cols="5">64.9 62.1 60.5 57.5 53.6</cell></row><row><cell>TaCL</cell><cell cols="5">88.6 86.6 86.2 83.2 76.9</cell><cell cols="5">66.9 63.5 54.4 52.9 52.8</cell><cell cols="5">65.5 64.5 62.4 61.3 56.1</cell></row><row><cell>SimCSE</cell><cell cols="5">92.1 91.9 91.9 87.3 81.3</cell><cell cols="5">68.5 61.4 55.3 54.1 52.8</cell><cell cols="5">66.6 63.4 60.8 59.9 54.9</cell></row><row><cell>Mirror-BERT</cell><cell cols="5">91.6 91.4 91.4 86.5 82.6</cell><cell cols="5">67.9 63.6 56.9 54.1 53.1</cell><cell cols="5">66.1 64.8 62.6 60.8 54.4</cell></row><row><cell>SCD</cell><cell cols="5">92.2 90.6 88.9 88.4 79.7</cell><cell cols="5">66.9 61.9 61.9 53.1 52.8</cell><cell cols="5">67.2 65.3 62.2 60.8 57.2</cell></row><row><cell>DiffCSE</cell><cell cols="5">92.3 90.6 87.3 86.7 78.9</cell><cell cols="5">68.4 64.6 59.1 54.1 53.2</cell><cell cols="5">67.2 65.1 62.8 60.6 56.9</cell></row><row><cell>PACT</cell><cell cols="5">92.5 90.1 89.9 88.6 83.7</cell><cell cols="5">68.4 64.0 55.5 54.2 53.2</cell><cell cols="5">67.7 65.4 63.5 61.3 57.8</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 5 :</head><label>5</label><figDesc>EMD scores of the models for Figure5. Second column indicates EMD between the two distributions. Third column indicates EMD between the distribution of same class and 1.0. Fourth column indicates EMD between the distribution of different class and 0.0. ↑ indicates higher is better and ↓ indicates lower is better.</figDesc><table><row><cell></cell><cell>488</cell><cell>0.145</cell><cell>0.367</cell></row><row><cell>BERT-PT</cell><cell>0.383</cell><cell>0.095</cell><cell>0.522</cell></row><row><cell>TaCL</cell><cell>0.447</cell><cell>0.143</cell><cell>0.409</cell></row><row><cell>SimCSE</cell><cell>0.556</cell><cell>0.158</cell><cell>0.280</cell></row><row><cell>Mirror-BERT</cell><cell>0.468</cell><cell>0.141</cell><cell>0.389</cell></row><row><cell>SCD</cell><cell>0.429</cell><cell>0.128</cell><cell>0.442</cell></row><row><cell>DiffCSE</cell><cell>0.555</cell><cell>0.145</cell><cell>0.296</cell></row><row><cell>PACT</cell><cell>0.557</cell><cell>0.206</cell><cell>0.237</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 6 :</head><label>6</label><figDesc>Ablation study on the contribution of proposed L adv-M LM and L adv-Sequence losses.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table B .</head><label>B</label><figDesc>1: Performance of the models for finetuned representation transferability. For GLUE datasets, we evaluate on the validation sets. Best performances are highlighted in bold.versaries can be obtained in NLP by changing the words(e.g., with antonyms) in a sequence<ref type="bibr" target="#b44">(Wang et al., 2021)</ref> instead of continuous perturbation.</figDesc><table><row><cell cols="5">D Negative Results</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="8">STS12 STS13 STS14 STS15 STS16 STS-B SICK-R Avg</cell></row><row><cell cols="2">SimCSE 68.40</cell><cell>82.41</cell><cell>74.38</cell><cell>80.91</cell><cell>78.56</cell><cell>76.85</cell><cell>72.23</cell><cell>76.25</cell></row><row><cell cols="2">DiffCSE 72.28</cell><cell>84.43</cell><cell>76.47</cell><cell>83.90</cell><cell>80.54</cell><cell>80.59</cell><cell>71.23</cell><cell>78.49</cell></row><row><cell>SCD</cell><cell>66.94</cell><cell>78.03</cell><cell>69.89</cell><cell>78.73</cell><cell>76.23</cell><cell>76.30</cell><cell>73.18</cell><cell>74.19</cell></row><row><cell>PACT</cell><cell>38.63</cell><cell>56.76</cell><cell>42.74</cell><cell>59.28</cell><cell>60.88</cell><cell>51.34</cell><cell>61.52</cell><cell>53.02</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table D .</head><label>D</label><figDesc>1: Performance on STS tasks (Spearman's correlation) for different models. PACT exhibits subpar performance on STS tasks.</figDesc><table><row><cell></cell><cell cols="8">STS12 STS13 STS14 STS15 STS16 STS-B SICK-R Avg</cell></row><row><cell>SimCSE</cell><cell>68.40</cell><cell>82.41</cell><cell>74.38</cell><cell>80.91</cell><cell>78.56</cell><cell>76.85</cell><cell>72.23</cell><cell>76.25</cell></row><row><cell>PACT</cell><cell>38.63</cell><cell>56.76</cell><cell>42.74</cell><cell>59.28</cell><cell>60.88</cell><cell>51.34</cell><cell>61.52</cell><cell>53.02</cell></row><row><cell cols="2">PACT-dropout 65.23</cell><cell>77.31</cell><cell>68.09</cell><cell>78.57</cell><cell>75.17</cell><cell>74.58</cell><cell>69.34</cell><cell>72.61</cell></row><row><cell cols="9">Table D.2: Performance comparison of PACT and</cell></row><row><cell cols="5">PACT-dropout on STS tasks.</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>The source code of PACT is publicly available here: https://github.com/Tawkat/PACT</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Although we demonstrate the adversarial Sequence objective with NSP, it can be implemented on any transformer model with sequence-level pretraining. For example, AL-BERT<ref type="bibr" target="#b23">(Lan et al., 2020)</ref> uses sentence-order prediction (SOP) instead of NSP. We can similarly apply FSGM on the SOP loss to compute adversarial Sequence. To be able to directly compare with existing CL-pretrained SOTA in the literature, we focus on the BERT-based architecture in this work.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>anisotropy in PLMs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.3 Potential Misuse and Bias.</head><p>Some of the pretraining data may contain potential harmful and biased contents. For these reasons, we recommend that PACT not be used for research or in applications without careful prior consideration of potential misuse and bias.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Few-shot text classification with distributional signatures</title>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Menghua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyu</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">8th International Conference on Learning Representations, ICLR 2020</title>
+		<meeting><address><addrLine>Addis Ababa, Ethiopia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-04-26">2020. April 26-30, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Learning imbalanced datasets with label-distribution-aware margin loss</title>
+		<author>
+			<persName><forename type="first">Kaidi</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrien</forename><surname>Gaidon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikos</forename><surname>Aréchiga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengyu</forename><surname>Ma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 32: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS; Vancouver, BC, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-12-08">2019. 2019. 2019. December 8-14, 2019</date>
+			<biblScope unit="page" from="1565" to="1576" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Machine Learning</title>
+		<meeting>the 37th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">119</biblScope>
+			<biblScope unit="page" from="1597" to="1607" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Pmlr</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">On sampling strategies for neural networkbased collaborative filtering</title>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhou</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangjie</forename><surname>Hong</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3097983.3098202</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;17</title>
+		<meeting>the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;17<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="767" to="776" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xinlei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoqi</forename><surname>Fan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2003.04297</idno>
+		<title level="m">Ross Girshick, and Kaiming He. 2020b. Improved baselines with momentum contrastive learning</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">DiffCSE: Difference-based contrastive learning for sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Yung-Sung</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rumen</forename><surname>Dangovski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyin</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyu</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marin</forename><surname>Soljacic</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shang-Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoon</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Glass</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.311</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4207" to="4218" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">ELECTRA: pretraining text encoders as discriminators rather than generators</title>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">8th International Conference on Learning Representations, ICLR 2020</title>
+		<meeting><address><addrLine>Addis Ababa, Ethiopia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-04-26">2020. April 26-30, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">How contextual are contextualized word representations? Comparing the geometry of BERT, ELMo, and GPT-2 embeddings</title>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jost</forename><surname>Tobias Springenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Riedmiller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Brox</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1006</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014">2014. 2019</date>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="page" from="55" to="65" />
+		</imprint>
+	</monogr>
+	<note>Advances in Neural Information Processing Systems</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Cert: Contrastive self-supervised learning for language understanding</title>
+		<author>
+			<persName><forename type="first">Hongchao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sicheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayuan</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengtao</forename><surname>Xie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.12766</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">SimCSE: Simple contrastive learning of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingcheng</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.552</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6894" to="6910" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning dense representations for entity retrieval</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gillick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sayali</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Larry</forename><surname>Lansing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Presta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Baldridge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eugene</forename><surname>Ie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Garcia-Olano</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/K19-1049</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd Conference on Computational Natural Language Learning (CoNLL)</title>
+		<meeting>the 23rd Conference on Computational Natural Language Learning (CoNLL)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="528" to="537" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">DeCLUTR: Deep contrastive learning for unsupervised textual representations</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Giorgi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Osvald</forename><surname>Nitski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gary</forename><surname>Bader</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.72</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="879" to="895" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Explaining and harnessing adversarial examples</title>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathon</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Supervised contrastive learning for pre-trained language model fine-tuning</title>
+		<author>
+			<persName><forename type="first">Beliz</forename><surname>Gunel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">9th International Conference on Learning Representations, ICLR 2021, Virtual Event</title>
+		<meeting><address><addrLine>Austria</addrLine></address></meeting>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2021-05-03">2021. May 3-7, 2021</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Dimensionality reduction by learning an invariant mapping</title>
+		<author>
+			<persName><forename type="first">Raia</forename><surname>Hadsell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2006 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR&apos;06)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="1735" to="1742" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Efficient natural language response suggestion for smart reply. Jeremy Howard and Sebastian Ruder</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Strope</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunhsuan</forename><surname>Sung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laszlo</forename><surname>Lukacs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjiv</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Balint</forename><surname>Miklos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ray</forename><surname>Kurzweil</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1031</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017. 2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="328" to="339" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Adco: Adversarial contrast for efficient learning of unsupervised representations from selftrained negative adversaries</title>
+		<author>
+			<persName><forename type="first">Qianjiang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guo-Jun</forename><surname>Qi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1074" to="1083" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Robust pre-training by adversarial contrastive learning</title>
+		<author>
+			<persName><forename type="first">Ziyu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianlong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyang</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="16199" to="16210" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Dense passage retrieval for opendomain question answering</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.550</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6769" to="6781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Supervised contrastive learning</title>
+		<author>
+			<persName><forename type="first">Prannay</forename><surname>Khosla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Teterwak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Sarna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonglong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Isola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Maschinot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ce</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilip</forename><surname>Krishnan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="18661" to="18673" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">SCD: Selfcontrastive decorrelation of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Tassilo</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moin</forename><surname>Nabi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-short.44</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="394" to="400" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ALBERT: A lite BERT for self-supervised learning of language representations</title>
+		<author>
+			<persName><forename type="first">Zhenzhong</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingda</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Goodman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piyush</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radu</forename><surname>Soricut</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">th International Conference on Learning Representations</title>
+		<meeting><address><addrLine>Addis Ababa, Ethiopia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-04-26">2020. April 26-30, 2020</date>
+			<biblScope unit="volume">8</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Contrastive learning with adversarial perturbations for conditional text generation</title>
+		<author>
+			<persName><forename type="first">Seanie</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Bok Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sung</forename><forename type="middle">Ju</forename><surname>Hwang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">9th International Conference on Learning Representations, ICLR 2021, Virtual Event</title>
+		<meeting><address><addrLine>Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-05-03">2021. May 3-7, 2021</date>
+		</imprint>
+	</monogr>
+	<note>OpenReview. net</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">On the sentence embeddings from pre-trained language models</title>
+		<author>
+			<persName><forename type="first">Bohan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.733</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9119" to="9130" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">XGLUE: A new benchmark datasetfor cross-lingual pre-training, understanding and generation</title>
+		<author>
+			<persName><forename type="first">Yaobo</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yeyun</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fenfei</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhen</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjun</forename><surname>Shou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daxin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guihong</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruofei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahul</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sining</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taroon</forename><surname>Bharti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiun-Hung</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Winnie</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuguang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Campos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rangan</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.484</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6008" to="6018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Fast, effective, and self-supervised: Transforming masked language models into universal lexical and sentence encoders</title>
+		<author>
+			<persName><forename type="first">Fangyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nigel</forename><surname>Collier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">Roberta: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">An efficient framework for learning sentence representations</title>
+		<author>
+			<persName><forename type="first">Lajanugen</forename><surname>Logeswaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglak</forename><surname>Lee</surname></persName>
+		</author>
+		<idno>abs/1803.02893</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Catastrophic interference in connectionist networks: The sequential learning problem</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Mccloskey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neal</forename><forename type="middle">J</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Psychology of learning and motivation</title>
+		<imprint>
+			<publisher>Elsevier</publisher>
+			<date type="published" when="1989">1989</date>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="page" from="109" to="165" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Coco-lm: Correcting and contrasting text sequences for language model pretraining</title>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Payal</forename><surname>Bajaj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Bennett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xia</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="23102" to="23114" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Adversarial training methods for semisupervised text classification</title>
+		<author>
+			<persName><forename type="first">Takeru</forename><surname>Miyato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><forename type="middle">J</forename><surname>Goodfellow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">5th International Conference on Learning Representations</title>
+		<title level="s">Conference Track Proceedings. OpenReview.net</title>
+		<meeting><address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-04-24">2017. 2017. April 24-26, 2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Improved text classification via contrastive adversarial training</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chung-Wei</forename><surname>Hang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="11130" to="11138" />
+		</imprint>
+	</monogr>
+	<note>Avirup Sil, and Saloni Potdar</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Improving gradient-based adversarial training for text classification by contrastive learning and auto-encoder</title>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinchao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-acl.148</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL/IJCNLP 2021</title>
+		<imprint>
+			<publisher>Online Event</publisher>
+			<date type="published" when="2021-08">2021. August</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m">ACL/IJCNLP 2021 of Findings of ACL</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1698" to="1707" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yanru</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dinghan</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandra</forename><surname>Sajeev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.08670</idno>
+		<title level="m">Coda: Contrastenhanced and diversity-promoting data augmentation for natural language understanding</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">On wasserstein two-sample testing and related families of nonparametric tests</title>
+		<author>
+			<persName><forename type="first">Aaditya</forename><surname>Ramdas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolás</forename><surname>García Trillos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Cuturi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Entropy</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">47</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Contrastive learning with hard negative samples</title>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>David Robinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ching-Yao</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suvrit</forename><surname>Sra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefanie</forename><surname>Jegelka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">th International Conference on Learning Representations, ICLR 2021, Virtual Event</title>
+		<meeting><address><addrLine>Austria</addrLine></address></meeting>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2021-05-03">2021. May 3-7, 2021</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">The earth mover&apos;s distance as a metric for image retrieval</title>
+		<author>
+			<persName><forename type="first">Yossi</forename><surname>Rubner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlo</forename><surname>Tomasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leonidas</forename><forename type="middle">J</forename><surname>Guibas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International journal of computer vision</title>
+		<imprint>
+			<biblScope unit="volume">40</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="99" to="121" />
+			<date type="published" when="2000">2000</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">TaCL: Improving BERT pre-training with token-aware contrastive learning</title>
+		<author>
+			<persName><forename type="first">Yixuan</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zaiqiao</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tian</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Shareghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nigel</forename><surname>Collier</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-naacl.191</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: NAACL 2022</title>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2497" to="2507" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">How to fine-tune bert for text classification?</title>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yige</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">China national conference on Chinese computational linguistics</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="194" to="206" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Not all negatives are equal: Label-aware contrastive loss for fine-grained text classification</title>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Desmond</forename><surname>Ong</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.359</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4381" to="4394" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">GLUE: A multi-task benchmark and analysis platform for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019-05-06">2019. 2019. May 6-9, 2019</date>
+			<biblScope unit="volume">7</biblScope>
+			<pubPlace>New Orleans, LA, USA</pubPlace>
+		</imprint>
+	</monogr>
+	<note>th International Conference on Learning Representations</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">CLINE: Contrastive learning with semantic negative examples for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piji</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haitao</forename><surname>Zheng</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR46437.2021.00252</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics. Feng Wang and Huaping Liu</publisher>
+			<date type="published" when="2021-06-19">2021. 2021. June 19-25, 2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2495" to="2504" />
+		</imprint>
+	</monogr>
+	<note>Computer Vision Foundation / IEEE</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Understanding contrastive representation learning through alignment and uniformity on the hypersphere</title>
+		<author>
+			<persName><forename type="first">Tongzhou</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Isola</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Machine Learning, ICML 2020</title>
+		<meeting>the 37th International Conference on Machine Learning, ICML 2020</meeting>
+		<imprint>
+			<date type="published" when="2020-07-18">2020. 18 July 2020</date>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="9929" to="9939" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">CLEAR: contrastive learning for sentence representation</title>
+		<author>
+			<persName><forename type="first">Zhuofeng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sinong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Madian</forename><surname>Khabsa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ma</surname></persName>
+		</author>
+		<idno>CoRR, abs/2012.15466</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">ConSERT: A contrastive framework for self-supervised sentence representation transfer</title>
+		<author>
+			<persName><forename type="first">Yuanmeng</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rumei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fuzheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.393</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5065" to="5075" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Adversarial contrastive learning via asymmetric infonce</title>
+		<author>
+			<persName><forename type="first">Qiying</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jieming</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianyuan</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qizhang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wangmeng</forename><surname>Zuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingjing</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computer Vision-ECCV 2022: 17th European Conference</title>
+		<meeting><address><addrLine>Tel Aviv, Israel</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2022-10-23">2022. October 23-27, 2022</date>
+			<biblScope unit="page" from="53" to="69" />
+		</imprint>
+	</monogr>
+	<note>Proceedings, Part V</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">2022a. Decoupled adversarial contrastive learning for self-supervised adversarial robustness</title>
+		<author>
+			<persName><forename type="first">Chaoning</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenshuang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Axi</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><forename type="middle">D</forename><surname>Yoo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">In</forename><surname>So Kweon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computer Vision-ECCV 2022: 17th European Conference</title>
+		<meeting><address><addrLine>Tel Aviv, Israel</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2022">October 23-27, 2022</date>
+			<biblScope unit="page" from="725" to="742" />
+		</imprint>
+	</monogr>
+	<note>Proceedings, Part XXX</note>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">Infodcl: A distantly supervised contrastive learning framework for social meaning</title>
+		<author>
+			<persName><forename type="first">Chiyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhammad</forename><surname>Abdul-Mageed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ganesh</forename><surname>Jawahar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.07648</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Label anchored contrastive learning for language understanding</title>
+		<author>
+			<persName><forename type="first">Zhenyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuming</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.103</idno>
+		<idno>QADSM-QNLI QNLI-QADSM QADSM-MRPC MRPC-QADSM MRPC-PAWSX PAWSX-MRPC QNLI-QAM QAM-QNLI BERT 63.1</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="1437" to="1449" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

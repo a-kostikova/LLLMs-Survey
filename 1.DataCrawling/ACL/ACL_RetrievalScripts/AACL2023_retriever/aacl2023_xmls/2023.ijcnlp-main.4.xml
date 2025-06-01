@@ -1,0 +1,1537 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MQAG: Multiple-choice Question Answering and Generation for Assessing Information Consistency in Summarization</title>
+				<funder>
+					<orgName type="full">Cambridge University Press &amp; Assessment (CUP&amp;A)</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Cambridge Commonwealth, European &amp; International Trust</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Potsawee</forename><surname>Manakul</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution" key="instit1">ALTA Institute</orgName>
+								<orgName type="institution" key="instit2">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Adian</forename><surname>Liusie</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution" key="instit1">ALTA Institute</orgName>
+								<orgName type="institution" key="instit2">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><forename type="middle">J F</forename><surname>Gales</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution" key="instit1">ALTA Institute</orgName>
+								<orgName type="institution" key="instit2">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MQAG: Multiple-choice Question Answering and Generation for Assessing Information Consistency in Summarization</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">6F1B08173CA5BC609B910D66100506C7</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>State-of-the-art summarization systems can generate highly fluent summaries. These summaries, however, may contain factual inconsistencies and/or information not present in the source. Hence, an important component of assessing the quality of summaries is to determine whether there is information consistency between the source and the summary. Existing approaches are typically based on lexical matching or representation-based methods. In this work, we introduce an alternative scheme based on standard information-theoretic measures in which the information present in the source and summary is directly compared. We propose a Multiple-choice Question Answering and Generation framework, MQAG, which approximates the information consistency by computing the expected statistical distance between summary and source answer distributions over automatically generated multiple-choice questions. This approach exploits multiple-choice answer probabilities, as predicted answer distributions can be compared. We conduct experiments on four summary evaluation datasets: QAG-CNNDM/XSum, XSum-Hallucination, Podcast Assessment, and SummEval. Experiments show that MQAG, using models trained on SQuAD or RACE, outperforms existing evaluation methods on the majority of tasks. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The objective of summary evaluation is to quantify the quality of summaries, either on a relative or an absolute scale. Accurate and reliable automatic summary evaluation systems are useful to researchers, as they provide an easy and cheap way to compare new summarization models to existing ones. Although current summarization systems have improved dramatically in the last decade, and are capable of generating highly fluent outputs (Lewis et al., 2020; Zhang et al., 2020a; Brown   1 Code and model weights are available at https:// github.com/potsawee/mqag0. et <ref type="bibr">al., 2020)</ref>, it has been shown that generated summaries are prone to exhibit factual errors or hallucinations <ref type="bibr" target="#b23">(Kryscinski et al., 2019;</ref><ref type="bibr">Huang et al., 2021;</ref><ref type="bibr" target="#b4">Cao et al., 2022;</ref><ref type="bibr" target="#b21">Ji et al., 2022)</ref>. Thus, information consistency between the summary and source is an important assessment criterion.</p><p>Existing methods that measure information consistency generally perform lexical matching, either directly such as ROUGE <ref type="bibr" target="#b28">(Lin, 2004)</ref> and BLEU <ref type="bibr" target="#b35">(Papineni et al., 2002)</ref>, or indirectly using more complex representations such as triple matching <ref type="bibr" target="#b14">(Goodrich et al., 2019)</ref>. Some recent approaches adopt question answering (QA) pipelines to detect factual inconsistencies <ref type="bibr" target="#b5">(Chen et al., 2018;</ref><ref type="bibr" target="#b41">Wang et al., 2020;</ref><ref type="bibr" target="#b9">Durmus et al., 2020;</ref><ref type="bibr" target="#b6">Deutsch et al., 2021;</ref><ref type="bibr" target="#b32">Nan et al., 2021)</ref>. They are based on the assumption that if the source extracted answer is consistent with the summary extracted answer then the summary and source are consistent. The answers are compared using either lexical matching <ref type="bibr" target="#b39">(Scialom et al., 2019;</ref><ref type="bibr" target="#b41">Wang et al., 2020;</ref><ref type="bibr" target="#b9">Durmus et al., 2020;</ref><ref type="bibr" target="#b38">Scialom et al., 2021)</ref> or representationbased matching <ref type="bibr" target="#b7">(Deutsch and Roth, 2022)</ref>. These span-based QA approaches may have lexical biases, and struggle with highly abstractive summaries or when dealing with multiple answer spans.</p><p>In this work, a measure of consistency between the source and summary is defined from an information-theoretic perspective. We propose a Multiple-choice Question Answering and Generation framework, MQAG, where instead of comparing text-based answer spans, multiple-choice questions are generated and the resulting answer distributions from the source and summary are compared. The main contributions of this paper are:</p><p>• We provide an alternative and novel question answering-based approach for assessing information consistency. Our approach can represent the answers via probability distributions instead of lexical or embeddings.</p><p>• We show that our approach, MQAG, achieves state-of-the-art performance on four out of six summary evaluation tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background and Related Work</head><p>Standard summary evaluation metrics such as ROUGE <ref type="bibr" target="#b28">(Lin, 2004)</ref> and METEOR <ref type="bibr" target="#b0">(Banerjee and Lavie, 2005)</ref> are designed to assess summaries against ground-truth summaries, i.e. reference summaries. However, these metrics have been shown to have a low correlation with human judgements <ref type="bibr" target="#b12">(Fabbri et al., 2021)</ref>. In practice, there is no groundtruth summary to be used as the reference, and evaluation methods need to compare the summary against the source. Therefore, the scope of this work is assessing the summary against the source. Although there are several aspects of good summaries, including fluency, coherency, coverage or consistency, generation systems are becoming much more capable of generating fluent texts, so the fluency/coherency aspects are less of a concern compared to consistency and hallucination problems <ref type="bibr" target="#b20">(Ji et al., 2023)</ref>. Thus, this work focuses on consistency. Because the definition of consistent information can depend on one's interpretation, we follow the definition of 'faithfulness' in <ref type="bibr" target="#b31">Maynez et al. (2020)</ref> such that we determine if the information in the summary is consistent with information in the source, and we do not consider 'factuality' where valid external facts are acceptable. Existing unsupervised evaluation methods are categorized and explained in the following part.<ref type="foot" target="#foot_0">2</ref> </p><p>Textual overlap scores n-gram based metrics, including BLEU <ref type="bibr" target="#b35">(Papineni et al., 2002)</ref>, ROUGE <ref type="bibr" target="#b28">(Lin, 2004)</ref>, and ME-TEOR <ref type="bibr" target="#b0">(Banerjee and Lavie, 2005)</ref> measure n-gram overlap between two texts. Instead of n-grams, BERTScore <ref type="bibr">(Zhang et al., 2020b)</ref> and BLEURT <ref type="bibr" target="#b40">(Sellam et al., 2020)</ref> compare texts in their representation space. These metrics measure textual similarity, so they are not necessarily a good measure of consistency. We note that the original works that proposed these metrics compare the summary against the ground-truth summary, but this work focuses on the scenario where there is no groundtruth summary, and these metrics are used as baselines to compare the summary against the source. <ref type="bibr">et al. (2019)</ref> assess factual consistency by comparing relation triples from the source and the summary. The relation triples are in the format of Subject-Relation-Object and can be obtained using a model-free method such as OpenIE <ref type="bibr" target="#b10">(Etzioni et al., 2008)</ref> or using a trained relation extraction model. The factual accuracy score based on the triple matching approach is then defined as,</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Knowledge representation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Goodrich</head><formula xml:id="formula_0">Score = |T x ∩ T y | |T y |</formula><p>where T x and T y are relation triples extracted from the source and the summary, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Textual Entailment</head><p>Simulated data, such as real or fake summaries created by pre-defined transformations, have been used to train classifiers to detect inconsistent summaries <ref type="bibr" target="#b24">(Kryscinski et al., 2020;</ref><ref type="bibr" target="#b1">Bao et al., 2022)</ref>. Alternatively, <ref type="bibr" target="#b31">(Maynez et al., 2020)</ref> trained a textual entailment classifier on the Multi-NLI (MNLI) dataset <ref type="bibr" target="#b42">(Williams et al., 2018)</ref>. Given a context, the entailment model is to classify the hypothesis into one of the three classes (entail/neutral/contradict).</p><p>When applied to assess summaries, the context is the source document and the hypothesis is the summary. The probability of being the entail class is then used as the consistency score, Score = P (entail|x, y)</p><p>Span-based Question Answering (SpanQAG)</p><p>A question-answering approach consists of a question-generation model and an answering model. Given automatically generated questions, the first answer is derived from the source and the second answer is derived from the evaluated summary, and then the two answers are compared. For example, <ref type="bibr" target="#b11">Eyal et al. (2019)</ref> proposed a QAbased method where questions are generated from the ground-truth summary. QAGS <ref type="bibr" target="#b41">(Wang et al., 2020)</ref> and FEQA <ref type="bibr" target="#b9">(Durmus et al., 2020)</ref> generate questions from the evaluated summary, so these two methods are designed to measure the amount of information in the summary that is consistent with the source. In contrast, SummaQA <ref type="bibr" target="#b39">(Scialom et al., 2019)</ref> generates questions from the source document, so it assesses the coverage of the summary. As an extension to the ideas in QAGS/FEQA and SummQA, QuestEval <ref type="bibr" target="#b38">(Scialom et al., 2021)</ref> generates questions from both the source and the summary separately to obtain a precision score and a recall score. QuestEval also assigns a weighting function to take into account the importance of each query/question.</p><p>Nevertheless, existing QA methods are spanbased where the answering system extracts answer spans before two answer spans are compared. Due to the nature of span-based answers, answer verification (i.e. answer comparison) is typically through exact matching, token F1, BERTScore, or a learned metric <ref type="bibr" target="#b7">(Deutsch and Roth, 2022</ref>). This answer verification illustrates a drawback of the existing QA methods that they have to compare the similarity between two texts. To avoid span-based answer verification, we propose an alternative question answering-based approach where multiple-choice question generation and answering systems are used where the answers are now in the form of probability distributions rather than text spans.</p><p>3 Multiple-choice Question Answering and Generation (MQAG)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Motivation and Theory</head><p>Since current summarization systems generate highly fluent summaries, this work focuses on assessing whether summaries contain the same information as that of the source, or whether it is contradictory. One way to view information would be to consider the set of questions that are answerable given a certain passage. If a summary is consistent with the source, then one would expect the set of answerable questions by the summary to overlap with those of the source and yield similar answers. Though span-based QA approaches are similarly motivated, existing span-based frameworks use text similarity measures, either in the form of lexical or representation space. In contrast, we attempt to measure information using multiple-choice questions, which allows for a more abstract understanding of information and enables convenient use of standard information-theoretic measures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">MQAG Score</head><p>Let x = source, y = summary, q = question, and o = options associated with the question q. We define information inconsistency as,</p><formula xml:id="formula_2">I(x, y) = q,o D (P A (o|q, x), P A (o|q, y)) P G (q, o|y)dodq ≈ 1 N N i=1 D P A (o (i) |q (i) , x), P A (o (i) |q (i) , y)<label>(2)</label></formula><p>where {q (i) , o (i) } is sampled from P G (q, o|y), the question-option generation model, P A (o (i) |q (i) , x) and P A (o (i) |q (i) , y) are the option distributions given the source and summary respectively, and D is a statistical distance such as KL-divergence.</p><p>Based on the information inconsistency score in Equation <ref type="formula" target="#formula_2">2</ref>, we define the MQAG score as,<ref type="foot" target="#foot_1">3</ref> MQAG-Score(x, y) = 1 -I(x, y)</p><p>We refer to Equation 3 as the MQAG-Sum score as the questions are generated from the summary. Furthermore, it is possible to generate questions, {q, o} using the source x instead of the summary y, {q (i) , o (i) } is sampled from P G (q, o|x). We will refer to this variant as the MQAG-Src score. MQAG-Src is expected to measure the amount of source information present in the summary, i.e. the coverage of the summary, while MQAG-Sum is expected to measure the consistency of the summary with respect to the source. To account for consistency and coverage, we also consider a simple combination,</p><formula xml:id="formula_4">MQAG-F1 = 2• MQAG-Sum × MQAG-Src MQAG-Sum + MQAG-Src (4)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Statistical Distances D</head><p>Given two probability distributions over options o (e.g. one conditioned on source x, and the other conditioned on summary y), a statistical distance D measures the distance between the probability distributions. There are multiple distances, which can be used, and in this work, we consider some of the main distances and investigate their properties as well as their empirical performance in our MQAG framework as follows,</p><p>• KL-Divergence:</p><formula xml:id="formula_5">D KL = o∈o P A (o|q, x) log P A (o|q, x) P A (o|q, y)</formula><p>• One-Best (i.e. argmax matching):</p><formula xml:id="formula_6">D OB = 0, if o x = o y 1, otherwise</formula><p>where o x = arg max o P A (o|q, x) and o y = arg max o P A (o|q, y). D OB simply determines whether the two answers match or not.</p><p>• Total Variation:</p><formula xml:id="formula_7">D TV = 1 2 ∥P A (o|q, x) -P A (o|q, y)∥ 1</formula><p>• Hellinger: </p><formula xml:id="formula_8">D HL = 1 √ 2 P A (o|q, x) -P A (o|q, y) 2 KL divergence</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Baselines</head><p>All of the considered methods compare the summary y against the source document x without the ground-truth summary, and we implement these methods as described in Section 2 using code/repository from the relevant previous works.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ROUGE.</head><p>We use the ROUGE-1 (F1) score in the rouge-score Python package.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>OpenIE-TripleMatch. The relation extraction is</head><p>based on an open scheme, and we use the implementation in FactSumm <ref type="bibr" target="#b16">(Heo, 2021)</ref>.</p><p>BERTScore. We use DeBERTa-base <ref type="bibr" target="#b15">(He et al., 2021)</ref> fine-tuned to MNLI as the backbone. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">MQAG Implementation</head><p>Question Generation (G1, G2)</p><p>The multiple-choice question generation is implemented in two stages. <ref type="foot" target="#foot_2">4</ref> First model G1 generates the question q and answer a, then model G2 generates the distractors o \a given q and a.</p><p>P G (q, o|y) = P G2 (o \a |q, a, y)P G1 (q, a|y) (5)</p><p>where o = {a, o \a } denotes all options/choices. We set the number of options to four. Both G1 and G2 are sequence-to-sequence T5-large models <ref type="bibr" target="#b36">(Raffel et al., 2020)</ref>. The question-answer generation system G1 is fine-tuned to either RACE or SQuAD, and the distractor generation system G2 is fine-tuned to RACE.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Question Answering (A)</head><p>The answering stage contains one model A, which is Longformer-large <ref type="bibr" target="#b2">(Beltagy et al., 2020)</ref> with a multiple-choice setup following <ref type="bibr" target="#b43">Yu et al. (2020)</ref>; <ref type="bibr">Raina and Gales (2022)</ref>. The input to the model is a concatenation of context, question and option. The answering model A is fine-tuned to RACE.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Answerability of Generated Questions</head><p>Because not all generated questions are of high quality, we consider filtering out low-quality questions through question-context answerability measures <ref type="bibr" target="#b25">(Kundu and Ng, 2018;</ref><ref type="bibr" target="#b18">Hu et al., 2019)</ref>. We consider a simple answerability measure based on the entropy of the probability distribution over the options. We define the effective number of options,</p><formula xml:id="formula_9">N y (q, o) = 2 H[PA(o|q,y)]<label>(6)</label></formula><p>where H(.) is base-2 entropy, so N y (q, o) ranges from 1.0 to the number of options, e.g. 4.0. When q is generated from y but N y (q, o) is high, this question q should be deemed unanswerable as it is not answerable even when using the same context. As a result, we use N y (q, o) as an answerability criterion to reject questions which have N y (q, o) higher than a threshold denoted by N τ y .</p><p>5 Experimental Results</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Analysis of the Components in MQAG</head><p>In this subsection, we carry out experiments to find the best configuration of MQAG, including the analysis of statistical distances, variants of MQAG, and answerability. We build two MQAG variants: MQAG SQuAD and MQAG RACE , which differ in the training data of the question+answer generator G1, while the distractor generator G2 and answering system A are both trained on RACE.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Statistical Distances</head><p>In Table <ref type="table">3</ref>, our results compare statistical distances.</p><p>It can be seen that in both configurations, KLdivergence yields lower correlations than other distances, and on average total variation slightly outperforms Hellinger and one-best distances. Hence, total variation will be used as the main distance.</p><p>The next observation is that MQAG SQuAD , despite generating more extractive questions, achieves higher correlations than MQAG RACE on most tasks except on Podcast and SummEval.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>MQAG-Sum, MQAG-Src, MQAG-F1</head><p>Here, we compare three variants of MQAG scores.</p><p>Our results in Table <ref type="table" target="#tab_2">4</ref> show that MQAG-Src, which assesses how much source information is contained in the summary by generating questions from the source, achieves lower PCCs than MQAG-Sum on all datasets. This finding aligns with our expectation, as the summaries were graded by humans predominantly on the consistency aspect (which MQAG-Sum was designed to measure) rather than the quantity of source information present (which MQAG-Src measures). When combining MQAG-Src and MQAG-Sum into MQAG-F1, we only observe a small gain on two test settings. Therefore, MQAG-Sum is selected as our main MQAG configuration for the remaining investigations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Answerability</head><p>In Figure <ref type="figure" target="#fig_2">2</ref>, the answerability is swept from 4.0 (keeping all questions) to 1.0 (only keeping those that the answering system A is highly confident).</p><p>It can be seen that as we filter out high-entropy questions, there is an upward trend in performance across all tasks. In addition, as shown in the figure, setting N τ y at 2.0 seems to be a reasonable answerability threshold. At this threshold, N τ y = 2.0, out of 50 automatically generated questions, about 36 questions are kept for MQAG SQuAD and about 30 questions are kept for MQAG RACE . The number of remaining questions is similar across all datasets as shown in Table <ref type="table">9</ref> in the appendix. Thus, we set N τ y = 2.0, and the performance of MQAG using this answerability criterion is presented and compared against baseline systems in Table <ref type="table" target="#tab_3">5</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Comparison Against Existing Baselines</head><p>The baseline and MQAG results are shown in Table 5. The observation is that MQAG achieves a higher correlation than the best SpanQAG on 5 out of 6 tasks. When compared to all existing baselines, MQAG achieves state-of-the-art performance on 4 out of 6 tasks. To investigate the impact of the abstractiveness of summaries on the performance, Our best performing MQAG configuration consists of (i) generation stage G generates questions from summary y (i.e. MQAG-Sum), (ii) statistical distance is total variation, (iii) the answerability threshold N τ y is set to 2.0. Underline denotes where MQAG outperforms the best SpanQAG system, which is 5 out of 6 tasks. When compared to all baselines, MQAG achieves the highest PCC on 4 out of 6 tasks. The results of all MQAG configurations are provided in Table <ref type="table" target="#tab_6">10</ref>, and Spearman's correlation results are provided in Table <ref type="table" target="#tab_7">11</ref> in the appendix.</p><p>we split QAG-XSum and XSum-H datasets 5 into two portions of the same size by abstractiveness as measured by the longest sequence in the summary that exists in the source per the summary length (i.e. ROUGE-L precision of summary y using source x as the reference). The results in Table <ref type="table" target="#tab_4">6</ref> show that although MQAG RACE achieves lower PCCs than MQAG SQuAD (in Table <ref type="table" target="#tab_3">5</ref>), when evaluated on the more abstractive split, the performance MQAG RACE is much closer to that of MQAG SQuAD . In addition, compared to MQAG, SpanQAG methods show a larger drop in PCCs in the more abstractive split. This finding further illustrates the benefits of comparing answer distributions rather than text spans.</p><p>6 Ablation Studies</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Number of Questions (N )</head><p>We analyse the impact of the number of generated questions on the performance of MQAG. The mean and standard deviation are presented in Figure <ref type="figure" target="#fig_3">3</ref>. The results show a smooth increase in correlation, which is as expected because the framework is based on a Monte-Carlo approximation (in Equation 2), and a similar finding was also observed in 5 XSum summaries are more abstractive than CNNDM summaries, so using XSum should enable us to investigate the impact of abstractiveness better than CNNDM. The results on the entire datasets are in Table <ref type="table" target="#tab_3">5</ref>.</p><p>QAGS <ref type="bibr" target="#b41">(Wang et al., 2020)</ref>. Figure <ref type="figure" target="#fig_3">3</ref> also shows that the variance decreases with N , showing the stability of the approach. Though the performance curve has not completely plateaued at N =50, since the computational cost of MQAG scales linearly with N , 50 questions seem to be a reasonable compromise between computational efficiency and performance. An interesting next step would be to investigate if the same or similar performance can be achieved with as low N as possible, for example, by generating a smaller but more diverse set of questions and options such as varifocal question generation where questions are generated based on different focal points <ref type="bibr" target="#b34">(Ousidhoum et al., 2022)</ref>. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Model Choices</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Pre-trained Backbone</head><p>We investigate model choices by swapping to less capable models, e.g. T5-large → T5-base for generation, and Longformer(4096) → RoBERTa(512) <ref type="bibr" target="#b29">(Liu et al., 2019)</ref> for answering. The results in Table <ref type="table">8</ref> in the appendix show: (1) For generation stage, using a smaller model does not result in lower performance. This could be because T5-base has higher perplexity, and yields more diverse questions. (2) In contrast, for answering stage, when using RoBERTa, with a shorter input length, the performance on SummEval (the input length is mostly shorter than 512) remains almost the same. However, as the input length is longer in other datasets, we observe a drop in PCC when using RoBERTa.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Zero-shot Multiple-choice Question Generation</head><p>Given the impressive results of large language models (LLMs) across natural language generation tasks, we investigate the performance of LLMs in a zero-shot fashion instead of using fine-tuned T5 for multiple-choice question generation. Specifically, we use OpenAI GPT-3 <ref type="bibr" target="#b3">(Brown et al., 2020</ref>) (text-davinci-003) where we query 50 questions and 4 options using the following prompt format: Write 50 diverse multiple-choice questions with 4 options from the following context: {context}.</p><p>We found that GPT-3 generated 50 questions as specified in the prompt around 26% of the examples and the remaining only have 20 questions. The majority of questions (more than 95%) have 4 op-tions, while the remaining have 2 options. In Table 7, the results show that zero-shot GPT-3 performs worse than our fine-tuned T5 systems in both multiple-choice question generation tasks. This illustrates that there is some sensitivity due to the quality of generated questions, and using our finetuned T5 is a better option than zero-shot GPT-3. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Backbone</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>This work proposes MQAG -a novel scheme for assessing information consistency between source and summary based on the distance between multiple-choice answer distributions instead of textbased answer spans in existing question-answering methods. Our experiments demonstrate the potential of this alternative approach which outperforms existing techniques on various datasets. The realization of the framework exploits current multiplechoice question generation and answering systems. Its performance is expected to increase as backbone systems improve, for example, the diversity of questions generated and the selection of options. Also, the framework is highly interpretable, allowing more insight into summary assessment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Domain. Our approach is designed to assess the information content, so it may not work well with other aspects of summary evaluation such as fluency or coherency. Our analysis is based on the systems trained on RACE, which is collected from English examinations in China. Hence, the generated questions and answer distributions could be biased towards the style of the examinations.</p><p>Efficiency. Given the realization of the MQAG framework where two generators G1 and G2 are adopted, the MQAG framework can be slow when using old infrastructure, for example, it takes around 3 seconds per question on one NVIDIA P100 GPU. When applying the answerability mechanism, the threshold N τ y is set to 2.0.    </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Multiple-choice Question Answering and Generation (MQAG) framework. The answers are represented by probability distributions over choices instead of text spans in existing question-answering approaches.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Entailment model. Following the method in<ref type="bibr" target="#b31">Maynez et al. (2020)</ref>, we trained BERT-large<ref type="bibr" target="#b8">(Devlin et al., 2019)</ref> on MNLI and we use the probability of the source being entailed by the summary as the assessment score as shown in Equation1.Span-based QAG Baselines. We use three existing span-based question-answering methods as our baselines: QAGS proposed by<ref type="bibr" target="#b41">Wang et al. (2020)</ref>, FEQA proposed by<ref type="bibr" target="#b9">Durmus et al. (2020)</ref>, and QuestEval proposed by<ref type="bibr" target="#b38">Scialom et al. (2021)</ref>.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: ∆PCC of MQAG-Sum with total variation (i.e. PCC -PCC N τ y =4.0 ) against the answerability threshold N τ y on X-axis. MQAG without answerability is equivalent to setting N τ y = 4.0, and the results at this operating point can be seen on the right-most point in each plot. As we reduce the threshold (N τ y ↓), more questions are rejected. The results on QAG-XSum and Podcast are provided in Figure5in the appendix.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Mean and standard deviation of Pearson correlation (Y-axis) of MQAG RACE on QAG-CNNDM when the number of generated questions N is varied from 1 to 50 (X-axis). Standard deviation is obtained via bootstrapping. The results on other datasets are provided in Figure 6 in the appendix.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: ∆PCC of MQAG-Sum with total variation against the answerability threshold N τ y on the X-axis. This figure extends Figure 2 in the main text.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Mean (top row) and standard deviation (bottom row) of Pearson correlation (Y-axis) of MQAG RACE when the number of generated questions N is varied from 1 to 50 (X-axis). This figure extends Figure 3 in the main text.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 2 :</head><label>2</label><figDesc>Statistics of evaluation datasets. Length is the number of words calculated using the NLTK tokenizer.</figDesc><table><row><cell>4 Experimental Setup</cell></row><row><cell>4.1 System Development Data</cell></row><row><cell>RACE (Lai et al., 2017) is a multiple-choice read-</cell></row><row><cell>ing comprehension dataset where each example</cell></row><row><cell>consists of context, question, answer, and 3 distrac-</cell></row><row><cell>tors (i.e. incorrect options). SQuAD (Rajpurkar</cell></row><row><cell>et al., 2016) is a collection of question-answer pairs</cell></row><row><cell>derived from Wikipedia articles, and the correct an-</cell></row><row><cell>swers can be any sequence of tokens in the given</cell></row></table><note><p><p><p><p><p>is unbounded, which means the value can be exceedingly large. In contrast, onebest is bounded but discontinuous. Both total variation and Hellinger distance are bounded and continuous. We illustrate examples of the properties of these statistical distances on Bernoulli distributions in Figure</p>4</p>in the appendix. context. The statistics are provided in Table</p>1</p>where abstractiveness is measured by 1.0 minus the length of the longest sequence that exists in both the context and the answer per the answer length, i.e. 1.0 -ROUGE-L Precision (Answer, Context). * #systems×documents.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 4 :</head><label>4</label><figDesc>Comparison of MQAG-Src, MQAG-Sum, and MQAG-F1 without answerability.</figDesc><table><row><cell></cell><cell>QAG CNN XSum Faith XSum-H Fact</cell><cell>Podc SumE</cell></row><row><cell cols="2">G1 = SQuAD, D = Total Variation</cell></row><row><cell cols="3">Sum 0.508 0.396 0.269 0.267 0.225 0.870</cell></row><row><cell cols="3">Src 0.272 0.017 0.093 0.037 0.470 0.707</cell></row><row><cell>F1</cell><cell cols="2">0.490 0.393 0.286 0.261 0.475 0.863</cell></row><row><cell cols="2">G1 = RACE, D = Total Variation</cell></row><row><cell cols="3">Sum 0.462 0.309 0.221 0.244 0.770 0.933</cell></row><row><cell cols="3">Src 0.233 0.143 0.069 0.087 0.144 0.588</cell></row><row><cell>F1</cell><cell cols="2">0.468 0.301 0.217 0.252 0.731 0.866</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 5 :</head><label>5</label><figDesc>Pearson Correlation Coefficient (PCC)  between the scores of summary evaluation methods and human judgements. PCCs are computed at the summary level on QAG and XSum-H, and at the system level on Podcast and SummEval. PCCs on Podcast are computed on 15 abstractive systems.</figDesc><table><row><cell>Method</cell><cell cols="4">QAG CNNDM XSum Faithful Factual XSum-H</cell><cell cols="2">Podcast SumEvl</cell></row><row><cell cols="2">Baselines: Other Approaches</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>ROUGE-1</cell><cell>0.337</cell><cell>0.012</cell><cell>-0.050</cell><cell>0.008</cell><cell>0.326</cell><cell>0.458</cell></row><row><cell>OpenIE-TripleMatching</cell><cell>0.381</cell><cell>0.131</cell><cell>0.019</cell><cell>-0.020</cell><cell>0.706</cell><cell>0.548</cell></row><row><cell>BERTScore</cell><cell>0.584</cell><cell>0.008</cell><cell>0.185</cell><cell>0.154</cell><cell>0.718</cell><cell>0.645</cell></row><row><cell>Entailment (BERT Model)</cell><cell>0.159</cell><cell>0.169</cell><cell>0.362</cell><cell>0.209</cell><cell>0.228</cell><cell>0.619</cell></row><row><cell>Baselines: SpanQAG</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>QAGS</cell><cell>0.437</cell><cell>0.200</cell><cell>0.101</cell><cell>0.080</cell><cell>0.464</cell><cell>0.812</cell></row><row><cell>FEQA</cell><cell>0.322</cell><cell>0.283</cell><cell>0.297</cell><cell>0.171</cell><cell>0.603</cell><cell>0.464</cell></row><row><cell>QuestEval</cell><cell>0.250</cell><cell>0.173</cell><cell>0.421</cell><cell>0.197</cell><cell>0.579</cell><cell>0.838</cell></row><row><cell cols="5">Multiple-choice Question Answering and Generation (MQAG)</cell><cell></cell><cell></cell></row><row><cell>MQAG SQuAD</cell><cell>0.519</cell><cell>0.407</cell><cell>0.324</cell><cell>0.292</cell><cell>0.502</cell><cell>0.890</cell></row><row><cell>MQAG RACE</cell><cell>0.502</cell><cell>0.313</cell><cell>0.306</cell><cell>0.270</cell><cell>0.855</cell><cell>0.945</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 6 :</head><label>6</label><figDesc>Performance as measured by Pearson correlation coefficient on the low abstractiveness and high abstractiveness of QAG-XSum and XSum-H (Faithful).</figDesc><table><row><cell>Method</cell><cell>QAG-XSum Low High Low High XSum-H</cell></row><row><cell>QAGS</cell><cell>0.190 0.184 0.101 0.159</cell></row><row><cell>FEQA</cell><cell>0.296 0.163 0.290 0.124</cell></row><row><cell>QuestEval</cell><cell>0.215 0.061 0.398 0.326</cell></row><row><cell cols="2">MQAG SQuAD 0.431 0.328 0.334 0.254</cell></row><row><cell>MQAG RACE</cell><cell>0.277 0.295 0.319 0.249</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 7 :</head><label>7</label><figDesc>GPT-3 versus fine-tuned T5 using D TV without answerability for multiple-choice question generation.</figDesc><table><row><cell></cell><cell>QAG</cell><cell></cell></row><row><cell></cell><cell cols="2">CNNDM XSum</cell></row><row><cell>T5 (SQuAD)</cell><cell>0.508</cell><cell>0.396</cell></row><row><cell>T5 (RACE)</cell><cell>0.462</cell><cell>0.309</cell></row><row><cell>GPT-3</cell><cell>0.392</cell><cell>0.130</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 10 :</head><label>10</label><figDesc>To address this issue, future work could explore a more efficient realization of MQAG. Pearson correlation coefficients of all MQAG configurations. Our MQAG results are based on N =50.</figDesc><table><row><cell></cell><cell>Method</cell><cell cols="7">QAG-CNNDM QAG-XSum XSum-H Podcast SummEval</cell><cell></cell></row><row><cell></cell><cell>MQAG SQuAD</cell><cell></cell><cell>35.0</cell><cell></cell><cell>37.4</cell><cell>34.0</cell><cell>34.7</cell><cell>37.0</cell><cell></cell></row><row><cell></cell><cell>MQAG RACE</cell><cell></cell><cell>30.5</cell><cell></cell><cell>30.0</cell><cell>30.0</cell><cell>30.5</cell><cell>31.1</cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="6">Table 9: The number remaining questions at N τ y = 2.0.</cell><cell></cell><cell></cell></row><row><cell cols="8">MQAG Configuration G's Inp. G1-trained Dist. Ans. CNNDM XSum Faithful Factual QAG XSum-H</cell><cell cols="2">Podcast SumEvl</cell></row><row><cell>Src x</cell><cell>SQuAD</cell><cell>D KL</cell><cell>✗</cell><cell>0.219</cell><cell>0.008</cell><cell>0.070</cell><cell>0.027</cell><cell>0.432</cell><cell>0.726</cell></row><row><cell>Src x</cell><cell>SQuAD</cell><cell>D OB</cell><cell>✗</cell><cell>0.264</cell><cell>0.003</cell><cell>0.165</cell><cell>0.064</cell><cell>0.788</cell><cell>0.703</cell></row><row><cell>Src x</cell><cell>SQuAD</cell><cell>D TV</cell><cell>✗</cell><cell>0.272</cell><cell>0.017</cell><cell>0.093</cell><cell>0.037</cell><cell>0.470</cell><cell>0.707</cell></row><row><cell>Src x</cell><cell>SQuAD</cell><cell>D HL</cell><cell>✗</cell><cell>0.266</cell><cell>0.010</cell><cell>0.081</cell><cell>0.032</cell><cell>0.517</cell><cell>0.713</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D KL</cell><cell>✗</cell><cell>0.478</cell><cell>0.374</cell><cell>0.177</cell><cell>0.226</cell><cell>0.251</cell><cell>0.936</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D OB</cell><cell>✗</cell><cell>0.476</cell><cell>0.354</cell><cell>0.295</cell><cell>0.254</cell><cell>0.677</cell><cell>0.872</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D TV</cell><cell>✗</cell><cell>0.508</cell><cell>0.396</cell><cell>0.269</cell><cell>0.267</cell><cell>0.225</cell><cell>0.870</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D HL</cell><cell>✗</cell><cell>0.499</cell><cell>0.399</cell><cell>0.266</cell><cell>0.269</cell><cell>0.201</cell><cell>0.870</cell></row><row><cell>F1</cell><cell>SQuAD</cell><cell>D KL</cell><cell>✗</cell><cell>0.508</cell><cell>0.361</cell><cell>0.197</cell><cell>0.213</cell><cell>0.531</cell><cell>0.921</cell></row><row><cell>F1</cell><cell>SQuAD</cell><cell>D OB</cell><cell>✗</cell><cell>0.416</cell><cell>0.161</cell><cell>0.296</cell><cell>0.199</cell><cell>0.825</cell><cell>0.869</cell></row><row><cell>F1</cell><cell>SQuAD</cell><cell>D TV</cell><cell>✗</cell><cell>0.490</cell><cell>0.393</cell><cell>0.286</cell><cell>0.261</cell><cell>0.475</cell><cell>0.863</cell></row><row><cell>F1</cell><cell>SQuAD</cell><cell>D HL</cell><cell>✗</cell><cell>0.481</cell><cell>0.387</cell><cell>0.274</cell><cell>0.255</cell><cell>0.487</cell><cell>0.862</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D KL</cell><cell>N y</cell><cell>0.483</cell><cell>0.396</cell><cell>0.229</cell><cell>0.249</cell><cell>0.545</cell><cell>0.943</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D OB</cell><cell>N y</cell><cell>0.517</cell><cell>0.385</cell><cell>0.286</cell><cell>0.256</cell><cell>0.711</cell><cell>0.914</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D TV</cell><cell>N y</cell><cell>0.519</cell><cell>0.407</cell><cell>0.324</cell><cell>0.292</cell><cell>0.502</cell><cell>0.890</cell></row><row><cell>Sum y</cell><cell>SQuAD</cell><cell>D HL</cell><cell>N y</cell><cell>0.512</cell><cell>0.413</cell><cell>0.323</cell><cell>0.299</cell><cell>0.385</cell><cell>0.889</cell></row><row><cell>Src x</cell><cell>RACE</cell><cell>D KL</cell><cell>✗</cell><cell>0.143</cell><cell>0.097</cell><cell>0.088</cell><cell>0.054</cell><cell>0.321</cell><cell>0.599</cell></row><row><cell>Src x</cell><cell>RACE</cell><cell>D OB</cell><cell>✗</cell><cell>0.226</cell><cell>0.091</cell><cell>0.160</cell><cell>0.091</cell><cell>0.534</cell><cell>0.612</cell></row><row><cell>Src x</cell><cell>RACE</cell><cell>D TV</cell><cell>✗</cell><cell>0.233</cell><cell>0.143</cell><cell>0.069</cell><cell>0.087</cell><cell>0.144</cell><cell>0.588</cell></row><row><cell>Src x</cell><cell>RACE</cell><cell>D HL</cell><cell>✗</cell><cell>0.221</cell><cell>0.148</cell><cell>0.056</cell><cell>0.083</cell><cell>0.222</cell><cell>0.592</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D KL</cell><cell>✗</cell><cell>0.450</cell><cell>0.283</cell><cell>0.135</cell><cell>0.179</cell><cell>0.789</cell><cell>0.954</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D OB</cell><cell>✗</cell><cell>0.453</cell><cell>0.225</cell><cell>0.240</cell><cell>0.221</cell><cell>0.839</cell><cell>0.928</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D TV</cell><cell>✗</cell><cell>0.462</cell><cell>0.309</cell><cell>0.221</cell><cell>0.244</cell><cell>0.770</cell><cell>0.933</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D HL</cell><cell>✗</cell><cell>0.473</cell><cell>0.323</cell><cell>0.215</cell><cell>0.244</cell><cell>0.751</cell><cell>0.927</cell></row><row><cell>F1</cell><cell>RACE</cell><cell>D KL</cell><cell>✗</cell><cell>0.480</cell><cell>0.266</cell><cell>0.156</cell><cell>0.198</cell><cell>0.830</cell><cell>0.908</cell></row><row><cell>F1</cell><cell>RACE</cell><cell>D OB</cell><cell>✗</cell><cell>0.379</cell><cell>0.192</cell><cell>0.268</cell><cell>0.206</cell><cell>0.796</cell><cell>0.815</cell></row><row><cell>F1</cell><cell>RACE</cell><cell>D TV</cell><cell>✗</cell><cell>0.468</cell><cell>0.301</cell><cell>0.217</cell><cell>0.252</cell><cell>0.731</cell><cell>0.866</cell></row><row><cell>F1</cell><cell>RACE</cell><cell>D HL</cell><cell>✗</cell><cell>0.472</cell><cell>0.317</cell><cell>0.206</cell><cell>0.252</cell><cell>0.693</cell><cell>0.858</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D KL</cell><cell>N y</cell><cell>0.460</cell><cell>0.302</cell><cell>0.208</cell><cell>0.206</cell><cell>0.857</cell><cell>0.961</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D OB</cell><cell>N y</cell><cell>0.466</cell><cell>0.233</cell><cell>0.266</cell><cell>0.226</cell><cell>0.822</cell><cell>0.954</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D TV</cell><cell>N y</cell><cell>0.502</cell><cell>0.313</cell><cell>0.306</cell><cell>0.270</cell><cell>0.855</cell><cell>0.945</cell></row><row><cell>Sum y</cell><cell>RACE</cell><cell>D HL</cell><cell>N y</cell><cell>0.501</cell><cell>0.328</cell><cell>0.305</cell><cell>0.273</cell><cell>0.860</cell><cell>0.936</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 11 :</head><label>11</label><figDesc>Spearman's rank correlation coefficient between the scores of summary evaluation methods and human judgements. This table is complementary to Table5which reports Pearson's correlation coefficient results.</figDesc><table><row><cell>Method</cell><cell cols="4">QAG CNNDM XSum Faithful Factual XSum-H</cell><cell cols="2">Podcast SumEvl</cell></row><row><cell cols="2">Baselines: Other Approaches</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>ROUGE-1</cell><cell>0.318</cell><cell>0.053</cell><cell>-0.030</cell><cell>0.001</cell><cell>0.282</cell><cell>0.627</cell></row><row><cell>OpenIE-TripleMatching</cell><cell>0.337</cell><cell>0.130</cell><cell>0.019</cell><cell>-0.025</cell><cell>0.700</cell><cell>0.671</cell></row><row><cell>BERTScore</cell><cell>0.523</cell><cell>0.018</cell><cell>0.183</cell><cell>0.153</cell><cell>0.686</cell><cell>0.835</cell></row><row><cell>Entailment (BERT Model)</cell><cell>0.167</cell><cell>0.190</cell><cell>0.380</cell><cell>0.202</cell><cell>0.207</cell><cell>0.141</cell></row><row><cell>Baselines: SpanQAG</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>QAGS</cell><cell>0.341</cell><cell>0.166</cell><cell>0.085</cell><cell>0.052</cell><cell>0.357</cell><cell>0.421</cell></row><row><cell>FEQA</cell><cell>0.275</cell><cell>0.277</cell><cell>0.300</cell><cell>0.155</cell><cell>0.504</cell><cell>0.270</cell></row><row><cell>QuestEval</cell><cell>0.181</cell><cell>0.175</cell><cell>0.415</cell><cell>0.176</cell><cell>0.425</cell><cell>0.812</cell></row><row><cell cols="5">Multiple-choice Question Answering and Generation (MQAG)</cell><cell></cell><cell></cell></row><row><cell>MQAG SQuAD</cell><cell>0.470</cell><cell>0.409</cell><cell>0.335</cell><cell>0.284</cell><cell>0.441</cell><cell>0.773</cell></row><row><cell>MQAG RACE</cell><cell>0.460</cell><cell>0.308</cell><cell>0.322</cell><cell>0.266</cell><cell>0.779</cell><cell>0.920</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>Supervised approaches, with systems trained on human evaluation annotations, are outside the scope of this work.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>If D &gt; 1, for example, when using KL-divergence, the MQAG score can be negative, but the maximum value is 1.0.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>The motivation is based on our initial experiments that a single generation system (generating the question and 4 options together) often gave low-quality distractors, and using two generation systems improved the quality of distractors.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>This work is supported by <rs type="funder">Cambridge University Press &amp; Assessment (CUP&amp;A)</rs>, a department of The Chancellor, Masters, and <rs type="person">Scholars</rs> of the <rs type="institution">University of Cambridge</rs>, and the <rs type="funder">Cambridge Commonwealth, European &amp; International Trust</rs>. We would like to thank the anonymous reviewers for their helpful comments.</p></div>
+			</div>
+			<listOrg type="funding">
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A More Details about Models and Data</head><p>Training QG and QA systems</p><p>We train the question+answer generation model (G1) on RACE or SQuAD, and train the distractor generation model (G2) and the answering model (A) on RACE. We do early stopping when the performance on the validation set does not improve. We use batch size 8 for G1 and G2 models (T5) and 2 for A model <ref type="bibr">(Longformer)</ref>. The learning rate is set to 1e-6, and we use the Adam optimizer. We carried out training on one NVIDIA A100-80GB GPU. Training one generation model (T5-large) takes around 8 hours, and training the answering model (Longformer-4096) takes up to 2 days. Running MQAG inference with generation=T5-large and answering=Longformer-4096 on one NVIDIA P100 GPU takes around 3 seconds per question.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Licenses</head><p>The licenses of the datasets are CC-BY-4.0 for XSum-Hallucination and Podcast Assessment, and MIT license for SummEval. For QAG, we were unable to find its license. The licenses of T5 and Longformer backbone models are apache-2.0.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Open-Sourcing Trained Models</head><p>To allow the trained models in MQAG to be used for research purposes in other question generation and answering tasks, we have made them available online. The links to these models on HuggingFace can be found on our project page at https://github.com/potsawee/mqag0.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Statistical Distances</head><p>at different values of p 1 . We show 4 plots of different values of p 1 = 0.00, 0.25, 0.50, 0.75, and Y-axis represents distance D and X-axis represents p 2 . It can be seen that KL divergence is unbounded, which means the value can be exceedingly large. One-best, in contrast, is bounded between 0.0 and 1.0; however, one-best is discontinuous. Total variation and Hellinger distance are continuous and bounded between 0.0 and 1.0.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Computing Correlation</head><p>Following the notation in <ref type="bibr" target="#b6">Deutsch et al. (2021)</ref>, let z j i and zj i be two scores of metrics Z and Z for the summary output by system i ∈ {1, ..., N } on the document j ∈ {1, ..., M }. In this work, Z is the evaluation method, and Z is the human judgement. The correlations, e.g. Pearson or Spearman's rank correlation coefficient, are defined as follows:</p><p>• System-level (i.e. Corpus-level)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Additional Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1 Ablation: Model Choices</head><p>For generation models, we measure cross-entropy losses on RACE-testset: </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 MQAG Results</head><p>Here, we provide results that are complementary to those presented in the main text. Figure <ref type="figure">5</ref> illustrates the answerability results on QAG-XSum and Podcast, and Figure <ref type="figure">6</ref> illustrates the impact of N on the remaining datasets not presented in the main text. Table <ref type="table">10</ref> shows the results of all MQAG configurations. Table <ref type="table">11</ref> shows the Spearman's rank correlation coefficient of the main results.</p><p>Source: A G4S security van has been robbed outside a branch of royal bank of Scotland in Glasgow city centre. Police said three armed men took a five-figure sum from the vehicle in the city's Sauchiehall street on Monday at about 21:45. A spokesman said no-one had been injured although two security guards aged 47 and 49 were left badly shaken. The area around the bank, which is near the Buchanan galleries shopping centre, has been cordoned off by police. Police said the security guards had been making their delivery when they were approached by the three armed men, who threatened them and demanded they hand over a box of money. It is understood the cash taken was in the region of £50,000. Following the robbery, the three men got into a white seat Leon car, which sped off along west Nile street towards the cowcaddens area. [...] Summary: Two security guards have been threatened during a robbery at a bank in Edinburgh. Generated question (using summary): The robbery happened in _ . Generated options (using summary): (1) Edinburgh (2) a bank (3) a shop (4) a small town.</p><p>Prob. over options given Source: 0.077, 0.895, 0.018, 0.010 Prob. over options given Summary: 0.687, 0.295, 0.000, 0.018 </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">METEOR: An automatic metric for MT evaluation with improved correlation with human judgments</title>
+		<author>
+			<persName><forename type="first">Satanjeev</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization</title>
+		<meeting>the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">SueNes: A weakly supervised approach to evaluating singledocument summarization via negative sampling</title>
+		<author>
+			<persName><forename type="first">Forrest</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ge</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hebi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minghui</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youbiao</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cen</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.175</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2450" to="2458" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Longformer: The long-document transformer</title>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arman</forename><surname>Cohan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.05150</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Alec Radford, Ilya Sutskever, and Dario Amodei</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+	<note>Language models are few-shot learners</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Hallucinated but factual! inspecting the factuality of hallucinations in abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jackie</forename><surname>Cheung</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.236</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3340" to="3354" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A semantic qa-based approach for text summarization evaluation</title>
+		<author>
+			<persName><forename type="first">Ping</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Ding</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Towards question-answering as an automatic metric for evaluating the content quality of a summary</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Deutsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tania</forename><surname>Bedrax-Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00397</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="774" to="789" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Benchmarking answer verification methods for question answeringbased summarization evaluation metrics</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Deutsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.296</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="3759" to="3765" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">FEQA: A question answering evaluation framework for faithfulness assessment in abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Esin</forename><surname>Durmus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Diab</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.454</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5055" to="5070" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Open information extraction from the web</title>
+		<author>
+			<persName><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Banko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Communications of the ACM</title>
+		<imprint>
+			<biblScope unit="volume">51</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="68" to="74" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Question answering as an automatic evaluation metric for news article summarization</title>
+		<author>
+			<persName><forename type="first">Matan</forename><surname>Eyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Baumel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Elhadad</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1395</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3938" to="3948" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">SummEval: Re-evaluating summarization evaluation</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><forename type="middle">R</forename><surname>Fabbri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Kryściński</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mc-Cann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dragomir</forename><surname>Radev</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00373</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="391" to="409" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Bottom-up abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuntian</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1443</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4098" to="4109" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Assessing the factual accuracy of generated text</title>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Goodrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinay</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Saleh</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3292500.3330955</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery &amp; Data Mining, KDD &apos;19</title>
+		<meeting>the 25th ACM SIGKDD International Conference on Knowledge Discovery &amp; Data Mining, KDD &apos;19<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="166" to="175" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Deberta: Decoding-enhanced bert with disentangled attention</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Hoon</forename><surname>Heo</surname></persName>
+		</author>
+		<ptr target="https://github.com/Huffon/factsumm" />
+		<title level="m">Factsumm: Factual consistency scorer for abstractive summarization</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Teaching machines to read and comprehend</title>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Moritz Hermann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Kocisky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lasse</forename><surname>Espeholt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Will</forename><surname>Kay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mustafa</forename><surname>Suleyman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">28</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Read+ verify: Machine reading comprehension with unanswerable questions</title>
+		<author>
+			<persName><forename type="first">Minghao</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxing</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="6529" to="6537" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Xiaocheng Feng, and Bing Qin. 2021. The factual inconsistency problem in abstractive text summarization: A survey</title>
+		<author>
+			<persName><forename type="first">Yi-Chong</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiachong</forename><surname>Feng</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2104.14839</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Survey of hallucination in natural language generation</title>
+		<author>
+			<persName><forename type="first">Ziwei</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nayeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rita</forename><surname>Frieske</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiezheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Etsuko</forename><surname>Ishii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Bang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3571730</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Comput. Surv</title>
+		<imprint>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page">55</biblScope>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Survey of hallucination in natural language generation</title>
+		<author>
+			<persName><forename type="first">Ziwei</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nayeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rita</forename><surname>Frieske</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiezheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Etsuko</forename><surname>Ishii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Bang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2202.03629</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Rosie</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Carterette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ann</forename><surname>Clifton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Eskevich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Gareth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jussi</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aasish</forename><surname>Karlgren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sravana</forename><surname>Pappu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongze</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.15953</idno>
+		<title level="m">Trec 2020 podcasts track overview</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Neural text summarization: A critical evaluation</title>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Kryscinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitish</forename><surname>Shirish Keskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mc-Cann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1051</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="540" to="551" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Evaluating the factual consistency of abstractive text summarization</title>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Kryscinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.750</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9332" to="9346" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A nil-aware answer extraction framework for question answering</title>
+		<author>
+			<persName><forename type="first">Souvik</forename><surname>Kundu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hwee Tou</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1456</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4243" to="4252" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">RACE: Large-scale ReAding comprehension dataset from examinations</title>
+		<author>
+			<persName><forename type="first">Guokun</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qizhe</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanxiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1082</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="785" to="794" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">ROUGE: A package for automatic evaluation of summaries</title>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Text Summarization Branches Out</title>
+		<meeting><address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="74" to="81" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">Roberta: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">Potsawee</forename><surname>Manakul</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mark</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gales</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2208.13265</idno>
+		<title level="m">Podcast Summary Assessment: A resource for evaluating summary assessment methods</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">On faithfulness and factuality in abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Maynez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernd</forename><surname>Bohnet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.173</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1906" to="1919" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Improving factual consistency of abstractive summarization via question answering</title>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cicero</forename><surname>Nogueira Dos Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henghui</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dejiao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">O</forename><surname>Arnold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xiang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.536</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="6881" to="6894" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Don&apos;t give me the details, just the summary! topic-aware convolutional neural networks for extreme summarization</title>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1206</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1797" to="1807" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Varifocal question generation for factchecking</title>
+		<author>
+			<persName><forename type="first">Nedjma</forename><surname>Ousidhoum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangdie</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2532" to="2544" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Philadelphia, Pennsylvania, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Vatsal Raina and Mark Gales. 2022. Answer uncertainty and unanswerability in multiple-choice machine reading comprehension</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.82</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1020" to="1034" />
+		</imprint>
+	</monogr>
+	<note>Exploring the limits of transfer learning with a unified text-to-text transformer. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">SQuAD: 100,000+ questions for machine comprehension of text</title>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Konstantin</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D16-1264</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2383" to="2392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">QuestEval: Summarization asks for fact-based evaluation</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul-Alexis</forename><surname>Dray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Lamprier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Piwowarski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacopo</forename><surname>Staiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Gallinari</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.529</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6594" to="6604" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Answers unite! unsupervised metrics for reinforced summarization models</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Lamprier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Piwowarski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacopo</forename><surname>Staiano</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1320</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3246" to="3256" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">BLEURT: Learning robust metrics for text generation</title>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.704</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7881" to="7892" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Asking and answering questions to evaluate the factual consistency of summaries</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.450</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5008" to="5020" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1101</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1112" to="1122" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Reclor: A reading comprehension dataset requiring logical reasoning</title>
+		<author>
+			<persName><forename type="first">Weihao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanfei</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiashi</forename><surname>Feng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Pegasus: Pre-training with extracted gap-sentences for abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Jingqing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Saleh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Liu</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="11328" to="11339" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Bertscore: Evaluating text generation with BERT</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Kishore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

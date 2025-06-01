@@ -1,0 +1,2196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Reranking for Natural Language Generation from Logical Forms: A Study based on Large Language Models</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Levon</forename><surname>Haroutunian</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Zhuang</forename><surname>Li</surname></persName>
+							<email>zhuang.li@openstream.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Lucian</forename><surname>Galescu</surname></persName>
+							<email>lucian@openstream.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Philip</forename><surname>Cohen</surname></persName>
+							<email>phil.cohen@openstream.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Raj</forename><surname>Tumuluri</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Gholamreza</forename><surname>Haffari</surname></persName>
+							<email>reza.haffari@openstream.com</email>
+						</author>
+						<title level="a" type="main">Reranking for Natural Language Generation from Logical Forms: A Study based on Large Language Models</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">01ADFD57D73D6E2BE222C409B60AEA88</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:47+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language models (LLMs) have demonstrated impressive capabilities in natural language generation. However, their output quality can be inconsistent, posing challenges for generating natural language from logical forms (LFs). This task requires the generated outputs to embody the exact semantics of LFs, without missing any LF semantics or creating any hallucinations. In this work, we tackle this issue by proposing a novel generate-and-rerank approach. Our approach involves initially generating a set of candidate outputs by prompting an LLM and subsequently reranking them using a task-specific reranker model. In addition, we curate a manually collected dataset to evaluate the alignment between different ranking metrics and human judgements. The chosen ranking metrics are utilized to enhance the training and evaluation of the reranker model. By conducting extensive experiments on three diverse datasets, we demonstrate that the candidates selected by our reranker outperform those selected by baseline methods in terms of semantic consistency and fluency, as measured by three comprehensive metrics. Our findings provide strong evidence for the effectiveness of our approach in improving the quality of generated outputs.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>We consider the problem of natural language generation (NLG), which involves generating fluent and faithful utterances from structured meaning representations such as LFs <ref type="bibr">(Wang et al., 2021a;</ref><ref type="bibr">Chen et al., 2020a)</ref>. This task has gained significant importance, particularly for applications such as data augmentation for semantic parsing <ref type="bibr">(Wang et al., 2021a)</ref> or question-answering systems <ref type="bibr">(Ribeiro et al., 2021b)</ref>, as well as response generation for dialogue systems <ref type="bibr" target="#b52">(Yu et al., 2019)</ref>. This task plays a crucial role in enhancing the performance and capabilities of these systems by providing them with diverse and high-quality natural language utterances aligned with their underlying logical representations.</p><p>LLMs have shown impressive performance across various NLG tasks <ref type="bibr" target="#b5">(Chen et al., 2021;</ref><ref type="bibr" target="#b30">Ouyang et al., 2022)</ref>. However, the utterances generated based on LFs sometimes suffer from various deficiencies, such as hallucinations or missing parts of the input LF <ref type="bibr">(Chen et al., 2020a)</ref>. As depicted in Figure <ref type="figure">1</ref>, only 1 out of 4 candidates generated by the generator accurately and fluently reflects the semantic meaning of LF answer(density_1(m0)). The remaining generated texts either introduce inaccuracies <ref type="bibr">(#4)</ref> or are awkwardly phrased (#1 and #2).</p><p>To improve the quality and fidelity of natural language generated from LFs, we take a generate-andrerank approach that combines a fixed LLM generator with a finetuned reranker that discriminatively scores candidates given several pre-determined metrics <ref type="bibr" target="#b42">(Suzgun et al., 2022)</ref>. As in Figure <ref type="figure">1</ref>, our reranker successfully assigns the sole accurate and fluent candidate (#3) generated by the generator a higher score than the other candidates. Furthermore, this method is very flexible: it can be applied to any dataset that pairs LFs with natural language, regardless of the formalism employed, and can be trained to align with any numeric metric.</p><p>While implementing our method, it became evident that a reliable reference ranking metric was necessary during both the training and evaluation phases of the reranker. However, determining the most suitable text quality evaluation measure for our specific task remained unclear. To address this, we manually curate an evaluation set, enabling us to thoroughly assess the alignment between various evaluation metrics and human judgement. By measuring the extent to which evaluation metrics accurately reflect human judgement, we are able to identify the most effective metrics for ranking the quality of generated texts and improve our generate- # logical form answer ( density_1 ( m0 ) ) generator reranker Figure <ref type="figure">1</ref>: A high-level view of our approach. First, a generator model is given a set of exemplars and the LF of interest, from which it generates a set of candidates. The reranker is given this output, along with the LF, to produce a ranking of the candidates. and-rerank approach.</p><p>Our contributions are:</p><p>• We introduce a novel generate-and-rerank approach for generating natural language text from LFs using LLMs. This approach leverages the strengths of LLMs in initial text generation, followed by a reranking process to select the most fluent and semantically faithful candidates. The experiments show that our reranker significantly outperforms other candidate selection baselines across three datasets in terms of three evaluation metrics.</p><p>• We conduct an in-depth analysis of various pre-trained metrics by utilizing a carefully curated dataset. This analysis allows us to identify and select the metrics that effectively produce rankings of natural language candidates, prioritizing fluency and semantic fidelity.</p><p>• Through extensive experimentation, we provide valuable insights and recommend strategies for developing the optimal training data for a reranker, considering limitations on the generation budget. These strategies aim to maximize the performance and effectiveness of the reranking process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>NLG. There is a large body of work concerning NLG from logical forms and/or structured data <ref type="bibr" target="#b14">(Gardent et al., 2017;</ref><ref type="bibr">Chen et al., 2020a;</ref><ref type="bibr" target="#b32">Parikh et al., 2020;</ref><ref type="bibr" target="#b15">Gehrmann et al., 2021;</ref><ref type="bibr" target="#b40">Shiri et al., 2022)</ref>. <ref type="bibr">Chen et al. (2020a)</ref> argues that NLG is best formulated as the task of generating text from LFs, as opposed to generating directly from structured data. This is the task of interest in our work, similar to others' work in SparQL-to-text <ref type="bibr" target="#b29">(Ngomo et al., 2013)</ref>, SQL-to-text <ref type="bibr" target="#b49">(Xu et al., 2018;</ref><ref type="bibr" target="#b27">Ma et al., 2021)</ref>, and AMR-to-text <ref type="bibr" target="#b41">(Song et al., 2018;</ref><ref type="bibr" target="#b56">Zhu et al., 2019;</ref><ref type="bibr">Ribeiro et al., 2021a</ref><ref type="bibr" target="#b34">Ribeiro et al., , 2019))</ref>.</p><p>Recent work considers the use of LLMs for fewshot NLG <ref type="bibr">(Chen et al., 2020b;</ref><ref type="bibr" target="#b17">Heidari et al., 2021)</ref> and semantic parsing <ref type="bibr" target="#b10">(Drozdov et al., 2022;</ref><ref type="bibr" target="#b38">Shin et al., 2021;</ref><ref type="bibr" target="#b39">Shin and Van Durme, 2022;</ref><ref type="bibr" target="#b57">Zhuo et al., 2023)</ref> via in-context learning. Few-shot approaches to these tasks generally involve constructing a prompt containing a handful of training examples and sampling responses from an LLM without any training or fine-tuning beyond the LLM's pre-training. This method produces state-of-the-art results despite in some cases using only a fraction of the data required by other methods. Following these works, and specifically, the suggestion in <ref type="bibr" target="#b39">Shin and Van Durme (2022)</ref> that LLMs trained on code are suited to the task of semantic parsing because LFs are similar to code, we use Codex <ref type="bibr" target="#b5">(Chen et al., 2021)</ref> as our generation model.</p><p>Re-ranking. This work is influenced by discriminative reranking approaches in machine translation <ref type="bibr" target="#b23">(Lee et al., 2021;</ref><ref type="bibr" target="#b3">Bhattacharyya et al., 2021)</ref>, semantic parsing <ref type="bibr" target="#b2">(Arcadinho et al., 2022)</ref>, abstractive summarization <ref type="bibr" target="#b26">(Liu and Liu, 2021</ref>), text generation <ref type="bibr" target="#b22">(Langkilde-Geary, 2002;</ref><ref type="bibr" target="#b9">Deng et al., 2020;</ref><ref type="bibr" target="#b25">Li et al., 2022)</ref>, data-to-text <ref type="bibr" target="#b16">(Harkous et al., 2020)</ref>, textual style transfer <ref type="bibr" target="#b42">(Suzgun et al., 2022)</ref>, and mathematical reasoning <ref type="bibr" target="#b8">(Cobbe et al., 2021)</ref>. <ref type="bibr" target="#b23">Lee et al. (2021)</ref> introduces a discriminative reranking approach (DrNMT) for neural machine translation, utilizing a pre-trained language model to predict the BLEU score of a candidate translation given the source sentence. Unlike our approach, which employs a margin ranking loss function, they train DrNMT by minimizing the Kullback-Leibler divergence <ref type="bibr" target="#b21">(Kullback and Leibler, 1951)</ref> of the candidate and target scores. Meanwhile, <ref type="bibr" target="#b2">Arcadinho et al. (2022)</ref> employ a similar reranking approach in semantic parsing. Their T5QL model incorporates a ranking model (fine-tuned CodeBERT) to predict the correctness of a generated candidate parse from a given natural language question. In contrast, our model uses a similar architecture but works in reverse, generating text from LFs. <ref type="bibr" target="#b26">Liu and Liu (2021)</ref> present a contrastive learning method, SimCLS, for ranking abstractive summarization candidates. The authors finetune a RoBERTa encoder to measure the alignment of a summary with the text it originates from: the embedding of a higher quality summary will be more similar to the embedding of the original text than the embedding of a lower quality summary. Similar to our work, they train their model by minimizing a ranking loss function.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Reranking Approach</head><p>In this section, we present details of our methods, including our choice of generator model, reranker architecture, and evaluation metric.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Problem Formulation</head><p>Given a pool of LFs paired with their natural language utterances, our task is to generate a natural language utterance y corresponding to an LF x. In this work, we first generate a set of n-best candidates Ŷx := {ŷ 1 , ŷ2 , ..., ŷn }, and then rerank them using a reranker based on a quality score. We assume that with access to one ground truth utterance y corresponding to the input LF x, we would be able to calculate the quality score for each candidate using a function Q(ŷ i |x, y). In our setting, Q is an automatic metric to score the quality of a generated candidate text against the ground-truth text, such as BLEU <ref type="bibr" target="#b31">(Papineni et al., 2002)</ref>. These quality scores would determine the relative ranking of the n-best candidates, and would allow us to choose the optimal text output.</p><p>Our goal is to train a reranker model to predict the relative order of the values assigned by Q given only x; that is, without access to the gold reference y. This is achieved by training the parameters θ of the scoring function R θ (ŷ i |x).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Generator</head><p>We prompt Codex <ref type="bibr" target="#b5">(Chen et al., 2021)</ref> in a few-shot setting to generate natural language candidates for a given LF. Each prompt includes a number of exemplars<ref type="foot" target="#foot_0">1</ref> randomly drawn from the training set, presented as simple input/output pairs. An example prompt is given in Appendix C.1.</p><p>To create training data for the reranker model, we generate natural language candidates for LFs in the training set by repeatedly prompting Codex<ref type="foot" target="#foot_1">2</ref> until there are n unique candidates per logical form. At inference time, we construct prompts for each LF in the test set in much the same manner. The score G(ŷ|x) denotes the log-probability of ŷ given the input x by Codex.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Reranker</head><p>Our reranker model is composed of CodeBERT <ref type="bibr" target="#b11">(Feng et al., 2020)</ref> as the base model and a feedforward regression head over the [CLS] token.</p><p>For each forward pass, the input to the reranker consists of a LF concatenated with a natural language candidate, separated with an EOS token. The output is a single real-valued number that represents the relative quality of the candidate.</p><p>We finetune the model using the Huggingface library<ref type="foot" target="#foot_2">3</ref> .</p><p>We also use the publicly available checkpoint for CodeBERT (microsoft/codebert-base)<ref type="foot" target="#foot_3">4</ref> , which has approximately 110M parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Loss Function</head><p>The training objective for our reranker is to minimize a weighted margin ranking loss across pairs of natural language candidates. For each set of candidates corresponding to one LF, the loss is,</p><formula xml:id="formula_0">L(θ) = n i,j;i̸ =j max[0, -z i,j (ẑ i,j + γ)] n(n -1)</formula><p>where n is the number of candidates, and γ represents a margin. The value of z i,j := Q(ŷ i |x, y) -Q(ŷ j |x, y) is the difference between the gold quality scores of candidates i and j. Its magnitude reflects the relative importance of obtaining the correct ranking for the pair. The score ẑi,j := R θ (ŷ i |x) -R θ (ŷ j |x) represents the predicted difference between candidates i and j.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Scoring of the Candidates</head><p>At test time, we use either the re-ranker score or its combination with the generator probability score to select the winning candidate in the n-best list. The combined score is</p><formula xml:id="formula_1">λR θ (ŷ i |x) + (1 -λ)G(ŷ i |x) (1)<label>1070</label></formula><p>where λ is a hyperparameter that is tuned on the development set. In practice, we found that the value of λ did not generalize well across datasets or even across seeds; a separate λ value was thus tuned for each model run.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Evaluation of Text Generation Metrics for Reranking</head><p>Automatic evaluation of (generated) text quality is not an easy task, and poses challenges for building the reference rankings for candidate sets in the training set and fairly evaluating the generation ability of generators. Therefore, we curate an evaluation set to evaluate the effectiveness of several text generation metrics.</p><p>Generation Metrics. We consider the following pre-existing metrics<ref type="foot" target="#foot_4">5</ref> :</p><p>• BLEU<ref type="foot" target="#foot_5">6</ref>  <ref type="bibr" target="#b31">(Papineni et al., 2002)</ref>, which explicitly measures the lexical overlap between reference and hypothesis.</p><p>• BERTScore <ref type="bibr" target="#b55">(Zhang et al., 2019)</ref> and BLEURT <ref type="bibr" target="#b37">(Sellam et al., 2020;</ref><ref type="bibr" target="#b33">Pu et al., 2021)</ref>, which frame evaluation as a regression task.</p><p>• PRISM <ref type="bibr" target="#b43">(Thompson and Post, 2020)</ref> and BARTScore <ref type="bibr" target="#b53">(Yuan et al., 2021)</ref>, which frame evaluation as a generation task.</p><p>We also use probability scores from a semantic parser as an additional metric. For each dataset, we train a semantic parser by finetuning CodeT5 <ref type="bibr">(Wang et al., 2021c)</ref> to generate LFs from natural language utterances. Then, we use the trained parser to calculate the probability that a generated candidate is parsed to the original LF. This score measures the faithfulness of the candidate to the original semantics of the LF. Unlike other metrics above, the parser probability is calculated based on the generated candidate and the LF, as opposed to the generated candidate and the reference text.</p><p>In addition to evaluating individual metrics, we also evaluate their combinations. When combining metrics, we first normalize the scores for each metric so that the mean score is 0 and the standard deviation is 1, and then we sum the normalized scores across possible metrics. We normalize the scores in order to ensure that each metric is given the same weight in relation to the others.</p><p>Curation of Evaluation Data. To determine the alignment of each metric with human preferences, we constructed a small, manually-crafted evaluation set. We randomly selected 200 LFs from the train split of CFQ-MCD1 <ref type="bibr" target="#b19">(Keysers et al., 2019)</ref>, each with eight generated candidates. Each candidate is labelled either 'correct' or 'incorrect'; rather than producing a strict ranking in this evaluation set, we instead opted for binary classes to allow for the fact that multiple candidates can be equally acceptable.</p><p>We developed a set of criteria to account for both semantic accuracy and fluency, presented below: (i) If a candidate omits a piece of information that appears in the reference, it is incorrect.</p><p>(ii) If a candidate inserts or substitutes a piece of information that does not appear in the reference, it is incorrect.</p><p>(iii) If a candidate is markedly less fluent (e.g. contains unnatural constructions) compared to other candidates in the set, it is incorrect.</p><p>(iv) If a candidate contains terms that appear in the LF (e.g. ?x0) but should not appear in the utterance, it is incorrect.</p><p>(v) Otherwise, the candidate is correct.</p><p>Using these criteria, a human annotator assigned binary labels to the candidates in the evaluation set.</p><p>Evaluation Measures. To assess the alignment between the chosen metrics and human judgements, we calculated (i) top-1 accuracy, or the probability that the highest-scoring candidate in a set belongs to the 'correct' class; and (ii) ranking accuracy, or the probability that any 'correct' candidate is ranked above any 'incorrect' candidate. In the calculation of these values, the sets of candidates in the evaluation set that are comprised of only one class (i.e., either all are incorrect or all are correct) are excluded.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Results</head><p>. Table <ref type="table">1</ref> provides the results of our evaluation for each metric, as well as for the combination of all metrics and the best-performing combination (BLEURT + PRISM + Parser).</p><p>Our findings support the conclusion by <ref type="bibr">Freitag et al. (2022)</ref> that trained metrics outperform BLEU, and the suggestion by <ref type="bibr" target="#b1">Amrhein et al. (2022)</ref> and <ref type="bibr" target="#b28">Moghe et al. (2022)</ref> that a combination of different families of metrics is likely to be stronger than any one metric alone. Each of the three metrics in our best-performing combination work in very different ways: BLEURT is an encoder-only model that is trained to predict direct assessment scores assigned to machine translation outputs by human evaluators <ref type="bibr" target="#b33">(Pu et al., 2021)</ref>, PRISM is an encoder-decoder model trained for NMT and deployed as a zero-shot paraphraser <ref type="bibr" target="#b43">(Thompson and Post, 2020)</ref>, while our parser is an encoder-decoder model trained to convert text into LFs. We suspect that the differences between these models contribute to their strength in combination. Furthermore, we speculate that parser probability scores reflect the semantic consistency between a candidate and the reference LF, while BLEURT and PRISM scores more strongly reflect a candidate's surface-level similarity to the reference text and its overall fluency. Following these results, we use the combination of scores assigned by BLEURT, PRISM, and the task-specific semantic parser to determine reference rankings for training the reranker.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Datasets</head><p>We conducted experiments using three datasets:</p><p>• GeoQuery: This dataset consists of 880 English questions focusing on the geography of the United States <ref type="bibr" target="#b54">(Zelle and Mooney, 1996)</ref>.</p><p>We report results for both the standard split and the query split <ref type="bibr" target="#b12">(Finegan-Dollak et al., 2018)</ref>. The train and test sets in the query split contain distinct sets of LFs.</p><p>• Jobs: The Jobs dataset comprises 640 English queries that correspond to LFs in a jobs database <ref type="bibr" target="#b4">(Califf and Mooney, 1999)</ref>. We present results based on the standard split of this database.</p><p>• CFQ: CFQ contains approximately 239,000 synthetic English questions paired with SPARQL queries <ref type="bibr" target="#b19">(Keysers et al., 2019)</ref>, with three different data splits designed to maximize compound divergence between training and test sets. Our study focuses on the MCD1 split, which consists of 96,000 training pairs and 12,000 test pairs.</p><p>For each dataset, we generate natural language candidates for LFs in the training set as described in section 3.2, with n = 8 natural language candidates per logical form. The candidate generation process requires repeated calls to Codex, which is a significant bottleneck. Consequently, only 30k training pairs (240k total candidates) are used for experiments on CFQ-MCD1. Following <ref type="bibr" target="#b10">Drozdov et al. (2022)</ref>, we map Freebase identifiers to simpler keywords. See Appendix D for the full mapping.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Baselines</head><p>We compare the performance of our model against three different baselines and one ORACLE method.</p><p>• Random selection: A candidate is selected randomly from the set of unique candidates generated for each LF. This method serves as a lower bound.</p><p>• Self-consistency: The most frequently appearing candidate is selected. Ties are broken randomly. This method is proposed in <ref type="bibr" target="#b46">Wang et al. (2022)</ref> for use with chain-of-thought style prompting and is extended for use with simpler prompting styles in <ref type="bibr" target="#b10">Drozdov et al. (2022)</ref>.</p><p>• Highest generator probability: For each candidate, the token log probabilities given by the generator are averaged. The selected candidate is the one with the highest score.</p><p>• Oracle: Scores for each of the three metrics (BLEURT, PRISM, and parser probability) are normalized and summed for each candidate. The candidate with the highest combined score is selected. The performance of this method serves as an upper bound.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Training Details</head><p>At the beginning of training, the base model of the reranker is frozen, and loss is only backpropagated through the regression head. After 10 epochs, the final layer of the base model is unfrozen, and loss is backpropagated through both the regression head and this final layer of CodeBERT for the remainder of the training. The optimization details are given in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Main Results</head><p>Our experiment results can be seen in Table <ref type="table" target="#tab_1">2</ref>, depicting the performance of our reranker model. Training of the reranker is performed five times with different seeds, and we report the mean score. Importantly, the reranker significantly outperforms the generator baseline regarding parser probability. Specifically, there is an impressive absolute difference of up to 12.9 percentage points (for CFQ-MCD1). The reranker also shows modest gains over the generator baseline in PRISM and BLEURT scores. These metrics suggest that the reranker's selected candidates have both greater semantic consistency and slightly enhanced fluency than those chosen without reranking.</p><p>It is worth noting that the performance gap between the reranker and the highest probability baseline is most prominent in the GeoQuery standard split. In contrast, the other three datasets were deliberately designed to assess models' compositional generalization capabilities. For instance, both the query splits of GeoQuery and the Jobs datasets have no LF overlap among their train and test sets, and CFQ-MCD1 was split to maximize the compound divergence between the two sets. The smaller performance gap between the generator and the reranker on these three datasets suggests that the generator model, Codex, has stronger compositional generalization abilities than the finetuned reranker.</p><p>Additionally, we observed that the selfconsistency method performs poorly compared to other baselines, such as candidate selection based on generator probability. This finding indicates that self-consistency is not a helpful selection method for this particular task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Influence of the Size of the n-Best List</head><p>In this experiment, we examine the effect of different sizes of candidate lists seen during train and test time. We use a subset of the CFQ-MCD1 dataset in these experiments due to time constraints; specifically, we randomly select 3,000 data pairs from the train split (further divided into 2,700 train pairs and 300 dev pairs) and report our results on 1,200 randomly selected data pairs from the test split. The results of this experiment are shown in Figure <ref type="figure" target="#fig_1">2</ref>.</p><p>While scores for all metrics improve as the traintime n-best list grows, the most significant gains are observed in parser probability. This suggests that increasing the number of candidates per LF that the reranker sees at training time is an effective way to increase the semantic consistency of candidates chosen by the reranker. The performance on BLEURT and PRISM increases more slowly as the number of candidates seen at train time increases, with the largest increase happening in the jump from 16 candidates to 32, suggesting that it may be necessary to generate many more candidates per LF in order to substantially improve the fluency of selected candidates. Additionally, increasing the number of candidates seen at test time appears to have a negligible effect on the semantic consistency of candidates selected, but a notable effect on the BLEURT and PRISM scores. Scores for these metrics increase steadily for the first three sizes of candidate lists at test time, regardless of the number of candidates seen at train time. However, performance on these metrics drops when the test size increases to 32 candidates for rerankers trained with a candidate list size of 16 and below. We hypothesize that these observations are due to changes in the quality and diversity of the test candidates. As the number of candidates per LF increases, it is more likely that any given candidate set will contain high-quality candidates. Increasing the candidate set size also increases the diversity of candidate sets. Improvements in test candidate set quality appear to be helpful for sizes up to n = 16, but models trained on smaller candidate sets may not be able to generalize well to candidate set sizes of n = 32 due to the larger degree of diversity. However, the reranker trained with 32 candidates per LF is able to take advantage of further quality improvements in the largest test candidate list size due to its exposure to diverse candidate sets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Fixed Generation Budget</head><p>As generating large-sized n-best lists from Codex is time-consuming, we consider a scenario in which the time budget for training data generation is fixed. When given limited time to generate training data, is it better to prioritize coverage of as many LFs as possible by considering small n-best lists, or is it better to ensure that there is a large number of candidates for each LF in the training set?</p><p>We generate natural language candidates for LFs in the training set of CFQ-MCD1 over one 24-hour period. We use Codex to generate 4, 8, 16, or 32 candidates per LF for 24 hours. We also generate a dataset containing a variable number of candidates per LF. To do this, we prompt Codex for 10 candidates per LF, then discard duplicates. Any LFs with candidate sets of length 1 are also discarded. This results in a dataset that pairs LFs with sets of candidates with a minimum length of 2 and a maximum length of 10. The average number of candidates per LF in this dataset is 7.6 in our trial; see Table <ref type="table" target="#tab_3">3</ref>.</p><p>A reranker is then trained for each dataset using the method described in Section 3.3.<ref type="foot" target="#foot_6">7</ref> Each reranker is evaluated on the full test split of CFQ-MCD1, with eight candidates per LF.</p><p>The results are shown in Table <ref type="table" target="#tab_4">4</ref>. The reranker trained on the dataset with a variable number of candidates per LF has the best performance as measured by BLEURT and PRISM, and the second best performance as measured by parser probability. Its strong performance is likely due to the fact that it is trained on the largest dataset (at 93k total candidates) that also covers the largest number of LFs (12k). This suggests that the best way to use a limited budget for generating reranker training data is to maximize the total quantity of generated candidates; ensuring a large (or even consistent) number of candidates per LF is less important. Using a variable candidate set size is also more efficient in a pay-per-token setting, as fewer duplicated candidates will be discarded than there would be with a fixed candidate set size.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.7">Using Instruction-Following LLMs</head><p>We perform the next experiment in order to determine the effectiveness of a general-purpose language model in the role of generator in place of a language model optimized for code, or in the role of reranker in place of a discriminative model.  ChatGPT. Then, we rerank the candidates either using a finetuned reranker (as in previous experiments), or by prompting ChatGPT. We replicate our experiments on the GeoQuery dataset using GPT-3.5-turbo (ChatGPT<ref type="foot" target="#foot_7">8</ref> ) <ref type="bibr" target="#b30">(Ouyang et al., 2022)</ref>. The details of generation from ChatGPT are given in Appendix B.</p><p>The results<ref type="foot" target="#foot_8">9</ref> are presented in Table <ref type="table" target="#tab_5">5</ref>. The bestperforming combination by a wide margin is Codex as the generator, and fine-tuned CodeBERT as the reranker. Using ChatGPT does not appear to add benefits for either the candidate generation step or the reranking step. We performed manual error analysis to determine why the performance gap was so wide, the results of which are presented below.</p><p>Problems with Generation. The style of candidates generated by Codex tended to more closely match the style of the gold natural language utterances than did the candidates generated by Chat-GPT. Namely, candidates generated by ChatGPT tended to use sentence casing and end punctuation, while Codex candidates tended to be all lowercase  with no punctuation, as are the GeoQuery questions. Additionally, the ChatGPT candidates used more varied language than the Codex candidates did. While these surface-level differences may not reflect a difference in candidate quality, it is possible that they are penalized by automatic metrics such as the ones we use here. A more concerning finding is that the candidates generated by Chat-GPT tended to include more frequent and more severe hallucinations than those generated by Codex; see Table <ref type="table" target="#tab_6">6</ref> for examples. We speculate that these differences in generated candidates are due to the fact that Codex is directly optimized for tasks that involve code, which makes it a better fit for the task of generating text from structured meaning representations. While Chat-GPT's training does include tasks involving code, many of its training tasks do not concern code.</p><p>Problems with Reranking. When using Chat-GPT as a reranker, we found that it returned a natu-ral language sequence that was not one of the given candidates approximately 14% of the time. Most commonly, these hallucinated candidates were in the form of single noun phrases that were similar to segments of one or more of the given candidates.</p><p>The reason for this is likely a task mismatch. Decoder-only models such as ChatGPT are intended to generate sequences of text, which does not align well with the task of reranking.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We have introduced a novel generate-and-rerank approach for generating high-quality natural language utterances from LFs using LLMs. Our approach is flexible and can be easily applied to diverse datasets and tasks. In addition, we have performed an analysis of the current popular evaluation metrics for NLG and selected the best metrics for the training and evaluation of our reranker. Our extensive experiments show that our reranker, which uses a loss function that compares individual candidates against one another, improves the quality of generated natural language in both fluency and semantic faithfulness in terms of the selected metrics on different evaluation datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>The results presented in Section 5.4 demonstrate that our reranker improves the quality of natural language text generated from LFs. However, the applicability of our method is somewhat limited by the choice of Codex as the generator model.</p><p>Firstly, Codex requires a lot of computation resources due to its size of 175 billion parameters <ref type="bibr" target="#b5">(Chen et al., 2021)</ref>, and a lot of time to generate candidates. A smaller model would be able to generate candidates much more efficiently, although those candidates would likely be lower quality. Further experimentation is required to determine whether the reranker's performance can make up for a weaker generator.</p><p>Secondly, it seems likely that the majority of the natural language data that appears in Codex's pretraining is in English, so our approach probably does not transfer well to other languages without modification. It may be beneficial to further explore this problem using a generator model with multilingual pre-training.</p><p>Another issue is that the reranker we introduce in this work, as we have formulated, may suffer from a lack of composition generalization abilities, as we note in Section 5.4. The performance of a reranker in this setting may benefit from techniques used to improve compositional generalization in semantic parsers, such as the application of synthetic data <ref type="bibr" target="#b48">(Wang et al., 2015;</ref><ref type="bibr" target="#b18">Herzig and Berant, 2019;</ref><ref type="bibr" target="#b51">Yu et al., 2021;</ref><ref type="bibr">Wang et al., 2021b;</ref><ref type="bibr" target="#b0">Akyurek and Andreas, 2023;</ref><ref type="bibr">Li et al., 2023, inter alia)</ref> or the use of supervised attention <ref type="bibr" target="#b50">(Yin et al., 2021)</ref>.</p><p>This approach could further be improved with the use of more reliable automated metrics. Our evaluation in Section 4 found that the best performing combination of metrics had a top-1 accuracy of 81.4% and a ranking accuracy of 84.22%, which indicates that a fair number of the ranking decisions made by this combined metric were incorrect. However, due to time constraints, this study includes only one human annotator for our metric evaluation set, which hampers the reliability of our analysis of automatic metrics. Further exploration is needed to assess the alignment between different (combinations of) automatic metrics and human judgement of semantic consistency and fluency in this task. Additionally, there is much ongoing research in the creation and evaluation of automated metrics, and advances in this work would likely to translate to stronger performance of the method we have presented here.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Reranker Training Details</head><p>The reranker model is trained for a maximum of 100 epochs with early stopping if the loss on the development set does not decrease after 10 epochs. Each batch comprises all of the candidates corresponding to a single logical form, so the batch size is equal to the size of the candidate list. We utilized Adam <ref type="bibr" target="#b20">(Kingma and Ba, 2014)</ref> to optimize the model, with a learning rate of 1 × 10 -4 . The best model is determined as the one that produces the smallest loss on a held-out development set.</p><p>Hyperparameter tuning was conducted to determine the learning rate and the optimal epoch count for unfreezing the base model's final layer. The learning rates explored during this process were [1×10 -5 , 5×10 -5 , 1×10 -4 , 5×10 -4 , 1×10 -3 ], while the numbers of epochs before unfreezing considered were <ref type="bibr">[1,</ref><ref type="bibr">5,</ref><ref type="bibr">10,</ref><ref type="bibr">20]</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Generation from ChatGPT</head><p>To account for the fact that ChatGPT is optimized for chat functionality while Codex is not, we modify our generation prompt slightly. We use the same number of in-context examples (15) for both generators, but for ChatGPT we incorporate more natural language instruction to contextualize the examples and specifically prompt the model to generate eight unique candidates. The full prompt can be found in Appendix C.2. To complete the task of reranking using in-context learning, we use a prompt that provides exemplars from the training set in order to condition the model on correct pairings of LFs and natural language. We present the prompt used for the reranking task in Appendix C.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Sample Prompts</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Codex generation prompt</head><p>Below is an example that illustrates the format of our prompts to Codex.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head># geo_query Dataset:</head><p>Query: answer ( longest ( intersection ( river , traverse_2 ( intersection ( state , next_to_2 ( m0 ) ) ) ) ) )</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>is the density of m0 3. what density does m0 have 4. how many people are in m0</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: BLEURT, parser probability, and PRISM scores across different sizes of candidate lists seen at training and test time.</figDesc><graphic coords="7,70.87,70.86,223.10,298.20" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>. The model's training was conducted on a single NVIDIA Tesla V100 GPU. The duration of training varied significantly depending on the size of the training dataset, ranging from a minimum of approximately 20 minutes to a maximum of around 35 hours.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>BLEURT, parser, and PRISM scores for re-ranker and baselines. The oracle method selects the candidate with the highest combined BLEURT, PRISM, and parser score; the random method selects a candidate at random; the self-consistency method selects the most frequently generated candidate; the generator method selects the candidate with the highest probability from the generator (conditioned on the prompt); the reranker method selects the candidate with the highest score from the trained reranker; and the combined method selects candidates based on a linear combination of generator and reranker scores. Parser and PRISM scores are probabilities represented as percentages. Bold values represent the highest (non-oracle) score in the column, and underlined scores represent a statistically significant improvement from generator scores (p &lt; 0.01).</figDesc><table><row><cell>Method</cell><cell cols="12">Jobs bleurt parser prism bleurt parser prism bleurt parser prism bleurt parser prism GeoQuery (standard) GeoQuery (query) CFQ-MCD1</cell></row><row><cell>Oracle</cell><cell>70.7</cell><cell>95.0</cell><cell>6.9</cell><cell>86.0</cell><cell>93.6</cell><cell>40.3</cell><cell>86.1</cell><cell>89.3</cell><cell>40.3</cell><cell>71.5</cell><cell>64.3</cell><cell>22.2</cell></row><row><cell>Random</cell><cell>59.4</cell><cell>84.7</cell><cell>3.0</cell><cell>74.2</cell><cell>77.6</cell><cell>23.1</cell><cell>74.4</cell><cell>85.2</cell><cell>22.7</cell><cell>61.1</cell><cell>44.7</cell><cell>13.0</cell></row><row><cell>Self-cons.</cell><cell>60.7</cell><cell>89.1</cell><cell>3.4</cell><cell>77.5</cell><cell>79.7</cell><cell>26.5</cell><cell>78.3</cell><cell>85.2</cell><cell>27.2</cell><cell>62.7</cell><cell>47.1</cell><cell>14.3</cell></row><row><cell>Generator</cell><cell>61.3</cell><cell>93.0</cell><cell>3.7</cell><cell>77.8</cell><cell>81.8</cell><cell>28.1</cell><cell>79.0</cell><cell>85.7</cell><cell>29.0</cell><cell>64.6</cell><cell>49.0</cell><cell>15.8</cell></row><row><cell>Reranker</cell><cell>62.7</cell><cell>93.5</cell><cell>4.4</cell><cell>81.0</cell><cell>90.9</cell><cell>32.5</cell><cell>79.9</cell><cell>89.8</cell><cell>28.9</cell><cell>66.3</cell><cell>61.9</cell><cell>17.2</cell></row><row><cell>Combined</cell><cell>62.7</cell><cell>93.7</cell><cell>4.3</cell><cell>81.2</cell><cell>91.1</cell><cell>32.9</cell><cell>80.0</cell><cell>89.7</cell><cell>29.1</cell><cell>66.5</cell><cell>61.9</cell><cell>17.4</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Resulting dataset sizes after generating a specified number of natural language candidates per LF.</figDesc><table><row><cell>Set size</cell><cell>bleurt</cell><cell>parser (%)</cell><cell>prism (%)</cell></row><row><cell>4</cell><cell>66.1 ± 0.4</cell><cell>57.5 ± 1.1</cell><cell>17.0 ± 0.4</cell></row><row><cell>8</cell><cell>65.8 ± 0.2</cell><cell>60.4 ± 0.9</cell><cell>16.8 ± 0.1</cell></row><row><cell>16</cell><cell cols="3">65.7 ± 0.2 60.8 ± 1.1 16.8 ± 0.2</cell></row><row><cell>32</cell><cell>66.0 ± 0.3</cell><cell>59.7 ± 0.3</cell><cell>16.9 ± 0.2</cell></row><row><cell>Variable</cell><cell cols="3">66.2 ± 0.2 60.4 ± 0.6 17.1 ± 0.1</cell></row><row><cell>Oracle</cell><cell>71.5</cell><cell>64.3</cell><cell>22.2</cell></row><row><cell>Generator</cell><cell>64.6</cell><cell>49.0</cell><cell>15.8</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Scores for different candidate generation configurations, given 24 hours of generation time with Codex. Set size refers to the number of candidates per LF in the training set. The oracle method selects the candidate with the highest sum of normalized BLEURT, parser, and PRISM scores. The generator method selects the candidate with the highest probability assigned by Codex.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Scores for different combinations of models used as generators and rerankers. GPT-3.5 here refers to OpenAI's ChatGPT.</figDesc><table><row><cell cols="2">Generator Reranker</cell><cell cols="3">bleurt parser prism</cell></row><row><cell>Codex</cell><cell>CodeBERT</cell><cell>79.9</cell><cell>89.8</cell><cell>28.9</cell></row><row><cell>Codex</cell><cell>GPT-3.5</cell><cell>76.9</cell><cell>86.9</cell><cell>25.3</cell></row><row><cell>GPT-3.5</cell><cell>CodeBERT</cell><cell>71.0</cell><cell>71.9</cell><cell>8.2</cell></row><row><cell>GPT-3.5</cell><cell>GPT-3.5</cell><cell>71.9</cell><cell>75.6</cell><cell>8.5</cell></row><row><cell></cell><cell cols="2">Codex Candidates</cell><cell></cell><cell></cell></row><row><cell cols="2">what states are in the usa</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">what are the names of the states</cell><cell></cell><cell></cell></row><row><cell cols="2">what state is this</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">what are all the states</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">what states are there</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">name all the states</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">what states exist</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">what are the states</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="2">ChatGPT Candidates</cell><cell></cell><cell></cell></row><row><cell cols="4">Which states are in the United States?</cell><cell></cell></row><row><cell cols="4">What are the names of all the states?</cell><cell></cell></row><row><cell cols="4">How many states are there in the country?</cell><cell></cell></row><row><cell cols="4">Which states are located in the Midwest?</cell><cell></cell></row><row><cell cols="4">What states make up New England?</cell><cell></cell></row><row><cell cols="5">What is the largest state in terms of land area?</cell></row><row><cell cols="3">Which states have coastline?</cell><cell></cell><cell></cell></row><row><cell cols="3">What is the capital of each state?</cell><cell></cell><cell></cell></row><row><cell cols="2">Logical Form:</cell><cell cols="2">answer ( state )</cell><cell></cell></row><row><cell cols="2">Gold Utterance:</cell><cell cols="2">list the states</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>A comparison of candidates generated by Codex and ChatGPT. While the candidates generated by Codex are faithful to the style of the gold question and are mostly semantically consistent with the given LF, the candidates generated by ChatGPT include substantial hallucinations.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>It is 15 in our experiments.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>We use the code-davinci-002 model of Codex, which has around 175B parameters, with a temperature of 0.7 in our experiments.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>huggingface.co</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>github.com/microsoft/CodeBERT</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>We do not finetune or otherwise modify these metrics.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>We use the NLTK implementation of BLEU; nltk.org</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>For the dataset with a variable number of candidates per LF, the loss for each candidate set is multiplied by a weight term, which is calculated as the size of the candidate set divided by the average candidate set size. This is done in order to normalize the magnitude of gradient updates across the training set.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_7"><p>platform.openai.com/docs/model-index-for-researchers</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_8"><p>The scores reported for the two configurations using Code-BERT as the reranker represent the mean score over five trials, while the trials using GPT-3.5 report the score from one trial.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We express our deepest gratitude to <rs type="person">David McGee</rs>, whose feedback has been critical in the development of this work. We are also grateful to the anonymous reviewers for their thoughtful comments.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 ChatGPT generation prompt</head><p>Below is an example that illustrates the format of our prompts to ChatGPT for generating natural language candidates. Most of the exemplars are elided here for brevity. This prompt uses the same number of exemplars as the prompt in Appendix C.1, using the slightly modified form shown below.</p><p>Here are some examples of query/question pairs from the GeoQuery data set.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Freebase Identifier Mapping</head></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">LexSym: Compositionality as lexical symmetry</title>
+		<author>
+			<persName><forename type="first">Ekin</forename><surname>Akyurek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.38</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="639" to="657" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Aces: Translation accuracy challenge sets for evaluating machine translation metrics</title>
+		<author>
+			<persName><forename type="first">Chantal</forename><surname>Amrhein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Moghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Guillou</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2210.15615</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">T5ql: Taming language models for sql generation</title>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Arcadinho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Oliveira Aparício</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Veiga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">António</forename><surname>Alegria</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2209.10254</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Energy-based reranking: Improving neural machine translation using energybased models</title>
+		<author>
+			<persName><forename type="first">Sumanta</forename><surname>Bhattacharyya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amirmohammad</forename><surname>Rooshenas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhajit</forename><surname>Naskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simeng</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.349</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4528" to="4537" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Relational learning of pattern-match rules for information extraction</title>
+		<author>
+			<persName><forename type="first">Mary</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elaine</forename><surname>Califf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Computational Natural Language Learning</title>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiming</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrique</forename><surname>Ponde</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harrison</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yura</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Brockman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raul</forename><surname>Puri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heidy</forename><surname>Khlaaf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brooke</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikhail</forename><surname>Pavlov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alethea</forename><surname>Power</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Tillet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felipe</forename><forename type="middle">Petroski</forename><surname>Such</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">W</forename><surname>Cummings</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fotios</forename><surname>Chantzis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><surname>William</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Guss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Nichol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Babuschkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">Arun</forename><surname>Balaji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shantanu</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Carr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Achiam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vedant</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evan</forename><surname>Morikawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">M</forename><surname>Knight</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miles</forename><surname>Brundage</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mira</forename><surname>Murati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katie</forename><surname>Mayer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Welinder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bob</forename><surname>Mcgrew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2107.03374</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<pubPlace>Elizabeth Barnes, Ariel Herbert-Voss</pubPlace>
+		</imprint>
+	</monogr>
+	<note>Evaluating large language models trained on code</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Logic2Text: High-fidelity natural language generation from logical forms</title>
+		<author>
+			<persName><forename type="first">Zhiyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanwen</forename><surname>Zha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiyou</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunkai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sairam</forename><surname>Sundaresan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.190</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2096" to="2111" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Few-shot NLG with pre-trained language model</title>
+		<author>
+			<persName><forename type="first">Zhiyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harini</forename><surname>Eavani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinyin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.18</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="183" to="190" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reiichiro</forename><surname>Nakano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>Training verifiers to solve math word problems</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Residual energybased models for text generation</title>
+		<author>
+			<persName><forename type="first">Yuntian</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anton</forename><surname>Bakhtin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Szlam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc'aurelio</forename><surname>Ranzato</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Compositional semantic parsing with large language models</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Drozdov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Scharli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ekin</forename><surname>Akyuurek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Scales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinying</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bousquet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2209.15003</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Code-BERT: A pre-trained model for programming and natural languages</title>
+		<author>
+			<persName><forename type="first">Zhangyin</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaocheng</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjun</forename><surname>Shou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daxin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.139</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1536" to="1547" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Improving textto-sql evaluation methodology</title>
+		<author>
+			<persName><forename type="first">Catherine</forename><surname>Finegan-Dollak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><forename type="middle">K</forename><surname>Kummerfeld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Ramanathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sesh</forename><surname>Sadasivam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dragomir</forename><surname>Radev</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="351" to="360" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Alon Lavie, and André Martins. 2022. Results of wmt22 metrics shared task: Stop using bleu -neural metrics are better and more robust</title>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Rei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitika</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Stewart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eleftherios</forename><surname>Avramidis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Kocmi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Foster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Conference on Machine Translation</title>
+		<meeting>the Seventh Conference on Machine Translation<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="46" to="68" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">The WebNLG challenge: Generating text from RDF data</title>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Perez-Beltrachini</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W17-3518</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Conference on Natural Language Generation</title>
+		<meeting>the 10th International Conference on Natural Language Generation<address><addrLine>Santiago de Compostela, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="124" to="133" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">The GEM benchmark: Natural language generation, its evaluation and metrics</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tosin</forename><surname>Adewumi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karmanya</forename><surname>Aggarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pawan</forename><surname>Sasanka Ammanamanchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anuoluwapo</forename><surname>Aremu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bosselut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raghavi</forename><surname>Khyathi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miruna-Adriana</forename><surname>Chandu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Clinciu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaustubh</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanyu</forename><surname>Dhole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esin</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ondřej</forename><surname>Durmus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dušek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varun</forename><surname>Chinenye Emezue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cristina</forename><surname>Gangal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><surname>Garbacea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufang</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangfeng</forename><surname>Jhamtani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shailza</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Jolly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dhruv</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Ladhak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mounica</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khyati</forename><surname>Maddela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saad</forename><surname>Mahajan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mahamood</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prasad</forename><surname>Bodhisattwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pedro</forename><forename type="middle">Henrique</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angelina</forename><surname>Martins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Mcmillan-Major</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moin</forename><surname>Emiel Van Miltenburg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Nadeem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vitaly</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andre</forename><surname>Nikolaev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salomey</forename><surname>Niyongabo Rubungo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Osei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niranjan</forename><surname>Perez-Beltrachini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramesh</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vikas</forename><surname>Raunak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Rodriguez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sashank</forename><surname>Santhanam</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.gem-1.10</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Workshop on Natural Language Generation</title>
+		<editor>
+			<persName><forename type="first">João</forename><surname>Sedoc</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Samira</forename><surname>Shaikh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Marco</forename><surname>Antonio Sobrevilla</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Hendrik</forename><surname>Cabezudo</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nishant</forename><surname>Strobelt</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Wei</forename><surname>Subramani</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Diyi</forename><surname>Xu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Akhila</forename><surname>Yang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jiawei</forename><surname>Yerukola</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Zhou</surname></persName>
+		</editor>
+		<meeting>the 1st Workshop on Natural Language Generation</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="96" to="120" />
+		</imprint>
+	</monogr>
+	<note>Evaluation, and Metrics (GEM 2021</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Have your text and use it too! end-to-end neural datato-text generation with semantic fidelity</title>
+		<author>
+			<persName><forename type="first">Hamza</forename><surname>Harkous</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabel</forename><surname>Groves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Saffari</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.218</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2410" to="2424" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Getting to production with few-shot natural language generation models</title>
+		<author>
+			<persName><forename type="first">Peyman</forename><surname>Heidari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arash</forename><surname>Einolghozati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soumya</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lee</forename><surname>Callender</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankit</forename><surname>Arun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shawn</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonal</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pinar</forename><surname>Donmez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vikas</forename><surname>Bhardwaj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anuj</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>White</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd Annual Meeting of the Special Interest Group on Discourse and Dialogue</title>
+		<meeting>the 22nd Annual Meeting of the Special Interest Group on Discourse and Dialogue</meeting>
+		<imprint>
+			<publisher>Singapore and Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="66" to="76" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Don&apos;t paraphrase, detect! rapid and effective data collection for semantic parsing</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Herzig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1394</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3810" to="3820" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Measuring compositional generalization: A comprehensive method on realistic data</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Keysers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Schärli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Scales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hylke</forename><surname>Buisman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Furrer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergii</forename><surname>Kashubin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Momchev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danila</forename><surname>Sinopalnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Stafiniak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tibor</forename><surname>Tihon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Tsarkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Van Zee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bousquet</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1912.09713</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<idno>CoRR, abs/1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">On information and sufficiency</title>
+		<author>
+			<persName><forename type="first">Solomon</forename><surname>Kullback</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><forename type="middle">A</forename><surname>Leibler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The annals of mathematical statistics</title>
+		<imprint>
+			<date type="published" when="1951">1951</date>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="page" from="79" to="86" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">An empirical verification of coverage and correctness for a general-purpose sentence generator</title>
+		<author>
+			<persName><forename type="first">Irene</forename><surname>Langkilde-Geary</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Natural Language Generation Conference</title>
+		<meeting>the International Natural Language Generation Conference<address><addrLine>Harriman, New York, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="17" to="24" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Discriminative reranking for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Ann</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc'aurelio</forename><surname>Ranzato</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.563</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="7250" to="7264" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Learning to substitute spans towards improving compositional generalization</title>
+		<author>
+			<persName><forename type="first">Zhaoyi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Defu</forename><surname>Lian</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.157</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2791" to="2811" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Variational autoencoder with disentanglement priors for low-resource task-specific natural language generation</title>
+		<author>
+			<persName><forename type="first">Zhuang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lizhen</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiongkai</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongtong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyang</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gholamreza</forename><surname>Haffari</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="10335" to="10356" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">SimCLS: A simple framework for contrastive learning of abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-short.135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="1065" to="1072" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Relation-aware graph transformer for sql-to-text generation</title>
+		<author>
+			<persName><forename type="first">Da</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruisheng</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Applied Sciences</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Extrinsic evaluation of machine translation metrics</title>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Moghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Sherborne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2212.10297</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Sorry, i don&apos;t speak sparql: translating sparql queries into natural language</title>
+		<author>
+			<persName><forename type="first">Axel-Cyrille Ngonga</forename><surname>Ngomo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lorenz</forename><surname>Bühmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Unger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jens</forename><surname>Lehmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gerber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd international conference on World Wide Web</title>
+		<meeting>the 22nd international conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><forename type="middle">L</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fraser</forename><surname>Kelton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><forename type="middle">E</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maddie</forename><surname>Simens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Welinder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Francis Christiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">J</forename><surname>Lowe</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2203.02155</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Philadelphia, Pennsylvania, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">ToTTo: A controlled table-to-text generation dataset</title>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhuwan</forename><surname>Dhingra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.89</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1173" to="1186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Learning compact metrics for MT</title>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Pu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyung</forename><forename type="middle">Won</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.58</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="751" to="762" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Enhancing amr-to-text generation with dual graph representations</title>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Leonardo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">2021a. Structural adapters in pretrained language models for AMR-to-Text generation</title>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Leonardo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.351</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="4269" to="4282" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Hinrich Schütze, and Iryna Gurevych. 2021b. Investigating pretrained language models for graph-to-text generation</title>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Leonardo Fr Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Schmitt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Natural Language Processing for Conversational AI</title>
+		<meeting>the 3rd Workshop on Natural Language Processing for Conversational AI</meeting>
+		<imprint>
+			<biblScope unit="page" from="211" to="227" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">BLEURT: Learning robust metrics for text generation</title>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.704</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7881" to="7892" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Constrained language models yield few-shot semantic parsers</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhro</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emmanouil</forename><surname>Antonios Platanios</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Pauls</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.608</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7699" to="7715" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Fewshot semantic parsing with language models trained on code</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.396</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5417" to="5425" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Paraphrasing techniques for maritime qa system</title>
+		<author>
+			<persName><forename type="first">Fatemeh</forename><surname>Shiri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Terry</forename><surname>Yue Zhuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shirui</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiqing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reza</forename><surname>Haffari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan-Fang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Van</forename><surname>Nguyen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2022 25th International Conference on Information Fusion (FUSION)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">A graph-to-sequence model for AMRto-text generation</title>
+		<author>
+			<persName><forename type="first">Linfeng</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1150</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1616" to="1626" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Prompt-and-rerank: A method for zeroshot and few-shot arbitrary textual style transfer with small language models</title>
+		<author>
+			<persName><forename type="first">Mirac</forename><surname>Suzgun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Melas-Kyriazi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2195" to="2222" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Automatic machine translation evaluation in many languages via zero-shot paraphrasing</title>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Thompson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.8</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="90" to="121" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Xi Victoria Lin, and Caiming Xiong. 2021a. Learning to synthesize data for semantic parsing</title>
+		<author>
+			<persName><forename type="first">Bailin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenpeng</forename><surname>Yin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<biblScope unit="page" from="2760" to="2766" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Learning to synthesize data for semantic parsing</title>
+		<author>
+			<persName><forename type="first">Bailin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenpeng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Victoria Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.220</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2760" to="2766" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Selfconsistency improves chain of thought reasoning in language models</title>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Huai Hsin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2203.11171</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">CodeT5: Identifier-aware unified pretrained encoder-decoder models for code understanding and generation</title>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weishi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shafiq</forename><surname>Joty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><forename type="middle">C H</forename><surname>Hoi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.685</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="8696" to="8708" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Building a semantic parser overnight</title>
+		<author>
+			<persName><forename type="first">Yushi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/P15-1129</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1332" to="1342" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">SQL-to-text generation with graph-to-sequence model</title>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingfei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1112</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="931" to="936" />
+		</imprint>
+	</monogr>
+	<note>Yansong Feng, and Vadim Sheinin</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Compositional generalization for neural semantic parsing via spanlevel supervised attention</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Pauls</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonios</forename><surname>Emmanouil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Platanios</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Andreas</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.225</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter</title>
+		<meeting>the 2021 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2810" to="2823" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">Grappa: Grammar-augmented pre-training for table semantic parsing</title>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chien-Sheng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Victoria Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bailin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Chern Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dragomir</forename><surname>Radev</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>Richard Socher, and Caiming Xiong</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<title level="m" type="main">Cosql: A conversational text-to-sql challenge towards cross-domain natural language interfaces to databases</title>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>Yang Er</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suyi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victoria</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianze</forename><surname>Chern Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.05378</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<title level="m" type="main">Bartscore: Evaluating generated text as text generation</title>
+		<author>
+			<persName><forename type="first">Weizhe</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2106.11520</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Learning to parse database queries using inductive logic programming</title>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">M</forename><surname>Zelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI/IAAI</title>
+		<imprint>
+			<date type="published" when="1996">1996</date>
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">Bertscore: Evaluating text generation with bert</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Kishore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1904.09675</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Modeling graph structure in transformer for better amr-to-text generation</title>
+		<author>
+			<persName><forename type="first">Jiehan</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junhui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhua</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Longhua</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guodong</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">On robustness of prompt-based semantic parsing with large pre-trained language model: An empirical study on codex</title>
+		<author>
+			<persName><forename type="first">Terry</forename><surname>Yue Zhuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujin</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fatemeh</forename><surname>Shiri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiqing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gholamreza</forename><surname>Haffari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan-Fang</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 17th Conference of the European Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="1090" to="1102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

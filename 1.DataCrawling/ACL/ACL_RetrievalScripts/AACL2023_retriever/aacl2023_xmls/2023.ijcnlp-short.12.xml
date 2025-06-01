@@ -1,0 +1,1221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Minimum Bayes&apos; Risk Decoding for System Combination of Grammatical Error Correction Systems</title>
+				<funder>
+					<orgName type="full">Cambridge University Press &amp; Assessment (CUP&amp;A)</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Vyas</forename><surname>Raina</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><surname>Gales</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution">ALTA Institute</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff2">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution">ALTA Institute</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff3">
+								<orgName type="institution">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Minimum Bayes&apos; Risk Decoding for System Combination of Grammatical Error Correction Systems</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">F4F3E6E96687D4BC4402404E4D6BBD5C</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:39+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>For sequence-to-sequence tasks it is challenging to combine individual system outputs. Further, there is also often a mismatch between the decoding criterion and the one used for assessment. Minimum Bayes' Risk (MBR) decoding can be used to combine system outputs in a manner that encourages better alignment with the final assessment criterion. This paper examines MBR decoding for Grammatical Error Correction (GEC) systems, where performance is usually evaluated in terms of edits and an associated F-score. Hence, we propose a novel MBR loss function directly linked to this form of criterion. Furthermore, an approach to expand the possible set of candidate sentences is described. This builds on a current max-voting combination scheme, as well as individual editlevel selection. Experiments on three popular GEC datasets and with state-of-the-art GEC systems demonstrate the efficacy of the proposed MBR approach. Additionally, the paper highlights how varying reward metrics within the MBR decoding framework can provide control over precision, recall, and the F-score in combined GEC systems. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Ensembling, the combination of system outputs, is a powerful technique in deep learning, exploiting diverse model capabilities for robust predictions. Though numerous methodologies exist for system combination <ref type="bibr" target="#b9">(Ganaie et al., 2021)</ref>, when there is only access to model outputs, many methods are inapplicable and thus the simplest method becomes the averaging of model outputs. However, for sequence-to-sequence (seq2seq) systems, such as summarization, machine translation, and grammatical error correction (GEC), output averaging is less straightforward. A further challenge with seq2seq tasks is the mismatch between the decoding and assessment criteria. <ref type="bibr" target="#b14">Kumar and Byrne (2004)</ref> proposed the utilization of Minimum Bayes' Risk (MBR) decoding as a means to select an output that minimizes the theoretical risk according to a designated reward metric. We propose a novel variant of MBR decoding for GEC to allow for system combination and give better alignment with the assessment criteria.</p><p>The nature of a GEC task permits the use of MBR decoding within the "edit"-space. Each output sequence can be represented as a set of "edits" required to transform the input sequence into the output. Consequently, the selection of a single output sequence for GEC can be achieved through MBR decoding with a reward function defined on the set of edits, aligned with the edit-based F-score typically used in GEC assessment criteria. Beyond selection, an additional technique known as maxvoting <ref type="bibr" target="#b34">(Tarnavskyi et al., 2022)</ref> can be employed to combine different sets of edits. We propose an enhancement to the performance achieved through max-voting by treating the output sequences obtained from the combination as additional candidates for MBR decoding. Further, with a greedy MBR decoding algorithm, we explore the edit space to identify other candidate edit sets. Through experiments on three popular GEC datasets and use of state of the art GEC systems (Grammarly's GECToR <ref type="bibr" target="#b24">(Omelianchuk et al., 2020</ref>)), we demonstrate that our MBR decoding approach in the edit space consistently leads to significant performance gains. Further, we also show that by selecting different reward metrics as part of the MBR decoding approach we can provide explicit control over precision, recall and the overall F-score used to assess GEC systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Grammatical Error Correction: Early GEC systems using hand-crafted rules <ref type="bibr" target="#b22">(Naber, 2003)</ref> were replaced by encoder-decoder architectures, using for example Recurrent Neural Networks <ref type="bibr" target="#b5">(Cho et al., 2014)</ref>. Today, many state of the art GEC systems use Transformer-based <ref type="bibr" target="#b35">(Vaswani et al., 2017)</ref> encoder-decoder architectures to perform the sequence-to-sequence GEC task <ref type="bibr" target="#b12">(Kaneko et al., 2020;</ref><ref type="bibr" target="#b4">Chen et al., 2020;</ref><ref type="bibr" target="#b13">Kiyono et al., 2019;</ref><ref type="bibr" target="#b15">Lichtarge et al., 2020;</ref><ref type="bibr" target="#b32">Stahlberg and Kumar, 2020)</ref>. However, LaserTagger <ref type="bibr" target="#b19">(Malmi et al., 2019)</ref>, the PIE model <ref type="bibr" target="#b0">(Awasthi et al., 2019</ref>) and Grammarly's GECToR <ref type="bibr" target="#b24">(Omelianchuk et al., 2020)</ref> are all able to achieve competitive performance using a sequence-to-edit structure for the overall sequence-to-sequence task, where a token can be tagged with edit operations. Once a set of tags have been defined, the edit operations can be applied to the input sequence to generate the grammatically correct output sequence. The GECToR system is particularly efficient at inference as it uses a Transformer encoder followed by softmax over linear layers for edit tag prediction, which is significantly faster than standard sequence-to-sequence GEC system decoders. Further, <ref type="bibr" target="#b37">Wu et al. (2023)</ref> demonstrated that GECToR performs better than the most recent generative large language models, e.g. <ref type="bibr">ChatGPT (Brown et al., 2020)</ref>, which tend to over-correct, compromising on recall performance. Hence this work uses the GECToR model as its base GEC architecture.</p><p>System Combination for seqseq systems: Individual deep learning systems for classification tasks can be combined in many ways: stacking (Wolpert, 1992), negative correlation learning <ref type="bibr" target="#b17">(Liu and Yao, 1999)</ref>, max-voter schemes <ref type="bibr" target="#b11">(Ju et al., 2018;</ref><ref type="bibr" target="#b31">Simonyan and Zisserman, 2014)</ref> or probability averaging <ref type="bibr" target="#b10">(He et al., 2016;</ref><ref type="bibr" target="#b26">Raina et al., 2020;</ref><ref type="bibr" target="#b33">Szegedy et al., 2015)</ref>. However, for generative language tasks such as GEC, where the output is a sequence of tokens, many traditional ensembling approaches are inapplicable. Sequence-level ensembling approaches, however, can address this by averaging conditional token level probabilities of multiple systems <ref type="bibr" target="#b29">(Sennrich et al., 2015;</ref><ref type="bibr" target="#b7">Freitag et al., 2017;</ref><ref type="bibr" target="#b18">Malinin and Gales, 2021;</ref><ref type="bibr" target="#b6">Fathullah et al., 2021)</ref>. However, this approach requires identical member architectures as well as access to the output probabilities of the predicted tokens. With the rising trend of limited black box access to large language models (e.g. ChatGPT <ref type="bibr" target="#b16">(Liu et al., 2023)</ref>), system combination methods that only require the generated output sequences have practical benefit.</p><p>With access to only the output sequences from individual seq2seq systems, it is challenging to combine them into a single output. For automatic speech recognition, <ref type="bibr" target="#b30">Sim et al. (2007)</ref> select a single output using a simple Minimum Bayes' Risk (MBR) decoding approach <ref type="bibr" target="#b14">(Kumar and Byrne, 2004)</ref>, where the aim is effectively to select the most average/representative output sequence. <ref type="bibr">Similarly Manakul et al. (2023)</ref> use MBR to combine sequences for clinical document summarization. The MBR approach has also recently been applied to machine translation <ref type="bibr">(Rosti et al., 2007a,b;</ref><ref type="bibr" target="#b8">Freitag et al., 2022;</ref><ref type="bibr" target="#b21">Müller and Sennrich, 2021;</ref><ref type="bibr" target="#b39">Zhang et al., 2022)</ref>. For GEC systems, <ref type="bibr" target="#b34">Tarnavskyi et al. (2022)</ref> propose a max voting scheme, where only edits predicted by the majority of individual systems are retained. We further improve GEC performance by applying MBR decoding to a sequence selection set augmented with sequences from max voting. We further enrich this selection space with a greedy search over edits.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Output Sequence Combination for GEC</head><p>A Grammatical Error Correction (GEC) system predicts a grammatically correct output sequence y from an input sequence, x. With multiple different GEC system output sequence predictions, Y = {y 1 , . . . , y N }, for the same input sequence, x, it is challenging to combine them into a single, best sequence. It is useful to consider the edit-space, where a set of edits, e n (x, y n ) = {e 1 , . . . , e |en| } can be used to represent each predicted output sequence, y n<ref type="foot" target="#foot_1">2</ref> . A single edit in the edit set can be defined fully by an input token in x and an edit operation to apply (insertion, deletion or substitution). This section describes how Minimum Bayes' Risk decoding can be used in the edit-space to combine the different output sequences in Y.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">MBR decoding for GEC</head><p>MBR decoding aims to select the most representative output sequence, y * ∈ Y. For GEC, we aim to maximise a reward score R in the edit-space that encourages better alignment with the final assessment metric,</p><formula xml:id="formula_0">y * = arg max y∈Y E p(ỹ|x) [R(ẽ(x, ỹ), e(x, y))] ,</formula><p>(1) where the reward score, R(ẽ, e), views ẽ as reference edits and e as the hypothesis/predicted edits.</p><p>In practice, it is difficult to meaningfully estimate the posterior distribution, p(ỹ|x) for each output sequence. Hence, we consider only similarly performing systems' output sequences, Y (c) ∈ Y to calculate the expectation of the reward and so we approximate each of these sequences as equiprobable,</p><formula xml:id="formula_1">y * ≈ arg max y∈Y (s)    1 |Y (c) | ỹ∈Y (c) R(ẽ(x, ỹ), e(x, y))    ,</formula><p>(2) where Y (s) represents the set of possible output sequences we want to select from.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">MBR decoding with edit voting</head><p>Inspired by <ref type="bibr" target="#b34">Tarnavskyi et al. (2022)</ref> the different edit sets, {e 1 , . . . , e N } associated with the different output sequences, can be combined to create a single edit set, e (m) containing all the individual edits present in at least m of the edit sets (i.e. m votes). This new combined edit set represents a new combined output sequence, y (m) . The MBR decoding approach of Equation 1 can now be applied by simply including the combined sequence in the set of sequences to select from, such that y (m) ∈ Y (s) . Note that the voting scheme can generate a maximum of N different combined sequences, with e (1) being the union of all edit sets and e (N ) the intersection. Hence the selection space of sequences Y (s) can be made richer with an extra N sequences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Greedy MBR decoding for edit selection</head><p>Instead of augmenting the selection set Y (s) with only a few sequences, it is useful to consider all possible edit sets. However, it is computationally infeasible to consider every possible edit set. Hence, this work proposes a practical, greedy method to increase the richness of the selection set. The minimal edit set is arguably the intersection of all edit sets, e (N ) . In contrast the set of possible edits is given by the union set, e (1) . Hence, we can insert individual edits one by one from the union set to the intersection set. Every new edit insertion into the existing edit set represents a new output sequence y (that can be added to Y (s) ). However, we only retain the edit insertions that give a new output sequence that increases the MBR expected reward,</p><formula xml:id="formula_2">1 |Y (c) | ỹ∈Y (c) R(ẽ(x, ỹ</formula><p>), e(x, y)) from Equation <ref type="formula">2</ref>. This way we can efficiently search a richer selection set, Y (s) of output sequences to find the best combined output sequence y * .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">MBR reward score</head><p>Equation 1 uses a reward score R(ẽ, e) to perform MBR decoding. Careful selection of the reward score allows for control over the desired metric to optimise. We can for example aim to combine systems in a manner that encourages better edit recall,</p><formula xml:id="formula_3">R (rec) (ẽ, e) = |ẽ ∩ e| |ẽ| .<label>(3)</label></formula><p>Conversely, it may be desirable to have a system with high precision,</p><formula xml:id="formula_4">R (prec) (ẽ, e) = |ẽ ∩ e| |e| .<label>(4)</label></formula><p>However, it is usually desirable to have a GEC system with a good combination of precision and recall, as measured by a F-k score,</p><formula xml:id="formula_5">R (f{k}) (ẽ, e) = (1 + k 2 )|ẽ ∩ e| |ẽ|k + |e| . (<label>5</label></formula><formula xml:id="formula_6">)</formula><p>As the precision is more important than recall for GEC systems, this work aligns the reward metric with the F0.5 score. The Jaccard Similarity reward metric is also explored as an alternative in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental setup</head><p>We evaluate performance of the combined systems on three popular grammatical error correction corpora. First Certificate in English (FCE) corpus <ref type="bibr" target="#b38">(Yannakoudakis et al., 2011)</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>MBR decoding (Equation <ref type="formula">2</ref>) is applied in the editspace for the three individual GECToR systems' outputs (b,r,x). Here, as the systems have similar performance (equiprobable posterior assumption valid), we let the selection set and the set of sequences to calculate the expected reward be the same  <ref type="formula" target="#formula_9">6</ref>) and F0.5 (Equation <ref type="formula" target="#formula_5">5</ref>) oriented reward metrics give a significant increase in performance over the individual systems in Table <ref type="table">1</ref>. Although the recall reward (Equation <ref type="formula" target="#formula_3">3</ref>) does not increase F0.5 performance, it does significantly increase recall performance. This demonstrates that a simple application of MBR decoding can be used to combine individual systems to improve performance and selection of the reward function gives specific control over precision and recall of the combined system. </p><formula xml:id="formula_7">Y (s) = Y (c) = {b, r, x}.</formula><formula xml:id="formula_8">Y (c) = Y (s) = {b, r, x}.</formula><p>Section 3.2 describes how MBR decoding can be applied to systems combined by a voting scheme in the edit space. Table <ref type="table" target="#tab_4">3</ref> shows the performance of systems combined with voting, where an individual edit requires m votes (from b,r or x edit system predictions) to be included in the combined edit set, e (m) to form the single combined sequence y (m) . Note here that e (1) is the union 4 GEC performance for CoNLL and FCE is measured using the ERRANT tool <ref type="bibr" target="#b3">(Bryant et al., 2017)</ref>. Note that CoNLL is often evaluated with a different scorer in other papers. BEA is evaluated using the online submission portal: https:// codalab.lisn.upsaclay.fr/competitions/4057 set and e (3) is the intersection and so these sequences encourage either a higher recall or precision respectively. Table <ref type="table">4</ref> shows the impact of MBR decoding where all the separate voting sets (y (1) , y (2) , y (3) ) are included in the selection set, Y (s) = {b, r, x, y (1) , y (2) , y (3) }. Note that we maintain the same set of sequences for the expected reward calculation, Y (s) = {b, r, x} to ensure the equiprobable posterior assumption holds<ref type="foot" target="#foot_3">5</ref> . It is evident that a richer selection set allows for even greater improvements in model performance for precision and F0.5 reward MBR decoding.  Table <ref type="table">4</ref>: MBR with Y (c) = {b, r, x} and Y (s) = {b, r, x, y (1) , y (2) , y (3) }.</p><p>Finally, as described in Section 3.3, MBR decoding can be performed over a richer edit selection space by greedily adding individual edits to the intersection edit set, e (3) from the union edit set, e (1) . Experiments revealed (Appendix B) that allowing for all edits to be included from the union set can significantly increase the risk of poor insertions, compromising performance. Hence, instead we only consider edits from e (2) to be added to the intersection set e (3) . Table <ref type="table">5</ref> demonstrates that MBR decoding over this richer set of sequences can give better performance (CoNLL) than MBR with voting, but does not always give the best performance (BEA and FCE have better performance in Table <ref type="table">4</ref>). This is perhaps because the expected reward over the individual systems (b,r,x) is not necessarily perfectly aligned with the final F0.5 score relative to the true reference edits used in evaluation and thus over-optimisation of the selection set for MBR decoding does not help performance for some datasets. Table <ref type="table">5</ref>: MBR with Y (c) = {b, r, x} and greedy search for Y (s) .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusions</head><p>The combination of sequence-to-sequence grammatical error correction (GEC) systems is challenging. There is also often a mismatch between the decoding criterion and assessment criterion used for GEC systems. This work demonstrates that a novel Minimum Bayes' Risk (MBR) decoding approach within the edit-space can give an effective system combination method that aligns better with the assessment criteria. We further showed that enhancing the selection space to encompass sequences formulated by max-voting over individual edits can further improve system performance. Moreover, the employment of a greedy search strategy, guided by an MBR reward function, can result in performance gains for the combined system. Crucially, the choice of a reward function in the MBR framework gives users the ability to optimize desired characteristics of the combined GEC system, such as precision, recall or the F-score.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Limitations</head><p>This work explored how MBR decoding can be used to combine individual GEC systems, as well as align the combined system's performance to the edit-based F-score used to assess GEC systems. Experiments were performed with Grammarly's GECToR based systems. It would be useful to extend these experiments to other state of the art GEC systems. Although these other systems are not as efficient as GECToR due to the use of an auto-regressive Transformer decoder (as opposed to GECToR's encoder only structure), it is still meaningful to understand how these systems react to MBR decoding used for system combination. This is particularly relevant as generative large language models are increasingly used for standard natural language tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Ethics Statement</head><p>This work reports on an efficient method to combine individual GEC system outputs in a manner that better aligns with assessment and improve performance. There are no perceived ethical risks associated with this work.</p><p>A Jaccard Similarity as MBR Reward Section 3.4 proposes three different reward functions, R to guide the MBR decoding process (Equation 1) to better align with desired assessment criteria. Here, we consider the Jaccard Similarity as an alternative reward function that can combine precision and recall properties,</p><formula xml:id="formula_9">R (jac) (ẽ, e) = |ẽ ∩ e| |ẽ ∪ e| . (<label>6</label></formula><formula xml:id="formula_10">)</formula><p>Table <ref type="table" target="#tab_7">6</ref> gives the performance of systems combined with MBR decoding using the Jaccard reward function.  </p><formula xml:id="formula_11">s) = Y (c) = {b, r, x}<label>(</label></formula><p>Comparing to results in the main experiments (Section 4.2), it can be seen that using the Jaccard similarity reward gives similar behaviour but slightly worse performance than the F0.5 reward function used for MBR decoding. This is perhaps expected because both metrics encourage good precision and recall, but the final GEC systems are assessed using the F0.5 score. Hence, the Jaccard similarity reward offers a worse approximation to the final assessment metric than an explicit F0.5 reward in MBR decoding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Greedy MBR Decoding Selection Space</head><p>Section 3.3 describes an approach where MBR decoding can be used to greedily search over an edit space between the intersection edit set, e (3) and the union edit set, e (1) to find a combined edit set that as per the expected reward in the MBR algorithm should give better performance. Results in the main paper in Table <ref type="table">5</ref> search the edit space between the intersection set, e (3) and e (2) . Table <ref type="table" target="#tab_9">7</ref> shows that it is sensible to not continue searching for all edits in the union set, e (1) , as searching the entire space compromises performance. This is perhaps due to the increased noise added into the system by potentially including spurious edits from the union set.   3) to the union edit set, e (1) . By considering all possible edits in the union set, we can reduce performance. Hence in the main paper we limit edits to be between e (2) and e (3) .</p><p>C Alternative Expected Reward Set, Y (c)</p><p>Equation 1 for MBR decoding can be simplified to equation 2, where we make the assumption that every sequence y ∈ Y (c) used to calculate the expected reward is equiprobable (i.e. the posterior distribution is the same). We justify this assumption in the main paper by considering only similarly performing systems to form the set of sequences over which the expected reward is calculated: Y (c) = {b, r, x}. It is interesting consider a situation where we violate/test this equiprobable posterior assumption by considering different possible sequence sets for (c) and observing the impact on performance after MBR decoding system combination. Table <ref type="table" target="#tab_10">8</ref> reports the performance of MBR decoding with different output sequence sets, Y (c) used to calculate the expected reward. In comparison to the equivalent results in the main paper in Table <ref type="table" target="#tab_2">2</ref>, it is evident that a deviation from Y (c) = {b, r, x} does not compromises performance. This demonstrates that it is possible to diverge from the similar performing system constraint to validate the equiprobable posterior assumption to generate good combined systems using MBR decoding.  c) used to calculate the expected reward when using MBR decoding for system combination. We let Y (c) = {b, r, x, y (1) , y (2) , y (3) }. In all settings we maintain the same selection set, Y (s) = {b, r, x}.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>MBR with</figDesc><table><row><cell>Reward</cell><cell>conll</cell><cell>bea</cell><cell>fce</cell></row><row><cell>R (rec)</cell><cell>55.13 57.76 46.66</cell><cell>64.67 64.59 64.99</cell><cell>48.74 50.12 43.90</cell></row><row><cell>R (prec)</cell><cell>59.78 69.38 34.48</cell><cell>70.87 75.93 55.96</cell><cell>52.35 60.13 34.50</cell></row><row><cell>R (f05)</cell><cell>59.71 66.42 42.53</cell><cell>69.95 72.95 60.07</cell><cell>52.05 56.61 39.36</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Voting combination, y (m) (m votes).</figDesc><table><row><cell>Reward</cell><cell>conll</cell><cell>bea</cell><cell>fce</cell></row><row><cell>R (rec)</cell><cell>53.99 55.99 47.23</cell><cell>63.81 63.47 65.25</cell><cell>48.18 49.29 44.20</cell></row><row><cell>R (prec)</cell><cell>60.24 76.59 32.50</cell><cell>73.42 83.40 49.66</cell><cell>53.51 66.74 29.85</cell></row><row><cell>R (f05)</cell><cell>60.43 67.94 41.90</cell><cell>70.84 74.48 59.25</cell><cell>52.71 57.83 38.92</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>GEC system performance with Jaccard Similarity reward function for MBR decoding. In all settings, Y</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 :</head><label>7</label><figDesc>Greedy MBR decoding performance with edit search from intersection edit set, e</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 8 :</head><label>8</label><figDesc>Impact of changing the set of sequences, Y</figDesc><table><row><cell>Reward</cell><cell>conll</cell><cell>bea</cell><cell>fce</cell></row><row><cell>R (prec)</cell><cell>59.83 69.43 38.52</cell><cell>70.81 75.81 56.02</cell><cell>52.40 60.15 34.57</cell></row><row><cell>R (f05)</cell><cell>59.96 67.76 41.07</cell><cell>70.44 74.21 58.55</cell><cell>52.09 57.89 37.19</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Code available at: https://github.com/rainavyas/ mbr_gec</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Given an input sequence x and an output sequence y it is simple to create an edit set, using tools such as ER-RANT<ref type="bibr" target="#b3">(Bryant et al., 2017)</ref>.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>GECToR model Weights: https://github.com/ grammarly/gector#pretrained-models</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>Experiments with an alternative set of sequences for Y(c)   are in Appendix C</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8">Acknowledgements</head><p>This paper reports on research supported by <rs type="funder">Cambridge University Press &amp; Assessment (CUP&amp;A)</rs>, a department of The Chancellor, Masters, and <rs type="person">Scholars</rs> of the <rs type="institution">University of Cambridge</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Parallel iterative edit models for local sequence transduction</title>
+		<author>
+			<persName><forename type="first">Abhijeet</forename><surname>Awasthi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunita</forename><surname>Sarawagi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rasna</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sabyasachi</forename><surname>Ghosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vihari</forename><surname>Piratla</surname></persName>
+		</author>
+		<idno>CoRR, abs/1910.02893</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">M</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Amodei</surname></persName>
+		</author>
+		<idno>CoRR, abs/2005.14165</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">The BEA-2019 shared task on grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Bryant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariano</forename><surname>Felice</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Øistein</forename><forename type="middle">E</forename><surname>Andersen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Briscoe</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W19-4406</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourteenth Workshop on Innovative Use of NLP for Building Educational Applications</title>
+		<meeting>the Fourteenth Workshop on Innovative Use of NLP for Building Educational Applications<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="52" to="75" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Automatic annotation and evaluation of error types for grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Bryant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariano</forename><surname>Felice</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Briscoe</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1074</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="793" to="805" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Improving the efficiency of grammatical error correction with erroneous span detection and correction</title>
+		<author>
+			<persName><forename type="first">Mengyun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingxing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno>CoRR, abs/2010.03260</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Çaglar</forename><surname>Gülçehre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>CoRR, abs/1406.1078</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Ensemble distillation approaches for grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Yassir</forename><surname>Fathullah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Mark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrey</forename><surname>Gales</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Malinin</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICASSP39728.2021.9413385</idno>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2021 -2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2745" to="2749" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Ensemble distillation for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaser</forename><surname>Al-Onaizan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baskaran</forename><surname>Sankaran</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1702.01802</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">High quality rather than high model probability: Minimum Bayes risk decoding with neural metrics</title>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qijun</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00491</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="811" to="825" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Ensemble deep learning: A review</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mudasir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minghui</forename><surname>Ganaie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ponnuthurai</forename><forename type="middle">N</forename><surname>Tanveer</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Suganthan</surname></persName>
+		</author>
+		<idno>CoRR, abs/2104.02395</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Deep residual learning for image recognition</title>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaoqing</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="770" to="778" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">The relative performance of ensemble methods with deep convolutional neural networks for image classification</title>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Ju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurélien</forename><surname>Bibaut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Van Der Laan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Applied Statistics</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">15</biblScope>
+			<biblScope unit="page" from="2800" to="2818" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Encoder-decoder models can benefit from pre-trained masked language models in grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Masahiro</forename><surname>Kaneko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Masato</forename><surname>Mita</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shun</forename><surname>Kiyono</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kentaro</forename><surname>Inui</surname></persName>
+		</author>
+		<idno>CoRR, abs/2005.00987</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">An empirical study of incorporating pseudo data into grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Shun</forename><surname>Kiyono</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Masato</forename><surname>Mita</surname></persName>
+		</author>
+		<idno>CoRR, abs/1909.00502</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>Tomoya Mizumoto, and Kentaro Inui</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Minimum Bayes-risk decoding for statistical machine translation</title>
+		<author>
+			<persName><forename type="first">Shankar</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Byrne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Human Language Technology Conference of the North American Chapter of the Association for Computational Linguistics: HLT-NAACL 2004</title>
+		<meeting>the Human Language Technology Conference of the North American Chapter of the Association for Computational Linguistics: HLT-NAACL 2004<address><addrLine>Boston, Massachusetts, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="169" to="176" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Data weighted training strategies for grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Lichtarge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shankar</forename><surname>Kumar</surname></persName>
+		</author>
+		<idno>CoRR, abs/2008.02976</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Yiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianle</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanyuan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengshen</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengliang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dajiang</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Qiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dingang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bao</forename><surname>Ge</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note>research and perspective towards the future of large language models</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Ensemble learning via negative correlation</title>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural networks</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="1399" to="1404" />
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Uncertainty estimation in autoregressive structured prediction</title>
+		<author>
+			<persName><forename type="first">Andrey</forename><surname>Malinin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Gales</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Encode, tag, realize: High-precision text editing</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Malmi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Krause</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sascha</forename><surname>Rothe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniil</forename><surname>Mirylenka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aliaksei</forename><surname>Severyn</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1510</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5054" to="5065" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Cued at probsum 2023: Hierarchical ensemble of summarization models</title>
+		<author>
+			<persName><forename type="first">Potsawee</forename><surname>Manakul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yassir</forename><surname>Fathullah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adian</forename><surname>Liusie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raina</forename><surname>Vyas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raina</forename><surname>Vatsal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Gales</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Understanding the properties of minimum Bayes risk decoding in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Mathias</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.22</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="259" to="272" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">A rule-based style and grammar checker</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Naber</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">The CoNLL-2014 shared task on grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Tou</forename><surname>Hwee</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mei</forename><surname>Siew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Briscoe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raymond</forename><forename type="middle">Hendy</forename><surname>Hadiwinoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Susanto</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bryant</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/W14-1701</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighteenth Conference on Computational Natural Language Learning: Shared Task</title>
+		<meeting>the Eighteenth Conference on Computational Natural Language Learning: Shared Task<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1" to="14" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Gector -grammatical error correction: Tag, not rewrite</title>
+		<author>
+			<persName><forename type="first">Kostiantyn</forename><surname>Omelianchuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vitaliy</forename><surname>Atrasevych</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Artem</forename><forename type="middle">N</forename><surname>Chernodub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oleksandr</forename><surname>Skurzhanskyi</surname></persName>
+		</author>
+		<idno>CoRR, abs/2005.12592</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Open cambridge learner english corpus</title>
+		<author>
+			<persName><surname>Openclc</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Universal adversarial attacks on spoken language assessment systems</title>
+		<author>
+			<persName><surname>Vyas Raina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">F</forename><surname>Mark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kate</forename><forename type="middle">M</forename><surname>Gales</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Knill</surname></persName>
+		</author>
+		<idno type="DOI">10.21437/interspeech.2020-1890</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>Interspeech 2020. ISCA</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Combining outputs from multiple machine translation systems</title>
+		<author>
+			<persName><forename type="first">Antti-Veikko</forename><surname>Rosti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Necip</forename><surname>Fazil Ayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Spyros</forename><surname>Matsoukas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bonnie</forename><surname>Dorr</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies 2007: The Conference of the North American Chapter of the Association for Computational Linguistics; Proceedings of the Main Conference</title>
+		<meeting><address><addrLine>Rochester, New York</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="228" to="235" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Improved word-level system combination for machine translation</title>
+		<author>
+			<persName><forename type="first">Antti-Veikko</forename><surname>Rosti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Spyros</forename><surname>Matsoukas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Schwartz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the Association of Computational Linguistics</title>
+		<meeting>the 45th Annual Meeting of the Association of Computational Linguistics<address><addrLine>Prague, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="312" to="319" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Improving neural machine translation models with monolingual data</title>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1511.06709</idno>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Consensus network decoding for statistical machine translation system combination</title>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">C</forename><surname>Sim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">J</forename><surname>Byrne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J F</forename><surname>Gales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Sahbi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">C</forename><surname>Woodland</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICASSP.2007.367174</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2007 IEEE International Conference on Acoustics, Speech and Signal Processing -ICASSP &apos;07</title>
+		<imprint>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="105" to="108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Very deep convolutional networks for large-scale image recognition</title>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Zisserman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.1556</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Seq2Edits: Sequence transduction using span-level edit operations</title>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Stahlberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shankar</forename><surname>Kumar</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.418</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5147" to="5159" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Going deeper with convolutions</title>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangqing</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Sermanet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Reed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dragomir</forename><surname>Anguelov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dumitru</forename><surname>Erhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Vanhoucke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Rabinovich</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1" to="9" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Ensembling and knowledge distilling of large sequence taggers for grammatical error correction</title>
+		<author>
+			<persName><forename type="first">Maksym</forename><surname>Tarnavskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Artem</forename><surname>Chernodub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kostiantyn</forename><surname>Omelianchuk</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.266</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3842" to="3852" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ł Ukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Stacked generalization</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wolpert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural networks</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="241" to="259" />
+			<date type="published" when="1992">1992</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Chatgpt or grammarly? evaluating chatgpt on grammatical error correction benchmark</title>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxuan</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Lyu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">A new dataset and method for automatically grading ESOL texts</title>
+		<author>
+			<persName><forename type="first">Helen</forename><surname>Yannakoudakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Briscoe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Medlock</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="180" to="189" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Rmbr: A regularized minimum bayes risk reranking framework for machine translation</title>
+		<author>
+			<persName><forename type="first">Yidan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenan</forename><surname>He</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

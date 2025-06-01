@@ -1,0 +1,3158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A Novel Information-Theoretic Objective to Disentangle Representations for Fair Classification</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+							<email>colombo.pierre@centralesupelec.fr</email>
+						</author>
+						<author>
+							<persName><forename type="first">Nathan</forename><surname>Noiry</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Telecom Paris</orgName>
+								<address>
+									<addrLine>4 Inria Saclay</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">ILLS</orgName>
+								<orgName type="institution">CNRS -CentraleSupélec</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><surname>Mics -Centralesupélec</surname></persName>
+						</author>
+						<author>
+							<persName><surname>Equall</surname></persName>
+						</author>
+						<title level="a" type="main">A Novel Information-Theoretic Objective to Disentangle Representations for Fair Classification</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C2C121A7C86753CEF42B5F333BAD8F54</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:48+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>One of the pursued objectives of deep learning is to provide tools that learn abstract representations of reality from the observation of multiple contextual situations. More precisely, one wishes to extract disentangled representations which are (i) low dimensional and (ii) whose components are independent and correspond to concepts capturing the essence of the objects under consideration (Locatello et al., 2019b). One step towards this ambitious project consists in learning disentangled representations with respect to a predefined (sensitive) attribute, e.g., the gender or age of the writer. Perhaps one of the main application for such disentangled representations is fair classification. Existing methods extract the last layer of a neural network trained with a loss that is composed of a cross-entropy objective and a disentanglement regularizer. In this work, we adopt an information-theoretic view of this problem which motivates a novel family of regularizers that minimizes the mutual information between the latent representation and the sensitive attribute conditional to the target. The resulting set of losses, called CLINIC, is parameter free and thus, it is easier and faster to train. CLINIC losses are studied through extensive numerical experiments by training over 2k neural networks. We demonstrate that our methods offer a better disentanglement/accuracy trade-off than previous techniques, and generalize better than training with cross-entropy loss solely provided that the disentanglement task is not too constraining.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>There has been a recent surge towards disentangled representations techniques in deep learning <ref type="bibr" target="#b74">(Mathieu et al., 2019;</ref><ref type="bibr">Locatello et al., 2019a</ref><ref type="bibr" target="#b71">Locatello et al., , 2020;;</ref><ref type="bibr" target="#b47">Gabbay and Hoshen, 2019)</ref>. Learning disentangled representations from high dimensional data ultimately aims at separating a few explanatory factors <ref type="bibr" target="#b5">(Bengio et al., 2013)</ref> that contain meaningful information on the objects of interest, regardless of specific variations or contexts. A disentangled representation has the major advantage of being less sensitive to accidental variations (e.g., style) and thus generalizes well. In this work, we focus on a specific disentanglement task which aims at learning a representation independent from a predefined attribute S. Such a representation will be called disentangled with respect to S. This task can be seen as a first step towards the ideal goal of learning a perfectly disentangled representation. Moreover, it is particularly well-suited for fairness applications, such as fair classification, which are nowadays increasingly sought after. When a learned representation Z is disentangled from a sensitive attribute S such as the age or the gender, any decision rule based on Z is independent of S, making it fair in some sense. Learning disentangled representations with respect to a sensitive attribute is challenging and previous works in the Natural Language Processing (NLP) community were based on two types of approach. The first one consists in training an adversary <ref type="bibr" target="#b44">(Elazar and Goldberg, 2018;</ref><ref type="bibr" target="#b19">Coavoux et al., 2018)</ref>. Despite encouraging results during training, <ref type="bibr" target="#b66">Lample et al. (2018)</ref> show that a new adversary trained from scratch on the obtained representation is able to infer the predefined attribute, suggesting that the representation is in fact not disentangled. The second one consists in training a variational surrogate <ref type="bibr" target="#b13">(Cheng et al., 2020;</ref><ref type="bibr">Colombo et al., 2021c;</ref><ref type="bibr" target="#b60">John et al., 2018)</ref> of the mutual information (MI) <ref type="bibr" target="#b34">(Cover and Thomas, 2006)</ref> between the learned representation and the variable from which one wishes to disentangle it. One of the major weaknesses of both approaches is the presence of an additional optimization loop designed to learn additional parameters during training (the parameters of the adversary for the first method, and the parameters required to approximate the MI for the second one), which is time-consuming and requires careful tuning (see Alg. 1).</p><p>Our contributions. We introduce a new method to learn disentangled representations, with a particular focus on fair representations in the context of NLP. Our contributions are two-fold:</p><p>(1) We provide new perspectives on the disentanglement with respect to a predefined attribute problem using information-theoretic concepts. Our analysis motivates the introduction of new losses tailored for classification, called CLINIC (Conditional mutuaL InformatioN mInimization for fair ClassifIcAtioN). It is faster than previous approaches as it does not to require to learn additional parameters. One of the main novelty of CLINIC is to minimize the MI between the latent representation and the sensitive attribute conditional to the target which leads to high disentanglement capability while maintaining high-predictive power.</p><p>(2) We conduct extensive numerical experiments which illustrate and validate our methodology. More precisely, we train over 2K neural models on four different datasets and conduct various ablation studies using both Recurrent Neural Networks (RNN) and pre-trained transformers (PT) models. Our results show that the CLINIC's objective is better suited than existing methods, it is faster to train and requires less tuning as it does not have learnable parameters. Interestingly, in some scenarios, it can increase both disentanglement and classification accuracies and thus, overcoming the classical disentanglement-accuracy trade-off. From a practical perspective, we would like to add that our method is well-suited for fairness applications and is compliant with the fairness through unawareness principle that obliges one to fix a single model which is later applied across all groups of interest <ref type="bibr" target="#b48">(Gajane and Pechenizkiy, 2017;</ref><ref type="bibr" target="#b68">Lipton et al., 2018)</ref>. Indeed, our method only requires access to the sensitive attribute during its learning phase, but the resulting learned prediction function does not take the sensitive variable as an input.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Works</head><p>In order to describe existing works, we begin by introducing some useful notations. From an input textual data represented by a random variable (r.v.) X ∈ X , the goal is to learn a parameter θ ∈ Θ of an encoder f θ : X → Z ⊂ R d so as to transform X into a latent vector Z = f θ (X) of dimension d that summarizes the useful information of X. Addi-tionally, we require the learned embedding Z to be guarded (following the terminology of <ref type="bibr" target="#b44">(Elazar and Goldberg, 2018)</ref>) from an input sensitive attribute S ∈ S associated to X, in the sense that no classifier can predict S from Z better than a random guess. The final decision is done through predictor g ϕ that makes a prediction Ŷ = g ϕ (Z) ∈ Y, where ϕ ∈ Φ refers to the learned parameters. We will consider classification problems where Y is a discrete finite set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Disentangled Representations</head><p>The main idea behind most of the previous works focusing on the learning of disentangled representations consists in adding a disentanglement regularizer to a learning task objective. The resulting mainstream loss takes the form:</p><formula xml:id="formula_0">L(θ, ϕ) = L task target task +λ • R (f θ (X), S; ϕ) disentanglement ,<label>(1)</label></formula><p>where ϕ denotes the trainable parameters of the regularizer. Let us describe the two main types of regularizers used in the literature, both having the flaw to require a nested loop, which adds an extra complexity to the training procedure (see Alg. 1). Adversarial losses. They rely on fooling a classifier (the adversary) trained to recover the sensitive attribute S from Z. As a result, the corresponding disentanglement regularizer is trained by relying on the cross-entropy (CE) loss between the predicted sensitive attribute and the ground truth label S. Despite encouraging results, adversarial methods are known to be unstable both in terms of training dynamics <ref type="bibr" target="#b99">(Sridhar et al., 2021;</ref><ref type="bibr" target="#b119">Zhang et al., 2019)</ref> and initial conditions <ref type="bibr" target="#b113">(Wong et al., 2020)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Losses based on Mutual Information (MI).</head><p>These losses, which also rely on learned parameters, aim at minimizing the MI I(Z; S) between Z and S, which is defined by</p><formula xml:id="formula_1">I(Z; S) = E ZS log p ZS (Z, S) p Z (Z)p S (S) ,<label>(2)</label></formula><p>where the joint probability density function (pdf) of the tuple (Z, S) is denoted p ZS and the respective marginal pdfs are denoted p Z and p S . Recent MI estimators include <ref type="bibr">MINE (Belghazi et al., 2018)</ref>, NWJ <ref type="bibr" target="#b78">(Nguyen et al., 2010)</ref>, CLUB <ref type="bibr" target="#b13">(Cheng et al., 2020)</ref>, DOE (McAllester and Stratos, 2020), I α <ref type="bibr">(Colombo et al., 2021c)</ref>, SMILE <ref type="bibr" target="#b98">(Song and Ermon, 2019)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Parameter Free Estimation of MI</head><p>The CLINIC's objective can be seen as part of the second type of losses although it does not involve additional learnable parameters. MI estimation can be done using contrastive learning surrogates <ref type="bibr" target="#b16">(Chopra et al., 2005)</ref> which offer satisfactory approximations with theoretical guarantees (we refer the reader to <ref type="bibr">Oord et al. (2018)</ref> for further details). Contrastive learning is connected to triplet loss <ref type="bibr" target="#b93">(Schroff et al., 2015)</ref> and has been used to tackle the different problems including self-supervised or unsupervised representation learning (e.g. audio <ref type="bibr" target="#b86">(Qian et al., 2021)</ref>, image <ref type="bibr" target="#b117">(Yamaguchi et al., 2019)</ref>, text <ref type="bibr" target="#b89">(Reimers and Gurevych, 2019;</ref><ref type="bibr" target="#b72">Logeswaran and Lee, 2018)</ref>). It consists in bringing closer pairs of similar inputs, called positive pairs and further dissimilar ones, called negative pairs. The positive pairs can be obtained by data augmentation techniques <ref type="bibr" target="#b12">(Chen et al., 2020)</ref> or using various heuristic (e.g similar sentences belong to the same document <ref type="bibr" target="#b52">(Giorgi et al., 2020)</ref>, backtranslation <ref type="bibr" target="#b45">(Fang et al., 2020)</ref> or more complex techniques <ref type="bibr" target="#b87">(Qu et al., 2020;</ref><ref type="bibr" target="#b51">Gillick et al., 2019;</ref><ref type="bibr" target="#b96">Shen et al., 2020)</ref>). For a deeper dive in mining techniques used in NLP, we refer the reader to <ref type="bibr" target="#b90">Rethmeier and Augenstein (2021)</ref>.</p><p>One of the novelty of CLINIC is to provide a novel information theoretic objective tailored for fair classification. It incorporates both the sensitive and target labels in the disentanglement regularizer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Fair Classification and Disentanglement</head><p>The increasing use of machine learning systems in everyday applications has raised many concerns about the fairness of the deployed algorithms. Works addressing fair classification can be grouped into three main categories, depending on the step at which the practitioner performs a fairness intervention in the learning process: (i) pre-processing <ref type="bibr" target="#b8">(Brunet et al., 2019;</ref><ref type="bibr" target="#b61">Kamiran and Calders, 2012)</ref>, (ii) in-processing <ref type="bibr">(Colombo et al., 2021c;</ref><ref type="bibr" target="#b3">Barrett et al., 2019)</ref> and (iii) post-processing <ref type="bibr" target="#b35">(d'Alessandro et al., 2017)</ref> techniques (we refer the reader to <ref type="bibr" target="#b10">Caton and Haas (2020)</ref> for exhaustive review).</p><p>When the attribute for which we want to disentangle the representation is a sensitive attribute (e.g. gender, age, race), our method can be considered as an in-process fairness technique.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Model and Training Objective</head><p>In this section, we introduce the new set of losses called CLINIC that is designed to learn disentangled representations. We begin with information theory considerations which allow us to derive a training objective, and then discuss the relation to existing losses relying on MI.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Analysis &amp; Motivations</head><p>3.1.1 Problem Analysis.</p><p>When learning disentangled representations, the goal is to obtain a representation Z that contains no information about a sensitive attribute S but preserves the maximum amount of information between Z and the target label Y . We use Veyne diagrams in Fig. <ref type="figure">1</ref> to illustrate the situation. Notice that, for a given task, the MI between Y and S is fixed (i.e corresponding to C Y ∩ C S ). Therefore, any representation Z that maximizes the MI with Y (i.e corresponding to C Y ∩C Z ) cannot hope to have a mutual information with S lower than I(Y ; S).</p><p>Informally, recalling that Z = f θ (X), we would like to solve:</p><formula xml:id="formula_2">max θ∈Θ I(Z; Y ) -λ • I(Z; S),<label>(3)</label></formula><p>where λ &gt; 0 controls the magnitude of the penalization. Existing works <ref type="bibr" target="#b44">(Elazar and Goldberg, 2018;</ref><ref type="bibr" target="#b3">Barrett et al., 2019;</ref><ref type="bibr" target="#b19">Coavoux et al., 2018)</ref> rely on the CE loss to maximize the first term, i.e., within the area of C Z ∩ C Y in Fig. <ref type="figure">1</ref>, and either on adversarial or contrastive methods for minimizing the second term, i.e., the area of C Z ∩ C S in Fig. <ref type="figure">1</ref>). The ideal objective is to maximize the area of (C Z ∩ C Y ) \ C S . We refer to <ref type="bibr">Colombo et al. (2021c)</ref> for connections between adversarial learning and MI and to <ref type="bibr">Oord et al. (2018)</ref> for connections between contrastive learning and MI.</p><formula xml:id="formula_3">C Y C S C Z C Y ∩ C S : incompressible term. C Z ∩ C Y : term to maximize. C Z ∩ C S : term to minimize.</formula><p>a better C Z Fig. <ref type="figure">1</ref>: Veyne diagrams visualization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Limitations of Previous Methods</head><p>Since I(Z; S) = I(Z; S|Y ) + I(Z; S; Y ), when minimizing I(Z; S), previous work minimize actually the two terms I(Z; S|Y ) and I(Z; S; Y ). This could be problematic since I(Z; S; Y ) tends to decrease the MI between Z and Y , a phenomenon we would like to avoid to keep high performance on our target task. Our method will bypass this issue by minimizing the conditional mutual information I(Z; S|Y ) solely (this amounts to minimize the area of</p><formula xml:id="formula_4">(C Z ∩ C S ) \ (C Z ∩ C S ∩ C Y ).</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">CLINIC</head><p>Motivated by the previous analysis CLINIC aims at maximizing the new following ideal objective:</p><formula xml:id="formula_5">max θ∈Θ I(Z; Y ) -λ • I(Z; S|Y ).<label>(4)</label></formula><p>Minimizing I(Z; S) in Eq. 4 instead of I(Z; S) in Eq. 3 alleviates previously identified flaws.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Estimation of I(Z; S|Y )</head><p>The estimation of MI related quantities is known to be difficult <ref type="bibr" target="#b82">(Pichler et al., 2020;</ref><ref type="bibr" target="#b79">Paninski, 2003)</ref>.</p><p>As a result, to estimate I(Z; S|Y ), we develop a tailored made constrastive learning objectives to obtain a parameter free estimator. Let us describe the general form for the loss we adopt on a given input {x i , y i , s i } 1≤i≤B of size B. Recall that z i = f θ (x i ) is the output of the encoder for input x i . For each 1 ≤ i ≤ B, in fair classification task we have access to two subsets P(i), N (i) ⊂ {1, . . . , B} \ {i} corresponding respectively to positive and negative indices of examples. More precisely, P(i) (resp. N (i)) corresponds to the set of indices j ̸ = i such that z j is similar (resp. dissimilar) to z i . Then, CLINIC consists in minimizing a loss of the form Eq. 1 with L task given by the CE between the predictions g ϕ (z i ) and the groundtruth labels y i , and with R given by:</p><formula xml:id="formula_6">R = R(Z, P, N , B, τ p , τ n ) = - B i=1 C i ,<label>(5)</label></formula><p>where the contribution C i of sample i is</p><formula xml:id="formula_7">C i = 1 |P(i)| jp∈P(i) log e z i •z jp /τp jn∈N (i) e z i •z jn /τn . (6)</formula><p>As emphasized in Eq. 5, the term R depends on several hyperparameters: the choice of positive and negative examples (P(i), N (i)), the associated temperatures τ p , τ n &gt; 0 and the batch size B. Compared to Eq. 1, the proposed regularizer does not require any additional trainable parameters ϕ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Hyperparameters Choice</head><p>Sampling strategy for P and N . The choice of positive and negative samples is instrumental for contrastive learning <ref type="bibr" target="#b114">(Wu et al., 2021;</ref><ref type="bibr" target="#b62">Karpukhin et al., 2020;</ref><ref type="bibr" target="#b12">Chen et al., 2020;</ref><ref type="bibr" target="#b120">Zhang and Stratos, 2021;</ref><ref type="bibr" target="#b91">Robinson et al., 2020)</ref>. In the context of fair classification, the input data take the form (x i , s i , y i ) and we consider two natural strategies to define the subsets P and N . For any given y (resp. s), we denote by y (resp. s) a uniformly sampled label in Y \ {y} (resp. in S \ {s}).</p><p>Remark 1. It is usual in fairness applications to consider that the sensitive attribute is binary. In that case S is deterministic.</p><p>The first strategy (S 1 ) is to take</p><formula xml:id="formula_8">P S 1 (i) = {1 ≤ j p ≤ B, s.t. y jp = y i , s jp = si }, N S 1 (i) = {1 ≤ j n ≤ B, s.t. y jn = ȳi }.</formula><p>The second strategy (S 2 ) is to set</p><formula xml:id="formula_9">P S 2 (i) = {1 ≤ j p ≤ B, s.t y jp = y i , s jp = si }, N S 2 (i) = {1 ≤ j n ≤ B, s.t y jn = ȳi , s jn = s i }.</formula><p>Influence of the temperature. As discussed in <ref type="bibr" target="#b109">Wang and Liu (2021)</ref>; <ref type="bibr" target="#b110">Wang and Isola (2020)</ref> in the case where τ p = τ n , a good choice of temperature parameter is crucial for contrastive learning.</p><p>Our method offers additional versatility by allowing to fine tune two temperature parameters, τ p and τ n , respectively corresponding to the impact one wishes to put on positive and negative examples.</p><p>For instance, a choice of τ n &lt; &lt; 1 tends to focus on hard negative pairs while τ n &gt; &gt; 1 makes the penalty uniform among the negatives. We investigate this effect in Ssec. 6.2.</p><p>Influence of the batch size. Previous works on contrastive losses <ref type="bibr" target="#b55">(Henaff, 2020;</ref><ref type="bibr">Oord et al., 2018;</ref><ref type="bibr" target="#b2">Bachman et al., 2019;</ref><ref type="bibr" target="#b76">Mitrovic et al., 2020)</ref> argue for using large batch sizes to achieve good performances. In practice, hardware limits the maximum number of samples that can be stored in memory. Although several works <ref type="bibr" target="#b54">(He et al., 2020;</ref><ref type="bibr" target="#b49">Gao et al., 2021)</ref>, have been conducted to go beyond the memory usage limitation, every experiment we conducted was performed on a single GPU. Nonetheless, we provide an ablation study with respect to admissible batch sizes in Sssec. A.4.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Theoretical Guarantees</head><p>There exists a theoretical bound between the contrastive loss of Eq. 5 and the mutual information between two probability laws in the latent space, defined according to the sampling strategy for P and N . CLINIC's training objective offers theoretical guarantees when approximating I(Z; S|Y ) in Eq. 4. Formally, strategy S 1 and S 2 aim at minimizing the distance between:</p><formula xml:id="formula_10">P Z (• | Y = 0, S = 0) L 0,0 and P Z (• | Y = 0, S = 1) L 0,1</formula><p>, and between</p><formula xml:id="formula_11">P Z (• | Y = 1, S = 0) L 1,0 and P Z (• | Y = 1, S = 1) L 1,1</formula><p>.</p><p>We prove the following result in ??.</p><p>Theorem 1. For ϵ ∈ {0, 1}, denote by</p><formula xml:id="formula_12">p ϵ = |{1 ≤ i ≤ B, y i = ϵ}|/B.</formula><p>Then, it holds that</p><formula xml:id="formula_13">1 p 0 I(L 0,0 , L 0,1 ) + 1 p 1 I(L 1,0 , L 1,1 ) ≥ log(p 0 B) p 0 + log(p 1 B) p 1 -(R/B). (<label>7</label></formula><formula xml:id="formula_14">)</formula><p>Remark 2. Th. 1 offers theoretical guarantees that our adaptation of contrastive learning in Eq. 5 is a good approximation of I(Z; S|Y ) in Eq. 4.</p><p>Remark 3. To simplify the exposition we restricted to binary Y and S. The general case would involved quantities L y,s with y ∈ Y and S ∈ S.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Setting</head><p>In this section, we describe the experimental setting which includes the dataset, the metrics and the different baselines we will consider. Due to space limitations, details on hyperparameters and neural network architectures are gathered in Ap. C. To ensure fair comparisons we re-implement all the models in a unified framework.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>We use the DIAL dataset <ref type="bibr" target="#b6">(Blodgett et al., 2016)</ref> to ensure backward comparison with previous works <ref type="bibr">(Colombo et al., 2021c;</ref><ref type="bibr" target="#b115">Xie et al., 2017;</ref><ref type="bibr" target="#b3">Barrett et al., 2019)</ref>. We additionally report results on TrustPilot (TRUST) <ref type="bibr">(Hovy et al., 2015)</ref> that has also been used in <ref type="bibr" target="#b19">Coavoux et al. (2018)</ref>. Tweets from the DIAL corpus have been automatically gathered and labels for both polarity (is the expressed sentiment positive or negative?) and mention (is the tweet conversational?) are available. Sensitive attribute related to the race (is the author non-Hispanic black or non-Hispanic white?) has been inferred from both the author geo-location and the used vocabulary. For TRUST the main task consists in predicting a sentiment on a scale of five. The dataset is filtered and examples containing both the author birth date and gender are kept and splits follow <ref type="bibr" target="#b19">Coavoux et al. (2018)</ref>. These variables are used as sensitive information. To obtain binary sensitive attributes, we follow <ref type="bibr">Hovy and Søgaard (2015)</ref> where age is binned into two categories (i.e. age under 35 and age over 45).</p><p>A word on the sensitive attribute inference. Notice that these two datasets are balanced with respect to the chosen sensitive attributes (S), which implies that a random guess has 50% accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Metrics</head><p>Previous works on learning disentangled representation rely on two metrics to assess performance.</p><p>Measuring disentanglement by reporting the accuracy of an adversary trained from scratch to predict the sensitive labels from the latent representation. Since both datasets are balanced, a perfectly disentangled representation corresponds to an accuracy of the adversary of 50%. Success on the main classification task which is measured with accuracy (higher is better). As we are interested in controlling the desired degree of disentanglement <ref type="bibr">(Colombo et al., 2021c)</ref>, we report the trade-off between these two metrics for different models when varying the λ parameter, which controls the magnitude of the regularization (see Eq. 1). For our experiments, we choose λ ∈ [0.001, 0.01, 0.1, 1, 10]. GAP: To assess fairness we adopt the approach introduced by <ref type="bibr" target="#b88">(Ravfogel et al., 2020)</ref>, which involves calculating the root mean square of GAP T P R across all main classes. For GAP, lower is better.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Baselines</head><p>Losses. To compare CLINIC with previous works, we compare against adversarial training (ADV) <ref type="bibr" target="#b44">(Elazar and Goldberg, 2018;</ref><ref type="bibr" target="#b19">Coavoux et al., 2018)</ref> and the recently introduced Mutual Information upper bound <ref type="bibr">(Colombo et al., 2021c</ref>) (I α ) which has been shown to offer more control over the degree of disentanglement than previous estimators. We compare CLINIC with the work of <ref type="bibr" target="#b15">(Chi et al., 2022;</ref><ref type="bibr" target="#b94">Shen et al., 2021;</ref><ref type="bibr" target="#b53">Gupta et al., 2021;</ref><ref type="bibr" target="#b95">Shen et al., 2022)</ref> which uses a method that estimates I(Z; S) (see Eq. 4). Beware that this baseline, be denoted as S 0 , does not incorporate information on Y . Encoders. To provide an exhaustive comparison, we work both with RNN-encoder and PT (e.g BERT <ref type="bibr" target="#b40">(Devlin et al., 2018)</ref>) based architectures. Contrarily to previous works that use frozen PT <ref type="bibr">(Rav-fogel et al., 2020)</ref>, we fine-tune the encoder during training and evaluate our methods on various types of encoders (e.g. DISTILBERT (DIS.) <ref type="bibr" target="#b92">(Sanh et al., 2019)</ref>, ALBERT (ALB.) <ref type="bibr" target="#b67">(Lan et al., 2019)</ref>, SQUEEZEBERT (SQU.) <ref type="bibr" target="#b58">(Iandola et al., 2020)</ref>). These models are selected based on efficiency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Numerical Results</head><p>In this section, we gather experimental results on the fair classification task. Because of space constraints, additional results can be found in Ap. A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Overall Results</head><p>We report in Tab. 1 the best model on each dataset for each of the considered methods. In Tab. 1, each row corresponds to a single λ which controls the weight of the regularizer (see Eq. 1). Global performance. For each dataset, we report the performance of a model trained without disentanglement regularization (CE rows in Tab. 1).</p><p>Results indicate this model relies on the sensitive attribute S to perform the classification task. In contrast, all disentanglement techniques reduce the predictability of S from the representation Z. Among these techniques, we observe that I α improves upon ADV as already pointed out in <ref type="bibr">Colombo et al. (2021c)</ref>. Our CLINIC based methods outperform both ADV and I α baselines, suggesting that contrastive regularization is a promising line of search for future work in disentanglement.</p><p>Comparing the strategies of CLINIC. Among the three considered sampling strategies for positives and negatives, S 1 and S 2 are the best and always improve performance upon S 0 . This is because S 1 and S 2 incorporate knowledge on the target task to construct positive and negative samples, which is crucial to obtain good performance. Datasets difficulty. From Tab. 1, we can observe that some sensitive/main label pairs are more difficult to disentangle than others. In this regard, TRUST is clearly easier to disentangled than DIAL. Indeed, every models except for CE achieve perfect disentanglement. This suggests we are in the case C Y ∩ C S = ∅ of Fig. <ref type="figure">1</ref>, meaning that the sensitive attribute S only contains few information on the target Y . Within DIAL, sentiment label is the hardest but CLINIC with strategy S 1 achieves a good trade-off between accuracy and disentanglement. RNN vs BERT encoder. Interestingly, the BERT encoder is always harder to disentangle than the RNN encoder. This observation can be seen as an additional evidence that BERT may exhibit gender, age and/or race biases, as already pointed out in Ahn and Oh ( <ref type="formula">2021</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Controlling the Level of Disentanglement</head><p>A major challenge when disentangling representations is to be able to control the desired level of disentanglement <ref type="bibr" target="#b46">(Feutry et al., 2018)</ref>. We report performance on the main task and on the disentanglement task for both BERT (see Fig. <ref type="figure" target="#fig_1">2</ref>) and RNN (see Fig. <ref type="figure" target="#fig_2">3</ref>) for differing λ. Notice that we measure the performance of the disentanglement task by reporting the accuracy metric of a classifier trained on the learned representation.</p><p>Results on DIAL. We report a different behavior when working either with RNN or BERT. From Fig. <ref type="figure" target="#fig_2">3b</ref> we observe that CLINIC (especially S 1 and S 2 ) allows us to both learn perfectly disentangled representation as well as allow a fined grained control over the desirable degree of disentanglement when working with RNN-based encoder. On the other hand, previous methods (e.g ADV or I α ) either fail to learn disentangled representations (see I α on Fig. <ref type="figure" target="#fig_1">2a</ref>) or do it while losing the ability to predict Y (see ADV on Fig. <ref type="figure" target="#fig_1">2a</ref>). As already pointed out in the analysis of Tab. 1, we observe again that it is both easier to learn disentangled representation and to control the desire degree of disentanglement with RNN compared to BERT.  Results on TRUST. This dataset exhibits an interesting behaviour known as spurious correlations <ref type="bibr" target="#b118">(Yule, 1926;</ref><ref type="bibr" target="#b97">Simon, 1954;</ref><ref type="bibr" target="#b81">Pearl et al., 2000)</ref>. This means that, without any disentanglement penalty, the encoder learns information about the sensitive features that hurts the classification performance on the test set. We also observe that learning disentangled representation with CLINIC (using S 1 or S 2 ) outperforms a model trained with CE loss solely. This suggests that CLINIC could go beyond the standard disentanglement/accuracy trade-off.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Superiority of the CLINIC's Objective</head><p>In this experiment we assess the relevance of using I(Z; S|Y ) (Eq. 4) instead of I(Z; S) (Eq. 3). For all the considered λ, all datasets and all the considered checkpoints, we display in Fig. <ref type="figure">6</ref> the disentanglement/accuracy trade-off.</p><p>Analysis. Each point in Fig. <ref type="figure">6</ref> corresponds to a trained model (with a specific λ). The more a point is at the bottom right, the better it is for our purpose.</p><p>Notice that the points stemming from our strategies S 1 and S 2 (orange/green) lie further down on the right than the point stemming from S 0 (bleu). For instance, the use of S 1 or S 2 for the RNN provide many models exhibiting perfect sensitive accuracy while maintaining high main accuracy, which is not the case for S 0 . For BERT, models trained with S 0 either have high sensitive and main accuracy or low sensitive and main accuracy. On the contrary, there are points stemming from S 1 or S 2 that lies on the bottom right of Fig. <ref type="figure">6</ref>. Overall, Fig. <ref type="figure">6</ref> validates the use of I(Z; S|Y ) instead of I(Z; S).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Speed up Gain</head><p>In contrast with CLINIC, both previous methods ADV and I α rely on an additional network for the computation of the disentanglement regularizer in Eq. 1. These extra parameters need to be learned with the use of an additional loop during training: at each update of the encoder f θ , several updates of the network are performed to ensure that the regularizer computes the correct value. This loop is both times consuming and involves extra parameters (e.g new learning rates for the additional network) that must be tuned carefully. This makes ADV and I α more difficult to implement on largescale datasets. Tab. 2, illustrates both the parameter reduction and the speed up induced by CLINIC. Tab. 2: Runtime for 1 epoch (using DIAL-S, B = 64 and relying on a single NVIDIA-V100 with 32GB of memory). The model sizes are given in thousand. We compute the relative improvement with respect to the strongest baseline I α from <ref type="bibr">Colombo et al. (2021c)</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Ablation Study</head><p>In this section, we conduct an ablation study on CLINIC with the best sampling strategy (S 1 ) to better understand the importance of its relative components. We focus on the effect of (i) the choice of PT models, (ii) the batch size and (iii) the temperature. This ablation study is conducted for both DIAL-S and TRUST-A, where we recall that the former is harder to disentangle than the latter. Results on TRUST-A can be found in Ap. A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Changing the PT Model</head><p>Setting. As recently pointed out by <ref type="bibr" target="#b7">Bommasani et al. (2021)</ref>, PT plays a central role in NLP, thus the need to understand their effects is crucial. We test CLINIC with PT that are lighter and require less computation time to finetune than BERT. Analysis. The results of CLINIC trained with SQU., DIS. and ALB. are given in Fig. <ref type="figure" target="#fig_3">4</ref>. Overall, we observe that CLINIC consistently achieves better results on all the considered models. Interestingly, for λ &gt; 0.1, we observe that ADV degenerates: the main task accuracy is around 50% and the sensitive task accuracy either is 50% or reaches a high value. This phenomenon has been reported in <ref type="bibr" target="#b3">Barrett et al. (2019)</ref>; <ref type="bibr">Colombo et al. (2021c)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Effect of the Temperature</head><p>Recall that CLINIC uses two different temperatures (see Eq. 5) denoted by τ p and τ n , corresponding to the magnitude one wishes to put on positive and negatives examples. In this experiment, we study their relative importance on the disentanglement/accuracy trade-off. Analysis. Fig. <ref type="figure">5</ref> gathers the performance of CLINIC for different (τ p , τ n ). We observe that low values of τ p (i.e focusing on easy positive) conduct to uninformative representation (i.e low accuracy for Y ). As τ p increases, the choice of τ n becomes relevant. Previously introduced supervised contrastive losses <ref type="bibr" target="#b63">(Khosla et al., 2020)</ref> only use one temperature thus can only rely on diagonal score from Fig. <ref type="figure">5</ref>. Since the chosen trade-off depends on the final application, we believe this ablation study validates the use of two temperatures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Summary and Concluding Remarks</head><p>We introduced CLINIC, a set of novel losses tailored for fair classification. CLINIC both outperform existing disentanglement methods and can go beyond the traditional accuracy/disentanglement trade-off. Future works include (1) improving CLINIC to enable finer control over the disentanglement degree, and (2) developing a way to measure the accuracy/disentanglement trade-off which appears to differ for each dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Limitations</head><p>This paper proposes a novel information-theoretic objective to learn disentangled representations. While the results held for English and studied pretrained encoders, we observed different behavior depending on the disentanglement difficulty. Overall predicting for which attribute or which data we will be able to see a positive trade-off while disentangling remains an open question.</p><p>Additionally, similarly to previous work in the same line of research we also assumed to have access to S which might not be the case for various practical applications. Note that although the main paper focuses on binary attributes for S we report additional results in Ssec. A.1. In general, we believe that our embeddings could be utilized for diverse applications, such as sentence generation and large language models. However, evaluating their performance on these specific tasks falls beyond the scope of this paper. Future research should focus on addressing these aspects.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>); Mozafari et al. (2020); de Vassimon Manela et al. (2021).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Fig. 2 :</head><label>2</label><figDesc>Fig. 2: Fair Classification results using BERT. Results are given with B = 256 and τ p = τ n = 0.5.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Fig. 3 :</head><label>3</label><figDesc>Fig. 3: Results on Fair Classification for a RNN.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Fig. 4 :</head><label>4</label><figDesc>Fig. 4: Ablation study on PT on DIAL-S. Figures from left to right correspond to the performance of ALB., DIS. and SEQU..</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Fig. 5 :Fig. 6 :</head><label>56</label><figDesc>Fig. 5: Ablation study on (τ n , τ p ) for DIAL-S.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Overall results on the fair classification task: the columns with Y and S stand for the main and the sensitive task accuracy respectively. ↓ means lower is better whereas ↑ means higher is better. The best model is bolded and second best is underlined. CE refers to a model trained based on CE solely (case λ = 0 in Eq. 1)</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>RNN</cell><cell></cell><cell>BERT</cell><cell></cell></row><row><cell cols="2">Dat. Loss</cell><cell>λ</cell><cell cols="4">Y (↑) S(↓) GAP λ Y (↑) S(↓) GAP</cell></row><row><cell></cell><cell>CE</cell><cell cols="5">0.0 62.7 73.2 44.5 0.0 76.2 76.7 44.5</cell></row><row><cell>DIAL-S</cell><cell cols="6">S 0 S 1 S 2 ADV 1.0 58.4 70.2 44.5 0.1 74.8 72.7 44.5 1.0 66.1 55.1 18.2 10 74.5 66.8 39.7 1.0 79.1 51.0 6.5 1.0 73.5 58.3 18.9 1.0 79.9 50.0 2.9 0.1 75.1 69.4 30.2</cell></row><row><cell></cell><cell>I α</cell><cell cols="5">0.1 55.2 72.3 44.5 0.1 74.5 70.1 44.5</cell></row><row><cell></cell><cell>CE</cell><cell cols="5">0.0 77.5 62.1 12.3 0.0 82.7 79.1 41.6</cell></row><row><cell>DIAL-M</cell><cell cols="6">S 0 S 1 S 2 ADV 0.01 76.9 57.9 22.5 0.1 82.6 74.6 39.7 10 76.7 54.9 6.2 10 76.6 66.6 33.9 10 69.3 50.0 3.9 1.0 81.6 52.0 6.1 10 69.3 50.0 3.5 1.0 75.0 50.0 2.7</cell></row><row><cell></cell><cell>I α</cell><cell cols="5">0.1 75.5 55.7 21.7 10 74.9 55.0 13.9</cell></row><row><cell></cell><cell>CE</cell><cell cols="5">0.0 72.9 53.0 10.2 0.0 74.9 53.8 14.9</cell></row><row><cell>TRUST-A</cell><cell>S 0 S 1 S 2 ADV</cell><cell>10 10 10 10</cell><cell cols="3">69.3 50.0 75.1 50.0 71.1 50.0 53.9 10 75.1 50.0 6.3 10 70.1 50.0 4.5 10 75.1 50.0 65.5 50.0 5.7 10 70.1 50.0</cell><cell>7.3 5.6 5.0 6.9</cell></row><row><cell></cell><cell>I α</cell><cell>10</cell><cell>75.1 55.0</cell><cell>6.3</cell><cell>10 70.1 50.0</cell><cell>5.9</cell></row><row><cell></cell><cell>CE</cell><cell cols="5">0.0 75.4 52.0 10.2 0.0 74.9 53.8 10.2</cell></row><row><cell>TRUST-G</cell><cell>S 0 S 1 S 2 ADV</cell><cell>10 10 10 10</cell><cell>73.1 50.0 76.1 50.0 75.8 50.0 56.3 50.0</cell><cell>5.3 4.1 3.2 5.6</cell><cell>10 73.3 50.0 10 76.2 50.0 10 76.2 50.0 10 73.2 50.0</cell><cell>5.9 4.5 3.2 5.9</cell></row><row><cell></cell><cell>I α</cell><cell>10</cell><cell>76.2 50.0</cell><cell>4.5</cell><cell>10 73.2 50.3</cell><cell>4.7</cell></row><row><cell>Tab. 1:</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Hypothesis transfer learning with surrogate classification losses</title>
+		<author>
+			<persName><forename type="first">Anass</forename><surname>Aghbalou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.19694</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jaimeen</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alice</forename><surname>Oh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.05704</idno>
+		<title level="m">Mitigating languagedependent ethnic bias in bert</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devon</forename><surname>Hjelm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Buchwalter</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.00910</idno>
+		<title level="m">Learning representations by maximizing mutual information across views</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Adversarial removal of demographic attributes revisited</title>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Barrett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yova</forename><surname>Kementchedjhieva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanai</forename><surname>Elazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Desmond</forename><surname>Elliott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6331" to="6336" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Ishmael Belghazi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aristide</forename><surname>Baratin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sai</forename><surname>Rajeswar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sherjil</forename><surname>Ozair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devon</forename><surname>Hjelm</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1801.04062</idno>
+		<title level="m">Mine: mutual information neural estimation</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Representation learning: A review and new perspectives</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Vincent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Pattern Analysis and Machine Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1798" to="1828" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Demographic dialectal variation in social media: A case study of African-American English</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lisa</forename><surname>Blodgett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brendan O'</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Connor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1119" to="1130" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Rishi</forename><surname>Bommasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Drew</forename><forename type="middle">A</forename><surname>Hudson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Adeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Russ</forename><surname>Altman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simran</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sydney Von Arx</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeannette</forename><surname>Michael S Bernstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bohg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emma</forename><surname>Bosselut</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Brunskill</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2108.07258</idno>
+		<title level="m">On the opportunities and risks of foundation models</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Understanding the origins of bias in word embeddings</title>
+		<author>
+			<persName><forename type="first">Marc-Etienne</forename><surname>Brunet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colleen</forename><surname>Alkalay-Houlihan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashton</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Zemel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="803" to="811" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The deluge of spurious correlations in big data</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Cristian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><surname>Calude</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Longo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Foundations of science</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="595" to="612" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Caton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Haas</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.04053</idno>
+		<title level="m">Fairness in machine learning: A survey</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Hierarchical pre-training for sequence labelling in spoken dialog</title>
+		<author>
+			<persName><forename type="first">Emile</forename><surname>Chapuis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Manica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Labeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.239</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2636" to="2648" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">A simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In International conference on machine learning</title>
+		<imprint>
+			<biblScope unit="page" from="1597" to="1607" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Club: A contrastive log-ratio upper bound of mutual information</title>
+		<author>
+			<persName><forename type="first">Pengyu</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weituo</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuyang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiachang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lawrence</forename><surname>Carin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1779" to="1788" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Of human criteria and automatic metrics: A benchmark of the evaluation of story generation</title>
+		<author>
+			<persName><forename type="first">Cyril</forename><surname>Chhun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabian</forename><forename type="middle">M</forename><surname>Suchanek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Computational Linguistics</title>
+		<meeting>the 29th International Conference on Computational Linguistics<address><addrLine>Gyeongju, Republic of Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5794" to="5836" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Shand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaodong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Tian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.11485</idno>
+		<title level="m">Conditional supervised contrastive learning for fair text classification</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Learning a similarity metric discriminatively, with application to face verification</title>
+		<author>
+			<persName><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raia</forename><surname>Hadsell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2005 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR&apos;05)</title>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="539" to="546" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Adversarial scrubbing of demographic information for text classification</title>
+		<author>
+			<persName><forename type="first">Somnath</forename><surname>Basu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roy</forename><surname>Chowdhury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sayan</forename><surname>Ghosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiyuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Junier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Oliva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Snigdha</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Chaturvedi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.08613</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.3555</idno>
+		<title level="m">Empirical evaluation of gated recurrent neural networks on sequence modeling</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Maximin</forename><surname>Coavoux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1808.09408</idno>
+		<title level="m">Privacy-preserving neural representations of text</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Learning to represent and generate text using information measures</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+		<respStmt>
+			<orgName>Institut polytechnique de Paris</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">2021a. Code-switched inspired losses for spoken dialog representations</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emile</forename><surname>Chapuis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Labeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.656</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="8320" to="8337" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">2021b. Improving multimodal fusion via mutual dependency maximisation</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emile</forename><surname>Chapuis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Labeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.21</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="231" to="245" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Guiding attention in sequence-to-sequence models for dialogue act prediction</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emile</forename><surname>Chapuis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Manica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emmanuel</forename><surname>Vignon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giovanna</forename><surname>Varni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloe</forename><surname>Clavel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7594" to="7601" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2105.02685</idno>
+		<title level="m">Chloe Clavel, and Pablo Piantanida. 2021c. A novel estimator of mutual information for learning to disentangle textual representations</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">2021d. Beam search with bidirectional strategies for neural response generation</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chouchang</forename><surname>Yack</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giovanna</forename><surname>Varni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 4th International Conference on Natural Language and Speech Processing (ICNLSP 2021)</title>
+		<meeting>the 4th International Conference on Natural Language and Speech Processing (ICNLSP 2021)<address><addrLine>Trento, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="139" to="146" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">2022a. Beyond mahalanobis distance for textual ood detection</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduardo</forename><surname>Dadalto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Noiry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="17744" to="17759" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Noiry</surname></persName>
+		</author>
+		<title level="m">Ekhine Irurozki, and Stéphan Clémençon. 2022b. What are the best systems? new perspectives on nlp benchmarking. Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="26915" to="26932" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">2022c. The glass ceiling of automatic evaluation in natural language generation</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxime</forename><surname>Peyrard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Noiry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2208.14585</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">A novel estimator of mutual information for learning to disentangle textual representations</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.511</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="6539" to="6550" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Automatic text evaluation through the lens of Wasserstein barycenters</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.817</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="10450" to="10466" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning disentangled textual representations via statistical measures of similarity</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Noiry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.187</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2614" to="2630" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Affect-driven dialog generation</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Witon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashutosh</forename><surname>Modi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Kennedy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mubbasir</forename><surname>Kapadia</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1374</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3734" to="3743" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Infolm: A new metric to evaluate summarization &amp; data2text generation</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Jean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v36i10.21299</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="10554" to="10562" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<author>
+			<persName><forename type="first">Thomas</forename><forename type="middle">M</forename><surname>Cover</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joy</forename><forename type="middle">A</forename><surname>Thomas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Elements of Information Theory</title>
+		<title level="s">Wiley Series in Telecommunications and Signal Processing</title>
+		<meeting><address><addrLine>USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Wiley-Interscience</publisher>
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Conscientious classification: A data scientist&apos;s guide to discrimination-aware classification</title>
+		<author>
+			<persName><forename type="first">Cathy O'</forename><surname>Brian D'alessandro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Neil</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lagatta</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Big data</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="120" to="134" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Rainproof: An umbrella to shield text generators from out-of-distribution data</title>
+		<author>
+			<persName><forename type="first">Maxime</forename><surname>Darrin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.09171</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Unsupervised layer-wise score aggregation for textual ood detection</title>
+		<author>
+			<persName><forename type="first">Maxime</forename><surname>Darrin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduardo</forename><surname>Dadalto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Câmara</forename><surname>Gomes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jackie</forename><forename type="middle">Ck</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.09852</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Bias in bios: A case study of semantic representation bias in a high-stakes setting</title>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>De-Arteaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Romanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanna</forename><surname>Wallach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennifer</forename><surname>Chayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Borgs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Chouldechova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sahin</forename><surname>Geyik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Krishnaram</forename><surname>Kenthapadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Tauman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalai</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">proceedings of the Conference on Fairness, Accountability, and Transparency</title>
+		<meeting>the Conference on Fairness, Accountability, and Transparency</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="120" to="128" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Stereotype and skew: Quantifying gender bias in pre-trained and fine-tuned language models</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vassimon</forename><surname>Manela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Errington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Fisher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boris</forename><surname>Van Breugel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pasquale</forename><surname>Minervini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2232" to="2242" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.04805</idno>
+		<title level="m">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<idno type="arXiv">arXiv:2005.00614</idno>
+		<title level="m">Multi-dimensional gender bias classification</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">The importance of fillers for text representations of speech transcripts</title>
+		<author>
+			<persName><forename type="first">Tanvi</forename><surname>Dinkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Labeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.641</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7985" to="7993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title level="m" type="main">Adversarial removal of demographic attributes from text data</title>
+		<author>
+			<persName><forename type="first">Yanai</forename><surname>Elazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1808.06640</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Cert: Contrastive self-supervised learning for language understanding</title>
+		<author>
+			<persName><forename type="first">Hongchao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sicheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayuan</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengtao</forename><surname>Xie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.12766</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Learning anonymized representations with adversarial neural networks</title>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Feutry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Duhamel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1802.09386</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Aviv</forename><surname>Gabbay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yedid</forename><surname>Hoshen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.11796</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Demystifying inter-class disentanglement. arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">On formalizing fairness in prediction with machine learning</title>
+		<author>
+			<persName><forename type="first">Pratik</forename><surname>Gajane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mykola</forename><surname>Pechenizkiy</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1710.03184</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Scaling deep contrastive learning batch size under memory limited setup</title>
+		<author>
+			<persName><forename type="first">Luyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamie</forename><surname>Callan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th Workshop on Representation Learning for NLP</title>
+		<meeting>the 6th Workshop on Representation Learning for NLP</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="316" to="321" />
+		</imprint>
+	</monogr>
+	<note>RepL4NLP-2021</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">From the token to the review: A hierarchical multimodal approach to opinion mining</title>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Florence D'alché</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slim</forename><surname>Buc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Essid</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Clavel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1556</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5539" to="5548" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gillick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sayali</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Larry</forename><surname>Lansing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Presta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Baldridge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eugene</forename><surname>Ie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Garcia-Olano</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.10506</idno>
+		<title level="m">Learning dense representations for entity retrieval</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<author>
+			<persName><forename type="first">Osvald</forename><surname>John M Giorgi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gary</forename><forename type="middle">D</forename><surname>Nitski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Bader</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2006.03659</idno>
+		<title level="m">Declutr: Deep contrastive learning for unsupervised textual representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Controllable guarantees for fair outcomes via contrastive information estimation</title>
+		<author>
+			<persName><forename type="first">Umang</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><forename type="middle">M</forename><surname>Ferber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bistra</forename><surname>Dilkina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Ver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steeg</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="7610" to="7619" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Momentum contrast for unsupervised visual representation learning</title>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoqi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saining</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ross</forename><surname>Girshick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9729" to="9738" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Data-efficient image recognition with contrastive predictive coding</title>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Henaff</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4182" to="4192" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">User review sites as a resource for large-scale sociolinguistic studies</title>
+		<author>
+			<persName><forename type="first">Dirk</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Johannsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th international conference on World Wide Web</title>
+		<meeting>the 24th international conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="452" to="461" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Tagging performance correlates with author age</title>
+		<author>
+			<persName><forename type="first">Dirk</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd annual meeting of the Association for Computational Linguistics and the 7th international joint conference on natural language processing</title>
+		<meeting>the 53rd annual meeting of the Association for Computational Linguistics and the 7th international joint conference on natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="483" to="488" />
+		</imprint>
+	</monogr>
+	<note>Short papers</note>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<monogr>
+		<author>
+			<persName><forename type="first">Albert</forename><forename type="middle">E</forename><surname>Forrest N Iandola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ravi</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kurt</forename><forename type="middle">W</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Keutzer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2006.11316</idno>
+		<title level="m">Squeezebert: What can computer vision teach nlp about efficient neural networks? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<analytic>
+		<title level="a" type="main">Heavy-tailed representations, text polarity classification &amp; data augmentation</title>
+		<author>
+			<persName><forename type="first">Hamid</forename><surname>Jalalzai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloé</forename><surname>Clavel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Gaussier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giovanna</forename><surname>Varni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emmanuel</forename><surname>Vignon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anne</forename><surname>Sabourin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="4295" to="4307" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<monogr>
+		<title level="m" type="main">Disentangled representation learning for non-parallel text style transfer</title>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>John</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Mou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hareesh</forename><surname>Bahuleyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Vechtomova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1808.04339</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<analytic>
+		<title level="a" type="main">Data preprocessing techniques for classification without discrimination</title>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Kamiran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Toon</forename><surname>Calders</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Knowledge and Information Systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="33" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<monogr>
+		<title level="m" type="main">Dense passage retrieval for open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.04906</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<monogr>
+		<author>
+			<persName><forename type="first">Prannay</forename><surname>Khosla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Teterwak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Sarna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonglong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Isola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Maschinot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ce</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilip</forename><surname>Krishnan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.11362</idno>
+		<title level="m">Supervised contrastive learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<analytic>
+		<title level="a" type="main">Generalization bounds in the presence of outliers: a median-of-means study</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Laforgue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Clémençon</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5937" to="5947" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<analytic>
+		<title level="a" type="main">Multiple-attribute text rewriting</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludovic</forename><surname>Denoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc'aurelio</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y-Lan</forename><surname>Boureau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b67">
+	<monogr>
+		<title level="m" type="main">Albert: A lite bert for self-supervised learning of language representations</title>
+		<author>
+			<persName><forename type="first">Zhenzhong</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingda</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Goodman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piyush</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radu</forename><surname>Soricut</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.11942</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b68">
+	<analytic>
+		<title level="a" type="main">Does mitigating ml&apos;s impact disparity require treatment disparity?</title>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Zachary C Lipton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Chouldechova</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd International Conference on Neural Information Processing Systems</title>
+		<meeting>the 32nd International Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="8136" to="8146" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b69">
+	<monogr>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Locatello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriele</forename><surname>Abbati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Rainforth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bachem</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1905.13662</idno>
+		<title level="m">On the fairness of disentangled representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b70">
+	<analytic>
+		<title level="a" type="main">Challenging common assumptions in the unsupervised learning of disentangled representations</title>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Locatello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Lucic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gunnar</forename><surname>Raetsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bachem</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">international conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4114" to="4124" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b71">
+	<monogr>
+		<title level="m" type="main">A sober look at the unsupervised learning of disentangled representations and their evaluation</title>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Locatello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Lucic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gunnar</forename><surname>Rätsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bachem</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.14766</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b72">
+	<monogr>
+		<title level="m" type="main">An efficient framework for learning sentence representations</title>
+		<author>
+			<persName><forename type="first">Lajanugen</forename><surname>Logeswaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglak</forename><surname>Lee</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1803.02893</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b73">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Loshchilov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Hutter</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1711.05101</idno>
+		<title level="m">Decoupled weight decay regularization</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b74">
+	<analytic>
+		<title level="a" type="main">Disentangling disentanglement in variational autoencoders</title>
+		<author>
+			<persName><forename type="first">Emile</forename><surname>Mathieu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Rainforth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nana</forename><surname>Siddharth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yee</forename><forename type="middle">Whye</forename><surname>Teh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4402" to="4412" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b75">
+	<analytic>
+		<title level="a" type="main">Formal limitations on the measurement of mutual information</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Mcallester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Stratos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty Third International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the Twenty Third International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">108</biblScope>
+			<biblScope unit="page" from="875" to="884" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b76">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jovana</forename><surname>Mitrovic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Mcwilliams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Rey</surname></persName>
+		</author>
+		<title level="m">Less can be more in contrastive learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b77">
+	<analytic>
+		<title level="a" type="main">Hate speech detection and racial bias mitigation in social media based on bert model</title>
+		<author>
+			<persName><forename type="first">Marzieh</forename><surname>Mozafari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reza</forename><surname>Farahbakhsh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noël</forename><surname>Crespi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">PloS one</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page">237861</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b78">
+	<analytic>
+		<title level="a" type="main">Estimating divergence functionals and the likelihood ratio by convex risk minimization</title>
+		<author>
+			<persName><forename type="first">Xuanlong</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><forename type="middle">J</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1807.03748</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Representation learning with contrastive predictive coding</title>
+		<imprint>
+			<date type="published" when="2010">2010. 2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Aaron van den Oord, Yazhe Li, and Oriol Vinyals</note>
+</biblStruct>
+
+<biblStruct xml:id="b79">
+	<analytic>
+		<title level="a" type="main">Estimation of entropy and mutual information</title>
+		<author>
+			<persName><forename type="first">Liam</forename><surname>Paninski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1191" to="1253" />
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b80">
+	<analytic>
+		<title level="a" type="main">Automatic differentiation in pytorch</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soumith</forename><surname>Chintala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregory</forename><surname>Chanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Devito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeming</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alban</forename><surname>Desmaison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Antiga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Lerer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS 2017 Workshop on Autodiff</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b81">
+	<analytic>
+		<title level="a" type="main">A differential entropy estimator for training neural networks</title>
+		<author>
+			<persName><forename type="first">Judea</forename><surname>Pearl</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 39th International Conference on Machine Learning</title>
+		<meeting>the 39th International Conference on Machine Learning<address><addrLine>Cambridge, UK</addrLine></address></meeting>
+		<imprint>
+			<publisher>CambridgeUniversityPress</publisher>
+			<date type="published" when="2000">2000. 19. 2022</date>
+			<biblScope unit="volume">162</biblScope>
+			<biblScope unit="page" from="17691" to="17715" />
+		</imprint>
+	</monogr>
+	<note>Models, reasoning and inference</note>
+</biblStruct>
+
+<biblStruct xml:id="b82">
+	<monogr>
+		<title level="m" type="main">On the estimation of information measures of continuous distributions</title>
+		<author>
+			<persName><forename type="first">Georg</forename><surname>Pichler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Günther</forename><surname>Koliander</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2002.02851</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b83">
+	<analytic>
+		<title level="a" type="main">A halfspacemass depth-based method for adversarial attack detection</title>
+		<author>
+			<persName><forename type="first">Marine</forename><surname>Picot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federica</forename><surname>Granese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Romanelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Messina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b84">
+	<monogr>
+		<title level="m" type="main">2022a. Adversarial attack detection under realistic constraints</title>
+		<author>
+			<persName><forename type="first">Marine</forename><surname>Picot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Noiry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b85">
+	<monogr>
+		<title level="m" type="main">2022b. A simple unsupervised data depth-based method to detect adversarial images</title>
+		<author>
+			<persName><forename type="first">Marine</forename><surname>Picot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federica</forename><surname>Granese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Noiry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Messina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pablo</forename><surname>Piantanida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b86">
+	<analytic>
+		<title level="a" type="main">Spatiotemporal contrastive video representation learning</title>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjian</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boqing</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Hsuan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huisheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Serge</forename><surname>Belongie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yin</forename><surname>Cui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6964" to="6974" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b87">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yanru</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dinghan</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandra</forename><surname>Sajeev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.08670</idno>
+		<title level="m">Coda: Contrastenhanced and diversity-promoting data augmentation for natural language understanding</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b88">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shauli</forename><surname>Ravfogel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanai</forename><surname>Elazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hila</forename><surname>Gonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Twiton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.07667</idno>
+		<title level="m">Null it out: Guarding protected attributes by iterative nullspace projection</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b89">
+	<monogr>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1908.10084</idno>
+		<title level="m">Sentence-bert: Sentence embeddings using siamese bert-networks</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b90">
+	<monogr>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Rethmeier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2102.12982</idno>
+		<title level="m">A primer on contrastive pretraining in language processing: Methods, lessons learned and perspectives</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b91">
+	<monogr>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Robinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ching-Yao</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suvrit</forename><surname>Sra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefanie</forename><surname>Jegelka</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.04592</idno>
+		<title level="m">Contrastive learning with hard negative samples</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b92">
+	<monogr>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.01108</idno>
+		<title level="m">Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b93">
+	<analytic>
+		<title level="a" type="main">Facenet: A unified embedding for face recognition and clustering</title>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Schroff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Kalenichenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Philbin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="815" to="823" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b94">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aili</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lea</forename><surname>Frermann</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.10645</idno>
+		<title level="m">Contrastive learning for fair representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b95">
+	<analytic>
+		<title level="a" type="main">Does representational fairness imply empirical fairness?</title>
+		<author>
+			<persName><forename type="first">Aili</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xudong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lea</forename><surname>Frermann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: AACL-IJCNLP 2022</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="81" to="95" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b96">
+	<monogr>
+		<title level="m" type="main">A simple but toughto-beat data augmentation approach for natural language understanding and generation</title>
+		<author>
+			<persName><forename type="first">Dinghan</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingzhi</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanru</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2009.13818</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b97">
+	<analytic>
+		<title level="a" type="main">Spurious correlation: A causal interpretation</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Herbert</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Simon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American statistical Association</title>
+		<imprint>
+			<biblScope unit="volume">49</biblScope>
+			<biblScope unit="issue">267</biblScope>
+			<biblScope unit="page" from="467" to="479" />
+			<date type="published" when="1954">1954</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b98">
+	<monogr>
+		<title level="m" type="main">Understanding the limitations of variational mutual information estimators</title>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Ermon</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.06222</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b99">
+	<analytic>
+		<title level="a" type="main">Mitigating adversarial training instability with batch normalization</title>
+		<author>
+			<persName><forename type="first">Chawin</forename><surname>Sridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Sitawarin</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wagner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of International Conference on Learning Representation Workshop on Security and Safety in Machine Learning Systems</title>
+		<meeting>International Conference on Learning Representation Workshop on Security and Safety in Machine Learning Systems</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b100">
+	<analytic>
+		<title level="a" type="main">Dropout: a simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b101">
+	<monogr>
+		<title level="m" type="main">Functional anomaly detection and robust estimation</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+		<respStmt>
+			<orgName>Institut polytechnique de Paris</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b102">
+	<analytic>
+		<title level="a" type="main">Functional anomaly detection: a benchmark study</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Adjakossa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlo</forename><surname>Mozharovskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vera</forename><surname>Hofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jayant</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sen</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Clémençon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Data Science and Analytics</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">16</biblScope>
+			<biblScope unit="page" from="101" to="117" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b103">
+	<analytic>
+		<title level="a" type="main">Alché Buc. 2021a. When ot meets mom: Robust estimation of wasserstein distance</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Laforgue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlo</forename><surname>Mozharovskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florence</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 24th International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>The 24th International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<biblScope unit="volume">130</biblScope>
+			<biblScope unit="page" from="136" to="144" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b104">
+	<analytic>
+		<title level="a" type="main">Functional isolation forest</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlo</forename><surname>Mozharovskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Clémençon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florence D'alché</forename><surname>Buc</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The Eleventh Asian Conference on Machine Learning</title>
+		<meeting>The Eleventh Asian Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">101</biblScope>
+			<biblScope unit="page" from="332" to="347" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b105">
+	<analytic>
+		<title level="a" type="main">The area of the convex hull of sampled curves: a robust functional statistical depth measure</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlo</forename><surname>Mozharovskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stéphan</forename><surname>Clémençon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23nd International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the 23nd International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">108</biblScope>
+			<biblScope unit="page" from="570" to="579" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b106">
+	<monogr>
+		<title level="m" type="main">2021b. Affine-invariant integrated rankweighted depth: Definition, properties and finite sample analysis</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlo</forename><surname>Mozharovskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stéphan</forename><surname>Clémençon</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2106.11068</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b107">
+	<monogr>
+		<title level="m" type="main">Stéphan Clémençon, and Florence d&apos;Alché Buc. 2021c. A pseudo-metric between probability distributions based on depth-trimmed regions</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Staerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlo</forename><surname>Mozharovskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.12711</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b108">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b109">
+	<analytic>
+		<title level="a" type="main">Understanding the behaviour of contrastive loss</title>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huaping</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2495" to="2504" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b110">
+	<analytic>
+		<title level="a" type="main">Understanding contrastive representation learning through alignment and uniformity on the hypersphere</title>
+		<author>
+			<persName><forename type="first">Tongzhou</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Isola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9929" to="9939" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b111">
+	<analytic>
+		<title level="a" type="main">Disney at IEST 2018: Predicting emotions using an ensemble</title>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Witon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Colombo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashutosh</forename><surname>Modi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mubbasir</forename><surname>Kapadia</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-6236</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th Workshop on Computational Approaches to Subjectivity, Sentiment and Social Media Analysis</title>
+		<meeting>the 9th Workshop on Computational Approaches to Subjectivity, Sentiment and Social Media Analysis<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="248" to="253" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b112">
+	<monogr>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R'emi</forename><surname>Louf</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.03771</idno>
+		<title level="m">Morgan Funtowicz, and Jamie Brew. Huggingface&apos;s transformers: State-of-the-art natural language processing</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b113">
+	<monogr>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leslie</forename><surname>Rice</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J Zico</forename><surname>Kolter</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2001.03994</idno>
+		<title level="m">Fast is better than free: Revisiting adversarial training</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b114">
+	<monogr>
+		<title level="m" type="main">Rethinking infonce: How many negative samples do you need</title>
+		<author>
+			<persName><forename type="first">Chuhan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangzhao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongfeng</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2105.13003</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b115">
+	<analytic>
+		<title level="a" type="main">Controllable invariance through adversarial feature learning</title>
+		<author>
+			<persName><forename type="first">Qizhe</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulun</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="585" to="596" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b116">
+	<monogr>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naiyan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mu</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1505.00853</idno>
+		<title level="m">Empirical evaluation of rectified activations in convolutional network</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b117">
+	<monogr>
+		<title level="m" type="main">Multiple pretext-task for self-supervised learning via mixing multiple image transformations</title>
+		<author>
+			<persName><forename type="first">Sekitoshi</forename><surname>Shin'ya Yamaguchi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kanai</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1912.11603</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Tetsuya Shioda, and Shoichiro Takeda</note>
+</biblStruct>
+
+<biblStruct xml:id="b118">
+	<analytic>
+		<title level="a" type="main">Why do we sometimes get nonsense-correlations between time-series?-a study in sampling and the nature of time-series</title>
+		<author>
+			<persName><forename type="first">Yule</forename><surname>Udny</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the royal statistical society</title>
+		<imprint>
+			<biblScope unit="volume">89</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="63" />
+			<date type="published" when="1926">1926</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b119">
+	<monogr>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongge</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sven</forename><surname>Gowal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Stanforth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duane</forename><surname>Boning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cho-Jui</forename><surname>Hsieh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.06316</idno>
+		<title level="m">Towards stable and efficient training of verifiably robust neural networks</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b120">
+	<monogr>
+		<author>
+			<persName><forename type="first">Wenzheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Stratos</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2104.06245</idno>
+		<title level="m">Understanding hard negatives in noise contrastive estimation</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

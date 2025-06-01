@@ -1,0 +1,830 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Improving Neural Machine Translation with Offline Evaluations</title>
+				<funder ref="#_WE6FBGb #_Xwxrnhv">
+					<orgName type="full">Korea government(MSIT)</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">BLEU</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">SAMSUNG Research, Samsung Electronics Co</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">National Research Foundation of Korea</orgName>
+					<orgName type="abbreviated">NRF</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">CER</orgName>
+					<orgName type="abbreviated">H</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Minkyung</forename><surname>Park</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Artificial Intelligence</orgName>
+								<orgName type="institution">Korea University</orgName>
+								<address>
+									<country key="KR">Republic of Korea</country>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Byung-Jun</forename><surname>Lee</surname></persName>
+							<email>byungjunlee@korea.ac.kr</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Artificial Intelligence</orgName>
+								<orgName type="institution">Korea University</orgName>
+								<address>
+									<country key="KR">Republic of Korea</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Improving Neural Machine Translation with Offline Evaluations</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">1A46B6AB591CC5B34F1A5D6F6B7A6EA5</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:35+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Reinforcement learning (RL) offers a principled framework for optimizing a given reward function and has been applied to a neural machine translation (NMT) problem to maximize arbitrary task metrics. However, previously adopted RL algorithms for NMT (e.g., policy gradient) are generally slow as they require online data collection, and limits the algorithm's applicability to specific reward functions that can be evaluated online. In this paper, we present an offline RL algorithm called CER (conservative expectile regression). Despite the demanding nature of offline RL tasks, which are even more difficult with large models, this algorithm is capable to learn stably by explicitly exploiting the properties of NMT's RL formulation, such as the deterministic transition function. We analyze and discuss the design choices of CER, and demonstrate in the experiments that the proposed method outperforms its competitors for offline reward optimization in NMT.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Standard training of neural machine translation (NMT) systems relies on the maximum likelihood estimation (MLE) with ground-truth parallel corpus , where we assume that every single instance in the dataset is a correct translation. Despite the remarkable progress made so far <ref type="bibr" target="#b11">(Lewis et al., 2020;</ref><ref type="bibr" target="#b0">Brown et al., 2020)</ref>, there is always a need of training methods that can learn without the perfect supervision, e.g., learning from noisy data <ref type="bibr" target="#b4">(Guo et al., 2021)</ref>, or human feedback <ref type="bibr" target="#b13">(Nguyen et al., 2017)</ref>.</p><p>To this end, reinforcement learning (RL) has gained attraction to train models beyond the standard MLE training, as it offers a principled framework to optimize for the given reward function.</p><p>In the applications of NMT (or text generation in general), it has been widely researched to mainly reduce the exposure bias <ref type="bibr" target="#b22">(Wang and Sennrich, 2020)</ref> and/or optimize for the non-differentiable metrics like BLEU <ref type="bibr" target="#b3">(Edunov et al., 2018)</ref>. However, most of the previous works have focused on designing online RL algorithms, which possess inherent weaknesses in a number of practical perspectives. Primarily, online RL algorithms are slow due to the low probability of obtaining good samples during online data collection, and is not possible if the reward/transition functions cannot be sampled online, e.g., learning on human feedback.</p><p>Recently, there was a large amount of research to develop efficient and stable offline reinforcement learning algorithms that only utilize previously collected data <ref type="bibr" target="#b10">(Kumar et al., 2020)</ref>, and some of them have achieved small successes on real-world tasks like robot manipulations <ref type="bibr" target="#b12">(Mandlekar et al., 2021)</ref>. While offline learning is free from the inherent weaknesses of online learning, it adds another difficult algorithmic challenge of distribution shift on top of the challenges and destabilizes learning. We indeed empirically observed that typical offline RL algorithms with bootstrapped action-value learning become easily unstable in NMT, and less performant in practice. Nevertheless, we also show that there are clear limitations in optimizing the policy with the importance sampling alone, which implies that action-value learning should not be abandoned.</p><p>In this paper, we aim to develop an efficient offline RL algorithm that is able to handle all of the above challenges. To this end, we explicitly exploit the unique characteristics that the RL formulation of NMT has: deterministic transition, and the fact that choosing different actions will never lead to the same state in the future. These characteristics enable us to use the proposed algorithm, conservative expectile regression (CER), which is specialized to have high efficiency in this particular setting. We also present a way to extract a policy and decode from the learned action-values to obtain the highest performing translation possible. In the experiments, we demonstrate the performance of the CER algorithm by designing an offline RL experi-ments based on various IWSLT'14 and WMT'14 parallel datasets. We show that CER outperforms other offline RL algorithms while it only requires a minor change in architecture and small amount of extra computation that parallelizes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Preliminaries</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">RL formulations for NMT</head><p>The goal of neural machine translation (NMT) is to produce a translation y = (y 0 , ..., y T ) in a target language given a sentence x = (x 0 , ..., x S ) in a source language. Each y, x ∈ V are tokens from a finite vocabulary set V .</p><p>In this work, we model the neural machine translation task as a Markov Decision Process (MDP), where the system state at each time step t is s t = (x, y &lt;t ), the partial translation generated so far. The action corresponds to choosing the next token from a finite action space, the vocabulary set: a t = y t ∈ V . The machine translator corresponds to a policy π(a t |s t ) = p(y t |y &lt;t , x). After the translator chooses a token, it receives a reward r t = R(s t , a t ) and a next state s t+1 , with a deterministic transition rule s t+1 = (x, y &lt;t+1 ) with y &lt;t+1 = (y &lt;t , a t ). This procedure will produce a trajectory (i.e., a full translation) τ = (s 0 , a 0 , r 0 , ..., s T , a T , r T ) given a policy.</p><p>We also define the return as the sum of discounted rewards from time-step t, G t = T t ′ =t γ t ′ r t ′ where γ ∈ (0, 1] is a discount factor. The goal is then to find a policy that maximizes the expected return at the initial state, J(π) = E τ ∼π [G 0 ]. To do this, the action-value function of policy is often computed and used:</p><formula xml:id="formula_0">Q π (s, a) = E τ ∼π [G 0 |s 0 = s, a 0 = a],</formula><p>which is the expected return following π, starting from taking action a at state s.</p><p>One particular aspect of NMT as an RL problem is that most of the task metrics we use for the reward function can only evaluate the completed translations. In these cases, the nonzero reward will only be assigned to the end of the trajectory, i.e. r t = 0, ∀t &lt; T . We assume the case throughout this paper.</p><p>Learning from offline data In contrast to online RL algorithms, offline RL uses previously collected dataset D without any additional data collection. In terms of NMT, offline RL is similar to the usual supervised learning of NMT methods, but it enables us to optimize arbitrary score metrics. In the following, with a slight abuse of notations, we also refer D as an empirical distribution induced by dataset D, i.e., D(a|s) = (s i ,a i )∈D 1s i =s,a i =a s i ∈D 1s i =s is the behavior policy estimated from D.</p><p>3 The Offline RL Framework for NMT</p><p>In this section, we discuss the weaknesses of the previous offline RL methods ( §3.1) and introduce a practical algorithm, conservative expectile regression (CER), that avoids those issues and enables stable training of action-value Q ( §3.2, §3.3). Then, we describe how we can obtain a highly rewarding translation sample from learned Q ( §3.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Challenges in Offline RL on NMT</head><p>While RL in principle provides an effective framework for optimizing neural machine translators on arbitrary metrics, due to the large state-action space and large language models, designing an offline RL algorithm that works faces a number of challenges. We discuss below the weaknesses of various candidates that we did not choose to develop.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Policy gradient</head><p>The most widely used algorithm for NMT (or text generation in general) is policy gradient <ref type="bibr">(PG, Ranzato et al., 2016;</ref><ref type="bibr" target="#b23">Wu et al., 2018;</ref><ref type="bibr" target="#b1">Choshen et al., 2020;</ref><ref type="bibr" target="#b5">Kiegeland and Kreutzer, 2021)</ref>. PG is an on-policy algorithm, meaning that the samples from the current policy π are required to optimize the policy. To apply PG in an offline setting, we need to apply an importance sampling:</p><formula xml:id="formula_1">∇J(π) = E τ ∼π T t=0 G t ∇ log π(a t |s t ) = E τ ∼D T t=0 w t G t ∇ log π(a t |s t ) , with importance weights w t = T t ′ =t π(a t ′ |s t ′ ) D(a t ′ |s t ′ ) .</formula><p>Note that computing the importance weight w t requires multiplying per-timestep importance weight over a number of timesteps. It can be easily seen that such an estimator suffers from a variance that grows exponentially as the trajectory gets longer. Furthermore, for the usual parametrized policy π with a softmax head, the probability of any action is nonzero. This implies that the dataset D should cover all possible generations, which is simply not possible.</p><p>Approximated PG To overcome such issues of PG, Pang and He (2021) proposes GOLD, which</p><formula xml:id="formula_2">s 0 s 1 s 2 return: 0 50% of D return: +1 10% of D return: -1 40% of D Q D = 0 Q * = 0 Q D = -0 .6 Q * = + 1 max π Q D m a xπ Q * Figure 1:</formula><p>An illustrative example of the suboptimality of "single-step" methods, which cannot take better future decisions into account. Although the best policy would be choosing to go to s 2 to get a return of 1. maximizing Q D leads to s 1 because of the bad data distribution after s 2 . See <ref type="bibr" target="#b20">(Snell et al., 2022</ref>) also for other examples.</p><p>is an approximation of PG that uses truncated importance weight w t ≈ π(a t |s t ) assuming uniform probability for samples in a dataset. This choice has two implications; first, by truncating the importance weight after the current timestep, it can be equivalently seen as maximizing the behavior value, Q D . This will make the algorithm work like the "single-step" update methods <ref type="bibr" target="#b20">(Snell et al., 2022)</ref>, which estimate the value of the behavior policy, and act greedily according to the behavior value Q D instead of maximizing the sum of rewards. As shown in Figure <ref type="figure">1</ref>, single-step update methods may result in a myopic, suboptimal policy.</p><p>Secondly, as we assume uniform distribution over sampled actions in a dataset, the gradient estimate becomes biased as most of the actions will not be sampled despite their nonzero probability. The algorithm will act as trajectories that are not sampled have the return of 0, and this makes the algorithm dependent on the signs of returns. For example, if all returns G t are negative, then the probability of any trajectory in the dataset to be sampled by the policy π will be updated toward zero. These implications of approximated PG encourage us to design an algorithm that learns a nonbehavior action-value, i.e., multi-step methods, to avoid the limitations.</p><p>Bootstrapped update of Q The standard way of learning Q π in recent deep RL algorithms is using a bootstrapped update according to the following temporal difference (TD) loss:</p><formula xml:id="formula_3">L T D = 1 2 E D [(r + γE π(a ′ |s ′ ) Q(s ′ , a ′ ) -Q(s, a)) 2 ]</formula><p>where Q is a target network and the experience tuple (s, a, r, s ′ ) is sampled from the dataset D. We can also simultaneously do the policy optimization by using max a ′ Q(s ′ , a ′ ) instead of E π(a ′ |s ′ ) Q, which leads to a Q-learning algorithm that achieves Q * . However, when dealing with large models, this bootstrapped update introduces a number of technical difficulties:</p><p>• Requires doubled number of parameters due to the target network, and the target network update rate should be tuned.</p><p>• Under the sparse reward of NMT, it takes T times of updates to propagate the rewards to the Qs of initial states.</p><p>• When combined with an offline setting, L T D uses Q(s ′ , a ′ ) that may have not been trained, and is prone to divergence when π is very different from data collection policy <ref type="bibr" target="#b9">(Kumar et al., 2019)</ref>. A number of different offline RL algorithms have been proposed to prevent the divergence, but these typically require another hyperparameter to be tuned to tradeoff the possibility of divergence and the possible performance improvement.</p><p>• It may lead to poor generalization and degenerate feature representation <ref type="bibr" target="#b8">(Kumar et al., 2021)</ref> that can harm performances on new source sentences that were never seen.</p><p>While a few previous studies <ref type="bibr" target="#b4">(Guo et al., 2021;</ref><ref type="bibr" target="#b20">Snell et al., 2022)</ref> demonstrated the effectiveness of these temporal difference losses, we have empirically observed that in our experiment settings, bootstrapped update leads to relatively unstable learning and poor performance without sensible tuning of hyperparameters (Figure <ref type="figure" target="#fig_0">2</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Learning Q with expectile regression</head><p>Consequently, in this work, we aim to entirely avoid using a bootstrapped update based on a TD error as in L T D . One simple alternative we can think of is the simple Monte-Carlo (MC) estimation of action-values:</p><formula xml:id="formula_4">min Q E τ ∼D T t=0 (Q(s t , a t ) -G t ) 2 . (<label>1</label></formula><formula xml:id="formula_5">)</formula><p>Despite its simplicity, it can alleviate some of the weaknesses of L T D and challenges of the NMT as an offline RL problem: (1) it does not suffer from the problem of querying unseen next action a ′ during offline training (thus no divergence/less instability), and (2) under the sparse reward function of NMT, Q of any time-step can be directly updated with nonzero reward signal at the end of the trajectory. In this case, we can simply let</p><formula xml:id="formula_6">G t = γ T -t r T .</formula><p>On the other hand, it is one of the "single-step" methods and will suffer from the same problem that approximated PG suffers from (Figure <ref type="figure">1</ref>). It is also well known that MC estimation of Q-value has a higher variance compared to TD estimation, which will result in a relatively high variance in gradient and slow learning.</p><p>To deal with these problems, we adopt the expectile regression framework and propose the following loss:</p><formula xml:id="formula_7">L η ER = E τ ∼D T t=0 L η 2 (Q(s t , a t ) -G t ) ,<label>(2)</label></formula><p>where L η 2 (u) = |η -1 u&lt;0 |u 2 and η ∈ (0, 1). The Q η (s t , a t ) that minimizes L η ER will be the ηexpectile of the return distribution that we can get from (s t , a t ), following the behavior policy D(a|s). Intuitively, it recovers the MC loss (Eq. 1) when η = 0.5. For η &gt; 0.5, it assigns smaller weight 1 -η to the return samples G t that are smaller than Q η (s t , a t ) while assigning larger weight to the others, resulting in</p><formula xml:id="formula_8">Q η (s t , a t ) ≥ E[G t ].</formula><p>Normally this objective would not give a valid Q-value since taking an expectile of the return G t involves all the stochasticity including those from sampling the transition and reward functions. Fortunately, under the specific MDP formulation that we have made for NMT, we can prove that Q η , a solution to the Eq. ( <ref type="formula" target="#formula_7">2</ref>), is always a valid action value function Q of some specific policy. Theorem 3.1. Under the MDP formulation of NMT described in Section 2.1, there exists a policy π</p><formula xml:id="formula_9">such that Q π (s, a) = Q η (s, a), ∀(s, a) ∈ D where Q η is a solution to Eq. (2). Proof. See Appendix A.1.</formula><p>We also provide another interpretation and a benefit of L η ER by showing what happens when η → 1:</p><formula xml:id="formula_10">Theorem 3.2. For Q η = arg min Q L η ER , lim η→1 Q η (s, a) = max τ ∈D T t=0 γ t r t |s 0 = s, a 0 = a .</formula><p>Furthermore, the variance of the stochastic gradient ∇ LER is zero as we approach the solution,</p><formula xml:id="formula_11">lim η→1 Q→Q η V[∇ Lη ER ] = 0. Proof. See Appendix A.2.</formula><p>In other words, as we take η ≈ 1, it is equivalent to letting Q(s, a) be the maximum return we have experienced in the dataset. With high η, the variance of stochastic gradient decreases as we approach the solution, which also alleviates the high variance problem of simple MC Q estimators.</p><p>The objective L η ER can be seen as an MC version of IQL <ref type="bibr" target="#b7">(Kostrikov et al., 2021;</ref><ref type="bibr" target="#b20">Snell et al., 2022)</ref> to deal with the sparsity of rewards. In general RL problems, this objective may not be desirable since it lacks the ability to "stitch" together different sub-trajectories <ref type="bibr" target="#b10">(Kumar et al., 2020)</ref>. However, in the RL formulation of NMT, it can be seen that trajectories, which choose different actions a 1 t , a 2 t at s t that give different state transitions s 1 t+1 ̸ = s 2 t+1 , will never arrive at the same state in the subsequent time-steps, and no algorithm will benefit from stitching.</p><p>Moreover, due to the absence of sampling error, L η ER benefits from a much higher η when compared to <ref type="bibr" target="#b7">Kostrikov et al. (2021)</ref>. While taking η → 1 is the best choice in principle, such η implies that we completely ignore trajectories other than those that give the max return. Although we observed that in experiments the algorithm does better as we set η higher (Figure <ref type="figure" target="#fig_3">5</ref>), there might be cases where smaller η is better due to the worse generalization of the function approximator.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Conservative expectile regression</head><p>We have shown that the L η ER objective introduced in the last section has nice properties, and addresses the problems of offline RL training in principle. However, it should be noted that the analyzed characteristics above apply to the exact Q-function learning, i.e., the tabular case. NMT is at the other extreme where, in the test time, we do not see any of the state-action we have seen during the training and should only rely on the generalization ability of our function approximators.</p><p>For example, assume a rare token a that only appears in the dataset one time from some state s, and also assume that it achieves the largest return G in the dataset. Without any other appearance of action a in other states, the function approximator may assume that the return G generalizes to other states, making the translator repeat the same action in any circumstance. It is because the behavior of Q η that approximates the maximum return is only guaranteed for state-actions that appear in the dataset.</p><p>Therefore, we adopt the regularization that penalizes uncertain Q-values outside the data support introduced in Conservative Q-learning <ref type="bibr" target="#b10">(Kumar et al., 2020)</ref>, which optimizes:</p><formula xml:id="formula_12">L η CER(H) = min Q L η ER + αR H , where<label>(3)</label></formula><formula xml:id="formula_13">R H = E D T t=0 log ā exp(Q(s t , ā)) -Q(s t , a t )</formula><p>We denote this algorithm as conservative expectile regression: CER(H). By adding a regularizer R H , it will additionally minimize Q-values that lie outside the data support, preventing unseen actions from becoming overly optimistic. Note that theoretically, the regularization R H in CER brings a different amount of conservatism compared to that of conservative Q-learning as we choose to have an asymmetric objective L η ER . In the Appendix B, we analyze how much conservatism CER will bring when compared to the oracle-based objective,</p><formula xml:id="formula_14">min Q E D [(Q -Q η ) 2 ] + αR H .</formula><p>The main result is that CER will be at least half conservative when compared to the oraclebased objective when α is small enough. The lower bounds on value functions and objective analyses done by <ref type="bibr" target="#b10">Kumar et al. (2020)</ref> can be followed similarly to show that CER provides a valid lower bound on action-value function.</p><p>Advantage weighted regularization Interestingly, it can be observed that the regularization term R H in Eq. ( <ref type="formula" target="#formula_12">3</ref>) is highly reminiscent of the cross-entropy loss of MLE training if we interpret Q(s, •) as the logit of a token given the current state s, similar to the soft action-value <ref type="bibr" target="#b4">(Guo et al., 2021)</ref>, i.e. π(a|s) = softmax(Q(s, a)). This interpretation naturally lead to a question whether interpolating against the MLE objective is actually beneficial. It will depend on how the dataset is constructed: as more suboptimal trajectories are contained in the dataset, the performance of the policy that MLE objective results alone becomes worse, and so does the optimized policy of CER(H). To make CER(H) not suffer from the suboptimality of trajectories in the dataset, we need to avoid R H over-regularizing towards suboptimal trajectories.</p><p>To this end, we also present a variant that regularizes the policy with R H but weights the regularization with its importance:</p><formula xml:id="formula_15">R A = E D [-⟨π(a|s)⟩ log π(a|s)] with log π(a|s) = Q(s, a) -log ā exp(Q(s, ā)),</formula><p>where ⟨•⟩ is a stop-gradient function. We denote this a CER(A) algorithm.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Policy extraction and decoding</head><p>As briefly discussed in the last section, the key to better performance in NMT tasks is generalization since the test time state-actions will be never shown to the agent during training. There are two different ways of generalization we can perform with the current algorithm; the generalization in the policy space and the generalization in the action-value space. If we extract a parametrized policy out of the learned action-value function and decode it according to the extracted policy (similar to usual actor-critic algorithms <ref type="bibr" target="#b7">(Kostrikov et al., 2021</ref>)), we are generalizing in the policy space. On the other hand, if we directly deploy the learned action-value function for decoding, it corresponds to the generalization in the value function space (Snell et al., from sub-optimal translations with their evaluations, we train a transformer with two heads: Q-head for an actionvalue estimation and a policy-head as usual. Q-head is trained with the CER objective (3), and policy extraction is done with off-policy actor-critic style loss (4). Right: we utilize both action-value and policy to perform a beam search during the decoding process.</p><p>2022). We empirically found that combining both complements each other and gives the best result.</p><p>Policy extraction IQL <ref type="bibr" target="#b7">(Kostrikov et al., 2021)</ref> uses a weighted log-likelihood loss with exponentiated advantages to extract a policy, which corresponds to the KL-constrained policy search <ref type="bibr" target="#b16">(Peng et al., 2019)</ref>. However, as we use additional regularization to penalize OOD actions, we found it unnecessary to constrain it again. We use an offpolicy actor-critic style <ref type="bibr" target="#b2">(Degris et al., 2012)</ref> policy extraction instead:</p><formula xml:id="formula_16">∇J ≈ E D T t=0 π(a t |s t )Q(s t , a t )∇ log π(a t |s t )</formula><p>(4) where we assume a uniform data distribution D(a|s) =<ref type="foot" target="#foot_0">1</ref> |D| similar to approximated PG and hence omitted from above. Sampling actions from D instead of π enables a far faster policy extraction than by sampling from π. On the other hand, it suffers from a similar issue to the approximated PG, and we add min s,a Q(s, a) to Q to force positivity.</p><p>Decoding We perform a beam search according to the following criterion:</p><formula xml:id="formula_17">log π(a|s t )+β Q(s t , a)-log ā exp(Q(s t , ā))</formula><p>(5) to combine the two ways of generalization based on the extracted policy and the learned action-value function, balancing with β. It can be seen as an adaptation of ILQL <ref type="bibr" target="#b20">(Snell et al., 2022)</ref> where the second term is designed to mimic an advantage function without explicit estimation of a state value function or the policy. 1  Another way to interpret this criterion is to see Q as a logit of a policy as we did to develop an advantage weighted regularization. In this case, the criterion corresponds to a weighted sum of two different log probabilities: log π + β log π.</p><p>Architectures for CER The main advantage of CER is that we only need a very minor change in architecture. We use the same transformer architectures that are used for supervised learning of NMT tasks, with an additional head at the top of the decoder to predict an action-value function. Training of the action-value head and the policy extraction can be parallelized as in typical supervised training. Overall training/decoding algorithms and the architecture are summarized in Figure <ref type="figure" target="#fig_1">3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>Datasets and base architecture In order to benchmark the algorithms for an offline learning with sub-optimal translations, we performed the following procedures. We split the dataset into half, and trained a machine translator using the first half of the dataset. We denote this the Base model. Using the Base model, we run beam decoding with a beam size of 50 over the latter half of the dataset, and picked top 5 translations with the best BLEU scores for each source sentences to build an offline RL dataset with sub-optimal translations. SacreBLEU <ref type="bibr" target="#b17">(Post, 2018)</ref> is used to evaluate the scores, and the scores are also saved as rewards for translations. These offline datasets thus are 2.5 times larger than the original datasets. We then tested a series of algorithms on these offline RL datasets, warm-starting from the Base model. <ref type="foot" target="#foot_1">2</ref> We constructed offline RL datasets using IWSLT'14 datasets. We also used German-English (De→En) from the WMT'14 translation task for the result on large datasets. See appendix C for more details on experiments.</p><p>supervised training over sub-optimal translations and is independent of the rewards of trajectories.</p><p>We also report the results of Online PG for the comparison.</p><p>Results Table <ref type="table" target="#tab_0">1</ref> shows the performance of the described experiments, where each entry of a table represents a single run. First, we can note that CQL and ILQL give about the same result, which is obvious considering the sufficiently large η due to the deterministicity of NMT domain. These algorithms improve over approximate PG in most cases, but fails on Ro→En, It→En even with the additional estimation of action values. We believe that this is due to their high sensitivity on regularization coefficient, and the results will improve with more fine-grained hyperparameter search. Nevertheless, it is true that these results make these bootstrappingbased algorithms look less attractive in practice.</p><p>On the other hand, our proposed CER algorithms are worth the extra computation for action-value estimation, being consistently better than other competitors. CER(A) shows better performance compared to CER(H) in most of the cases, although the improvement is marginal. Note that, although CER(A) was designed to make the regularization process more intelligent, it is mainly dependent on the accuracy of our action value estimate. CER(A) may fail to sufficiently regularize OOD action value estimates if it is large because it less penalizes large action values, and it may result in a smaller gain in practice.</p><p>It is hard to compare against online PG as the experiment settings are vastly different, but empirical observations indicate that CER consistently outperforms online PG in a majority of language pairs. Although online PG theoretically has the po- tential for superior performance in an asymptotic sense, practical inefficiencies arising from online data sampling often hinder its actual achievement of such performance.<ref type="foot" target="#foot_2">3</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Effect of policy extraction methods</head><p>Figure <ref type="figure" target="#fig_2">4</ref> shows the effect of the choice of β of decoding criteron (5) on IWSLT'14 De→En. While β → 0 implies we are using the extracted policy only and β → ∞ implies we are using the advantage-like perturbation only, we get the best results around β = 1 regardless of the action-value learning objective. These results show that the policy extraction and decoding methods have large impact on the performance, and that combining the two different generalization methods has a significant benefit in validation performance. In addition, it can be seen that the performance of policy extraction alone is inferior to that of advantage-based decoding alone, suggesting that there is room for improvement in policy extraction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Effect of hyperparameters</head><p>Figure <ref type="figure" target="#fig_3">5</ref> shows the effect of the choice of hyperparameters α and η of CER(A) on IWSLT'14 De→En. Note that we have the following interpretations: α = 0 is the expectile regression without conservatism, whereas α → ∞ makes CER the regularization only model, which will be trained like BC (CER(H)) or weighted BC (CER(A)) where Q is a logit of a token. On the other hand, η → 1 corresponds to fitting Q(s, a) to the maximum return starting from (s, a), and η → 0.5 corresponds to the learning of average return of each state-actions. Results from various alpha experiments show that it is better to use an appropriate α. This is because small α can make translators overly optimistic on high-scoring and rare tokens, while large α reverts the algorithm back to BC. Meanwhile, it is interesting to see how the algorithm performs depending on the different ηs. While it works best with the highest η, the algorithm could also get a high score on the other end η = 0.5. It can be understood in a way that the effective size of the dataset is the largest when η = 0.5, and it would have been advantageous for learning better representations. But that leads the algorithm to a "single step" method, and the more sub-optimal translations per source sentence, the worse it will be.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this paper, we develop a novel RL algorithm for NMT, conservative expectile regression, based on expectile regression and a conservative q-learning framework. Based on the unique characteristics of the RL formulation of NMT, the objective of CER is carefully designed to combat all the difficulties we face in the maximization of arbitrary reward signals based on offline RL. We emphasize that CER is as stable as supervised training, and it only needs a slightly more parameters. We have demonstrated the performance by designing an offline RL experiment based on various IWSLT'14 and WMT'14 datasets and shown that CER is clearly advantageous compared to other offline RL algorithms. While these improvement of BLEU scores may not be strongly correlated with human evaluations <ref type="bibr" target="#b24">(Wu et al., 2016)</ref>, we believe that the experiment aims to demonstrate the efficiency in optimizing the rewards, and the difference is likely to persist even if we optimize for other metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>While the proposed CER algorithm is a valid algorithm for NMT where the transitions are deterministic, it may not result in an optimal policy when the transitions are stochastic, e.g., dialog management. In this cases, use of ILQL <ref type="bibr" target="#b20">(Snell et al., 2022)</ref> is recommended. Furthermore, we were not able to demonstrate the performance of CER algorithm on very large models or on very large amount of data, the impacts of CER on representation learning on those cases are not shown. However, we believe that CER will be at least better than other offline RL algorithms in terms of representation, since it is one of the closest algorithm to supervised training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Proofs</head><p>We provide the proofs for the theorems here.</p><p>A.1 Proof of Theorem 3.1 Lemma A.1. Assume two sets of real numbers X 1 = {x 1 , ..., x n } and X 2 = {x n+1 , ..., x n+m } with x i ∈ R ∀i. Define an η-expectile of a set:</p><formula xml:id="formula_18">m η (X) = arg min mη 1 |X| x∈X L η 2 (x -m η ). (6) Then, it satisfies min(m η (X 1 ), m η (X 2 )) ≤ m η (X 1 ∪ X 2 ) ≤ max(m η (X 1 ), m η (X 2 )).</formula><p>Proof. By the first order condition of m η (X), it satisfies</p><formula xml:id="formula_19">η x∈X (x -m η ) + = (η -1) x∈X (x -m η ) -. (7) W.l.o.g. assume m η (X 1 ) ≤ m η (X 2 ). Assume that m η (X 1 ∪ X 2 ) &lt; min(m η (X 1 ), m η (X 2 )) = m η (X 1 ). It means η X 1 ∪X 2 (x -m η (X 1 )) + &lt; (η -1) X 1 ∪X 2 (x -m η (X 1 )) -.<label>(8)</label></formula><p>Subtracting Eq. ( <ref type="formula">7</ref>) from Eq. ( <ref type="formula" target="#formula_19">8</ref>) implies that m η (X 2 ) &lt; m η (X 1 ), which is a contradiction. Therefore, m η (X 1 ∪ X 2 ) ≥ m η (X 1 ) = min(m η (X 1 ), m η (X 2 )). The other way around can be proved similarly.</p><p>Theorem A.1. Under the MDP formulation of NMT described in Section 2.1, there exists a policy π such that Q π (s, a) = Q η (s, a), ∀(s, a) ∈ D where Q η is a solution to Eq. (2).</p><p>Proof. We use the following properties of the MDP formulation of NMT: (1) the transition function is deterministic, and (2) the same state is never visited more than once. We prove this by induction. From the terminal states s, we have a set of actions that have tried in s: {a i } i . Since the same state is never visited more than once, we have Q</p><formula xml:id="formula_20">η (s, a i ) = Q π (s, a i ) = R(s, a i ) ∀i for any η, π.</formula><p>Now pick an arbitrary non-terminal state-action pair from the dataset (s, a) ∈ D. It will give a deterministic next state s ′ . There will be the next actions {a ′ i } i that have been chosen from s ′ . Assume that there exists π such that Q</p><formula xml:id="formula_21">π (s ′ , a ′ i ) = Q η (s ′ , a ′ i ) ∀i</formula><p>for some fixed η. These Q η (s ′ , a ′ i ), which is the solution to Eq. ( <ref type="formula" target="#formula_7">2</ref>), are expectiles of sets of returns starting from (s ′ , a ′ i ) and they are equal to Q π (s ′ , a ′ i ) from the assumption, i.e.,</p><formula xml:id="formula_22">Q π (s ′ , a ′ i ) = m η ({G t : G t ∈ D|s t = s ′ , a t = a ′ i }).</formula><p>Note that according to Eq. ( <ref type="formula">7</ref>), if we shift and scale the data by constants, the expectile will also be shifted and scaled by the same amount. Therefore, R(s, a) + γQ π (s ′ , a ′ i ) are also expectiles of R(s, a) + γG t s with G t s starting from (s ′ , a</p><formula xml:id="formula_23">′ i ). R(s, a) + γQ π (s ′ , a ′ i ) = m η ({R(s, a) + γG t : G t ∈ D|s t = s ′ , a t = a ′ i }). Now observe that Q η (s, a) is an expectile of G t-1 s starting from (s, a), which is a union of R(s, a) + γG t s starting from {(s ′ , a ′ i )} i s: Q η (s, a) = mη({Gt-1 : Gt-1 ∈ D|st-1 = s, at-1 = a}) = mη i {R(s, a) + γGt : Gt ∈ D|st = s ′ , at = a ′ i } .</formula><p>Using Lemma A.1, we see that</p><formula xml:id="formula_24">min i R(s, a) + γQ π (s ′ , a ′ i ) ≤ Q η (s, a) ≤ max i R(s, a) + γQ π (s ′ , a ′ i ).</formula><p>This implies that there exists a convex combination 0</p><formula xml:id="formula_25">≤ λ i ≤ 1, i λ i = 1 such that Q η (s, a) = i λ i R(s, a) + γQ π (s ′ , a ′ i ) = R(s, a) + γ i λ i Q π (s ′ , a ′ i ).</formula><p>Therefore, by choosing π(a i |s) = λ i ∀i, we see that Q η (s, a) = Q π (s, a). Furthermore, choosing π accordingly does not affect Q π after (s, a) since we do not visit same state more than once.</p><formula xml:id="formula_26">A.2 Proof of Theorem 3.2 Theorem A.2. For Q η = arg min Q L η ER , lim η→1 Q η (s, a) = max τ ∈D T t=0 γ t r t |s 0 = s, a 0 = a .</formula><p>Furthermore, the variance of the stochastic gradient ∇ LER is zero as we approach the solution,</p><formula xml:id="formula_27">lim η→1 Q→Q η V[∇ Lη ER ] = 0.</formula><p>Proof. The proof of the first statement mainly follow the proof of Lemma 1 of <ref type="bibr" target="#b7">(Kostrikov et al., 2021)</ref>. As in the proof of Lemma A.1, first order condition of Q η (s, a) is:</p><formula xml:id="formula_28">η G∈G (G-Q η (s, a)) + = (η-1) G∈G (G-Q η (s, a)) -.</formula><p>where G = {G t : G t ∈ D|s t = s, a t = a}. If Q η (s, a) &gt; max G∈G G, the above condition cannot be satisfied since LHS is 0, and RHS is larger than 0. This implies Q η (s, a) ≤ max G∈G G for any η. Moreover, assume η 1 and η 2 with η 1 &lt; η 2 . It can be easily seen that</p><formula xml:id="formula_29">η 2 G∈G (G -Q η 1 (s, a)) + ≥ (η 2 -1) G∈G (G -Q η 1 (s, a)) -,</formula><p>and the gap will only narrow when Q(s, a) increases. This means s,a) where the equality only holds for the trivial case when all G ∈ G are the same. Then η is bounded and monotonically increasing function except the trivial case, and the limit lim η→1 Q η (s, a) = max G∈G G follows.</p><formula xml:id="formula_30">Q η 1 (s, a) ≥ Q η 2 (</formula><p>For the second statement, we redefine the loss to derive the following stochastic gradient: </p><formula xml:id="formula_31">L η ER = E (s,a,G)∼D [ Lη ER (s, a, G)] Lη ER (s, a, G) = |η -1 Q(s,a)&lt;G |(Q(s, a) -G) 2 ∇ Lη ER (s, a, G) = 2|η -1 Q(s,a)&lt;G |(Q(s, a) -G) = -2η(G -Q(s, a)) + -2(1 -η)(G -Q(s, a)) -</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Analysis on Conservative Expectile Regression</head><p>Recall the objective of CER that we introduced: and we get:</p><formula xml:id="formula_32">L η ER + αR CQL = E D [|η -1 Q(s,</formula><formula xml:id="formula_33">Q(s, a) = E p G G + (2η -1) (1 -η) (G -Q(s, a)) + - α 2(1 -η) µ(a|s) D(a|s) -1 .</formula><p>Now, we define the portion of return samples G that is larger than Q to be ρ G&gt;Q ∈ [0, 1], and the average of Gs that is larger than Q to be G &gt;Q . Then, we can write:</p><formula xml:id="formula_34">E p G [(G -Q(s, a)) + ] = E p G [ρ G&gt;Q (G -Q(s, a))]</formula><p>These two newly defined ρ G&gt;Q , G &gt;Q depend on Q, but they do not change until Q moves and passes another G sample. Based on those, we can derive the following: where c 1 = 1-η 1-η-ρ G&gt;Q (2η-1) , c 2 = ρ G&gt;Q (2η-1)</p><formula xml:id="formula_35">1 -ρ G&gt;Q (2η -1) (1 -η) Q(s, a) = E p G G + (2η -1) (1 -η) ρ G&gt;Q G &gt;Q - α 2(1 -η)</formula><p>1-η-ρ G&gt;Q (2η-1) , and c 3 = 1 2(1-η-ρ G&gt;Q (2η-1)) . 0.6 0.7 0.8 0.9 1.0 2 4 6 8 10 If we know the expectile Q η (s, a) in advance, the objective that resemble the original conservative Q-learning the most would be the loss based on symmetric least squares:</p><formula xml:id="formula_36">c 3 G &gt; Q = 0.05 G &gt; Q = 0.15 G &gt; Q = 0.25 G &gt; Q = 0.35 G &gt; Q = 0.45 G &gt; Q = 0.55 G &gt; Q = 0.65 G &gt; Q = 0.75 G &gt; Q = 0.85 G &gt; Q = 0.95</formula><formula xml:id="formula_37">E D 1 2 (Q(s, a) -Q η (s, a)) 2 + α o R CQL .</formula><p>With similar derivations with new oracle-based objective, we get:</p><formula xml:id="formula_38">Q(s, a) = Q η (s, a) -α o µ(a|s) D(a|s) -1 = c 1 E p G [G] + c 2 E p G [G &gt;Q ]</formula><p>-α o µ(a|s) D(a|s) -1</p><p>Therefore, given that ρ G&gt;Q , G &gt;Q do not change (i.e., change on Q(s, a) due to R CQL is not big enough to lower Q(s, a) to pass some G), the solution to the CER algorithm is equivalent to that of oracle-based objective by letting α o = c 3 α. Looking into c 3 , we can see that min η,ρ G&gt;Q c 3 = 1 2 , showing that CER will be at least half conservative when compared to oracle-based objective.</p><p>In Figure <ref type="figure" target="#fig_7">6</ref>, we show the relationship between η, c 3 , and ρ G&gt;Q . It can be seen that c 3 → 1 as η → 0.5, which is well aligned with our discussion since η = 0.5 makes L η ER to be a MSE loss and CER is equivalent to the oracle-based objective. On the other hand, when η → 1, the amount of conservativeness varies much depending on how the data is distributed: ρ G&gt;Q . While c 3 may grow to arbitrarily large value in the extreme case of ρ G&gt;Q → 0.0, η → 1.0, such a small ρ G&gt;Q can hardly be achieved in practice, where we have only few return samples per same state-action (at most 5 in our experiments).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: A learning curve on BLEU of validation data of IWSLT14 de-en task, showing a BLEU score of valid data and a maximum action-value among a batch. Note that a maximum of return G t /true action-value Q is upper bounded by 100. It is shown that using a bootstrapped update, i.e. CQL, leads to the divergence of Q value without a careful tuning of α. Learning curves of ILQL are not presented here, but they also have similar trends to that of CQL. On the other hand, CER is much less sensitive to α (we use α = 1 for CER throughout all the experiments, see §4.2)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Overall training/decoding algorithms and the architecture of Conservative Expectile Regression. Left:from sub-optimal translations with their evaluations, we train a transformer with two heads: Q-head for an actionvalue estimation and a policy-head as usual. Q-head is trained with the CER objective (3), and policy extraction is done with off-policy actor-critic style loss (4). Right: we utilize both action-value and policy to perform a beam search during the decoding process.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: BLEU score on IWSLT'14 De→En of different action-value learning objectives depending on β of beam decoding criterion.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: BLEU score on IWSLT'14 De→En of CER(A) depending on the choice of hyperparameters α and η.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>for Q(s, a) ̸ = G. Then,</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>a)&lt;G |(Q(s, a) -G) 2 ] + αE D [E ā∼µ(a|s) Q(s, ā) -Q(s, a)].Let the derivative of the above objective to be 0:0 = ∇(L η ER + αRCQL) = ED -2η(G -Q(s, a)) + -2(1 -η)(G -Q(s, a)) -Fix s, a ∈ D, and define the return distribution p G (G|s, a) that can be computed from D. Equivalently, we can write:E p G η(G -Q(s, a)) + + (1 -η)(G -Q(s, a)) - = E p G (2η -1)(G -Q(s, a)) + + (1 -η)(E p G [G] -Q(s, a))</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>a) = c 1 E p G [G] + c 2 E p G [G &gt;Q ] -c 3 α µ(a|s) D(a|s) -1</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: The relationship between η, c 3 , and ρ G&gt;Q .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>BLEU score comparison for IWSLT'14 and WMT'14 (indicated using *) tasks. Offline algorithms with the highest scores are denoted in bold.</figDesc><table><row><cell></cell><cell cols="7">De→En Ro→En It→En Fr→En En→De En→Ro De→En*</cell></row><row><cell>Base</cell><cell>31.55</cell><cell>35.05</cell><cell>31.74</cell><cell>39.05</cell><cell>26.05</cell><cell>26.15</cell><cell>29.28</cell></row><row><cell>Online PG</cell><cell>33.40</cell><cell>36.64</cell><cell>33.24</cell><cell>39.72</cell><cell>26.77</cell><cell>26.91</cell><cell>30.56</cell></row><row><cell>BC</cell><cell>32.56</cell><cell>35.94</cell><cell>32.56</cell><cell>39.6</cell><cell>26.69</cell><cell>27.15</cell><cell>30.15</cell></row><row><cell>Approximate PG</cell><cell>32.66</cell><cell>36.35</cell><cell>33.03</cell><cell>39.84</cell><cell>27.14</cell><cell>27.29</cell><cell>30.31</cell></row><row><cell>CQL</cell><cell>32.85</cell><cell>36.24</cell><cell>32.91</cell><cell>40.15</cell><cell>27.39</cell><cell>27.60</cell><cell>30.22</cell></row><row><cell>ILQL</cell><cell>32.8</cell><cell>36.18</cell><cell>32.97</cell><cell>40.17</cell><cell>27.4</cell><cell>27.56</cell><cell>30.26</cell></row><row><cell>CER(H)</cell><cell>33.21</cell><cell>36.77</cell><cell>33.26</cell><cell>40.49</cell><cell>27.59</cell><cell>27.97</cell><cell>30.68</cell></row><row><cell>CER(A)</cell><cell>33.16</cell><cell>36.81</cell><cell>33.37</cell><cell>40.47</cell><cell>27.7</cell><cell>27.99</cell><cell>30.71</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Note that the policy π extracted is not a policy that Q is based on, hence V (s) ̸ = Eπ[Q(s, a)]</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Note that all the algorithms experimented here have the ability to be trained from scratch; warm-starting was used to reduce training time.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>Although an increase in BLEU score by &lt; 2 may appear modest, it aligns with previous findings reported, e.g.<ref type="bibr" target="#b5">Kiegeland and Kreutzer (2021)</ref>.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>transformer_iwslt_de_en architecture of Fairseq.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>transformer_wmt_en_de architecture of Fairseq. performance out of the set of {0.9, 0.95, 0.99}. For CERs, α = 10 0 and η = 0.99 is used.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><p>Methods We implement and compare the following algorithms: behavior cloning (BC), approximate policy gradient (GOLD, Pang and He, 2021), conservative Q learning (CQL, Kumar et al., 2020), implicit language Q-learning (ILQL, Snell et al., 2022) and our algorithm variants, <rs type="funder">CER(H)</rs> and <rs type="funder">CER(A)</rs>. Note that we used the proposed architecture, policy extraction and decoding methods for CQL and ILQL here for the fair comparison, so the only differences are the action-value loss objectives. After the training, the <rs type="funder">BLEU</rs> score is evaluated by performing a beam decoding with a beam size of 5 for all the algorithms.</p><p>On the other hand, BC and approximate PG are the policy-based algorithms that do not use additional action-value estimation. BC simply performs</p></div>
+<div><head>Acknowledgements</head><p>This work was supported by <rs type="funder">SAMSUNG Research, Samsung Electronics Co</rs>., Ltd. This work was also partly supported by <rs type="institution">Institute of Information &amp; communications Technology Planning &amp; Evaluation (IITP)</rs> grant funded by the <rs type="funder">Korea government(MSIT)</rs> (No.<rs type="grantNumber">2022-0-00311</rs>, <rs type="grantName">Development of Goal-Oriented Reinforcement Learning Techniques for Contact-Rich Robotic Manipulation of Everyday Objects</rs>) and by the <rs type="funder">National Research Foundation of Korea(NRF)</rs> grant funded by the <rs type="funder">Korea government(MSIT)</rs> (No. <rs type="grantNumber">NRF-2022R1F1A1074880</rs>)</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_WE6FBGb">
+					<idno type="grant-number">2022-0-00311</idno>
+					<orgName type="grant-name">Development of Goal-Oriented Reinforcement Learning Techniques for Contact-Rich Robotic Manipulation of Everyday Objects</orgName>
+				</org>
+				<org type="funding" xml:id="_Xwxrnhv">
+					<idno type="grant-number">NRF-2022R1F1A1074880</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Experiment details</head><p>We provide all the experiment details that are not provided in the main text here. Models are optimized with <ref type="bibr">Adam (Kingma and Ba, 2015)</ref> with parameters β = 0.9 and β 2 = 0.98. Training starts with linear warmup for 4 × 10 3 steps until it reaches the learning rate 10 -4 , and then inverse square root learning rate scheduler is used to schedule the learning rate. 0.3 dropout probability and weight decay of coefficient 10 -4 are used. Base models are trained over 40 epochs, where the offline training is done over 20 epochs. We used label smoothing (0.1) for the supervised training of Base model. Note that the amount of data is different between these two. We ran all experiments on 4 Nvidia GTX 3090 GPU, and running all experiments took about 500 GPU hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset and Architectures</head><p>We constructed offline RL datasets using German-English (De→En), Romanian-English (Ro→En), Italian-English (It→ En) and French-English (Fr→En) from IWSLT'14 datasets. We also experimented on IWSLT'14 English-German (En→De) and English-Romanian (En→Ro) to see the results on different target languages. We used byte-pair-encoding <ref type="bibr" target="#b19">(Sennrich et al., 2016)</ref> to preprocess all sentences. For these tasks, tst2010, tst2011, tst2012 datasets are merged to form test datasets and report BLEU on these datasets. We also used German-English (De→En) from the WMT'14 translation task for the result on large datasets.</p><p>We use the Fairseq <ref type="bibr" target="#b14">(Ott et al., 2019)</ref> implementation of the Transformers architecture <ref type="bibr" target="#b21">(Vaswani et al., 2017)</ref>. We used the transformer architecture of six encoder layers, six decoder layers, 4 attention heads, 512 embedding dimension and 1024 inner-layer dimension for all the IWSLT'14 experiments. 4 For WMT'14 experiments, we used 8 attention heads and 2048 inner-layer dimension instead. 5   Hyperparameters For approximate PG, we used truncated approximated importance weight w t = max(π(a t |s t ), 0.1), following Pang and He (2021). For regularization coefficients α for CQL and ILQL, we reported the results with α = 10 2 , which resulted in the best performance out of the set of {10 0 , 10 1 , 10 2 }. For the expectile hyperparameter of ILQL, we used η = 0.99 that resulted in the best</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">On the weaknesses of reinforcement learning for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Leshem</forename><surname>Choshen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lior</forename><surname>Fox</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zohar</forename><surname>Aizenbud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omri</forename><surname>Abend</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>ICLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Off-policy actor-critic</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Degris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martha</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Sutton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Classical structured prediction losses for sequence to sequence learning</title>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc'aurelio</forename><surname>Ranzato</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1033</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="355" to="364" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengzhong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiting</forename><surname>Hu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2106.07704</idno>
+		<title level="m">Text generation with efficient (soft) q-learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Revisiting the weaknesses of reinforcement learning for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Kiegeland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julia</forename><surname>Kreutzer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.133</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1673" to="1681" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+	<note>In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Offline reinforcement learning with implicit q-learning</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Kostrikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashvin</forename><surname>Nair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>ICLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Dr3: Value-based deep reinforcement learning requires explicit regularization</title>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishabh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengyu</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Stabilizing off-policy qlearning via bootstrapping error reduction</title>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Justin</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Soh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Conservative q-learning for offline reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurick</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">What matters in learning from offline human demonstrations for robot manipulation</title>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danfei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josiah</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soroush</forename><surname>Nasiriany</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rohun</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silvio</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Martín-Martín</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>CoRL</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning for bandit neural machine translation with simulated human feedback</title>
+		<author>
+			<persName><forename type="first">Khanh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1153</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1464" to="1474" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">fairseq: A fast, extensible toolkit for sequence modeling</title>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexei</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<publisher>Demonstrations</publisher>
+			<date type="published" when="2019">2019. 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Richard Yuanzhe Pang and He He. 2021. Text generation by learning from demonstrations</title>
+		<imprint>
+			<publisher>ICLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xue Bin</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Grace</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.00177</idno>
+		<title level="m">Advantage-weighted regression: Simple and scalable off-policy reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A call for clarity in reporting BLEU scores</title>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-6319</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Conference on Machine Translation: Research Papers</title>
+		<meeting>the Third Conference on Machine Translation: Research Papers<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="186" to="191" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Sequence level training with recurrent neural networks</title>
+		<author>
+			<persName><forename type="first">Aurelio</forename><surname>Marc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sumit</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zaremba</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<publisher>ICLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P16-1162</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1715" to="1725" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Offline rl for natural language generation with implicit language q learning</title>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Snell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Kostrikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengjiao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2206.11871</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">On exposure bias, hallucination and domain shift in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Chaojun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.326</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3544" to="3552" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">A study of reinforcement learning for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Lijun</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianhuang</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tie-Yan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1397</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3612" to="3621" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolfgang</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxim</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qin</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Macherey</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.08144</idno>
+		<title level="m">Google&apos;s neural machine translation system: Bridging the gap between human and machine translation</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

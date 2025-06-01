@@ -1,0 +1,1586 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Exploring Methods for Cross-lingual Text Style Transfer: The Case of Text Detoxification</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Daryna</forename><surname>Dementieva</surname></persName>
+							<email>daryna.dementieva@tum.de</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Technical University of Munich</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Daniil</forename><surname>Moskovskiy</surname></persName>
+							<email>d.moskovskiy@skol.tech</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Skolkovo Institute of Science and Technology</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">David</forename><surname>Dale</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+							<email>a.panchenko@skol.tech</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Skolkovo Institute of Science and Technology</orgName>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="institution">AIRI</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Exploring Methods for Cross-lingual Text Style Transfer: The Case of Text Detoxification</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">EC25B01AD19721F71BBA24EE9771F0FB</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:56+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Text detoxification is the task of transferring the style of text from toxic to neutral. While there are approaches yielding promising results in monolingual setup, e.g., <ref type="bibr" target="#b4">(Dale et al., 2021;</ref><ref type="bibr" target="#b14">Hallinan et al., 2022)</ref>, cross-lingual transfer for this task remains a challenging open problem <ref type="bibr" target="#b32">(Moskovskiy et al., 2022)</ref>. In this work, we present a large-scale study of strategies for cross-lingual text detoxification -given a parallel detoxification corpus for one language; the goal is to transfer detoxification ability to another language for which we do not have such a corpus. Moreover, we are the first to explore a new task where text translation and detoxification are performed simultaneously, providing several strong baselines for this task. Finally, we introduce new automatic detoxification evaluation metrics with higher correlations with human judgments than previous benchmarks. We assess the most promising approaches also with manual markup, determining the answer for the best strategy to transfer the knowledge of text detoxification between languages.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The original monolingual task of text detoxification can be considered as text style transfer (TST), where the goal is to build a function that, given a source style s src , a destination style s dst , and an input text t src to produce an output text t dst such that: (i) the style is indeed changed (in case of detoxification from toxic into neutral); (ii) the content is saved as much as possible; (iii) the newly generated text is fluent.</p><p>The task of detoxification was already addressed with several approaches. Firstly, several unsupervised methods based on masked language modelling <ref type="bibr" target="#b43">(Tran et al., 2020;</ref><ref type="bibr" target="#b4">Dale et al., 2021)</ref> and disentangled representations for style and content <ref type="bibr" target="#b47">(John et al., 2019;</ref><ref type="bibr" target="#b8">dos Santos et al., 2018)</ref> were explored. More recently, <ref type="bibr">Logacheva et al. (2022b)</ref> showed the superiority of supervised seq2seq models for detoxification trained on a parallel corpus of crowdsourced toxic ↔ neutral sentence pairs. Afterwards, there were experiments in multilingual detoxification. However, crosslingual transfer between languages with multilingual seq2seq models was shown to be a challenging task <ref type="bibr" target="#b32">(Moskovskiy et al., 2022)</ref>.</p><p>In this work, we aim to fill this gap and present an extensive overview of different approaches for cross-lingual text detoxification methods (tested in English and Russian), showing that promising results can be obtained in contrast to prior findings. Besides, we explore combining of two seq2seq tasks/models in a single one to achieve computational gains (i.e., avoid the need to store and perform inference with several models). Namely, we conduct simultaneous translation and style transfer experiments, comparing them to a step-by-step pipeline. The contributions of this work are as follows:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Monolingual Text Detoxification</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Data</head><p>• We present a comprehensive study of crosslingual detoxification transfer methods,</p><p>• We are the first to explore the task of simultaneous detoxification and translation and test several baseline approaches to solve it,</p><p>• We present a set of updated metrics for automatic evaluation of detoxification improving correlations with human judgements.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Text Detoxification Datasets Previously, several datasets for different languages were released for toxic and hate speech detection. For instance, there exist several versions of Jigsaw datasetsmonolingual <ref type="bibr" target="#b17">(Jigsaw, 2018)</ref> for English and multilingual <ref type="bibr" target="#b18">(Jigsaw, 2020)</ref> covering 6 languages. In addition, there are corpora specifically for Russian <ref type="bibr" target="#b39">(Semiletov, 2020)</ref>, Korean <ref type="bibr" target="#b31">(Moon et al., 2020)</ref>, French <ref type="bibr" target="#b44">(Vanetik and Mimoun, 2022)</ref> languages, inter alia. These are non-parallel classification datasets. In previous work on detoxification methods, such kind of datasets were used to develop and test unsupervised text style transfer approaches <ref type="bibr" target="#b49">(Wu et al., 2019;</ref><ref type="bibr" target="#b43">Tran et al., 2020;</ref><ref type="bibr" target="#b4">Dale et al., 2021;</ref><ref type="bibr" target="#b14">Hallinan et al., 2022)</ref>. However, lately a parallel dataset ParaDetox for training supervised text detoxification models for English was released <ref type="bibr">(Logacheva et al., 2022b)</ref> similar to previous parallel TST datasets for formality <ref type="bibr" target="#b37">(Rao and Tetreault, 2018;</ref><ref type="bibr" target="#b1">Briakou et al., 2021)</ref>. Pairs of toxic-neutral sentences were collected with a pipeline based on three crowdsourcing tasks. The first task is the main paraphrasing task. Then, the next two tasks -content preservation check and toxicity classification -are used to verify a paraphrase. Using this crowdsourcing methodology, a Russian parallel text detoxification dataset was also collected <ref type="bibr" target="#b5">(Dementieva et al., 2022)</ref>. We base our cross-lingual text detoxification experiments on these comparably collected data (cf. Table <ref type="table" target="#tab_4">2</ref>).</p><p>Text Detoxification Models Addressing text detoxification task as seq2seq task based on a parallel corpus was shown to be more successful than the application of unsupervised methods by <ref type="bibr">Logacheva et al. (2022b)</ref>. For English methods, the fine-tuned BART model <ref type="bibr" target="#b24">(Lewis et al., 2020)</ref> on English ParaDetox significantly outperformed all the baselines and other seq2seq models in both automatic and manual evaluations. For Russian in  <ref type="bibr" target="#b5">(Dementieva et al., 2022)</ref> 5 058 1 000 1 000 7 058</p><p>Table <ref type="table" target="#tab_4">2</ref>: Parallel datasets for text detoxification used in our cross-lingual detoxification experiments. <ref type="bibr" target="#b5">(Dementieva et al., 2022)</ref>, there was released ruT5 model <ref type="bibr" target="#b36">(Raffel et al., 2020)</ref> fined-tuned on Russian ParaDetox. These SOTA monolingual models for English<ref type="foot" target="#foot_0">1</ref> and Russian<ref type="foot" target="#foot_1">2</ref> are publicly available.</p><p>Multilingual Models Together with pre-trained monolingual language models (LM), there is a trend of releasing multilingual models covering more and more languages. For instance, the NLLB model <ref type="bibr" target="#b2">(Costa-jussà et al., 2022)</ref> is pretrained for 200 languages. However, large multilingual models can have many parameters (NLLB has 54.5B parameters), simultaneously requiring a vast amount of GPU memory to work with it.</p><p>As the SOTA detoxification models were finetuned versions of T5 and BART, we experiment in this work with multilingual versions of them -mT5 <ref type="bibr" target="#b50">(Xue et al., 2021)</ref> and mBART <ref type="bibr" target="#b40">(Tang et al., 2020)</ref>. The mT5 model covers 101 languages and has several versions. The mBART model has several implementations and several versions as well. We use mBART-50, which covers 50 languages. Also, we use in our experiments the M2M100 model <ref type="bibr" target="#b10">(Fan et al., 2021)</ref> that was trained for translation between 100 languages. All these models have less than 1B parameters (in large versions).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Cross-lingual Knowledge Transfer</head><p>A common case is when data for a specific task is available for English but none for the target language. In this situation, techniques for knowledge transfer between languages are applied.</p><p>One of the approaches usually used to address the lack of training data is the translation approach. It was already tested for offensive language classification <ref type="bibr" target="#b9">(El-Alami et al., 2022;</ref><ref type="bibr" target="#b45">Wadud et al., 2023)</ref>. The idea is to translate the training data in the available language into the target language and train the corresponding model based on the new translated dataset.</p><p>The methods for zero-shot and few-shot text style transfer were already explored. In <ref type="bibr" target="#b20">(Krishna et al., 2022)</ref>, the operation between style and language embeddings is used to transfer style knowl- edge to a new language. The authors in <ref type="bibr">(Lai et al., 2022b)</ref> use adapter layers to incorporate the knowledge about the target language into a TST model.</p><p>For text detoxification, only in <ref type="bibr" target="#b32">(Moskovskiy et al., 2022)</ref> cross-lingual setup was explored through the translation of inputs and outputs of a monolingual system. It has been shown that detoxification trained for English using a multilingual Transformer is not working for Russian (and vice versa). In this work, we present several approaches to cross-lingual detoxification, which, in contrast, yield promising results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Simultaneous Text Generation&amp;Translation</head><p>The simultaneous translation and text generation was already introduced for text summarization. Several datasets with a wide variety of languages were created <ref type="bibr" target="#b35">(Perez-Beltrachini and Lapata, 2021;</ref><ref type="bibr" target="#b15">Hasan et al., 2021)</ref>. The main approaches to tackle this task -either to perform step-by-step text generation and translation or train a supervised model on a parallel corpus. To the best of our knowledge, there were no such experiments in the domain of text detoxification. This work provides the first experiments to address this gap.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Cross-lingual Detoxification Transfer</head><p>In this section, we consider the setup when a parallel detoxification corpus is available for a resource-rich language (e.g., English), but we need to perform detoxification for another language such corpus is unavailable. We test several approaches that differ by the amount of data and computational sources listed below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Backtranslation</head><p>One of the baseline approaches is translating input sentences into the language for which a detoxification model is available. For instance, we first train a detoxification model on available English ParaDetox. Then, if we have an input sentence in another language, we translate it into English, perform detoxification, and translate it back into Russian (Figure <ref type="figure" target="#fig_0">1</ref>). Thus, for this approach, we require two models (one model for translation and one for detoxification) and three inferences (one for translation from the target language into the available language, text detoxification, and translation back into the target language).</p><p>In previous work <ref type="bibr" target="#b32">(Moskovskiy et al., 2022)</ref>, Google Translate API and FSMT <ref type="bibr" target="#b33">(Ng et al., 2019)</ref> models were used to make translations. In this work, we extend these experiments with two additional models for translation:</p><p>• Helsinki OPUS-MT <ref type="bibr" target="#b42">(Tiedemann and Thottingal, 2020)</ref> -Transformer-based model trained specifically for English-Russian translation.<ref type="foot" target="#foot_2">3</ref> </p><p>• Yandex Translate API available from Yandex company and considered high/top quality for the Russian-English pair. <ref type="foot" target="#foot_3">4</ref>We test the backtranslation approach with two types of models: (i) SOTA models for corresponding monolingual detoxification; (ii) multilingual LM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Training Data Translation</head><p>Another way of how translation can be used is the translation of available training data. If we have available training data in one language, we can fully translate it into another and use it to train a separate detoxification model for this language (Figure <ref type="figure" target="#fig_1">2</ref>). For translation, we use the same models described in the previous section.</p><p>As detoxification corpus is available for the target language in this setup, we can fine-tune either multilingual LM where this language is present or 1086 monolingual LM if it is separately pre-trained for the required language. Compared to the previous approach, this method requires a fine-tuning step that implies additional computational resources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Multitask Learning</head><p>Extending the idea of using translated ParaDetox, we can add additional datasets that might help improve model performance.</p><p>We suggest multitasking training for crosslingual detoxification transfer. We take a multilingual LM where resource-rich and target languages are available. Then, for the training, we perform multitask procedure which is based on the following tasks: (i) translation between the resourcerich language and target language; (ii) paraphrasing for the target language; (iii) detoxification for the resource-rich language for which original Pa-raDetox is available; (iv) detoxification for the target language based on translated data.</p><p>Even if the LM is already multilingual, we suggest that the translation task data help strengthen the bond between languages. As the detoxification task can be seen as a paraphrasing task as well, the paraphrasing data for the target language can add knowledge to the model of how paraphrasing works for this language. Then, the model is basically trained for the detoxification task on the available data. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Adapter Training</head><p>For paraphrasing corpus, we use Opusparcus corpus <ref type="bibr" target="#b3">(Creutz, 2018)</ref>. For translation, we use corresponding en-ru parts of Open Subtitles (Lison and Tiedemann, 2016), Tatoeba <ref type="bibr" target="#b41">(Tiedemann, 2020)</ref>, and news_commentary<ref type="foot" target="#foot_4">5</ref> corpora.</p><p>To eliminate the translation step, we present a new approach based on the Adapter Layer idea <ref type="bibr" target="#b16">(Houlsby et al., 2019)</ref>. The usual pipeline of seq2seq generation process is:</p><formula xml:id="formula_0">y = Decoder(Encoder(x)) (1)</formula><p>We add an additional Adapter layer in the model:</p><formula xml:id="formula_1">y = Decoder(Adapter(Encoder(x))), (2)</formula><p>where Adapter = Linear(ReLU (Linear(x))) and gets as input the output embeddings from encoder.</p><p>Any multilingual pre-trained model can be taken for a base seq2seq model. Then, we integrate the Adapter layer between the encoder and decoder blocks. For the training procedure, we train the model on a monolingual ParaDetox corpus available. However, we do not update all the weights of all model blocks, only the Adapter. As a result, we force the Adapter layer to learn the information about detoxification while the rest of the blocks save the knowledge about multiple languages. We can now input the text in the target language during inference and obtain the corresponding detoxified output (Figure <ref type="figure" target="#fig_2">3</ref>). Compared to previous approaches, the Adapter training requires only one model fine-tuning procedure and one inference step. While in <ref type="bibr">(Lai et al., 2022b)</ref> there were used several Adapter layers pre-trained specifically for the language, we propose to use only one layer between the encoder and decoder of multilingual LM that will incorporate the knowledge about the task.</p><p>For this approach, we experiment with the M2M100 and mBART-50 models. While the M2M100 model is already trained for the translation task, this version of mBART is pre-trained only on the denoising task. Thus, we additionally pre-train this model on paraphrasing and translation corpora used for the Multitask approach. During the training and inference with the mBART model, we explicitly identify which language the input and output are given or expected with special tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Detox&amp;Translation</head><p>The setup of simultaneous detoxification and translation occurs when the toxic and non-toxic parts of the training parallel dataset are in different languages. For instance, a toxic sentence in a pair is in English, while its non-toxic paraphrase is in Russian.</p><p>The baseline approach to address text detoxification from one language to another can be to perform step-by-step detoxification and translation. However, that will be two inference procedures, each potentially with a computationally heavy seq2seq model. To save resources for one inference, in this section, we explore the models that can perform detoxification and translation in one step. While for cross-lingual text summarization, parallel datasets were obtained, there are no such data for text detoxification. The proposed approach is creating a synthetic cross-lingual detoxification dataset (Figure <ref type="figure" target="#fig_3">4</ref>). Then, we train simultaneously model for detoxification as well as for translation. The models described in the section above were also used for the translation step of parallel corpora.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation Setups</head><p>There are plenty of work developing systems for text detoxification. Yet, in each work, the comparison between models is made by automatic metrics that are not unified, and their choice may be arbitrary <ref type="bibr" target="#b34">(Ostheimer et al., 2023)</ref>. There are several recent works that studied the correlation between automatic and manual evaluation for text style transfer tasks -formality <ref type="bibr">(Lai et al., 2022a)</ref> and toxicity <ref type="bibr">(Logacheva et al., 2022a)</ref>. Our work presents a new set of metrics for automatic evaluation for English and Russian languages, confirming our choice with correlations with manual metrics.</p><p>For all languages, the automatic evaluation consists of three main parameters:</p><p>• Style transfer accuracy (STA a ): percentage of non-toxic outputs identified by a style classifier. In our case, we train for each language corresponding toxicity classifier.</p><p>• Content preservation (SIM a ): measurement of the extent to which the content of the original text is preserved.</p><p>• Fluency (FL a ): percentage of fluent sentences in the output.</p><p>The aforementioned metrics must be properly combined to get one Joint metric to rank models. We calculate J as following:</p><formula xml:id="formula_2">J = 1 n n i=1 STA(x i ) • SIM(x i ) • FL(x i ),<label>(3)</label></formula><p>where the scores STA(x i ), SIM(x i ), FL(x i ) ∈ {0, 1} meaning the belonging to the corresponding class.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Automatic Evaluation for English</head><p>Our setup is mostly based on metrics previously used by <ref type="bibr">(Logacheva et al., 2022b)</ref>: only the content similarity metric is updated as other metrics obtain high correlations with human judgments.</p><p>Style accuracy STA a metric is calculated with a RoBERTa-based <ref type="bibr" target="#b26">(Liu et al., 2019)</ref> style classifier trained on the union of three Jigsaw datasets <ref type="bibr" target="#b17">(Jigsaw, 2018)</ref>.</p><p>Content similarity Before, SIM old a was estimated as cosine similarity between the embeddings of the original text and the output computed with the model of <ref type="bibr" target="#b47">(Wieting et al., 2019)</ref>. This model is trained on paraphrase pairs extracted from ParaNMT <ref type="bibr" target="#b48">(Wieting and Gimpel, 2018)</ref> corpus.</p><p>We propose to estimate SIM a as BLEURT score <ref type="bibr" target="#b38">(Sellam et al., 2020)</ref>. In <ref type="bibr" target="#b0">(Babakov et al., 2022)</ref>, a large investigation on similarity metrics for paraphrasing and style transfer tasks. The results showed that the BLEURT metric has the highest correlations with human assessments for text style transfer tasks for the English language.</p><p>Fluency FL a is the percentage of fluent sentences identified by a RoBERTa-based classifier of linguistic acceptability trained on the CoLA dataset <ref type="bibr" target="#b46">(Warstadt et al., 2019)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Automatic Evaluation for Russian</head><p>The set of previous and our proposed metrics is listed below (the setup to compare with is based on <ref type="bibr" target="#b5">(Dementieva et al., 2022)</ref>):</p><p>Style accuracy In <ref type="bibr" target="#b5">(Dementieva et al., 2022)</ref>, STA old a is computed with a RuBERT Conversational classifier <ref type="bibr" target="#b21">(Kuratov and Arkhipov, 2019)</ref> fine-tuned on Russian Language Toxic Comments dataset collected from 2ch.hk and Toxic Russian Comments dataset collected from ok.ru.</p><p>In our updated metric STA a , we change the toxicity classifier using the more robust to adversarial attacks version presented in <ref type="bibr" target="#b13">(Gusev, 2022)</ref>.</p><p>Content similarity Previous implementation of SIM old a is evaluated as a cosine similarity of LaBSE <ref type="bibr" target="#b11">(Feng et al., 2022)</ref> sentence embeddings.</p><p>The updated metric SIM a is computed as a classifier score of RuBERT Conversational fine-tuned for paraphrase classification on three datasets: Russian Paraphrase Corpus <ref type="bibr" target="#b12">(Gudkov et al., 2020)</ref>, RuPAWS <ref type="bibr" target="#b29">(Martynov et al., 2022)</ref> Fluency Previous metric FL old a is measured with a BERT-based classifier <ref type="bibr" target="#b7">(Devlin et al., 2019)</ref> trained to distinguish real texts from corrupted ones. The model was trained on Russian texts and their corrupted (random word replacement, word deletion, insertion, word shuffling, etc.) versions.</p><p>In our updated metric FL a , to make it symmetric with the English setup, fluency for the Russian language is also evaluated as a RoBERTabased classifier fine-tuned on the language acceptability dataset for the Russian language RuCoLA <ref type="bibr" target="#b30">(Mikhailov et al., 2022)</ref>.</p><p>We use the manual assessments available from <ref type="bibr" target="#b5">(Dementieva et al., 2022)</ref> to calculate correlations with manual assessments. We have 850 toxic samples in the test set evaluated manually via crowdsourcing by three parameters -toxicity, content, and fluency. We can see in Table <ref type="table" target="#tab_2">3</ref> the correlations between human assessments and new metrics are higher than for the previous evaluation setup (see details in Appendix C).</p><p>To calculate SIM metric for Detox&amp;Translation task we use the monolingual version of SIM for the target language, comparing the output with the input translated into the target language. For instance, if Detox&amp;Translation is done from English to Russian, we translate English toxic input to Russian language and compare it with the output using Russian SIM a .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Manual Evaluation</head><p>As the correlation between automatic and manual scores still has room for improvement, we also evaluate selected models manually. We invited three annotators fluent in both languages to markup the corresponding three parameters of evaluation (instructions in Appendix E). A sub-  set of 50 samples from the corresponding test sets were randomly chosen for this evaluation. The interannotator agreement (Krippendorff's α) reaches 0.74 (STA), 0.60 (SIM), and 0.71 (FL).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head><p>The automatic evaluation results are presented in Table <ref type="table" target="#tab_5">5</ref>. Together with the metrics evaluation, we also assess the proposed methods based on the required resources (Table <ref type="table" target="#tab_3">4</ref>). We take test sets provided for both English and Russian datasets for evaluation (as presented in </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Cross-lingual Detoxification Transfer</head><p>From Table <ref type="table" target="#tab_5">5</ref>, we see that backtranslation approach performed with SOTA monolingual detoxification models yields the best TST scores. This is the only approach that does not require additional model fine-tuning. However, as we can see from Table <ref type="table" target="#tab_3">4</ref>, it is dependent on the constant availability of translation system which concludes in three inference steps.</p><p>Training Data Translation approach for both languages shows the J score at the level of cond-BERT baseline. While SIM and FL scores are the same or even higher than monolingual SOTA, the STA scores drop significantly. Some toxic parts in translated sentences can be lost while translating the toxic part of the parallel corpus. It is an advantage for the Backtranslation approach as we want to reduce toxicity only in output, while for training parallel detox corpus, we lose some of the toxicity representation. However, this approach can be used as a baseline for monolingual detoxification (examples of translation outputs in Appendix B). Addition of other tasks training data to a translated ParaDetox yields improvement in the performance for the Russian language in Multitask setup. Paraphrasing samples can enrich toxicity examples that cause the increment in STA. In terms of required resources, the translation system can be used only once during training data translation, but then the fine-tuning step is present in this approach.</p><p>The adapter for the M2M100 model successfully compresses detoxification knowledge but fails to transfer it to another language. The results are completely different for additionally finetuned mBART. This configuration outperforms all unsupervised baselines and the Training Data Translation approach. Still, the weak point for this approach and the STA score, while not all toxicity types, can be easily transferred. However, Adapter Training is the most resource-conserving approach: it does not require additional data creation and has only one inference step. The finetuning procedure should be cost-efficient as we freeze the layes of the base language model and back-propagate through only adapter layers. The adapter approach can be the optimal solution for cross-lingual detoxification transfer.</p><p>Finally, according to manual evaluations in Table 6, Backtranslation is the best choice if we want to transfer knowledge to the English language.</p><p>However, for another low-resource language, the Adapter approach seems to be more beneficial. In the Backtranlsation approach for the Russian language, we have observed a huge loss of content. That can be a case of more toxic expressions in Russian, which are hard to translate precisely into English before detoxification. As a result, we can claim that the Adapter approach is the most efficient and precise way to transfer detoxification knowledge transfer from English to other languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Detox&amp;Translation</head><p>At the bottom of Table <ref type="table" target="#tab_5">5</ref>, we report experiments of baseline approaches: detoxification with monolingual detoxification SOTA, then translation into the target language.</p><p>We can observe that our proposed approaches for this task for English perform better than the baselines. While for Russian, the results are slightly worse; our models require fewer computational resources during inference. Thus, we can claim that simultaneous style transfer with translation is possible with multilingual LM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We present the first of our knowledge extensive study of cross-lingual text detoxification approaches. The automatic evaluation shows that the Backtranslation approach achieves the highest performance. However, this approach is bounded to the translation system availability and requires three steps during inference. The Training Data Translation approach can be a good baseline for a separate monolingual detoxification system in the target language. On the other hand, the Adapter approach requires only one inference step and performs slightly worse than Backtranslation. The adapter method showed the best manual evaluation scores when transferring from English to Russian. However, the open challenge is the capturing of the whole scope of toxicity types in the language.</p><p>We present the first study of detoxification and translation in one step. We show that the generation of a synthetic parallel corpus where the toxic part is in one language, and the non-toxic is in another using NMT is effective for this task. Trained on such a corpus, multilingual LMs perform at the level of the backtranslation requiring fewer computations.</p><p>All information about datasets, models, and evaluation metrics can be found online. 6,7  8 Limitations</p><p>One limitation of this work is the usage of only two languages for our experiments -English and Russian. There is a great opportunity for improvement to experiment with more languages and their pairs to transfer knowledge in a cross-lingual style. The possibility of solving the detoxification task, requires the presence of a corpus of toxicity classification for the language. Firstly, creating a test set and building a classifier for STA evaluation is necessary. Also, having some embedding model for the language is important to calculate the SIM score for evaluation. For FL, in this work, we use classifiers. However, such classifiers can not be present in other languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethical Considerations</head><p>Text detoxification has various applications, e.g. moderating output of generative neural networks to prevent reputation losses of companies. Think of a chatbot responding rudely. Yet automatic detoxification of user content should be done with extreme care. Instead, a viable use-case is to suggest that the user rewrite a toxic comment (e.g., to save her digital reputation as the 'internet remembers everything'). It is crucial to leave the freedom to a person to express comment in the way she wants, given legal boundaries. Дают права таким людям! Они не милые.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Examples of Detoxification Models Outputs</head><p>Give rights to such people! They're not cute.</p><p>Multitask Learning mBART RU-Tr (Helsinki) Г**но,оно и в Африке г**но.</p><p>It's sh*t, it's sh*t in Africa too.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Это и в Африке нехорошо.</head><p>This is not good in Africa either.</p><p>П**оры живущие за счёт народа, в биологии называются паразитами, организм живущий за счёт другова F*gs living at the expense of the people are called parasites in biology, an organism living at the expense of others Люди живущие за счёт народа, в биологии называются паразитами, организм живущий за счет другого.</p><p>People living at the expense of the people are called parasites in biology, an organism living at the expense of another.</p><p>А потом подобные идиоты Сапсаны под откос пускают.</p><p>And then idiots like Sapsan derail them.</p><p>А потом такие люди под откос пускают, как Сапсан.</p><p>And then people like Sapsan derail it. Politics is generally one big facepalm, a herd of f*ggots f*cking each other.</p><p>Политика -это вообще один большой фейспалм, где люди разговаривают друг с другом.</p><p>Politics is generally one big facepalm where people talk to each other.</p><p>Как можно было такую уродку выдвигать в депутаты?</p><p>How could such a freak be nominated as a deputy?</p><p>Как можно было её выдвигать в депутаты?</p><p>How could she be nominated as a deputy?     </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>1098</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Human vs Automatic Evaluation Correlations for Old and New Setups</head><p>The detailed correlation results of new and old automatic metrics for the Russian language: (i) based on system score (Table <ref type="table" target="#tab_12">10</ref>); (ii) based on system ranking (Table <ref type="table" target="#tab_13">11</ref>).</p><p>In the first approach, we concatenate all the scores of all systems for corresponding metrics in one vector and calculate Spearman's correlation between such vectors for human and automatic evaluation. For the second approach, we rank the systems based on the corresponding metric, get the vector of the systems' places in the leaderboard, and calculate Spearman's correlation between such vectors for human and automatic evaluation. We can observe improvements in correlations for both setups with newly presented metrics.  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Backtranslation approach: (i) translate input text into resource-rich language; (ii) perform detoxification; (iii) translate back into target language.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Training Data Translation approach: (i) translate available dataset into the target language; (ii) train detoxification model for the target language.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Adapter approach: (i) insert Adapter layer into Multilingual LM; (ii) train only Adapter for detoxification task on the available corpus.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Simultaneous Detox&amp;Translate approach is based on synthetic cross-lingual parallel corpus.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>translation between the resource-rich and target languages; -Corpus for paraphrasing for the target language; 1</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>mBART EN-Tr (FSMT) Вот х**и вам бабам еще надо? такой прискурант озвучил! What the f*ck do you women still need? such a price list was announced! вот что вам еще надо? такой прискурант озвучил! what else do you need? such a price list was announced! Политика это вообще один большой фейспалм, стадо п**оров, на**ывающих друг друга.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>лично я хочу чтоб мр*зи сели на пожизненое Personally, I want the b*stards to sit down for life. OPUS-MT<ref type="bibr" target="#b42">(Tiedemann and Thottingal, 2020)</ref> тварь,трус! ничего человеческого не осталось You son of a b**ch! There's nothing human left.<ref type="bibr" target="#b42">(Tiedemann and Thottingal, 2020)</ref> От этого пострадают только всякие усть-переп**дюйск-телекомы с 3.5 сотрудниками This will only cause damage to any of the three-way telecoms with 3.5 employees.<ref type="bibr" target="#b42">(Tiedemann and Thottingal, 2020)</ref> эти бл**и совсем о**ели тв*ри конченые These f**king things are so f**ked up. (Tiedemann and Thottingal, 2020) иди н**ер, верните иваныча, черти! Go f**k yourself, get the Ivanich back! Yandex.Translate бл**ь, ты хоть себя слышишь?) ты говоришь что я экстрасенс, а потом говоришь, что нет Can you f**king hear yourself?) You say I'm a psychic, and then you tell me no. лично я хочу чтоб мр*зи сели на пожизненое Personally, I want the sc*m to go to prison for life. тварь,трус! ничего человеческого не осталось You coward! There's nothing human left. От этого пострадают только всякие усть-переп**дюйск-телекомы с 3.5 сотрудниками Only Ust-perep**dyuisk telecoms with 3.5 employees will suffer from this эти бляди совсем о**ели твари конченые these whores are completely f**ked up creatures are finished иди н**ер, верните иваныча, черти! go to hell, bring Ivanovich back, damn it! Google.Translate бл**ь, ты хоть себя слышишь?) ты говоришь что я экстрасенс, а потом говоришь, что нет f**k, can you even hear yourself?) you say that I'm a psychic, and then you say that I'm not лично я хочу чтоб мр*зи сели на пожизненое I personally want the sc*m to sit on a life sentence тварь,трус! ничего человеческого не осталось creature, c*ward! nothing human left От этого пострадают только всякие усть-переп**дюйск-телекомы с 3.5 сотрудниками Only all sorts of Ust-Perep**duysk-Telecoms with 3.5 employees will suffer from this эти бл**и совсем охуели тв*ри конченые these whores are completely f**ked up by the finished creatures иди н**ер, верните иваныча, черти! go to hell, bring Ivanovich back, d*mn it!</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>780 0.782 0.356 0.792 0.583 0.870 0.386Table 14: Evaluation of TST models. Numbers in bold indicate the best results by each parameter inside the subsections. EN-Tr or RU-Tr denote translated versions of ParaDetox.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Two new text detoxification setups explored in this work compared to the monolingual setup.</figDesc><table><row><cell></cell><cell>En parallel corpus</cell></row><row><cell>Original (En)</cell><cell>Its a crock of s**t, and you know it.</cell></row><row><cell>Detox (En)</cell><cell>It's quite unpleasant, and you know it.</cell></row><row><cell cols="2">Cross-lingual Detoxification Transfer (Ours #1)</cell></row><row><cell>Data</cell><cell>En parallel corpus , Ru parallel corpus</cell></row><row><cell>Original (Ru)</cell><cell>Тварина е**ная, если это ее слова</cell></row><row><cell>Detox (Ru)</cell><cell>Она очень неправа, если это дей-</cell></row><row><cell></cell><cell>ствительно еще слова</cell></row><row><cell cols="2">Simultaneous Detoxification&amp;Translation (Ours #2)</cell></row><row><cell>Data</cell><cell>En parallel corpus , Ru parallel corpus</cell></row><row><cell>Original (Ru)</cell><cell>Тварина е**ная, если это ее слова</cell></row><row><cell>Detox (En)</cell><cell>She's not a good person if its her words</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>, and content Ours vs old evaluation setups.</figDesc><table><row><cell></cell><cell cols="2">Old metrics Ours metrics</cell></row><row><cell>STA</cell><cell>0.472</cell><cell>0.598</cell></row><row><cell>SIM</cell><cell>0.124</cell><cell>0.244</cell></row><row><cell>FL</cell><cell>-0.011</cell><cell>0.354</cell></row><row><cell>J</cell><cell>0.106</cell><cell>0.482</cell></row><row><cell></cell><cell></cell><cell>Spearman's</cell></row><row><cell cols="3">correlation between automatic vs manual setups for</cell></row><row><cell cols="3">each old and new evaluation parameter based on sys-</cell></row><row><cell cols="3">tems scores for Russian language. All numbers de-</cell></row><row><cell cols="3">note the statistically significant correlation (p-value ≤</cell></row><row><cell>0.05).</cell><cell></cell><cell></cell></row><row><cell cols="3">evaluation part from Russian parallel corpus (De-</cell></row><row><cell cols="2">mentieva et al., 2022).</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 4 :</head><label>4</label><figDesc>Comparison of the proposed approaches for cross-lingual detoxification transfer based on required computational and data resources. As one may observe, backtranslation approach requires 3 runs of seq2seq models, while other approaches are based on a single (end2end) model and require only one run.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2</head><label>2</label><figDesc></figDesc><table><row><cell>Appendix A contains examples of models' out-</cell></row><row><cell>puts; Appendix B contains examples of toxic text</cell></row><row><cell>translations; Appendix D presents a comparison of</cell></row><row><cell>different translation methods for each approach.</cell></row><row><cell>). Firstly, we</cell></row><row><cell>report scores of humans reference and trivial du-</cell></row><row><cell>plication of the input toxic text. Then, we present</cell></row><row><cell>strong baselines based on local edits -Delete and</cell></row><row><cell>condBERT (Dale et al., 2021; Dementieva et al.,</cell></row><row><cell>2021) -and, finally, SOTA seq2seq detoxification</cell></row><row><cell>monolingual models based on T5/BART. More-</cell></row><row><cell>over, we report the performance of multilingual</cell></row><row><cell>models (mBART/M2M100) trained on monolin-</cell></row><row><cell>gual parallel corpus separately (RU/EN) or on the</cell></row><row><cell>joint corpus (RU+EN) to check the credibility of</cell></row><row><cell>training multilingual models for such a task. The</cell></row><row><cell>results of the manual evaluation are reported in</cell></row><row><cell>Table 6 comparing only the best models identified</cell></row><row><cell>with automatic evaluation.</cell></row><row><cell>Additional results are available in appendices:</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Automatic evaluation results. Numbers in bold indicate the best results in the sub-sections.</figDesc><table><row><cell></cell><cell>STA</cell><cell>SIM</cell><cell>FL</cell><cell>J</cell><cell>STA</cell><cell>SIM</cell><cell>FL</cell><cell>J</cell></row><row><cell></cell><cell></cell><cell cols="2">Russian</cell><cell></cell><cell></cell><cell cols="2">English</cell></row><row><cell cols="8">Baselines: Monolingual Setup (on a language with a parallel corpus)</cell></row><row><cell>Human references</cell><cell cols="7">0.788 0.733 0.820 0.470 0.950 0.561 0.836</cell><cell>0.450</cell></row><row><cell>Duplicate input</cell><cell cols="7">0.072 0.785 0.783 0.045 0.023 0.726 0.871</cell><cell>0.015</cell></row><row><cell cols="7">Monolingual models trained on monolingual parallel corpus</cell><cell></cell></row><row><cell>Delete</cell><cell cols="7">0.408 0.761 0.700 0.210 0.815 0.574 0.690</cell><cell>0.308</cell></row><row><cell>condBERT</cell><cell cols="7">0.654 0.671 0.579 0.247 0.973 0.468 0.788</cell><cell>0.362</cell></row><row><cell>ruT5-detox</cell><cell cols="4">0.738 0.763 0.807 0.453</cell><cell></cell><cell></cell><cell>-</cell></row><row><cell>BART-detox</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.892 0.624 0.833</cell><cell>0.458</cell></row><row><cell cols="7">Multilingual models trained on parallel monolingual corpora</cell><cell></cell></row><row><cell>mBART RU</cell><cell cols="4">0.672 0.750 0.781 0.392</cell><cell></cell><cell></cell><cell>-</cell></row><row><cell>mBART EN</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.857 0.599 0.824</cell><cell>0.418</cell></row><row><cell>mBART EN+RU</cell><cell cols="7">0.660 0.758 0.784 0.392 0.884 0.599 0.835</cell><cell>0.435</cell></row><row><cell>M2M100+Adapter</cell><cell cols="7">0.709 0.747 0.754 0.397 0.876 0.601 0.785</cell><cell>0.413</cell></row><row><cell>mBART*+Adapter</cell><cell cols="7">0.650 0.758 0.778 0.383 0.863 0.617 0.829</cell><cell>0.435</cell></row><row><cell cols="9">Cross-lingual Text Detoxification Transfer (from a language with to a language without a parallel corpus)</cell></row><row><cell cols="7">Backtranslation: monolingual model wrapped by two translations</cell><cell></cell></row><row><cell>ruT5-detox (FSMT)</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.680 0.458 0.902</cell><cell>0.324</cell></row><row><cell>BART-detox (Yandex)</cell><cell cols="4">0.601 0.709 0.832 0.347</cell><cell></cell><cell></cell><cell>-</cell></row><row><cell>mBART (Yandex)</cell><cell cols="7">0.595 0.710 0.835 0.345 0.661 0.561 0.913</cell><cell>0.322</cell></row><row><cell></cell><cell cols="6">Translation of parallel corpus and training model on it</cell><cell></cell></row><row><cell>mBART RU-Tr (Helsinki)</cell><cell cols="4">0.429 0.773 0.780 0.257</cell><cell></cell><cell></cell><cell>-</cell></row><row><cell>mBART EN-Tr (FSMT)</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.762 0.553 0.871</cell><cell>0.354</cell></row><row><cell cols="8">Multitask learning: translation of parallel corpus and adding relevant datasets</cell></row><row><cell>mBART EN+RU-Tr</cell><cell cols="4">0.552 0.749 0.783 0.320</cell><cell></cell><cell></cell><cell>-</cell></row><row><cell>mBART EN-Tr+RU</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.539 0.749 0.783</cell><cell>0.312</cell></row><row><cell cols="8">Adapter training: training multilingual models on monolingual corpus w/o translation</cell></row><row><cell>M2M100+Adapter RU</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.422 0.630 0.779</cell><cell>0.186</cell></row><row><cell>M2M100+Adapter EN</cell><cell cols="4">0.340 0.722 0.675 0.160</cell><cell></cell><cell></cell><cell>-</cell></row><row><cell>mBART*+Adapter RU</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.697 0.570 0.847</cell><cell>0.315</cell></row><row><cell>mBART*+Adapter EN</cell><cell cols="4">0.569 0.705 0.776 0.303</cell><cell></cell><cell></cell><cell>-</cell></row><row><cell cols="8">Detox&amp;Translation: Simultaneous Text Detoxification and Translation</cell></row><row><cell cols="8">Step-by-step approach: monolingual detoxifier as a pivot + translation from/to the pivot</cell></row><row><cell>ruT5-detox (FSMT)</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell cols="3">0.930 0.396 0.794</cell><cell>0.300</cell></row><row><cell>BART-detox (Yandex)</cell><cell cols="4">0.775 0.694 0.876 0.467</cell><cell></cell><cell>-</cell><cell></cell></row><row><cell cols="8">End-to-end models trained on cross-lingual parallel detoxification corpus</cell></row><row><cell>mBART (Yandex)</cell><cell cols="7">0.788 0.562 0.744 0.333 0.922 0.446 0.728</cell><cell>0.305</cell></row><row><cell>mT5 (Yandex)</cell><cell cols="7">0.782 0.592 0.790 0.361 0.897 0.393 0.558</cell><cell>0.204</cell></row></table><note><p>Rows in green indicate the best models per tasks. In (brackets), the method of translation used for the approach is indicated. EN or RU denotes training corpus language -original monolingual ParaDetox, while EN-Tr or RU-Tr denotes translated versions of ParaDetox. mBART* states that the version of mBART fine-tuned on paraphrasing and translation data.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>Manual evaluation results. We report the SOTA monolingual models for each language for reference and the best multilingual models (based on Backtranslation and Adapter approaches).</figDesc><table><row><cell>STA SIM FL</cell><cell>J</cell></row><row><cell>English</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 :</head><label>7</label><figDesc>Examples of models' output: baselines and our proposed approaches.</figDesc><table><row><cell cols="2">B Examples of Translation Outputs</cell><cell></cell><cell></cell></row><row><cell>Translator</cell><cell>Source</cell><cell>Translated</cell><cell>Quality</cell></row><row><cell cols="2">FSMT (Ng et al., 2019) what the f**k is this comment ?</cell><cell>Что это за х**ня?</cell><cell></cell></row><row><cell>FSMT</cell><cell>the fact we are doing this now and it</cell><cell>тот факт, что мы делаем это сей-</cell><cell></cell></row><row><cell></cell><cell>started when i was number number is</cell><cell>час, и это началось, когда я был</cell><cell></cell></row><row><cell></cell><cell>fucking insane !</cell><cell>номером, это гребано!</cell><cell></cell></row><row><cell>FSMT</cell><cell>the germans today are the same blind</cell><cell>сегодняшние немцы такие же сле-</cell><cell></cell></row><row><cell></cell><cell>brainless followtheleader sheep they</cell><cell>пые безмозглые овчарки, какими</cell><cell></cell></row><row><cell></cell><cell>were in and throughout their history.</cell><cell>они были в своей истории.</cell><cell></cell></row><row><cell>FSMT</cell><cell>the guy was f**king shot !</cell><cell>парень гребаный стрелял!</cell><cell></cell></row><row><cell>FSMT</cell><cell>maybe now no one will be rammed in</cell><cell>Может быть, теперь никто не бу-</cell><cell></cell></row><row><cell></cell><cell>the *ss .</cell><cell>дет ругаться в з**ницу.</cell><cell></cell></row><row><cell>OPUS-MT (Tiedemann</cell><cell>what the f**k is this comment ?</cell><cell>Что это за х**ня?</cell><cell></cell></row><row><cell>and Thottingal, 2020)</cell><cell></cell><cell></cell><cell></cell></row><row><cell>OPUS-MT c</cell><cell>the fact we are doing this now and it</cell><cell>То, что мы делаем сейчас и это</cell><cell></cell></row><row><cell></cell><cell>started when i was number number is</cell><cell>началось когда я был номером -</cell><cell></cell></row><row><cell></cell><cell>f**king insane !</cell><cell>сумасшествие!</cell><cell></cell></row><row><cell>OPUS-MT</cell><cell>the germans today are the same blind</cell><cell>Сегодня немцы -те же слепые</cell><cell></cell></row><row><cell></cell><cell>brainless followtheleader sheep they</cell><cell>безмозглые овцы, что и во всей их</cell><cell></cell></row><row><cell></cell><cell>were inand throughout their history .</cell><cell>истории.</cell><cell></cell></row><row><cell>OPUS-MT</cell><cell>the guy was f**king shot !</cell><cell>Парня застрелили!</cell><cell></cell></row><row><cell>OPUS-MT</cell><cell>maybe now no one will be rammed in</cell><cell>Может быть, теперь никто не бу-</cell><cell></cell></row><row><cell></cell><cell>the a** .</cell><cell>дет запихнут в ж**у.</cell><cell></cell></row><row><cell>OPUS-MT</cell><cell>it s actually a great idea if you want to</cell><cell>Это действительно отличная</cell><cell></cell></row><row><cell></cell><cell>keep nuts out get done .</cell><cell>идея, если ты хочешь держаться</cell><cell></cell></row><row><cell></cell><cell></cell><cell>подальше и заниматься д*рьмом.</cell><cell></cell></row><row><cell>Yandex.Translate</cell><cell>what the f**k is this comment ?</cell><cell>что, черт возьми, это за коммен-</cell><cell></cell></row><row><cell></cell><cell></cell><cell>тарий?</cell><cell></cell></row><row><cell></cell><cell>the fact we are doing this now and it</cell><cell>тот факт, что мы делаем это сей-</cell><cell></cell></row><row><cell></cell><cell>started when i was number number is</cell><cell>час, и это началось, когда я был</cell><cell></cell></row><row><cell></cell><cell>f**king insane !</cell><cell>номером номер, чертовски безу-</cell><cell></cell></row><row><cell></cell><cell></cell><cell>мен!</cell><cell></cell></row><row><cell></cell><cell>the germans today are the same blind</cell><cell>немцы сегодня -такие же сле-</cell><cell></cell></row><row><cell></cell><cell>brainless followtheleader sheep they</cell><cell>пые безмозглые овцы, следующие</cell><cell></cell></row><row><cell></cell><cell>were inand throughout their history .</cell><cell>за лидером, какими они были на</cell><cell></cell></row><row><cell></cell><cell></cell><cell>протяжении всей своей истории.</cell><cell></cell></row><row><cell></cell><cell>the guy was f**king shot !</cell><cell>этого парня, б**дь, застрелили!</cell><cell></cell></row><row><cell></cell><cell>maybe now no one will be rammed in</cell><cell>может быть, теперь никого не бу-</cell><cell></cell></row><row><cell></cell><cell>the a** .</cell><cell>дут таранить в з*дницу.</cell><cell></cell></row><row><cell></cell><cell>it s actually a great idea if you want to</cell><cell>на самом деле это отличная идея,</cell><cell></cell></row><row><cell></cell><cell>keep nuts out and get s**t done .</cell><cell>если вы хотите не сходить с ума и</cell><cell></cell></row><row><cell></cell><cell></cell><cell>довести дело до конца.</cell><cell></cell></row><row><cell>Google.Translate</cell><cell>what the f**k is this comment ?</cell><cell>что за бред этот комментарий?</cell><cell></cell></row><row><cell></cell><cell>the fact we are doing this now and it</cell><cell>тот факт, что мы делаем это сей-</cell><cell></cell></row><row><cell></cell><cell>started when i was number number is</cell><cell>час, и это началось, когда я был</cell><cell></cell></row><row><cell></cell><cell>f**king insane !</cell><cell>номером номер, чертовски безу-</cell><cell></cell></row><row><cell></cell><cell></cell><cell>мен!</cell><cell></cell></row><row><cell></cell><cell>the germans today are the same blind</cell><cell>нынешние немцы -такие же сле-</cell><cell></cell></row><row><cell></cell><cell>brainless followtheleader sheep they</cell><cell>пые безмозглые овцы, следующие</cell><cell></cell></row><row><cell></cell><cell>were inand throughout their history .</cell><cell>за вожаками, которыми они бы-</cell><cell></cell></row><row><cell></cell><cell></cell><cell>ли на протяжении всей своей ис-</cell><cell></cell></row><row><cell></cell><cell></cell><cell>тории.</cell><cell></cell></row><row><cell></cell><cell>the guy was f**king shot !</cell><cell>парень был чертовски застрелен!</cell><cell></cell></row><row><cell></cell><cell>maybe now no one will be rammed in</cell><cell>может теперь никто не будет та-</cell><cell></cell></row><row><cell></cell><cell>the a** .</cell><cell>ранить под з*д.</cell><cell></cell></row><row><cell></cell><cell>it s actually a great idea if you want to</cell><cell>на самом деле это отличная идея,</cell><cell></cell></row><row><cell></cell><cell>keep nuts out and get s**t done .</cell><cell>если вы хотите держаться подаль-</cell><cell></cell></row><row><cell></cell><cell></cell><cell>ше от орехов и делать д*рьмо.</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 8 :</head><label>8</label><figDesc>Examples of translations from English to Russian.</figDesc><table><row><cell>Translator</cell><cell>Source</cell><cell>Translated</cell><cell>Quality</cell></row><row><cell cols="2">FSMT (Ng et al., 2019) бл**ь, ты хоть себя слышишь?)</cell><cell>Do you even hear yourself?)</cell><cell></cell></row><row><cell></cell><cell>ты говоришь что я экстрасенс, а</cell><cell>You say I'm a psychic, and then you say</cell><cell></cell></row><row><cell></cell><cell>потом говоришь, что нет</cell><cell>no.</cell><cell></cell></row><row><cell cols="2">FSMT (Ng et al., 2019) лично я хочу чтоб мр*зи сели на</cell><cell>Personally, I want them to sit down for</cell><cell></cell></row><row><cell></cell><cell>пожизненое</cell><cell>life.</cell><cell></cell></row><row><cell cols="2">FSMT (Ng et al., 2019) тварь,трус! ничего человеческого</cell><cell>Creature, c*ward! There is nothing hu-</cell><cell></cell></row><row><cell></cell><cell>не осталось</cell><cell>man left.</cell><cell></cell></row><row><cell cols="2">FSMT (Ng et al., 2019) От этого пострадают только вся-</cell><cell>Only those with 3.5 employees will be</cell><cell></cell></row><row><cell></cell><cell>кие усть-переп**дюйск-телекомы</cell><cell>affected.</cell><cell></cell></row><row><cell></cell><cell>с 3.5 сотрудниками</cell><cell></cell><cell></cell></row><row><cell cols="2">FSMT (Ng et al., 2019) иди н**ер, верните иваныча, чер-</cell><cell>Go n**her, bring back Ivanich, devils!</cell><cell></cell></row><row><cell></cell><cell>ти!</cell><cell></cell><cell></cell></row><row><cell>OPUS-MT (Tiedemann</cell><cell>бл**ь, ты хоть себя слышишь?)</cell><cell>Can you f**king hear yourself?) You</cell><cell></cell></row><row><cell>and Thottingal, 2020)</cell><cell>ты что я экстрасенс, а</cell><cell>say I'm a psychic, and then you tell me</cell><cell></cell></row><row><cell></cell><cell>потом говоришь, что нет</cell><cell>no.</cell><cell></cell></row><row><cell>OPUS-MT</cell><cell></cell><cell></cell><cell></cell></row><row><cell>and Thottingal, 2020)</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 9 :</head><label>9</label><figDesc>Examples of translations from Russian to English.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 10 :</head><label>10</label><figDesc>Spearman's correlation coefficient between automatic VS manual metrics based on systems scores for Russian language. All numbers denote the statistically significant correlation (p-value ≤ 0.05).</figDesc><table><row><cell cols="2">Metric STA old a</cell><cell>SIM old a</cell><cell>FL old a</cell><cell>J old a</cell></row><row><cell>STAm</cell><cell>0.472</cell><cell cols="2">-0.324 -0.121</cell><cell>0.120</cell></row><row><cell>SIMm</cell><cell></cell><cell>0.124</cell><cell cols="2">0.084 -0.026</cell></row><row><cell>FLm</cell><cell>0.018</cell><cell cols="3">-0.087 -0.011 -0.132</cell></row><row><cell>Jm</cell><cell>0.271</cell><cell cols="2">-0.138 -0.031</cell><cell>0.106</cell></row><row><cell>Metric</cell><cell>STAa</cell><cell>SIMa</cell><cell>FLa</cell><cell>Ja</cell></row><row><cell>STAm</cell><cell>0.598</cell><cell>-0.071</cell><cell>0.130</cell><cell>0.516</cell></row><row><cell>SIMm</cell><cell>-0.012</cell><cell>0.244</cell><cell>0.217</cell><cell></cell></row><row><cell>FLm</cell><cell>0.107</cell><cell>0.054</cell><cell>0.354</cell><cell>0.229</cell></row><row><cell>Jm</cell><cell>0.370</cell><cell>0.096</cell><cell>0.259</cell><cell>0.482</cell></row><row><cell cols="2">Metric STA old a</cell><cell>SIM old a</cell><cell>FL old a</cell><cell>J old a</cell></row><row><cell>STAm</cell><cell>0.235</cell><cell cols="3">-0.657 -0.200 0.138</cell></row><row><cell>SIMm</cell><cell>0.130</cell><cell>0.015</cell><cell cols="2">0.240 0.248</cell></row><row><cell>FLm</cell><cell>-0.024</cell><cell>-0.284</cell><cell cols="2">0.024 0.002</cell></row><row><cell>Jm</cell><cell>0.169</cell><cell>-0.116</cell><cell cols="2">0.204 0.231</cell></row><row><cell>Metric</cell><cell>STAa</cell><cell>SIMa</cell><cell>FLa</cell><cell>Ja</cell></row><row><cell>STAm</cell><cell>0.811</cell><cell>-0.231</cell><cell cols="2">0.600 0.692</cell></row><row><cell>SIMm</cell><cell>0.240</cell><cell>0.732</cell><cell cols="2">0.349 0.648</cell></row><row><cell>FLm</cell><cell>0.292</cell><cell>0.305</cell><cell cols="2">0.868 0.613</cell></row><row><cell>Jm</cell><cell>0.433</cell><cell>0.565</cell><cell cols="2">0.534 0.802</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 11 :</head><label>11</label><figDesc>Spearman's correlation coefficient between automatic VS manual metrics based on system ranking for Russian language. All numbers denote the statistically significant correlation (p-value ≤ 0.05)</figDesc><table><row><cell>STA</cell><cell>SIM</cell><cell>FL</cell><cell>J</cell><cell>STA</cell><cell>SIM</cell><cell>FL</cell><cell>J</cell></row><row><cell></cell><cell cols="2">Russian</cell><cell></cell><cell></cell><cell cols="2">English</cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="4">Multilingual Detoxification</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="4">Training Data Translation</cell><cell></cell><cell></cell></row><row><cell>mBART EN+RU-Tr</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>(FSMT)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://huggingface.co/s-nlp/bart-base-detox</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://huggingface.co/s-nlp/ruT5-base-detox</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://huggingface.co/Helsinki-NLP/opus-mt-ru-en</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://tech.yandex.com/translate</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>https://huggingface.co/datasets/news_commentary</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>https://github.com/dardem/text_detoxification</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>https://github.com/s-nlp/multilingual_detox</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We thank <rs type="person">Elisei Stakovskii</rs> for manual evaluation of the detoxification models outputs of this paper.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Comparison of Translation Methods</head><p>Here, we provide a thorough comparison of all mentioned translation methods for presented approaches: (i) Cross-lingual Detoxification Transfer (Table <ref type="table">12</ref>); (ii) Detox&amp;Translation (Table <ref type="table">13</ref>). Additionally, we provide the experiments for multilingual setup (where the detoxification models are trained on datasets in both languages simultaneously) for Training Data Translation approach in Table <ref type="table">14</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Manual Evaluation Instructions</head><p>Here, we present the explanation of labels that annotators had to assign for each of the three evaluation parameters. We adapt the manual annotation process described in <ref type="bibr">(Logacheva et al., 2022a)</ref>:</p><p>Toxicity (STA m ) Is this text offensive?</p><p>• non-toxic (1) -the sentence does not contain any aggression or offence. However, we allow covert aggression and sarcasm.</p><p>• toxic (0) -the sentence contains open aggression and/or swear words (this also applies to meaningless sentences).</p><p>Content (SIM m ) Does these sentences mean the same?</p><p>• matching (1) -the output sentence fully preserves the content of the input sentence. Here, we allow some change of sense which is inevitable during detoxification (e.g., replacement with overly general synonyms: idiot becomes person or individual). It should also be noted that content and toxicity dimensions are independent, so if the output sentence is toxic, it can still be good in terms of content.</p><p>• different (0) -the sense of the transferred sentence differs from the input. Here, the sense should not be confused with the word overlap. The sentence is different from its original version if its main intent has changed (cf. I want to go out and I want to sleep). The partial loss or change of sense is also considered a mismatch (cf. I want to eat and sleep and I want to eat). Finally, when the transferred sentence is senseless, it should also be considered different.</p><p>Fluency (FL m ) Is this text correct?</p><p>• fluent (1) -sentences with no mistakes, except punctuation and capitalization errors.</p><p>• partially fluent (0.5) -sentences with orthographic and grammatical mistakes, non-standard spellings. However, the sentence should be fully intelligible.</p><p>• non-fluent (0) -sentences which are difficult or impossible to understand.</p><p>However, since all the input sentences are user-generated, they are not guaranteed to be fluent in this scale. People often make mistakes and typos and use non-standard spelling variants. We cannot require that a detoxification model fixes them. Therefore, we consider the output of a model fluent if the model did not make it less fluent than the original sentence. Thus, we evaluate both the input and the output sentences and define the final fluency score as fluent (1) if the fluency score of the output is greater or equal to that of the input, and non-fluent (0) otherwise.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A large-scale computational study of content preservation measures for text style transfer and paraphrase generation</title>
+		<author>
+			<persName><forename type="first">Nikolay</forename><surname>Babakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-srw.23</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics: Student Research Workshop</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics: Student Research Workshop<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="300" to="321" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Olá, bonjour, salve! XFORMAL: A benchmark for multilingual formality style transfer</title>
+		<author>
+			<persName><forename type="first">Eleftheria</forename><surname>Briakou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joel</forename><surname>Tetreault</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.256</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3199" to="3216" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">James</forename><surname>Marta R Costa-Jussà</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Onur</forename><surname>Cross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maha</forename><surname>Çelebi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenneth</forename><surname>Elbayad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Heafield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elahe</forename><surname>Heffernan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janice</forename><surname>Kalbassi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Lam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Licht</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Maillard</surname></persName>
+		</author>
+		<title level="m">No language left behind: Scaling human-centered machine translation</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page">2207</biblScope>
+		</imprint>
+	</monogr>
+	<note>arXiv eprints</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Open subtitles paraphrase corpus for six languages</title>
+		<author>
+			<persName><forename type="first">Mathias</forename><surname>Creutz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eleventh International Conference on Language Resources and Evaluation</title>
+		<meeting>the Eleventh International Conference on Language Resources and Evaluation<address><addrLine>Miyazaki, Japan</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2018-05-07">2018. May 7-12, 2018</date>
+		</imprint>
+	</monogr>
+	<note>LREC 2018</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Text detoxification using large pre-trained neural models</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anton</forename><surname>Voronov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daryna</forename><surname>Dementieva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Kozlova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Semenov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.629</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7979" to="7996" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">RUSSE-2022: Findings of the first Russian detoxification task based on parallel corpora</title>
+		<author>
+			<persName><forename type="first">Daryna</forename><surname>Dementieva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Nikishina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alena</forename><surname>Fenogenova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Krotova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Semenov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatiana</forename><surname>Shavrina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational Linguistics and Intellectual Technologies</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Methods for detoxification of texts for the russian language</title>
+		<author>
+			<persName><forename type="first">Daryna</forename><surname>Dementieva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniil</forename><surname>Moskovskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Kozlova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Semenov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<idno type="DOI">10.3390/mti5090054</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Multimodal Technol. Interact</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page">54</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Fighting offensive language on social media with unsupervised text style transfer</title>
+		<author>
+			<persName><forename type="first">Cícero</forename><surname>Nogueira Dos Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Melnyk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Inkit</forename><surname>Padhi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-2031</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics, ACL 2018</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics, ACL 2018<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018-07-15">2018. July 15-20, 2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="189" to="194" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">A multilingual offensive language detection method based on transfer learning from transformer fine-tuning model</title>
+		<author>
+			<persName><forename type="first">Fatima-Zahra</forename><surname>El-Alami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ouatik</forename><forename type="middle">El</forename><surname>Said</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noureddine</forename><forename type="middle">En</forename><surname>Alaoui</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nahnahi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="6048" to="6056" />
+		</imprint>
+		<respStmt>
+			<orgName>King Saud University-Computer and Information Sciences</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Beyond english-centric multilingual machine translation</title>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Bhosale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyi</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>El-Kishky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddharth</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandeep</forename><surname>Baines</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Onur</forename><surname>Celebi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vitaliy</forename><surname>Liptchinsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="page">48</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Languageagnostic BERT sentence embedding</title>
+		<author>
+			<persName><forename type="first">Fangxiaoyu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naveen</forename><surname>Arivazhagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.62</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-05-22">2022. May 22-27, 2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="878" to="891" />
+		</imprint>
+		<respStmt>
+			<orgName>Long Papers</orgName>
+		</respStmt>
+	</monogr>
+	<note>ACL 2022. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Automatically ranked Russian paraphrase corpus for text generation</title>
+		<author>
+			<persName><forename type="first">Vadim</forename><surname>Gudkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Mitrofanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elizaveta</forename><surname>Filippskikh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.ngt-1.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Neural Generation and Translation</title>
+		<meeting>the Fourth Workshop on Neural Generation and Translation</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="54" to="59" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Russian texts detoxification with levenshtein editing</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Gusev</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2204.13638</idno>
+		<idno>CoRR, abs/2204.13638</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Detoxifying text with marco: Controllable revision with experts and anti-experts</title>
+		<author>
+			<persName><forename type="first">Skyler</forename><surname>Hallinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alisa</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Sap</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2212.10543</idno>
+		<idno>CoRR, abs/2212.10543</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Crosssum: Beyond englishcentric cross-lingual abstractive text summarization for 1500+ language pairs</title>
+		<author>
+			<persName><forename type="first">Tahmid</forename><surname>Hasan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhik</forename><surname>Bhattacharjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uddin</forename><surname>Wasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan-Fang</forename><surname>Ahmad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong-Bin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rifat</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shahriyar</surname></persName>
+		</author>
+		<idno>CoRR, abs/2112.08804</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Parameter-efficient transfer learning for NLP</title>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Houlsby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Giurgiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stanislaw</forename><surname>Jastrzebski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bruna</forename><surname>Morrone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>De Laroussilhe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Gesmundo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Attariyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Gelly</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th International Conference on Machine Learning, ICML</title>
+		<meeting>the 36th International Conference on Machine Learning, ICML<address><addrLine>Long Beach, California, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-06">2019. 2019, 9-15 June 2019</date>
+			<biblScope unit="volume">97</biblScope>
+			<biblScope unit="page" from="2790" to="2799" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Toxic comment classification challenge</title>
+		<author>
+			<persName><surname>Jigsaw</surname></persName>
+		</author>
+		<ptr target="https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge" />
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2021" to="2023" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Jigsaw multilingual toxic comment classification</title>
+		<author>
+			<persName><surname>Jigsaw</surname></persName>
+		</author>
+		<ptr target="https://www.kaggle.com/c/jigsaw-multilingual-toxic-comment-classification.Ac-cessed" />
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2021" to="2023" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Disentangled representation learning for non-parallel text style transfer</title>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>John</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Mou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hareesh</forename><surname>Bahuleyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Vechtomova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/p19-1041</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Conference of the Association for Computational Linguistics, ACL 2019</title>
+		<meeting>the 57th Conference of the Association for Computational Linguistics, ACL 2019<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019-07-28">2019. July 28-August 2, 2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="424" to="434" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Fewshot controllable style transfer for low-resource multilingual settings</title>
+		<author>
+			<persName><forename type="first">Kalpesh</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deepak</forename><surname>Nathani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bidisha</forename><surname>Samanta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Partha</forename><surname>Talukdar</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.514</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022-05-22">2022. May 22-27, 2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="7439" to="7468" />
+		</imprint>
+	</monogr>
+	<note>Long Papers), ACL 2022</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Adaptation of deep bidirectional multilingual transformers for russian language</title>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Kuratov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikhail</forename><surname>Arkhipov</surname></persName>
+		</author>
+		<idno>CoRR, abs/1905.07213</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">2022a. Human judgement as a compass to navigate automatic metrics for formality transfer</title>
+		<author>
+			<persName><forename type="first">Huiyuan</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiali</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Toral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malvina</forename><surname>Nissim</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.humeval-1.9</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Human Evaluation of NLP Systems (HumEval)</title>
+		<meeting>the 2nd Workshop on Human Evaluation of NLP Systems (HumEval)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="102" to="115" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Multilingual pre-training with language and task adaptation for multilingual text style transfer</title>
+		<author>
+			<persName><forename type="first">Huiyuan</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Toral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malvina</forename><surname>Nissim</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-short.29</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022-05-22">2022. May 22-27, 2022</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="262" to="271" />
+		</imprint>
+	</monogr>
+	<note>Short Papers), ACL 2022</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">BART: Denoising sequence-to-sequence pretraining for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal ; Abdelrahman Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">Marjan Ghazvininejad,. 2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Opensubtitles2016: Extracting large parallel corpora from movie and TV subtitles</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Lison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth International Conference on Language Resources and Evaluation LREC 2016</title>
+		<meeting>the Tenth International Conference on Language Resources and Evaluation LREC 2016<address><addrLine>Portorož, Slovenia</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2016-05-23">2016. May 23-28, 2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Roberta: A robustly optimized BERT pretraining approach</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno>CoRR, abs/1907.11692</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Irina Nikishina, Tatiana Shavrina, and Alexander Panchenko. 2022a. A study on manual and automatic evaluation for text style transfer: The case of detoxification</title>
+		<author>
+			<persName><forename type="first">Daryna</forename><surname>Varvara Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Dementieva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alena</forename><surname>Krotova</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Fenogenova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.humeval-1.8</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Human Evaluation of NLP Systems (HumEval)</title>
+		<meeting>the 2nd Workshop on Human Evaluation of NLP Systems (HumEval)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="90" to="101" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">2022b. ParaDetox: Detoxification with parallel data</title>
+		<author>
+			<persName><forename type="first">Daryna</forename><surname>Varvara Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Dementieva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniil</forename><surname>Ustyantsev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Moskovskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Krotova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Semenov</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Panchenko</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.469</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="6804" to="6818" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Rupaws: A russian adversarial dataset for paraphrase identification</title>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Martynov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Krotova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Kozlova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Semenov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth Language Resources and Evaluation Conference, LREC 2022</title>
+		<meeting>the Thirteenth Language Resources and Evaluation Conference, LREC 2022<address><addrLine>Marseille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association</publisher>
+			<date type="published" when="2022-06">2022. June 2022</date>
+			<biblScope unit="page" from="5683" to="5691" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Rucola: Russian corpus of linguistic acceptability</title>
+		<author>
+			<persName><forename type="first">Vladislav</forename><surname>Mikhailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatiana</forename><surname>Shamardina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Ryabinin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alena</forename><surname>Pestova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Smurov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ekaterina</forename><surname>Artemova</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2210.12814</idno>
+		<idno>CoRR, abs/2210.12814</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Beep! korean corpus of online news comments for toxic speech detection</title>
+		<author>
+			<persName><forename type="first">Jihyung</forename><surname>Moon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Won-Ik</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junbum</forename><surname>Lee</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.socialnlp-1.4</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Workshop on Natural Language Processing for Social Media, SocialNLP@ACL 2020</title>
+		<meeting>the Eighth International Workshop on Natural Language Processing for Social Media, SocialNLP@ACL 2020</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020-07-10">2020. July 10, 2020</date>
+			<biblScope unit="page" from="25" to="31" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Exploring cross-lingual text detoxification with large multilingual language models</title>
+		<author>
+			<persName><forename type="first">Daniil</forename><surname>Moskovskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daryna</forename><surname>Dementieva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Panchenko</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-srw.26</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics: Student Research Workshop</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics: Student Research Workshop<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="346" to="354" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Facebook fair&apos;s WMT19 news translation task submission</title>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyra</forename><surname>Yee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexei</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/w19-5333</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Conference on Machine Translation, WMT 2019</title>
+		<meeting>the Fourth Conference on Machine Translation, WMT 2019<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-08-01">2019. August 1-2, 2019</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="314" to="319" />
+		</imprint>
+	</monogr>
+	<note>Shared Task Papers. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">A call for standardization and validation of text style transfer evaluation</title>
+		<author>
+			<persName><forename type="first">Phil</forename><surname>Ostheimer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mayank</forename><surname>Nagda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marius</forename><surname>Kloft</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sophie</forename><surname>Fellenz</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2306.00539</idno>
+		<idno>CoRR, abs/2306.00539</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Models and datasets for cross-lingual summarisation</title>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Perez-Beltrachini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.742</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing, EMNLP 2021, Virtual Event / Punta Cana</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing, EMNLP 2021, Virtual Event / Punta Cana</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021-07-11">2021. 7-11 November, 2021</date>
+			<biblScope unit="page" from="9408" to="9423" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="page">67</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Dear sir or madam, may I introduce the GYAFC dataset: Corpus, benchmarks and metrics for formality style transfer</title>
+		<author>
+			<persName><forename type="first">Sudha</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joel</forename><surname>Tetreault</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1012</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="129" to="140" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">BLEURT: Learning robust metrics for text generation</title>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.704</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7881" to="7892" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aleksandr</forename><surname>Semiletov</surname></persName>
+		</author>
+		<ptr target="https://www.kaggle.com/alexandersemiletov/toxic-russian-comments" />
+		<title level="m">Toxic russian comments</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2021" to="2027" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Multilingual translation with extensible multilingual pretraining and finetuning</title>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chau</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng-Jen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">The tatoeba translation challenge -realistic data sets for low resource and multilingual MT</title>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifth Conference on Machine Translation, WMT@EMNLP 2020, Online</title>
+		<meeting>the Fifth Conference on Machine Translation, WMT@EMNLP 2020, Online</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020-11-19">2020. November 19-20, 2020</date>
+			<biblScope unit="page" from="1174" to="1182" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">OPUS-MT -building open translation services for the world</title>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Santhosh</forename><surname>Thottingal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd Annual Conference of the European Association for Machine Translation, EAMT 2020</title>
+		<meeting>the 22nd Annual Conference of the European Association for Machine Translation, EAMT 2020<address><addrLine>Lisboa, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Association for Machine Translation</publisher>
+			<date type="published" when="2020-11-03">2020. November 3-5, 2020</date>
+			<biblScope unit="page" from="479" to="480" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Towards a friendly online community: An unsupervised style transfer framework for profanity redaction</title>
+		<author>
+			<persName><forename type="first">Minh</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yipeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Soleymani</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.190</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2107" to="2114" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Detection of racist language in french tweets</title>
+		<author>
+			<persName><forename type="first">Natalia</forename><surname>Vanetik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elisheva</forename><surname>Mimoun</surname></persName>
+		</author>
+		<idno type="DOI">10.3390/info13070318</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Inf</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page">318</biblScope>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Deep-bert: Transfer learning for classifying multilingual offensive texts on social media</title>
+		<author>
+			<persName><surname>Md</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhammad</forename><forename type="middle">F</forename><surname>Anwar Hussen Wadud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jungpil</forename><surname>Mridha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kamruddin</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aloke</forename><forename type="middle">Kumar</forename><surname>Nur</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Saha</surname></persName>
+		</author>
+		<idno type="DOI">10.32604/csse.2023.027841</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Syst. Sci. Eng</title>
+		<imprint>
+			<biblScope unit="volume">44</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="1775" to="1791" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Neural network acceptability judgments</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Warstadt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Trans. Assoc. Comput. Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="625" to="641" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Beyond BLEU:training neural machine translation with semantic similarity</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Wieting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taylor</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1427</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4344" to="4355" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">ParaNMT-50M: Pushing the limits of paraphrastic sentence embeddings with millions of machine translations</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Wieting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1042</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="451" to="462" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">mask and infill&quot; : Applying masked language model to sentiment transfer</title>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangjun</forename><surname>Zang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jizhong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songlin</forename><surname>Hu</surname></persName>
+		</author>
+		<idno>CoRR, abs/1908.08039</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Aditya Barua, and Colin Raffel. 2021. mt5: A massively multilingual pre-trained text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.41</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2021</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2021<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">June 6-11, 2021</date>
+			<biblScope unit="page" from="483" to="498" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

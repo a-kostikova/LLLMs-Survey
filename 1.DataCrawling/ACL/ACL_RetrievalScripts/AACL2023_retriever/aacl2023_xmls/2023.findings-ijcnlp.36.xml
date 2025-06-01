@@ -1,0 +1,1638 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Supervised Clustering Loss for Clustering-Friendly Sentence Embeddings: an Application to Intent Clustering</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Giorgio</forename><surname>Barnabò</surname></persName>
+							<email>giorgio.barnabo@uniroma1.it</email>
+							<affiliation key="aff0">
+								<orgName type="department">Amazon Alexa AI</orgName>
+								<orgName type="institution">Sapienza University of Rome</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Antonio</forename><surname>Uva</surname></persName>
+							<email>antonuva@amazon.it</email>
+							<affiliation key="aff0">
+								<orgName type="department">Amazon Alexa AI</orgName>
+								<orgName type="institution">Sapienza University of Rome</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Sandro</forename><surname>Pollastrini</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Amazon Alexa AI</orgName>
+								<orgName type="institution">Sapienza University of Rome</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Chiara</forename><surname>Rubagotti</surname></persName>
+							<email>crubagot@amazon.it</email>
+							<affiliation key="aff0">
+								<orgName type="department">Amazon Alexa AI</orgName>
+								<orgName type="institution">Sapienza University of Rome</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Davide</forename><surname>Bernardi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Amazon Alexa AI</orgName>
+								<orgName type="institution">Sapienza University of Rome</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Supervised Clustering Loss for Clustering-Friendly Sentence Embeddings: an Application to Intent Clustering</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">13FE69D30BE917B4ADFF3C927C286BDA</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:58+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Modern virtual assistants are trained to classify customer requests into a taxonomy of predesigned intents. Requests that fall outside of this taxonomy, however, are often unhandled and need to be clustered to define new experiences. Recently, state-of-the-art results in intent clustering were achieved by training a neural network with a latent structured prediction loss. Unfortunately, though, this new approach suffers from a quadratic bottleneck as it requires to compute a joint embedding representation for all pairs of utterances to cluster. To overcome this limitation, we instead cast the problem into a representation learning task, and we adapt the latent structured prediction loss to fine-tune sentence encoders, thus making it possible to obtain clustering-friendly single-sentence embeddings. Our experiments show that the supervised clustering loss returns state-of-the-art results in terms of clustering accuracy and adjusted mutual information.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Many virtual assistants like Alexa, Cortana, Google Home, and Siri have a Natural Language Understanding (NLU) component that categorizes customers' requests into supported experiences, organized by domains and intents. However, when user requests don't fit into these categories, NLU models can fail, causing friction in human-machine interaction. Analyzing these out-ofscope utterances can help expand the assistant's capabilities, but manually inspecting all failing utterances is unfeasible. Therefore, automation is needed, such as clustering frictional utterances into new required experiences. This approach is valuable for expanding the assistants' capabilities in a user-driven way. One way is to use pre-trained sentence embeddings with unsupervised clustering algorithms. Another option is to train a clustering model in a supervised manner using utterances with known intents. This supervised approach has been successful in co-reference resolution <ref type="bibr" target="#b8">(Finley and Joachims, 2005)</ref> and has been recently applied to intent clustering. A seminal work by <ref type="bibr" target="#b16">Haponchyk et al. (2018)</ref> uses measures of utterance similarity as input to either Latent Structural Support Vector Machines (LSSVM) or to a Latent Structured Perceptron (LSP) <ref type="bibr" target="#b44">(Yu and Joachims, 2009;</ref><ref type="bibr" target="#b7">Fernandes et al., 2014)</ref>. The same two algorithms -LSSVM and LSP -were later used by <ref type="bibr" target="#b15">Haponchyk and Moschitti (2021)</ref> to train a fully Neural Supervised Clustering architecture (NSC) with utterances encoded through pre-trained large language models -e.g. BERT <ref type="bibr" target="#b5">(Devlin et al., 2019)</ref>. Supervised clustering techniques use graph structures to represent clusters and are highly effective, but have a quadratic complexity due to the need for edge weights between all possible sample pairs. In the NSC case, for example, all pairs of utterances must pass through a convolutional neural network at both training-and inference-time.</p><p>To avoid this, we propose using the supervised clustering loss to fine-tune sentence encoders, producing clustering-friendly single-sentence embeddings. This turns supervised clustering into a metric or representation learning problem where we force embeddings to be globally more suitable for intent clustering. Our approach has the advantage of scaling linearly with the number of samples, as embeddings only need to be computed for all utterances, not all pairs. To validate our approach, we perform experiments on CLINC150 <ref type="bibr" target="#b22">(Larson et al., 2019)</ref>, BANKING77 <ref type="bibr" target="#b2">(Casanueva et al., 2020)</ref>, DSTC11 <ref type="bibr" target="#b11">(Galley et al., 2022)</ref>, HUW64 <ref type="bibr" target="#b27">(Liu et al., 2021)</ref> and <ref type="bibr">Massive (FitzGerald et al., 2022)</ref>: these are 5 public benchmark datasets for intent clustering, both monolingual and multilingual. For each dataset we fine-tune mBERT <ref type="bibr" target="#b5">(Devlin et al., 2019)</ref>, XLM roBERTa <ref type="bibr" target="#b4">(Conneau et al., 2020)</ref> and two state-of-the-art sentence encoders (All Mpnet Base and Paraphrase Multilingual Mpnet) with either our supervised clustering loss or one among cross entropy loss, cosine similarity loss, contrastive loss or triplet margin loss. Results show that, regardless of base sentence encoder or algorithm chosen to perform clustering, our proposed fine-tuning strategy induces state-of-the-art embeddings that perform equally or better than those obtained with all other tested metric learning losses, when evaluated on the intent clustering task. Our code has been attached to this submission and will be publicly released upon acceptance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Works</head><p>This work lies at the intersection of three research areas: intent clustering, sentence embeddings, and structured  prediction -which we will briefly review below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Intent Clustering</head><p>During the past few years, intent clustering has been a very active research topic. While it has been shown that pre-trained transformers perform poorly on out-ofscope detection <ref type="bibr">(Zhang et al., 2022a)</ref>, fine-tuning in a contrastive or semi-supervised fashion has proven beneficial <ref type="bibr" target="#b2">(Casanueva et al., 2020;</ref><ref type="bibr">Zhang et al., 2021c;</ref><ref type="bibr" target="#b28">Mehri and Eric, 2021;</ref><ref type="bibr">Zhang et al., 2021d;</ref><ref type="bibr" target="#b31">Mou et al., 2022)</ref>.</p><p>Early works mostly focus on unsupervised clustering methods <ref type="bibr" target="#b36">(Shi et al., 2018;</ref><ref type="bibr" target="#b35">Perkins and Yang, 2019;</ref><ref type="bibr" target="#b3">Chatterjee and Sengupta, 2020)</ref>, but semi-supervision has now gained popularity <ref type="bibr" target="#b10">(Forman et al., 2015;</ref><ref type="bibr">Zhang et al., 2022b)</ref>. <ref type="bibr" target="#b26">Lin et al. (2020)</ref>, for example, propose to first perform supervised training on known intents and then use pseudo-labeling on unlabeled utterances to learn a better embedding space. Quite similarly, and in line with Deep Clustering <ref type="bibr" target="#b1">(Caron et al., 2018)</ref>, <ref type="bibr">Zhang et al. (2021b)</ref> propose to first pre-train on known intents and then perform k-means clustering to assign pseudo-labels on unlabeled data. Finally, a structured prediction loss was used to directly teach both support vector machines <ref type="bibr" target="#b8">(Finley and Joachims, 2005;</ref><ref type="bibr" target="#b16">Haponchyk et al., 2018)</ref> and neural networks <ref type="bibr" target="#b15">(Haponchyk and Moschitti, 2021)</ref> to directly output intent clusters for some input utterances. This latter thread of research is the starting point of our work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Sentence Embeddings</head><p>Current state-of-the-art sentence embeddings <ref type="bibr">(Reimers and</ref><ref type="bibr">Gurevych, 2019, 2021;</ref><ref type="bibr" target="#b25">Liao, 2021;</ref><ref type="bibr" target="#b20">Kim et al., 2021;</ref><ref type="bibr" target="#b13">Giorgi et al., 2021)</ref> are obtained by fine-tuning pretrained BERT-based architectures on SNLI <ref type="bibr" target="#b0">(Bowman et al., 2015)</ref> and Multi-NLI <ref type="bibr" target="#b40">(Williams et al., 2018)</ref> data with either a cross entropy loss, a contrastive loss, or a triplet margin loss. <ref type="bibr" target="#b12">Gao et al. (2021)</ref> and <ref type="bibr" target="#b43">Yan et al. (2021)</ref> precisely show that contrastive loss can avoid an anisotropic embedding space. As for intent-friendly word and sentence embeddings, some works propose to pre-train BERT on open domain dialogs in a selfsupervised manner <ref type="bibr" target="#b29">(Mehri et al., 2020;</ref><ref type="bibr" target="#b41">Wu et al., 2020;</ref><ref type="bibr" target="#b17">Henderson et al., 2020;</ref><ref type="bibr" target="#b18">Hosseini-Asl et al., 2020)</ref>. On the other hand, <ref type="bibr" target="#b49">Zhang et al. (2020)</ref> formulated intent recognition as a sentence similarity task. Another common option consists in pre-training with a contrastive loss on intent detection tasks <ref type="bibr" target="#b37">(Vulić et al., 2021;</ref><ref type="bibr">Zhang et al., 2021d)</ref>. Finally, and more generally, <ref type="bibr">Zhang et al. (2021a)</ref> show that combining a contrastive loss with a clustering objective can improve short text clustering.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Structured Prediction</head><p>While in optimization problems local solutions often produce optimal results, structured prediction represents a valid alternative to solve NLP tasks requiring complex output, such as syntactic parsing <ref type="bibr">(Roth and Yih, 2004)</ref>, co-reference resolution <ref type="bibr" target="#b44">(Yu and Joachims, 2009;</ref><ref type="bibr">Fernan-des et al., 2014)</ref>, and clustering <ref type="bibr" target="#b8">(Finley and Joachims, 2005;</ref><ref type="bibr" target="#b16">Haponchyk et al., 2018)</ref>. Nonetheless, relatively few works extend structured prediction theory to deep learning <ref type="bibr" target="#b23">(LeCun et al., 2006;</ref><ref type="bibr" target="#b6">Durrett and Klein, 2015;</ref><ref type="bibr" target="#b39">Weiss et al., 2015;</ref><ref type="bibr" target="#b21">Kiperwasser and Goldberg, 2016;</ref><ref type="bibr" target="#b34">Peng et al., 2018;</ref><ref type="bibr" target="#b30">Milidiú and Rocha, 2018;</ref><ref type="bibr" target="#b42">Xu et al., 2018;</ref><ref type="bibr" target="#b38">Wang et al., 2019)</ref>. In particular, when it comes to clustering, designing a differentiable loss function that captures the global characteristics of good clustering is particularly hard; for this reason, when dealing with coreference resolution -a closely related task - 3 Supervised Clustering Loss for Clustering-Friendly Representation Learning</p><p>In this section, we demonstrate how a structured learning approach -which utilizes latent representations of graph structures for predicting clusters from a set of utterances -can be instead used to fine-tune sentence encoders to be more clustering-friendly. Our approach is unique in that it leverages supervised clustering principles for the fine-tuning of sentence-transformers using examples of clusters, known as gold clusters. This allows for the creation of "cluster-friendly" embeddings, whose cosine similarities can be used to directly cluster the embedded utterances using various clustering algorithms such as threshold-based, K-Means, or Hierarchical Clustering.</p><p>Our fine-tuning loss represents utterances as nodes of a fully-connected weighted graph. The edge weights correspond to the cosine similarities between connected pairs of utterances (as defined by Eq. 2). By pruning the edges whose weight is below a certain threshold (i.e., the cosine similarity is less than 0), we can obtain a clustering. This clustering, however, is only used at training time to compute a clustering-sensitive loss, whose back-propagation contributes to the creation of more clustering-friendly sentence embeddings.</p><p>We begin by briefly explaining how we can leverage a supervised clustering loss to fine-tune sentence encoders, followed by a detailed description of the mathematical computation behind the loss.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Intuitive explanation of the Supervised Clustering Loss</head><p>Our loss function is inspired by the Neural Supervised Clustering (NSC) <ref type="bibr" target="#b15">(Haponchyk and Moschitti, 2021)</ref>. Specifically, the computation of the loss accounts for the differences between the gold clustering and the embedding-based clustering. The loss is made up of two components: a difference between two scores based on edge weights (Eqs. 9, 10), and a structural-loss based edge comparison (Eq. 8). Following the example in Figure <ref type="figure" target="#fig_0">1</ref>:</p><p>1. at each learning step, we use the actual embeddings to compute a similarity matrix for the current clustering scenario, represented as a fully-connected graph (i);</p><p>2. using the gold clustering, we construct a first graph, called gold graph (ii), keeping only edges that connect nodes in the same clusters and pruning the others; its connected components now represent the gold clusters;</p><p>3. we construct a second graph, called violating graph (iii), perturbing the similarity matrix (i) by penalizing the edges connecting nodes in the same clusters; in this context, v is a real number between 0 and 1, representing the penalization factor on gold edges, while r represent what percentage of this penalization is transferred onto wrong edges;</p><p>4. we prune all the edges with weight below 0, resulting in a disconnected graph (iii), whose connected components are the predicted clusters;</p><p>5. to perform the comparison between the two resulting clusterings, we keep the minimum possible connectivity which preserves the connected components and select the strongest edges by applying Kruskal's Maximum Spanning Tree to each connected components, resulting in graphs (iv) and (v);</p><p>6. we compute a score for each graph -as the weight sum of the remaining edges, and the structural loss -as the difference between the number of edges of the gold graph and the numbers of correct and incorrect edges of the max-violating graph.</p><p>7. finally, we perform back propagation only in case the structural loss is greater than zero (which happens in the case of imperfect matching between the two graphs).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Algorithm details</head><p>Let {(x i , y i )} n i=1 be a set of samples to be clustered, where x i represents the i-th object and y i its cluster assignment. Let's further assume that Net θ (.) is a generic neural network that encodes the objects {x i } n i=1 into k-dimensional real-valued vectors, such that:</p><formula xml:id="formula_0">A = [x 1 , ..., xn ] = Net θ ([x 1 , ..., x n ]),<label>(1)</label></formula><p>where A ∈ R n×k contains all the n objects encoded with Net θ (.).</p><p>The first step to compute the supervised clustering loss is to represent the clustering scenario {(x i , y i )} n i=1 through an undirected weighted graph, where the i-th node corresponds to x i and the edge e ij = cosine_similarity(x i , xj ). In practice, the weighted adjacency matrix S with the pairwise cosine similarities fully defines the aforementioned graph. S can be efficiently computed through matrix multiplication in the following way:</p><formula xml:id="formula_1">S = 1 - Ā ĀT 2 , (<label>2</label></formula><formula xml:id="formula_2">)</formula><p>where Ā is just the l 2 -normalized version of A. Now, let D and D be two (n, n)-dimensional matrices such that:</p><formula xml:id="formula_3">D ij = 1 if y i = y j 0 otherwise Dij = 1 if y i ̸ = y j 0 otherwise<label>(3)</label></formula><p>In other words, D is a mask for all the edges connecting any two samples sharing the same cluster (positive edges from now on), while D does the same for all the edges connecting any two samples in different clusters (negative edges from now on).</p><p>We will now define two graphs through their respective weighted adjacency matrices: i. a gold one where only positive edges are kept, and ii. a violating one, where weights on positive edges are decreased while weights on negative edges are increased.</p><formula xml:id="formula_4">S gold = S • D (4) S viol = max(0, S + v • (r • D -D))<label>(5)</label></formula><p>In both equations, all operations are element-wise -for instance</p><formula xml:id="formula_5">S viol ij = max(0, S ij + v • (r • Dij -D ij ))</formula><p>. The parameters v, r ∈ R + are tunable. They are meant to perturb the similarity matrix to make the edge selection for the correct clusters more challenging and more robust to fluctuation; v controls the impact of this perturbation, while r is used to unbalance the importance between positive and negative edges. On the possibly fully connected graph S viol , we define clusters as the connected components obtained after neglecting all the edges, whose weights are less than a threshold τ . The next step is to exploit Kruskal's algorithm to compute the maximum spanning forest for both graphs.</p><formula xml:id="formula_6">H gold = M axSpanningF orest(S gold )<label>(6)</label></formula><formula xml:id="formula_7">H viol = M axSpanningF orest(S viol )<label>(7)</label></formula><p>In other words, H gold and H viol are two (n, n)dimensional matrices whose elements are equal to 1 if the edge e ij is included in the maximum spanning forest for S gold and S viol respectively. Intuitively, the nodes appearing in the same connected component in H are considered part of the same cluster.</p><p>H gold results having the same clusters as D (i.e., the gold clusters), but D's connected components are fullyconnected, whereas H gold 's are minimally connected by virtue of Kruskal's algorithm (for a subgraph of n nodes, it has just n -1 edges, instead of the fully-connected n 2 ).</p><p>We are now ready to compute the loss. Let's first define some additional quantities:</p><formula xml:id="formula_8">a = sum(H gold ), b = sum(D • H viol ) and c = sum( D • H viol ) -where</formula><p>a is equal to the number of edges included in the maximum spanning forest on S gold , while b is equal to the number of positive edges included in H viol , and c to the number of negative edges included in H viol . These three values are combined into a delta whose value decreases as more positive edges are included into the violating forest and increases when more negative ones are added:</p><formula xml:id="formula_9">∆ = a -b + r • c (8)</formula><p>Finally, let's compute two intermediate scores:</p><formula xml:id="formula_10">s gold = sum(S • H gold )<label>(9)</label></formula><formula xml:id="formula_11">s viol = sum(S • H viol ),<label>(10)</label></formula><p>where s gold and s viol represent the sum of all edge weights/cosine similarities of the maximum spanning forest on the gold and violating graphs respectively. The supervised clustering loss will then be equal to:</p><formula xml:id="formula_12">L = s viol -s gold if ∆ &gt; 0 0 otherwise<label>(11)</label></formula><p>A graphical sample calculation of the supervised clustering loss can be found in figure <ref type="figure" target="#fig_0">1</ref>.</p><p>Remark that the gradient cannot flow though the ∆ component, nonetheless it is influenced by it by virtue of the condition for which L = 0 if ∆ ≤ 0.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Time Complexity of the Algorithm</head><p>The time complexity for the computation of the supervised clustering loss is O(n 2 log n), where n is the number of utterances (see Sec. C.1 in the Appendix). This is still more efficient than other losses commonly used for fine-tuning sentence embeddings. For example, the naive implementation of the triplet loss has O(n 3 ) complexity <ref type="bibr" target="#b32">(Murphy, 2022)</ref>. However, our experiments have shown that training time is not a significant issue for either loss, as the stopping criterion is typically triggered after just a few epochs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Baseline Metric Losses</head><p>Using the same notation as in section 3, we will now define four other very well-known losses that proved effective in fine-tuning sentence encoders <ref type="bibr" target="#b25">(Liao, 2021;</ref><ref type="bibr">Reimers and Gurevych, 2019;</ref><ref type="bibr" target="#b33">Nicosia and Moschitti, 2017)</ref>. We used these losses as strong baselines for comparing the performance of our supervised clustering loss. Unlike the supervised clustering loss, these losses work on pairs or triplets of items and try to reorganize the embedding space simply by pushing away samples not sharing the same label while pulling closer those that do.</p><p>Let then (x i , x j ) be any two samples encoded with N et θ (.) into k-dimensional real-valued vectors, and (y i , y j ) their respective cluster assignments. We will define the Binary Classification Loss as:</p><formula xml:id="formula_13">ln(σ(W (x i , x y , |x i -x y |))) if y i = y j 1 -ln(σ(W (x i , x y , |x i -x y |))) otherwise (12)</formula><p>where W (x i , x y , |x i -x y |)) is just a linear projection applied to the concatenation of the two embeddings and their distance. Using instead the cosine similarity between x i and x j we can define the Cosine Similarity Loss as:</p><formula xml:id="formula_14">[1 -cos_sim(x i , x j )] 2 if y i = y j cos_sim(x i , x j ) 2 otherwise (<label>13</label></formula><formula xml:id="formula_15">)</formula><p>where the embeddings of samples sharing the same cluster are forced to have cosine similarity close to 1, while keeping the embeddings of non-related samples further apart. On the same line, the Contrastive Loss <ref type="bibr" target="#b14">(Hadsell et al., 2006</ref>) can be defined as:</p><formula xml:id="formula_16">cos_dist(x i , x j ) 2 if y i = y j max[0, m -cos_dist(x i , x j )] 2 otherwise (14)</formula><p>in this case, we force the embeddings of samples inside the same cluster to have cosine distance equal to zero, while keeping the cosine distance of non-related utterances above the margin m.</p><p>To conclude, we will present the Triplet Margin Loss which takes as input triples of samples (x i , x j , x k ) such that y i = y j ̸ = y k -where the first element is called the anchor, while the second and the third are commonly referred to as the positive and negative examples. The core idea behind this loss is to adjust the relative distances among the samples in each training triplet by minimizing the following quantity:</p><formula xml:id="formula_17">max[0, cos_dist(x i , x j ) -cos_dist(x i , x k ) -m]</formula><p>(15) in short, for all triplets, we want to cosine distance between the anchor and the negative to be higher than the distance between the anchor and the positive by at least the margin m.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Batch Sampling and Training Procedure</head><p>To fine-tune sentence embeddings, the training set plays a crucial role. The losses used for fine-tuning require specific samples to be manually engineered. The supervised clustering loss needs a 'clustering scenario' as input, while the other losses require pairs or triplets of samples with labels equal to 1 if they share the same cluster and 0 otherwise. To train, a common procedure involves randomly selecting k clusters from the training set and then randomly sampling m representatives from each cluster to form a training batch. A training epoch consists of n training batches.</p><p>For check-pointing and the stopping criterion, the Precision Recall Area Under the Curve (PRAUC) is monitored on pairs of utterances from the development set. At each training step, m * k utterances are randomly sampled from the development set to calculate the cosine similarity among the sentence embeddings. At the end of each epoch, the PRAUC is computed using the true labels of pairs sharing the same cluster as 1 and pairs with different clusters as 0. This criterion ensures that the average cosine similarity between utterances with the same intent is higher than the average cosine similarity between utterances with different intents during training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>In this section, we present experimental results on intent clustering using five losses applied to four sentence encoders, with resulting utterance embeddings clustered using Agglomerative Hierarchical Clustering. Appendix includes results from DBSCAN and a connected components-based procedure.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Benchmark Datasets</head><p>We experimented on five datasets commonly used for benchmarking intent classification and clustering: CLINC150 <ref type="bibr" target="#b22">(Larson et al., 2019)</ref>, BANKING77 <ref type="bibr" target="#b2">(Casanueva et al., 2020)</ref>, DSTC11 <ref type="bibr" target="#b11">(Galley et al., 2022)</ref>, HUW64 <ref type="bibr" target="#b27">(Liu et al., 2021), and</ref><ref type="bibr">Massive (FitzGerald et al., 2022)</ref>. The first four are in English, while Massive is multilingual and larger in size with almost 1 million manually translated utterances in 51 languages. To reduce its size, we randomly included 20% of the utterances. DSTC11 and BANKING77 are single-domain, while the rest are multi-domain. In essence, our study focuses on in-domain intent clustering. See Table <ref type="table" target="#tab_2">1</ref> and Section A of the Appendix for dataset statistics and information on data acquisition and usage terms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Base Models for Utterance Encoding</head><p>In our experiments, we rely on four different transformer-based sentence encoders and see whether our fine-tuning strategies improve their representation power when it comes to intent clustering:</p><p>1. Average pooling of the word-level BERT embeddings <ref type="bibr" target="#b5">(Devlin et al., 2019)</ref>  shown to be the best performing multilingual sentence encoder <ref type="bibr" target="#b19">(HuggingFaceTeam, 2022)</ref>. The model was trained on 1B sentence pairs using a Binary Classification Loss on top of the cosine similarity scores.</p><p>All Mpnet Base and Paraphrase Multilingual Mpnet nonetheless were trained quite similarly to Sentence-BERT, but with more data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Experimental setting</head><p>We randomly assign 60% of intents to the training set, 20% to the development set, and 20% to the test set for each of the 5 benchmark datasets. As detailed in section 5, the 4 base sentence encoders are separately fine-tuned using all training intent utterances and each of the five losses. Hyper-parameters are dataset-specific -see table 5 in the Appendix, and a max training epoch of 20 with 5 epochs of patience before early-stopping is set. The best parameters for the supervised clustering loss, triplet margin loss, and contrastive loss are selected via a grid search over specified intervals to obtain the highest PRAUC on the validation set. This procedure is repeated 5 times with different splits. The best parameters for the losses are stable across datasets and experiments: table 6 also shows the best values we used to obtain the final models. The final models consist of 20 finetuned models for each dataset (one per encoder-loss pair) except Massive, for which there are 15 fine-tuned models due to its multilingual nature. Information on hardware and computational cost can be found in section B of the Appendix.</p><p>Base and fine-tuned models are then used to extract embeddings for all the utterances in the development and test sets. After computing the matrix of pairwise cosine distances, we cluster utterances into tentative intents using agglomerative hierarchical clustering -an algorithm that recursively merges pairs of clusters based on a linkage criterion and a distance threshold. In the Appendix, we also report results using DBSCAN, and a procedure based on connected components. DBSCAN finds core samples of high density and expands clusters from them; in this case, the user needs to choose the minimum distance for two samples to be considered neighbors (ϵ) and the minimum number of samples around a candidate core sample. The third algorithm simply takes as clusters the connected components, after cutting all the edges below a certain threshold. The hyperparameters of these three algorithms are optimized on the development set with respect to either the clustering accuracy or the adjusted mutual information score (AMIS). Table <ref type="table">2</ref>: Pre-fine-tuning and post-fine-tuning average inter-intent and within-intent pairwise similarity on test utterances. The gap between the average inter-intent and within-intent pairwise similarities increases for all datasets, losses and base sentence encoders. In other words, whatever loss we use, utterances that share the same intent get closer while drifting apart from utterances with different intents. Interestingly enough, the supervised clustering loss behaves in a markedly different manner, yes reducing the within-intent pair-wise similarity, but also leading the inter-intent pair-wise similarity very close to zero. This is equal to say that the supervised clustering loss induces a topological space which is different from the one created by the other losses.</p><p>parameter search spaces. Test utterances are eventually clustered using the best hyper-parameters and the same metrics are computed. For each dataset, the whole experimental procedure -from fine-tuning to clusteringis repeated 5 times with different seeds and splits and average results are reported with their variance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Performance of Fine-Tuning Strategies</head><p>Figure <ref type="figure" target="#fig_1">2</ref> shows that fine-tuning always leads to moderate or large improvements in PRAUC on test utterances, regardless of the loss or base sentence encoder chosen. The supervised clustering loss and the triplet margin loss are especially effective fine-tuning strategies. All Mpnet Base and Paraphrase Multilingual Mpnet show less pronounced increases since they were already fine-tuned on sentence similarity tasks. Table <ref type="table">8</ref> in the Appendix confirms these results when broken down by dataset.</p><p>Table <ref type="table">2</ref> shows that improvements in PRAUC are reflected in average inter-intent and within-intent pairwise similarities-which should be interpreted jointly. In an ideal scenario, a loss should push the within-intent average cosine similarity close to 1 and the inter-intent average cosine similarity to 0. Nonetheless, in our analysis, we show that things go differently.</p><p>The gap between the average inter-intent and withinintent pairwise similarities increases for all datasets, losses and base sentence encoders. In other words, whatever loss we use, utterances that share the same intent get closer while drifting apart from utterances with different intents. Interestingly enough, however, while most losses increase the average within-intent pairwise similarity, the supervised clustering loss behaves in a markedly different manner, yes reducing the within-intent pair-wise similarity, but also leading the inter-intent pair-wise similarity very close to zero. This is equal to say that the supervised clustering loss induces a topological space which is different from the one created by the other losses. This is further confirmed when looking at figures 3, 4, 5, 6, 7, 8 in the Appendix -which show the tSNE plots of the BANKING77 test utterances when XLM-RoBERTa is used as base sentence encoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.5">New Intent Clustering Results</head><p>The results of experiments with agglomerative hierarchical clustering using different datasets, sentence encoders, and losses are shown in tables 3 and 4. Although we performed comparable experiments with DBSCAN and a procedure based on connected components (see the Appendix), for every dataset the highest clustering accuracy and adjusted mutual information score were achieved with agglomerative hierarchical clustering on embeddings obtained from one of the four sentence encoders, fine-tuned with either the supervised clustering loss or the triplet margin loss. Moreover, since the supervised clustering loss re-arranges the embedding space by retaining edges only among utterances sharing the same intent, embeddings obtained from any sentence encoder fine-tuned with such loss are expected to be particularly suitable for agglomerative hierarchical clustering.</p><p>As shown in table 3, when we optimize the clustering algorithm hyper-parameters with respect to the adjusted mutual information score, in 13 cases out of 19 the supervised clustering loss proved to induce more clustering friendly embeddings, resulting in higher clustering performance. As further shown in table 4, the clustering behavior slightly changes when we optimize   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Fine-tuning complete experimental results</head><p>Please find below average PRAUC (Table <ref type="table">8</ref>) for pretraining and post-training on train, dev, and test sets for each dataset, loss, and base sentence encoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Clustering complete experimental results</head><p>You can find here average clustering accuracy (Table <ref type="table">9</ref>) and adjusted mutual information score (Table <ref type="table" target="#tab_2">10</ref>) on test set for all combinations of datasets, base sentence encoders, and clustering algorithms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G tSNE plots of test utterance embeddings</head><p>Figures <ref type="bibr">3,</ref><ref type="bibr">4,</ref><ref type="bibr">5,</ref><ref type="bibr">6,</ref><ref type="bibr">7,</ref><ref type="bibr">8</ref> show the tSNE plots of the BANKING77 test utterances when XLM-RoBERTa is used as base sentence encoder. All plots where obtained with the following hyper-parameters:</p><p>• Perplexity = 20</p><p>• Learning rate: 200</p><p>• Iterations: 2000</p><p>As shown in figure <ref type="figure" target="#fig_3">3</ref>, when no fine-tuning is performed -the point cloud is scattered all around. Same thing happens when the binary classification loss is used to fine-tune the model. In contrast, after fine-tuning with the cosine similarity loss or with contrastive learningfigures 5 and 6, respectively -intents are much better separated. Such visual clustering further improves when the triplet margin loss or the supervised clustering loss are used as fine-tuning strategies -see figures 7 and 8.         </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: A sample calculation of the supervised clustering loss on two clusters (yellow points vs green points)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Fine-tuning always leads from moderate to large improvements in PRAUC on test utterances. The supervised clustering loss and the triplet margin loss clearly outperform all other losses. Increases on All Mpnet Base and Paraphrase Multilingual Mpnet are less pronounced because they were already on semantic similarity.</figDesc><graphic coords="6,70.87,188.71,453.53,210.63" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Average pre-training and post-training PRAUC on train, dev and test sets for each dataset, loss and base sentence encoder. Regardless of the loss or base sentence encoder chosen, fine-tuning always leads from moderate to large improvements in PRAUC on test utterances. This is especially true when the supervised clustering loss or the triplet margin loss are used as fine-tuning strategies. In general, increases are much less pronounced on All Mpnet Base and Paraphrase Multilingual Mpnet since these two models were already fine-tuned on sentence similarity tasks and datasets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: tSNE plots of BANKING77 test utterances when xml-RoBERTa is used to extract the embeddings.</figDesc><graphic coords="17,70.87,96.20,453.52,267.59" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: tSNE plots of BANKING77 test utterances when xml-RoBERTa -fine-tuned with the binary classification loss -is used to extract the embeddings.</figDesc><graphic coords="17,70.87,444.09,453.51,268.21" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: tSNE plots of BANKING77 test utterances when xml-RoBERTa -fine-tuned with the cosine similarity loss -is used to extract the embeddings.</figDesc><graphic coords="18,70.87,93.11,453.51,268.21" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: tSNE plots of BANKING77 test utterances when xml-RoBERTa -fine-tuned with the contrastive learning loss -is used to extract the embeddings.</figDesc><graphic coords="18,70.87,447.17,453.51,268.21" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: tSNE plots of BANKING77 test utterances when xml-RoBERTa -fine-tuned with the triplet margin lossis used to extract the embeddings.</figDesc><graphic coords="19,70.87,93.11,453.51,268.21" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: tSNE plots of BANKING77 test utterances when xml-RoBERTa -fine-tuned with the supervised clustering loss -is used to extract the embeddings.</figDesc><graphic coords="19,70.87,447.17,453.51,268.21" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>Intent Clustering Benchmark Dataset Statistics</figDesc><table><row><cell cols="2">. BERT was trained on</cell></row><row><cell cols="2">the top 104 languages with the largest Wikipedia,</cell></row><row><cell cols="2">using both a Masked Language Modeling (MLM)</cell></row><row><cell>and a Next Sentence Prediction objectives,</cell><cell></cell></row><row><cell cols="2">2. Average pooling of the word-level XLM roBERTa</cell></row><row><cell>embeddings (Conneau et al., 2020).</cell><cell>XLM</cell></row><row><cell cols="2">roBERTa is build on top of BERT but modifies key</cell></row><row><cell cols="2">hyper-parameters, removing the next-sentence pre-</cell></row><row><cell cols="2">training objective and training with much larger</cell></row><row><cell>mini-batches and learning rates,</cell><cell></cell></row><row><cell cols="2">3. All Mpnet Base (Reimers and Gurevych, 2019)</cell></row><row><cell cols="2">maps English-only sentences and paragraphs to</cell></row><row><cell cols="2">a 768-dimensional-dense vector space and was</cell></row><row><cell cols="2">shown to be the best performing sentence encoder</cell></row><row><cell cols="2">in English (HuggingFaceTeam, 2022). The model</cell></row><row><cell cols="2">was trained on multiple corpora of sentence pairs</cell></row><row><cell cols="2">using a Binary Classification Loss on top of a lin-</cell></row><row><cell cols="2">ear classifier that takes as input a concatenation of</cell></row><row><cell>the two sentence embeddings,</cell><cell></cell></row><row><cell cols="2">4. Paraphrase Multilingual Mpnet (Reimers and</cell></row><row><cell cols="2">Gurevych, 2020) maps sentences and paragraphs</cell></row><row><cell cols="2">to a 768 dimensional dense vector space and was</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Table 7 in the Appendix contains the hyper-</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">BASE SENTENCE ENCODERS</cell><cell></cell><cell></cell><cell></cell></row><row><cell>DATASET</cell><cell>LOSS</cell><cell cols="2">BERT Multilingual Cased</cell><cell cols="2">XLM roBERTa</cell><cell cols="2">Paraphrase Multilingual Mpnet</cell><cell cols="2">All Mpnet Base</cell></row><row><cell></cell><cell></cell><cell>Average inter-intent</cell><cell>Average within-intent</cell><cell>Average inter-intent</cell><cell>Average within-intent</cell><cell>Average inter-intent</cell><cell>Average within-intent</cell><cell>Average inter-intent</cell><cell>Average within-intent</cell></row><row><cell></cell><cell></cell><cell>pairwise</cell><cell>pairwise</cell><cell>pairwise</cell><cell>pairwise</cell><cell>pairwise</cell><cell>pairwise</cell><cell>pairwise</cell><cell>pairwise</cell></row><row><cell></cell><cell></cell><cell>cosine similarity</cell><cell>cosine similarity</cell><cell>cosine similarity</cell><cell>cosine similarity</cell><cell>cosine similarity</cell><cell>cosine similarity</cell><cell>cosine similarity</cell><cell>cosine similarity</cell></row><row><cell></cell><cell>No fine-tuning</cell><cell>58.90%</cell><cell>67.10%</cell><cell>99.60%</cell><cell>99.70%</cell><cell>30.90%</cell><cell>58.30%</cell><cell>23.60%</cell><cell>56.00%</cell></row><row><cell></cell><cell>Binary classification loss</cell><cell>21.20%</cell><cell>66.50%</cell><cell>99.60%</cell><cell>99.70%</cell><cell>31.50%</cell><cell>59.90%</cell><cell>27.80%</cell><cell>61.80%</cell></row><row><cell>BANKING77</cell><cell>Cosine similarity loss Contrastive loss</cell><cell>39.80% 32.70%</cell><cell>69.90% 65.80%</cell><cell>41.00% 32.80%</cell><cell>68.40% 65.30%</cell><cell>29.70% 22.50%</cell><cell>72.10% 68.80%</cell><cell>31.60% 23.20%</cell><cell>72.80% 69.90%</cell></row><row><cell></cell><cell>Triplet margin loss</cell><cell>25.80%</cell><cell>61.20%</cell><cell>48.70%</cell><cell>74.60%</cell><cell>16.40%</cell><cell>61.60%</cell><cell>13.80%</cell><cell>61.10%</cell></row><row><cell></cell><cell>Supervised clustering loss</cell><cell>11.70%</cell><cell>39.70%</cell><cell>20.60%</cell><cell>54.10%</cell><cell>3.50%</cell><cell>45.10%</cell><cell>2.60%</cell><cell>44.90%</cell></row><row><cell></cell><cell>No fine-tuning</cell><cell>54.10%</cell><cell>67.50%</cell><cell>99.60%</cell><cell>99.70%</cell><cell>16.90%</cell><cell>61.70%</cell><cell>9.90%</cell><cell>53.10%</cell></row><row><cell></cell><cell>Binary classification loss</cell><cell>50.00%</cell><cell>70.20%</cell><cell>99.50%</cell><cell>99.70%</cell><cell>17.40%</cell><cell>61.40%</cell><cell>10.90%</cell><cell>53.70%</cell></row><row><cell>CLINC150</cell><cell>Cosine similarity loss Contrastive loss</cell><cell>28.10% 20.80%</cell><cell>78.20% 74.70%</cell><cell>41.60% 22.80%</cell><cell>71.10% 74.70%</cell><cell>14.90% 8.70%</cell><cell>79.60% 77.30%</cell><cell>20.20% 15.80%</cell><cell>77.40% 73.00%</cell></row><row><cell></cell><cell>Triplet margin loss</cell><cell>21.00%</cell><cell>65.90%</cell><cell>37.30%</cell><cell>80.10%</cell><cell>5.40%</cell><cell>65.50%</cell><cell>6.30%</cell><cell>63.70%</cell></row><row><cell></cell><cell>Supervised clustering loss</cell><cell>6.70%</cell><cell>44.10%</cell><cell>24.50%</cell><cell>63.40%</cell><cell>3.20%</cell><cell>50.50%</cell><cell>1.60%</cell><cell>49.50%</cell></row><row><cell></cell><cell>No fine-tuning</cell><cell>64.90%</cell><cell>69.90%</cell><cell>99.70%</cell><cell>99.70%</cell><cell>35.60%</cell><cell>62.20%</cell><cell>30.10%</cell><cell>57.80%</cell></row><row><cell></cell><cell>Binary classification loss</cell><cell>34.90%</cell><cell>68.90%</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>24.50%</cell><cell>70.10%</cell></row><row><cell>DSTC11</cell><cell>Cosine similarity loss Contrastive loss</cell><cell>61.25% 27.60%</cell><cell>79.35% 63.90%</cell><cell>48.05% 45.20%</cell><cell>78.10% 68.90%</cell><cell>38.80% 24.50%</cell><cell>77.95% 67.30%</cell><cell>35.90% 28.10%</cell><cell>75.50% 72.60%</cell></row><row><cell></cell><cell>Triplet margin loss</cell><cell>34.90%</cell><cell>61.30%</cell><cell>47.05%</cell><cell>78.35%</cell><cell>12.80%</cell><cell>66.50%</cell><cell>12.80%</cell><cell>68.95%</cell></row><row><cell></cell><cell>Supervised clustering loss</cell><cell>19.45%</cell><cell>49.30%</cell><cell>19.45%</cell><cell>63.15%</cell><cell>5.70%</cell><cell>55.80%</cell><cell>7.05%</cell><cell>58.30%</cell></row><row><cell></cell><cell>No fine-tuning</cell><cell>47.90%</cell><cell>62.60%</cell><cell>99.40%</cell><cell>99.60%</cell><cell>16.00%</cell><cell>53.80%</cell><cell>11.10%</cell><cell>42.80%</cell></row><row><cell></cell><cell>Binary classification loss</cell><cell>44.70%</cell><cell>65.90%</cell><cell>95.40%</cell><cell>97.90%</cell><cell>15.80%</cell><cell>54.10%</cell><cell>11.80%</cell><cell>42.90%</cell></row><row><cell>HWU64</cell><cell>Cosine similarity loss Contrastive loss</cell><cell>38.30% 32.80%</cell><cell>68.30% 65.80%</cell><cell>98.30% 98.40%</cell><cell>99.20% 99.20%</cell><cell>22.40% 16.30%</cell><cell>78.10% 75.60%</cell><cell>16.40% 15.40%</cell><cell>48.40% 76.70%</cell></row><row><cell></cell><cell>Triplet margin loss</cell><cell>18.70%</cell><cell>69.90%</cell><cell>39.90%</cell><cell>79.80%</cell><cell>9.50%</cell><cell>59.20%</cell><cell>6.00%</cell><cell>57.10%</cell></row><row><cell></cell><cell>Supervised clustering loss</cell><cell>6.20%</cell><cell>43.00%</cell><cell>97.40%</cell><cell>98.40%</cell><cell>1.70%</cell><cell>46.00%</cell><cell>1.50%</cell><cell>41.20%</cell></row><row><cell></cell><cell>No fine-tuning</cell><cell>41.60%</cell><cell>46.60%</cell><cell>99.30%</cell><cell>99.40%</cell><cell>22.80%</cell><cell>55.90%</cell><cell>-</cell><cell>-</cell></row><row><cell></cell><cell>Binary classification loss</cell><cell>34.90%</cell><cell>63.50%</cell><cell>99.20%</cell><cell>99.30%</cell><cell>19.10%</cell><cell>53.40%</cell><cell>-</cell><cell>-</cell></row><row><cell>Massive</cell><cell>Cosine similarity loss Contrastive loss</cell><cell>40.60% 30.60%</cell><cell>64.40% 62.90%</cell><cell>98.70% 98.70%</cell><cell>98.80% 98.20%</cell><cell>31.00% 22.30%</cell><cell>66.70% 62.90%</cell><cell>--</cell><cell>--</cell></row><row><cell></cell><cell>Triplet margin loss</cell><cell>34.50%</cell><cell>61.50%</cell><cell>56.00%</cell><cell>77.30%</cell><cell>14.40%</cell><cell>54.70%</cell><cell>-</cell><cell>-</cell></row><row><cell></cell><cell>Supervised clustering loss</cell><cell>8.70%</cell><cell>30.00%</cell><cell>20.30%</cell><cell>49.30%</cell><cell>2.50%</cell><cell>46.40%</cell><cell>-</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>Average adjusted mutual information score on test set for all combinations of datasets, base sentence encoders and clustering algorithms when optimizing wrt the adjusted mutual information score</figDesc><table><row><cell>Clustering algorithm</cell><cell>Base sentence encoder</cell><cell>Dataset</cell><cell>No Fine-Tuning</cell><cell>Binary classification loss</cell><cell>Cosine similarity loss</cell><cell>Contrastive loss</cell><cell>Triplet loss margin</cell><cell>Supervised loss clustering</cell><cell>BEST LOSS</cell></row><row><cell></cell><cell></cell><cell>BANKING77</cell><cell>0.53±0.02</cell><cell>0.55±0.05</cell><cell cols="5">0.67±0.03 0.66±0.04 0.76±0.03 0.77±0.05 Supervised clustering loss</cell></row><row><cell></cell><cell>BERT</cell><cell>CLINC150</cell><cell>0.73±0.02</cell><cell>0.76±0.03</cell><cell cols="5">0.77±0.04 0.77±0.04 0.84±0.03 0.85±0.02 Supervised clustering loss</cell></row><row><cell></cell><cell>Multilingual</cell><cell>DSTC11</cell><cell>0.29±0.05</cell><cell>0.52±0.10</cell><cell cols="5">0.47±0.14 0.50±0.10 0.60±0.06 0.63±0.10 Supervised clustering loss</cell></row><row><cell></cell><cell>Cased</cell><cell>HWU64</cell><cell>0.61±0.02</cell><cell>0.63±0.02</cell><cell cols="4">0.67±0.04 0.67±0.04 0.72±0.05 0.72±0.04</cell><cell>Triplet &amp; Supervised</cell></row><row><cell></cell><cell></cell><cell>Massive</cell><cell>0.27±0.01</cell><cell>0.36±0.05</cell><cell cols="4">0.45±0.04 0.46±0.04 0.51±0.04 0.51±0.06</cell><cell>Triplet &amp; Supervised</cell></row><row><cell></cell><cell></cell><cell>BANKING77</cell><cell>0.74±0.02</cell><cell>0.72±0.07</cell><cell cols="4">0.76±0.06 0.75±0.05 0.83±0.02 0.81±0.03</cell><cell>Triplet margin loss</cell></row><row><cell></cell><cell>Paraphrase</cell><cell>CLINC150</cell><cell>0.86±0.03</cell><cell>0.87±0.02</cell><cell cols="5">0.88±0.03 0.87±0.03 0.92±0.02 0.93±0.01 Supervised clustering loss</cell></row><row><cell></cell><cell>Multilingual</cell><cell>DSTC11</cell><cell>0.52±0.15</cell><cell>0.36±0.34</cell><cell cols="5">0.65±0.08 0.72±0.06 0.73±0.11 0.75±0.11 Supervised clustering loss</cell></row><row><cell>Agglomerative</cell><cell>Mpnet</cell><cell>HWU64</cell><cell>0.79±0.05</cell><cell>0.76±0.01</cell><cell cols="5">0.79±0.03 0.79±0.01 0.79±0.04 0.81±0.04 Supervised clustering loss</cell></row><row><cell>Hierarchical</cell><cell></cell><cell>Massive</cell><cell>0.60±0.09</cell><cell>0.60±0.06</cell><cell cols="4">0.65±0.06 0.64±0.06 0.71±0.06 0.70±0.05</cell><cell>Triplet margin loss</cell></row><row><cell>Clustering</cell><cell></cell><cell>BANKING77</cell><cell>0.84±0.01</cell><cell>0.83±0.01</cell><cell cols="4">0.83±0.02 0.83±0.03 0.88±0.02 0.86±0.02</cell><cell>Triplet margin loss</cell></row><row><cell></cell><cell>All Mpnet Base</cell><cell>CLINC150 DSTC11</cell><cell>0.91±0.02 0.49±0.17</cell><cell>0.90±0.02 0.63±0.16</cell><cell cols="4">0.92±0.02 0.92±0.02 0.94±0.01 0.94±0.01 0.75±0.14 0.71±0.12 0.78±0.11 0.70±0.10</cell><cell>Triplet &amp; Supervised Triplet margin loss</cell></row><row><cell></cell><cell></cell><cell>HWU64</cell><cell>0.81±0.05</cell><cell>0.81±0.05</cell><cell cols="5">0.79±0.03 0.80±0.01 0.79±0.05 0.85±0.03 Supervised clustering loss</cell></row><row><cell></cell><cell></cell><cell>BANKING77</cell><cell>0.48±0.01</cell><cell>0.60±0.04</cell><cell cols="5">0.66±0.06 0.66±0.04 0.73±0.06 0.75±0.03 Supervised clustering loss</cell></row><row><cell></cell><cell></cell><cell>CLINC150</cell><cell>0.66±0.02</cell><cell>0.72±0.07</cell><cell cols="5">0.74±0.05 0.71±0.07 0.86±0.03 0.86±0.01 Supervised clustering loss</cell></row><row><cell></cell><cell>XLM roBERTa</cell><cell>DSTC11</cell><cell>0.28±0.02</cell><cell>0.42±0.00</cell><cell cols="4">0.53±0.04 0.53±0.04 0.68±0.05 0.65±0.10</cell><cell>Triplet margin loss</cell></row><row><cell></cell><cell></cell><cell>HWU64</cell><cell>0.52±0.04</cell><cell>0.61±0.09</cell><cell cols="5">0.56±0.05 0.55±0.07 0.73±0.05 0.77±0.04 Supervised clustering loss</cell></row><row><cell></cell><cell></cell><cell>Massive</cell><cell>0.20±0.01</cell><cell>0.28±0.12</cell><cell cols="5">0.23±0.11 0.19±0.02 0.51±0.06 0.58±0.04 Supervised clustering loss</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Average adjusted mutual information score on test set using agglomerative hierarchical clustering, for all combinations of datasets and base sentence encoders -when optimizing wrt the adjusted mutual information score Average clustering accuracy on test set for all combinations of datasets, base sentence encoders and clustering algorithms when optimizing wrt the clustering accuracy</figDesc><table><row><cell>Clustering algorithm</cell><cell>Base sentence encoder</cell><cell>Dataset</cell><cell>No Fine-Tuning</cell><cell>Binary classification loss</cell><cell>Cosine similarity loss</cell><cell>Contrastive loss</cell><cell>Triplet loss margin</cell><cell>Supervised loss clustering</cell><cell>BEST LOSS</cell></row><row><cell></cell><cell></cell><cell>BANKING77</cell><cell>0.32±0.05</cell><cell>0.37±0.06</cell><cell cols="4">0.52±0.04 0.50±0.08 0.62±0.05 0.62±0.08</cell><cell>Triplet &amp; Supervised</cell></row><row><cell></cell><cell>BERT</cell><cell>CLINC150</cell><cell>0.56±0.06</cell><cell>0.53±0.05</cell><cell cols="5">0.56±0.04 0.57±0.06 0.68±0.03 0.71±0.06 Supervised clustering loss</cell></row><row><cell></cell><cell>Multilingual</cell><cell>DSTC11</cell><cell>0.33±0.05</cell><cell>0.65±0.10</cell><cell cols="5">0.56±0.08 0.60±0.11 0.65±0.14 0.73±0.10 Supervised clustering loss</cell></row><row><cell></cell><cell>Cased</cell><cell>HWU64</cell><cell>0.52±0.04</cell><cell>0.51±0.03</cell><cell cols="4">0.56±0.06 0.55±0.04 0.59±0.06 0.56±0.04</cell><cell>Triplet margin loss</cell></row><row><cell></cell><cell></cell><cell>Massive</cell><cell>0.22±0.03</cell><cell>0.41±0.07</cell><cell cols="4">0.46±0.04 0.51±0.04 0.55±0.07 0.53±0.08</cell><cell>Triplet margin loss</cell></row><row><cell></cell><cell></cell><cell>BANKING77</cell><cell>0.62±0.06</cell><cell>0.56±0.08</cell><cell cols="4">0.64±0.06 0.62±0.03 0.72±0.03 0.69±0.06</cell><cell>Triplet margin loss</cell></row><row><cell></cell><cell>Paraphrase</cell><cell>CLINC150</cell><cell>0.65±0.07</cell><cell>0.65±0.04</cell><cell cols="5">0.70±0.08 0.69±0.08 0.79±0.05 0.83±0.05 Supervised clustering loss</cell></row><row><cell></cell><cell>Multilingual</cell><cell>DSTC11</cell><cell>0.57±0.09</cell><cell>0.48±0.17</cell><cell cols="5">0.75±0.10 0.73±0.06 0.75±0.15 0.77±0.09 Supervised clustering loss</cell></row><row><cell>Agglomerative</cell><cell>Mpnet</cell><cell>HWU64</cell><cell>0.73±0.09</cell><cell>0.74±0.10</cell><cell cols="4">0.69±0.05 0.67±0.03 0.75±0.07 0.68±0.05</cell><cell>Triplet margin loss</cell></row><row><cell>Hierarchical</cell><cell></cell><cell>Massive</cell><cell>0.62±0.09</cell><cell>0.61±0.07</cell><cell cols="5">0.68±0.05 0.60±0.08 0.67±0.11 0.73±0.08 Supervised clustering loss</cell></row><row><cell>Clustering</cell><cell></cell><cell>BANKING77</cell><cell>0.70±0.04</cell><cell>0.67±0.05</cell><cell cols="4">0.68±0.04 0.71±0.07 0.78±0.04 0.73±0.04</cell><cell>Triplet margin loss</cell></row><row><cell></cell><cell>All Mpnet</cell><cell>CLINC150</cell><cell>0.75±0.06</cell><cell>0.75±0.06</cell><cell cols="5">0.77±0.05 0.78±0.08 0.81±0.03 0.82±0.04 Supervised clustering loss</cell></row><row><cell></cell><cell>Base</cell><cell>DSTC11</cell><cell>0.56±0.12</cell><cell>0.67±0.09</cell><cell cols="4">0.78±0.16 0.83±0.12 0.78±0.14 0.77±0.14</cell><cell>Cosine similarity loss</cell></row><row><cell></cell><cell></cell><cell>HWU64</cell><cell>0.70±0.11</cell><cell>0.69±0.09</cell><cell cols="5">0.67±0.05 0.67±0.08 0.74±0.05 0.78±0.08 Supervised clustering loss</cell></row><row><cell></cell><cell></cell><cell>BANKING77</cell><cell>0.32±0.02</cell><cell>0.41±0.03</cell><cell cols="5">0.52±0.04 0.50±0.05 0.59±0.08 0.62±0.04 Supervised clustering loss</cell></row><row><cell></cell><cell>XLM roBERTa</cell><cell>CLINC150 DSTC11 HWU64</cell><cell>0.54±0.03 0.36±0.08 0.42±0.02</cell><cell>0.60±0.10 0.68±0.00 0.52±0.12</cell><cell cols="5">0.55±0.03 0.55±0.04 0.71±0.06 0.70±0.04 0.57±0.19 0.61±0.18 0.74±0.08 0.71±0.09 0.37±0.02 0.44±0.11 0.65±0.08 0.73±0.07 Supervised clustering loss Triplet margin loss Triplet margin loss</cell></row><row><cell></cell><cell></cell><cell>Massive</cell><cell>0.23±0.02</cell><cell>0.30±0.09</cell><cell cols="5">0.26±0.09 0.22±0.02 0.52±0.04 0.61±0.04 Supervised clustering loss</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 4 :</head><label>4</label><figDesc>Average clustering accuracy on test set using agglomerative hierarchical clustering, for all combinations of datasets and base sentence encoders -when optimizing wrt the clustering accuracy</figDesc><table><row><cell>with respect to the clustering accuracy, with the super-</cell><cell>clustering-friendly sentence embeddings. These em-</cell></row><row><cell>vised clustering loss outperforming other losses in 11</cell><cell>beddings can be used with any unsupervised cluster-</cell></row><row><cell>out of 19 cases. Overall, the supervised clustering loss</cell><cell>ing algorithm to discover new intents, overcoming the</cell></row><row><cell>and the triplet margin loss tended to perform similarly</cell><cell>quadratic bottleneck of current supervised clustering</cell></row><row><cell>and significantly better than other tested losses. How-</cell><cell>architectures. Extensive experiments on 5 benchmark</cell></row><row><cell>ever, in some cases, one loss outperformed the other</cell><cell>datasets, including both monolingual and multilingual</cell></row><row><cell>by up to 8 percentage points in clustering accuracy or</cell><cell>data, and 4 different base sentence encoders showed</cell></row><row><cell>adjusted mutual information score, indicating that the</cell><cell>that our fine-tuning strategy induced embeddings that</cell></row><row><cell>best loss depends on both the dataset and the base lan-</cell><cell>perform equally or better than those obtained with all</cell></row><row><cell>guage model chosen. Further investigation is warranted.</cell><cell>other tested metric learning losses when comparing their</cell></row><row><cell>Notably, even pre-trained sentence encoders benefited</cell><cell>performance on intent clustering. In the future, we plan</cell></row><row><cell>significantly from fine-tuning with either the supervised</cell><cell>to analyze the characteristics of the embedding spaces</cell></row><row><cell>clustering loss or the triplet margin loss, underscoring</cell><cell>induced by different losses to understand why the su-</cell></row><row><cell>the difference between intent similarity and semantic</cell><cell>pervised clustering loss works well with agglomerative</cell></row><row><cell>similarity.</cell><cell>hierarchical clustering but not with DBSCAN. Notably,</cell></row><row><cell></cell><cell>regardless of the loss or sentence encoder chosen, fine-</cell></row><row><cell>7 Conclusions and Future Work</cell><cell>tuned embeddings always improve the performance of unsupervised intent clustering.</cell></row><row><cell>We proposed a supervised clustering loss to fine-</cell><cell></cell></row><row><cell>tune sentence encoders, enabling the production of</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 5 :</head><label>5</label><figDesc>Dataset-specific training hyper-parameters</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>ALGORITHM</cell><cell>Hyper-parameters</cell><cell>Search space</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Agglomerative Hierarchical Clustering</cell><cell>Linkage Distance Threshold</cell><cell>ward, complete, average ([0,1]; step: 0.05)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Eps</cell><cell>([0,1]; step: 0.05)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>DBSCAN</cell><cell>Min Samples</cell><cell>[2, 5, 10, 15, 20, 25, 30]</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Connected components</cell><cell>Cut Threshold</cell><cell>([0,1]; step: 0.05)</cell></row><row><cell>DATASET</cell><cell># intents per batch</cell><cell cols="2"># utterances per intent</cell><cell cols="2"># batches train epoch</cell><cell># batches val epoch</cell></row><row><cell>CLINC150</cell><cell>30</cell><cell>5</cell><cell></cell><cell>5</cell><cell>5</cell></row><row><cell>DSTC11</cell><cell>4</cell><cell>30</cell><cell></cell><cell>4</cell><cell>2</cell></row><row><cell>HWU64</cell><cell>12</cell><cell>15</cell><cell></cell><cell>4</cell><cell>4</cell></row><row><cell>BANKING77</cell><cell>15</cell><cell>8</cell><cell></cell><cell>5</cell><cell>5</cell></row><row><cell>Massive</cell><cell>12</cell><cell>10</cell><cell></cell><cell>5</cell><cell>5</cell></row><row><cell>LOSS</cell><cell cols="2">Hyper-parameters</cell><cell cols="2">Search space</cell><cell>Optimal values</cell></row><row><cell>Supervised</cell><cell>c</cell><cell cols="3">([0,1]; step: 0.05)</cell><cell>0.15</cell></row><row><cell>Clustering Loss</cell><cell>r</cell><cell cols="3">([0,1]; step: 0.05)</cell><cell>0.5</cell></row><row><cell>Triplet Margin Loss</cell><cell>m</cell><cell cols="3">([0,1]; step: 0.05)</cell><cell>0.15</cell></row><row><cell>Contrastive Loss</cell><cell>m</cell><cell cols="3">([0,2]; step: 0.10)</cell><cell>1.75</cell></row><row><cell>Binary Classification Loss</cell><cell>-</cell><cell></cell><cell>-</cell><cell></cell><cell>-</cell></row><row><cell>Cosine Similarity Loss</cell><cell>-</cell><cell></cell><cell>-</cell><cell></cell><cell>-</cell></row><row><cell cols="6">Table 6: Losses: hyper-parameter search spaces and</cell></row><row><cell cols="2">optimal values</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc>Clustering algorithms: hyper-parameters search spaces</figDesc><table><row><cell></cell><cell>Post</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Test Set</cell><cell>76,25%</cell><cell>80,55%</cell><cell>80,67%</cell><cell>80,33%</cell><cell>83,10%</cell><cell>84,32%</cell><cell>89,60%</cell><cell>89,13%</cell><cell>90,47%</cell><cell>91,47%</cell><cell>88,63%</cell><cell>95,72%</cell><cell>94,88%</cell><cell>93,23%</cell><cell>93,87%</cell><cell>72,75%</cell><cell>77,45%</cell><cell>79,82%</cell><cell>82,65%</cell><cell>83,77%</cell><cell>-</cell><cell></cell><cell></cell></row><row><cell></cell><cell>Pre</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Test Set</cell><cell></cell><cell></cell><cell>75,13%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>84,78%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>81,05%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>73,95%</cell><cell></cell><cell></cell><cell>-</cell><cell></cell><cell></cell></row><row><cell>All Mpnet Base</cell><cell>Pre Post</cell><cell>Fine-Tuning Fine-Tuning</cell><cell>PRAUC PRAUC</cell><cell>on Dev Set on Dev Set</cell><cell>80,45%</cell><cell>85,37%</cell><cell>78,23% 85,68%</cell><cell>84,42%</cell><cell>85,85%</cell><cell>85,08%</cell><cell>90,05%</cell><cell>85,57% 90,80%</cell><cell>90,90%</cell><cell>92,13%</cell><cell>90,15%</cell><cell>93,25%</cell><cell>83,35% 93,20%</cell><cell>91,42%</cell><cell>93,50%</cell><cell>71,83%</cell><cell>77,58%</cell><cell>71,47% 80,22%</cell><cell>81,22%</cell><cell>82,63%</cell><cell>--</cell><cell></cell><cell></cell></row><row><cell></cell><cell>Post</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Train Set</cell><cell>78,02%</cell><cell>85,93%</cell><cell>86,27%</cell><cell>85,72%</cell><cell>90,73%</cell><cell>85,45%</cell><cell>94,27%</cell><cell>94,18%</cell><cell>94,35%</cell><cell>96,42%</cell><cell>88,63%</cell><cell>96,33%</cell><cell>96,58%</cell><cell>94,20%</cell><cell>95,98%</cell><cell>71,98%</cell><cell>83,57%</cell><cell>85,70%</cell><cell>87,82%</cell><cell>92,08%</cell><cell>-</cell><cell></cell><cell></cell></row><row><cell></cell><cell>Pre</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Train Set</cell><cell></cell><cell></cell><cell>76,00%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>85,95%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>84,32%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>73,00%</cell><cell></cell><cell></cell><cell>-</cell><cell></cell><cell></cell></row><row><cell></cell><cell>Post</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Test Set</cell><cell>66,42%</cell><cell>73,95%</cell><cell>73,62%</cell><cell>74,90%</cell><cell>78,10%</cell><cell>80,27%</cell><cell>82,52%</cell><cell>83,13%</cell><cell>87,63%</cell><cell>87,78%</cell><cell>81,25%</cell><cell>90,72%</cell><cell>90,78%</cell><cell>92,23%</cell><cell>92,12%</cell><cell>75,25%</cell><cell>78,87%</cell><cell>77,78%</cell><cell>79,73%</cell><cell>81,60%</cell><cell>66,17%</cell><cell></cell><cell></cell></row><row><cell></cell><cell>Pre</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Test Set</cell><cell></cell><cell></cell><cell>64,83%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>80,95%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>80,95%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>76,50%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>62,48%</cell></row><row><cell>Paraphrase Multilingual Mpnet</cell><cell>Pre Post</cell><cell>Fine-Tuning Fine-Tuning</cell><cell>PRAUC PRAUC</cell><cell>on Dev Set on Dev Set</cell><cell>68,32%</cell><cell>79,82%</cell><cell>68,40% 80,00%</cell><cell>78,08%</cell><cell>81,72%</cell><cell>80,78%</cell><cell>84,00%</cell><cell>81,60% 84,30%</cell><cell>87,90%</cell><cell>88,02%</cell><cell>78,40%</cell><cell>90,63%</cell><cell>80,00% 90,78%</cell><cell>88,98%</cell><cell>90,17%</cell><cell>73,48%</cell><cell>77,27%</cell><cell>72,77% 76,63%</cell><cell>78,50%</cell><cell>80,28%</cell><cell>71,07%</cell><cell></cell><cell>65,73%</cell></row><row><cell></cell><cell>Post</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Train Set</cell><cell>71,13%</cell><cell>82,97%</cell><cell>81,82%</cell><cell>81,32%</cell><cell>85,88%</cell><cell>82,43%</cell><cell>89,80%</cell><cell>90,48%</cell><cell>93,00%</cell><cell>94,53%</cell><cell>92,25%</cell><cell>95,18%</cell><cell>95,22%</cell><cell>92,73%</cell><cell>95,78%</cell><cell>76,95%</cell><cell>86,52%</cell><cell>84,35%</cell><cell>84,93%</cell><cell>89,83%</cell><cell>68,08%</cell><cell>79,02%</cell><cell></cell></row><row><cell>BASE SENTENCE ENCODER</cell><cell>Pre Post</cell><cell>Fine-Tuning Fine-Tuning</cell><cell>PRAUC PRAUC</cell><cell>on Train Set on Test Set</cell><cell>49,32%</cell><cell>60,43%</cell><cell>67,87% 61,28%</cell><cell>70,53%</cell><cell>70,07%</cell><cell>51,32%</cell><cell>58,32%</cell><cell>82,53% 56,73%</cell><cell>75,53%</cell><cell>75,52%</cell><cell>70,60%</cell><cell>76,18%</cell><cell>85,80% 76,23%</cell><cell>83,57%</cell><cell>86,37%</cell><cell>49,03%</cell><cell>40,15%</cell><cell>74,50% 40,53%</cell><cell>58,70%</cell><cell>70,78%</cell><cell>32,90%</cell><cell>29,63%</cell><cell>63,93%</cell></row><row><cell></cell><cell>Pre</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Test Set</cell><cell></cell><cell></cell><cell>34,35%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>47,33%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>43,20%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>37,33%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>24,78%</cell></row><row><cell>XLM roBERTa</cell><cell>Pre Post</cell><cell>Fine-Tuning Fine-Tuning</cell><cell>PRAUC PRAUC</cell><cell>on Dev Set on Dev Set</cell><cell>54,07%</cell><cell>63,58%</cell><cell>36,03% 64,40%</cell><cell>73,17%</cell><cell>73,12%</cell><cell>48,80%</cell><cell>60,35%</cell><cell>46,83% 58,07%</cell><cell>76,65%</cell><cell>77,08%</cell><cell>55,80%</cell><cell>82,67%</cell><cell>43,30% 80,82%</cell><cell>84,50%</cell><cell>87,30%</cell><cell>48,33%</cell><cell>36,17%</cell><cell>35,17% 38,62%</cell><cell>55,55%</cell><cell>67,73%</cell><cell>38,05%</cell><cell>31,40%</cell><cell>26,17%</cell></row><row><cell></cell><cell>Post</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Train Set</cell><cell>56,80%</cell><cell>68,78%</cell><cell>69,00%</cell><cell>79,10%</cell><cell>79,25%</cell><cell>51,60%</cell><cell>63,25%</cell><cell>60,93%</cell><cell>82,65%</cell><cell>83,57%</cell><cell>69,30%</cell><cell>88,02%</cell><cell>85,83%</cell><cell>87,68%</cell><cell>94,00%</cell><cell>49,22%</cell><cell>38,43%</cell><cell>38,82%</cell><cell>59,52%</cell><cell>74,35%</cell><cell>34,97%</cell><cell>31,87%</cell><cell></cell></row><row><cell></cell><cell>Pre</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Train Set</cell><cell></cell><cell></cell><cell>35,70%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>46,67%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>44,50%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>33,55%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>26,52%</cell></row><row><cell></cell><cell>Post</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Test Set</cell><cell>46,32%</cell><cell>61,50%</cell><cell>60,28%</cell><cell>67,08%</cell><cell>68,93%</cell><cell>57,23%</cell><cell>66,67%</cell><cell>66,62%</cell><cell>76,60%</cell><cell>76,48%</cell><cell>76,78%</cell><cell>82,90%</cell><cell>82,17%</cell><cell>83,15%</cell><cell>86,52%</cell><cell>53,45%</cell><cell>62,28%</cell><cell>62,58%</cell><cell>65,82%</cell><cell>69,53%</cell><cell>43,13%</cell><cell>50,85%</cell><cell></cell></row><row><cell></cell><cell>Pre</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Test Set</cell><cell></cell><cell></cell><cell>38,55%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>52,72%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>47,08%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>50,17%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>29,06%</cell></row><row><cell>BERT Multilingual Cased</cell><cell>Pre Post</cell><cell>Fine-Tuning Fine-Tuning</cell><cell>PRAUC PRAUC</cell><cell>on Dev Set on Dev Set</cell><cell>47,85%</cell><cell>67,97%</cell><cell>39,30% 67,03%</cell><cell>70,53%</cell><cell>72,82%</cell><cell>55,20%</cell><cell>66,00%</cell><cell>52,38% 65,82%</cell><cell>77,22%</cell><cell>76,38%</cell><cell>77,20%</cell><cell>81,85%</cell><cell>47,38% 82,22%</cell><cell>82,20%</cell><cell>84,52%</cell><cell>55,07%</cell><cell>63,87%</cell><cell>49,87% 64,12%</cell><cell>67,30%</cell><cell>69,73%</cell><cell>49,09%</cell><cell>53,60%</cell><cell>30,57%</cell></row><row><cell></cell><cell>Post</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Train Set</cell><cell>55,40%</cell><cell>71,93%</cell><cell>70,33%</cell><cell>76,72%</cell><cell>81,68%</cell><cell>58,68%</cell><cell>70,02%</cell><cell>71,00%</cell><cell>82,85%</cell><cell>85,85%</cell><cell>83,40%</cell><cell>90,77%</cell><cell>91,38%</cell><cell>87,32%</cell><cell>95,53%</cell><cell>53,02%</cell><cell>69,77%</cell><cell>67,42%</cell><cell>74,07%</cell><cell>82,55%</cell><cell>56,71%</cell><cell>64,48%</cell><cell></cell></row><row><cell></cell><cell>Pre</cell><cell>Fine-Tuning</cell><cell>PRAUC</cell><cell>on Train Set</cell><cell></cell><cell></cell><cell>39,02%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>53,48%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>48,35%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>47,22%</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>30,97%</cell></row><row><cell>LOSS</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Binary classification loss</cell><cell>Cosine similarity loss</cell><cell>Contrastive loss</cell><cell>Triplet margin loss</cell><cell>Supervised clustering loss</cell><cell>Binary classification loss</cell><cell>Cosine similarity loss</cell><cell>Contrastive loss</cell><cell>Triplet margin loss</cell><cell>Supervised clustering loss</cell><cell>Binary classification loss</cell><cell>Cosine similarity loss</cell><cell>Contrastive loss</cell><cell>Triplet margin loss</cell><cell>Supervised clustering loss</cell><cell>Binary classification loss</cell><cell>Cosine similarity loss</cell><cell>Contrastive loss</cell><cell>Triplet margin loss</cell><cell>Supervised clustering loss</cell><cell>Binary classification loss</cell><cell>Cosine similarity loss</cell><cell></cell></row><row><cell>DATASET</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>BANKING77</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>CLINC150</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>DSTC11</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>HWU64</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Massive</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>A Dataset licenses and release DSTC11, Massive and HUW64 datasets are licensed under the Apache-2.0 License, while CLINC150 and BANKING77 are released under the cc-by-4.0 Creative Commons Public Licence. Massive can be downloaded from https://github.com/jianguoz/ Few-Shot-Intent-Detection, DSTC11 from https://github.com/amazon-science/ dstc11-track2-intent-induction and all the other datasets from https://github.com/ jianguoz/Few-Shot-Intent-Detection. None of the dataset contains any offensive content or information that names or uniquely identifies individual people. Finally, our code includes a pre-processing script for every dataset that allows to turn the downloaded files into the format required in our pipeline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Hardware Infrastructure and Computational Budget</head><p>We perform our experiments on one Amazon EC2 P3.16 instance, a 64-bit architecture with 488 GB of RAM, Intel Xeon E5-2686 v4 (64-core CPU running at 2.30GHz) and 8x Nvidia Tesla V100 Tensor Core GPUs with 128 GB of VRAM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Time Complexity</head><p>C.1 Supervised Clustering Loss Assumomg V is the number of nodes (utterances), and E is the number of edges (all utterances pairs) in figure 1, the time complexity is O(V 2 log V ). This result is the sum of the complexities for the following steps:</p><p>1. Computation of the S similarity matrix (Eq. 2) has quadratic complexity O(V 2 ).</p><p>2. Element-wise product (Eq. 4) and pairwise addition/subtraction (Eq. 5) have quadratic complexity O(V 2 ).</p><p>3. Computing the maximum spanning forests (MSF) by Kruskal's algorithm (Eq. 6) and (Eq. 7) is (E log V ). In our case, the gold MSF will be computed only on correct positive edges E + , while the most-violating MSF will be computed on all the predicted positive edges E (both correct and incorrect). In the worst case, E is equal to all pairs of utterances V 2 (all nodes connected = all pairs of utterances classified as being similar). So, the resulting complexity is O(V 2 log V ).</p><p>4. Computing the structural loss (Eq. 8) has O(V ) complexity. This is due to the fact that in the worst case scenario (i.e., a fully connected graph), Kruskal's algorithm would return V -1 edges, resulting in a O(V ) complexity for both elementwise products and summations.</p><p>5. For the scores s gold (Eq. 9) and s viol (Eq. 10) the previous argument applies as well.</p><p>6. Computing the loss (Eq. 11) has O(1) complexity.</p><p>Therefore, the overall complexity of the supervised clustering loss is O(V 2 log V ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 Supervised Clustering predictions</head><p>After the system has been trained, the time complexity for prediction is O(V ′2 ), where V ′ is the number of utterances to be clustered. This is due to the following steps:</p><p>1. Computation of the S similarity matrix (Eq. 2) has quadratic complexity O(V ′2 ).</p><p>2. Computation of the connected components is linear in terms of the edges, hence has complexity O(V ′2 ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Experiment Hyper-parameters</head><p>You can find here details of the experimented hyperparameters of training datasets (Table <ref type="table">5</ref>), losses (Table <ref type="table">6</ref>), and clustering algorithms (Table <ref type="table">7</ref>). Table <ref type="table">10</ref>: Average adjusted mutual information score on test set for all combinations of datasets, base sentence encoders and clustering algorithms when optimizing wrt the adjusted mutual information score. It is worth mentioning that gaps in performance between the Supervised Clustering Loss and the Triplet Margin Loss are quite narrow, with confidence intervals often overlapping. On the contrary, all other losses clearly lag behind in terms of performance. Nevertheless, in all cases, fine-tuning any of the base sentence encoders with any of the losses proved beneficial -regardless of the dataset or clustering algorithm adopted.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A large annotated corpus for learning natural language inference</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabor</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1075</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="632" to="642" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Deep clustering for unsupervised learning of visual features</title>
+		<author>
+			<persName><forename type="first">Mathilde</forename><surname>Caron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthijs</forename><surname>Douze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European conference on computer vision (ECCV)</title>
+		<meeting>the European conference on computer vision (ECCV)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="132" to="149" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Efficient intent detection with dual sentence encoders</title>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Casanueva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tadas</forename><surname>Temčinas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniela</forename><surname>Gerz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.nlp4convai-1.5</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Natural Language Processing for Conversational AI</title>
+		<meeting>the 2nd Workshop on Natural Language Processing for Conversational AI</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Intent mining from past conversations for conversational agent</title>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Chatterjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shubhashis</forename><surname>Sengupta</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.366</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4140" to="4152" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Unsupervised cross-lingual representation learning at scale</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartikay</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.747</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8440" to="8451" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Neural CRF parsing</title>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/P15-1030</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="302" to="312" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Latent trees for coreference resolution</title>
+		<author>
+			<persName><forename type="first">Rezende</forename><surname>Eraldo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Fernandes</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/COLI_a_00200</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Cícero Nogueira dos Santos, and Ruy Luiz Milidiú</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="volume">40</biblScope>
+			<biblScope unit="page" from="801" to="835" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Supervised clustering with support vector machines</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Finley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thorsten</forename><surname>Joachims</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd international conference on Machine learning</title>
+		<meeting>the 22nd international conference on Machine learning</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="217" to="224" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Massive: A 1m-example multilingual natural language understanding dataset with 51 typologically-diverse languages</title>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hench</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charith</forename><surname>Peris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Mackie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kay</forename><surname>Rottmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Sanchez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Nash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liam</forename><surname>Urbach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishesh</forename><surname>Kakarala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richa</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2204.08582</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Clustering by intent: a semi-supervised method to discover relevant clusters incrementally</title>
+		<author>
+			<persName><forename type="first">George</forename><surname>Forman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hila</forename><surname>Nachlieli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renato</forename><surname>Keshet</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Joint European Conference on Machine Learning and Knowledge Discovery in Databases</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="20" to="36" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Dstc11: The eleventh dialog system technology challenge</title>
+		<author>
+			<persName><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun-Nung</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raghav</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Crook</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seungwhan</forename><surname>Moon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chulaka</forename><surname>Gunasekara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satwik</forename><surname>Kottur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarik</forename><surname>Ghazarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Behnam</forename><surname>Hedayatnia</surname></persName>
+		</author>
+		<ptr target="https://dstc11.dstc.community/" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2010" to="2019" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">SimCSE: Simple contrastive learning of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingcheng</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.552</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6894" to="6910" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">DeCLUTR: Deep contrastive learning for unsupervised textual representations</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Giorgi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Osvald</forename><surname>Nitski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gary</forename><surname>Bader</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.72</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="879" to="895" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Dimensionality reduction by learning an invariant mapping</title>
+		<author>
+			<persName><forename type="first">Raia</forename><surname>Hadsell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2006 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR&apos;06)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="1735" to="1742" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Supervised neural clustering via latent structured output learning: Application to question intents</title>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Haponchyk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.263</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3364" to="3374" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Supervised clustering of questions into intents for dialog system applications</title>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Haponchyk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Uva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seunghak</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Uryupina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1254</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2310" to="2321" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">ConveRT: Efficient and accurate conversational representations from transformers</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Casanueva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Mrkšić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei-Hao</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tsung-Hsien</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.196</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2161" to="2174" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">A simple language model for task-oriented dialogue</title>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Hosseini-Asl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chien-Sheng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Semih</forename><surname>Yavuz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="20179" to="20191" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Comparison of sentence encoder performances</title>
+		<author>
+			<persName><surname>Huggingfaceteam</surname></persName>
+		</author>
+		<ptr target="https://www.sbert.net/docs/pretrained_models.html.Ac-cessed" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2022" to="2032" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Self-guided contrastive learning for BERT sentence representations</title>
+		<author>
+			<persName><forename type="first">Taeuk</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sang-Goo</forename><surname>Yoo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lee</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.197</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2528" to="2540" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Simple and accurate dependency parsing using bidirectional LSTM feature representations</title>
+		<author>
+			<persName><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00101</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="313" to="327" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">An evaluation dataset for intent classification and out-ofscope prediction</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Larson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anish</forename><surname>Mahendran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">J</forename><surname>Peper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Parker</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><forename type="middle">K</forename><surname>Kummerfeld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Leach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">A</forename><surname>Laurenzano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingjia</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Mars</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1131</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1311" to="1316" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">A tutorial on energy-based learning</title>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raia</forename><surname>Hadsell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fujie</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Predicting structured data</title>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">End-to-end neural coreference resolution</title>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="188" to="197" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Liao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2106.04791</idno>
+		<title level="m">Sentence embeddings using supervised contrastive learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Discovering new intents via constrained deep adaptive clustering with cluster refinement</title>
+		<author>
+			<persName><forename type="first">Hua</forename><surname>Ting-En Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanlei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="8360" to="8367" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Benchmarking natural language understanding services for building conversational agents</title>
+		<author>
+			<persName><forename type="first">Xingkun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arash</forename><surname>Eshghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pawel</forename><surname>Swietojanski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Verena</forename><surname>Rieser</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Increasing Naturalness and Flexibility in Spoken Dialogue Interaction</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="165" to="183" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Example-driven intent prediction with observers</title>
+		<author>
+			<persName><forename type="first">Shikib</forename><surname>Mehri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihail</forename><surname>Eric</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.237</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2979" to="2992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Dialoglue: A natural language understanding benchmark for task-oriented dialogue</title>
+		<author>
+			<persName><forename type="first">Shikib</forename><surname>Mehri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihail</forename><surname>Eric</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilek</forename><forename type="middle">Z</forename><surname>Hakkani-Tür</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2009.13570</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Structured prediction networks through latent cost learning</title>
+		<author>
+			<persName><forename type="first">Ruy</forename><surname>Luiz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milidiú</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rafael</forename><surname>Rocha</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/SSCI.2018.8628625</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2018 IEEE Symposium Series on Computational Intelligence (SSCI)</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="645" to="649" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Watch the neighbors: A unified k-nearest neighbor contrastive learning framework for ood intent discovery</title>
+		<author>
+			<persName><forename type="first">Yutao</forename><surname>Mou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keqing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.08909</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Probabilistic machine learning: an introduction</title>
+		<author>
+			<persName><forename type="first">Kevin P</forename><surname>Murphy</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<publisher>MIT press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Accurate sentence matching with hybrid siamese networks</title>
+		<author>
+			<persName><forename type="first">Massimo</forename><surname>Nicosia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3132847.3133156</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 ACM on Conference on Information and Knowledge Management, CIKM &apos;17</title>
+		<meeting>the 2017 ACM on Conference on Information and Knowledge Management, CIKM &apos;17<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="2235" to="2238" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Backpropagating through structured argmax using a SPIGOT</title>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1173</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1863" to="1873" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A linear programming formulation for global inference in natural language tasks</title>
+		<author>
+			<persName><forename type="first">Hugh</forename><surname>Perkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1413</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth Conference on Computational Natural Language Learning</title>
+		<meeting>the Eighth Conference on Computational Natural Language Learning<address><addrLine>Boston, Massachusetts, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2019. 2004</date>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+	<note>HLT-NAACL 2004</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Autodialabel: Labeling dialogue data with unsupervised learning</title>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Sha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Houfeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lintao</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1072</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="684" to="689" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ConvFiT: Conversational fine-tuning of pretrained language models</title>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei-Hao</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Coope</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniela</forename><surname>Gerz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paweł</forename><surname>Budzianowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Casanueva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Mrkšić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tsung-Hsien</forename><surname>Wen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.88</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1151" to="1168" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Satnet: Bridging deep learning and logical reasoning using a differentiable satisfiability solver</title>
+		<author>
+			<persName><forename type="first">Po-Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Priya</forename><surname>Donti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Wilder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zico</forename><surname>Kolter</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6545" to="6554" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Structured training for neural network transition-based parsing</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/P15-1032</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="323" to="333" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1101</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1112" to="1122" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">TOD-BERT: Pre-trained natural language understanding for task-oriented dialogue</title>
+		<author>
+			<persName><forename type="first">Chien-Sheng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H</forename><surname>Steven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Hoi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Xiong</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.66</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="917" to="929" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">A semantic loss function for deep learning with symbolic knowledge</title>
+		<author>
+			<persName><forename type="first">Jingyi</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zilu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Friedman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Broeck</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="5502" to="5511" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">ConSERT: A contrastive framework for self-supervised sentence representation transfer</title>
+		<author>
+			<persName><forename type="first">Yuanmeng</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rumei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fuzheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.393</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5065" to="5075" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Learning structural svms with latent variables</title>
+		<author>
+			<persName><forename type="first">Chun-Nam</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thorsten</forename><surname>Joachims</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/1553374.1553523</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th Annual International Conference on Machine Learning, ICML &apos;09</title>
+		<meeting>the 26th Annual International Conference on Machine Learning, ICML &apos;09<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="1169" to="1176" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">2021a. Supporting clustering with contrastive learning</title>
+		<author>
+			<persName><forename type="first">Dejiao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaokai</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shang-Wen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henghui</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">O</forename><surname>Arnold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xiang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.427</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="5419" to="5430" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">2021b. Discovering new intents with deep aligned clustering</title>
+		<author>
+			<persName><forename type="first">Hanlei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hua</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Ting-En Lin</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lyu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="14365" to="14373" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">2021c. Effectiveness of pre-training for few-shot intent classification</title>
+		<author>
+			<persName><forename type="first">Haode</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li-Ming</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guangyuan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao-Ming</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><forename type="middle">Y S</forename><surname>Lam</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-emnlp.96</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2021</title>
+		<meeting><address><addrLine>Punta Cana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="1114" to="1120" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Few-shot intent detection via contrastive pre-training and fine-tuning</title>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trung</forename><surname>Bui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seunghyun</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Congying</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hung</forename><surname>Quan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Walter</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.144</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1906" to="1912" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Discriminative nearest neighbor few-shot intent detection by transferring natural language inference</title>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chien-Sheng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.411</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5064" to="5082" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Caiming Xiong, and Philip Yu. 2022a. Are pre-trained transformers robust in intent classification? a missing ingredient in evaluation of outof-scope intent detection</title>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.nlp4convai-1.2</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 4th Workshop on NLP for Conversational AI</title>
+		<meeting>the 4th Workshop on NLP for Conversational AI<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="12" to="20" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">2022b. New intent discovery with pre-training and contrastive learning</title>
+		<author>
+			<persName><forename type="first">Yuwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haode</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li-Ming</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao-Ming</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Lam</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.21</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="256" to="269" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,999 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">PRiSM: Enhancing Low-Resource Document-Level Relation Extraction with Relation-Aware Score Calibration</title>
+				<funder ref="#_rECctbH">
+					<orgName type="full">Korea government (MSIT)</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Artificial Intelligence Graduate School Program (KAIST))</orgName>
+				</funder>
+				<funder ref="#_KXvYWEf">
+					<orgName type="full">National Supercomputing Center</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Minseok</forename><surname>Choi</surname></persName>
+							<email>minseok.choi@kaist.ac.kr</email>
+							<affiliation key="aff0">
+								<orgName type="institution">KAIST AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Hyesu</forename><surname>Lim</surname></persName>
+							<email>hyesulim@kaist.ac.kr</email>
+							<affiliation key="aff0">
+								<orgName type="institution">KAIST AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jaegul</forename><surname>Choo</surname></persName>
+							<email>jchoo@kaist.ac.kr</email>
+							<affiliation key="aff0">
+								<orgName type="institution">KAIST AI</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">PRiSM: Enhancing Low-Resource Document-Level Relation Extraction with Relation-Aware Score Calibration</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">94EEC9D6FF66733A27374720AF205DC0</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:41+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Document-level relation extraction (DocRE)</head><p>aims to extract relations of all entity pairs in a document. A key challenge in DocRE is the cost of annotating such data which requires intensive human effort. Thus, we investigate the case of DocRE in a low-resource setting, and we find that existing models trained on low data overestimate the NA ("no relation") label, causing limited performance. In this work, we approach the problem from a calibration perspective and propose PRiSM, which learns to adapt logits based on relation semantic information. We evaluate our method on three DocRE datasets and demonstrate that integrating existing models with PRiSM improves performance by as much as 26.38 F1 score, while the calibration error drops as much as 36 times when trained with about 3% of data. The code is publicly available at https: //github.com/brightjade/PRiSM.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Document-level relation extraction (DocRE) is a fundamental task in natural language understanding, which aims to identify relations between entities that exist in a document. A major challenge in DocRE is the cost of annotating such documents, requiring annotators to consider relations of all possible entity combinations <ref type="bibr" target="#b22">(Yao et al., 2019;</ref><ref type="bibr" target="#b24">Zaporojets et al., 2021;</ref><ref type="bibr">Tan et al., 2022b)</ref>. However, there is a lack of ongoing studies investigating the lowresource setting in DocRE <ref type="bibr">(Zhou et al., 2023)</ref>, and we discover that most of the current DocRE models show subpar performance when trained with a small set of data. We argue that the reason is twofold. First, the long-tailed distribution of DocRE data encourages models to be overly confident in predicting frequent relations and less sure about infrequent ones <ref type="bibr" target="#b4">(Du et al., 2022;</ref><ref type="bibr">Tan et al., 2022a)</ref>. Out of the 96 relations in DocRED <ref type="bibr" target="#b22">(Yao et al., 2019)</ref>, a widely-used DocRE dataset, the 7 most frequent relations account for 55% of the total relation triples. Under the low-resource setting, chances to observe infrequent relations become much harder. Second, DocRE models predict the NA ("no relation") label if an entity pair does not express any relation. In DocRED, about 97% of all entity pairs have the NA label. With limited data, there is a much less signal for ground-truth (GT) labels during training, resulting in models overpredicting the NA label instead.</p><p>High confidence in common relations and the NA label and low confidence in rare relations suggest that models may be miscalibrated. We hypothesize that lowering the former and raising the latter would improve the overall RE performance. At a high level, we wish to penalize logits of frequent labels (including NA) and supplement logits of infrequent labels such that models are able to predict them without seeing them much during training. To implement such behavior, we leverage relation semantic information, which has proved to be effective in low-resource sentence-level RE <ref type="bibr" target="#b21">(Yang et al., 2020;</ref><ref type="bibr" target="#b3">Dong et al., 2021;</ref><ref type="bibr" target="#b26">Zhang and Lu, 2022)</ref>.</p><p>In this work, we propose the Pair-Relation Similarity Module (PRiSM) that learns to adapt logits by exploiting semantic information from label descriptions, as depicted in Figure <ref type="figure" target="#fig_0">1</ref>. Specifically, we compute a similarity function for each entity pair embedding, constructed from two entities of interest, with relation embeddings, built from corresponding label descriptions. PRiSM then learns re-lation representations to output adaptive scores for each relation triple. Note that previous work mostly utilized relation representations for self-supervised learning <ref type="bibr" target="#b3">(Dong et al., 2021;</ref><ref type="bibr" target="#b4">Du et al., 2022;</ref><ref type="bibr">Zhou et al., 2023)</ref>, whereas PRiSM uses them to directly adjust logits, which brings a calibration effect. To elaborate further, let us say that classification logits are statistical scores and similarities are semantic scores. We have four scenarios: 1) relation is common and GT, 2) relation is common but not GT, 3) relation is uncommon but GT, and 4) relation is uncommon and not GT. In Cases 1 and 4, both statistical and semantic scores are either high or low, and thus, appending PRiSM mostly would not affect the original RE predictions. In Case 2, the statistical score is high, but the semantic score is low, possibly negative to penalize the statistical score. This is the case of PRiSM decreasing the confidence of common relations and NA label. In Case 3, the statistical score is low, but the semantic score is high, which is the case of PRiSM increasing the confidence of uncommon relations. As such, PRiSM incorporates both statistical and semantic scores such that the confidence is adjusted regardless of the relation frequency.</p><p>Our technical contributions are three-fold. First, we propose PRiSM, a relation-aware calibration technique that improves model performance and adjusts model confidence on low-resource DocRE. Second, we demonstrate the performance improvement across various state-of-the-art models integrated with PRiSM. Third, we validate the effectiveness of our method on widely-used long-tailed DocRE datasets and calibration metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Methodology</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem Formulation</head><p>Given a document d, a set of n annotated entities E = {e i } n i=1 , and a pre-defined set of relations R ∪ {NA}, the task of DocRE is to extract the relation triple set {(e h , r, e t )|e h ∈ E, r ∈ R, e t ∈ E} ⊆ E × R × E from all possible relation triples, where (e h , r, e t ) denotes that a relation r holds between head entity e h and tail entity e t . An entity e i may appear k times in the document in which we denote corresponding instances as entity mentions {m ij } k j=1 . A relation r exists between an entity pair (e h , e t ) if any pair of their mentions express the relation, and if they do not express any relation, the entity pair is then labeled as NA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Document-Level Relation Extraction</head><p>Given a document d as an input token sequence x = [x t ] l t=1 , where l is the length of the token sequence, we explicitly locate the position of entity mentions by inserting a special token "*" before and after each mention. The presence of the entity marker has proved to be effective from previous studies <ref type="bibr" target="#b27">(Zhang et al., 2017;</ref><ref type="bibr" target="#b14">Shi and Lin, 2019;</ref><ref type="bibr" target="#b0">Baldini Soares et al., 2019)</ref>. The entity-marked document is then fed into a pre-trained language model (PLM) encoder, which outputs the contextual embeddings: [h 1 , h 2 , ..., h l ] = Encoder(x). We take the embedding of "*" at the start of each mention as its mention-level representation h m ij of the entity e i . For extracting the entity-level representation, we apply the logsumexp pooling over all mentions {m ij } k j=1 of the entity e i :</p><formula xml:id="formula_0">h e i = log k j=1 exp h m ij .<label>(1)</label></formula><p>The logsumexp pooling is a smooth version of max pooling and has been shown to accumulate weak signals from each different mention representation, which results in a better performance <ref type="bibr" target="#b7">(Jia et al., 2019)</ref>. We pass the embeddings of head and tail entities through a linear layer followed by non-linear activation to obtain the hidden representations:</p><formula xml:id="formula_1">z h = tanh(W h h e h + b h ) and z t = tanh(W t h et + b t ), where W h , W t , b h , b t are learnable parameters.</formula><p>Then we calculate a score for relation r between entities h and t by taking a bilinear function:</p><formula xml:id="formula_2">s (h,r,t) = z ⊤ h W r z t + b r ,<label>(2)</label></formula><p>where W r , b r are learnable parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">PRiSM</head><p>Following previous work <ref type="bibr" target="#b26">(Zhang and Lu, 2022)</ref>, we feed relation descriptions to a PLM encoder to obtain the relation embedding z r for relation r. The details of the relation descriptions used can be found in Appendix A.4. We then construct the entity pair-level representation z (h,t) by mapping the head and tail embeddings to a linear layer followed by non-linear activation:  and relation embedding: s ′ (h,r,t) = sim(z (h,t) , z r ), where sim(•) is cosine similarity. Formally, the probability of relation r between entities h and t is simply an addition of two scores followed by sigmoid activation:</p><formula xml:id="formula_3">z (h,t) = tanh(W (h,t) [z h ; z t ]+b (h,t) ),</formula><formula xml:id="formula_4">P (r | e h , e t ) = σ(s (h,r,t) + λs ′ (h,r,t) ), (<label>3</label></formula><formula xml:id="formula_5">)</formula><p>where λ is the scale factor. Finally, we optimize our model with the binary cross-entropy (BCE) loss:</p><formula xml:id="formula_6">L = - 1 T &lt;h,t&gt; r</formula><p>BCE(P (r|e h , e t ), ȳ(h,r,t) ),</p><p>(4) where ȳ is the target label and T is the total number of relation triples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dataset</head><p>We evaluate our framework on three public DocRE datasets. DocRED <ref type="bibr" target="#b22">(Yao et al., 2019</ref>) is a widelyused human-annotated DocRE dataset constructed from Wikipedia and Wikidata. Re-DocRED <ref type="bibr">(Tan et al., 2022b</ref>) is a revised dataset from DocRED, addressing the incomplete annotation problem. DWIE <ref type="bibr" target="#b24">(Zaporojets et al., 2021</ref>) is a multi-task document-level information extraction dataset consisting of news articles collected from Deutsche Welle. Dataset statistics are shown in Table <ref type="table" target="#tab_7">5</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Implementation Details</head><p>Our framework is built on PyTorch and Huggingface's Transformers library <ref type="bibr" target="#b18">(Wolf et al., 2020)</ref>. We use the cased BERT <ref type="bibr" target="#b2">(Devlin et al., 2019)</ref> and RoBERTa <ref type="bibr" target="#b8">(Liu et al., 2019)</ref> for encoding the text and optimize their weights with AdamW <ref type="bibr" target="#b9">(Loshchilov and Hutter, 2019)</ref>. We tune our hyperparameters to maximize the F 1 score on the development set. The additional implementation details are included in Appendix B. During inference, we predict all relation triples that have probabilities higher than the F1-maximizing threshold found in the development set. We conduct our experiments with three different random seeds and report the averaged results. Following Yao et al.   (2019), all models are evaluated on F 1 and Ign F 1 , where Ign F 1 excludes the relations shared by the training and development/test sets. Moreover, we measure Macro, which computes the average of per-class F 1 , and Macro@500, Macro@200, and Macro@100, targeting rare relations where the frequency count in the training dataset is less than 500, 200, and 100, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Experimental Results</head><p>To simulate the low-data setting, we reduce the number of training documents N to 100 and 305, which is about 3% and 10% of the original data. To create each of the settings, we repeat random sampling until the label distribution resembles that of the full data. As shown in Table <ref type="table" target="#tab_0">1</ref>, we observe that performance increases consistently across different models when appended with PRiSM. Particularly, PRiSM improves performance by a large margin when trained with just 3% of data, as much as 24.43 Ign F 1 and 26.38 F 1 on the test set of DocRED for BERT BASE . We also test PRiSM on RoBERTa BASE and two state-of-the-art models SSAN <ref type="bibr" target="#b20">(Xu et al., 2021)</ref> and ATLOP <ref type="bibr" target="#b28">(Zhou et al., 2021)</ref> and notice a similar trend, indicating that our method is effective on various existing models. We additionally evaluate PRiSM using macro metrics in Table <ref type="table" target="#tab_1">2</ref> and observe that adding PRiSM improves performance on infrequent relations, especially in the low-data setting. Lastly, we validate our method on  a different dataset DWIE, as illustrated in Table <ref type="table" target="#tab_3">3</ref>.</p><formula xml:id="formula_7">N = 100 N = 305 Method F1(↑) ECE(↓) ACE(↓) F1(↑) ECE(↓)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Calibration Evaluation</head><p>We measure model calibration on two metrics: expected calibration error (ECE) <ref type="bibr" target="#b10">(Naeini et al., 2015)</ref> and adaptive calibration error (ACE) <ref type="bibr" target="#b12">(Nixon et al., 2019)</ref>. ECE partitions predictions into a fixed number of bins and computes a weighted average of the difference between accuracy and confidence over the bins, while ACE puts the same number of predictions in each bin. We compare with general calibration methods such as temperature scaling (TS) <ref type="bibr" target="#b5">(Guo et al., 2017)</ref> and class-distribution-aware TS (CDA-TS) <ref type="bibr" target="#b6">(Islam et al., 2021)</ref>. As reported in Table <ref type="table" target="#tab_5">4</ref>, PRiSM outperforms other methods in both metrics, while also maintaining a comparable RE performance. We also visualize with a reliability diagram <ref type="bibr" target="#b1">(DeGroot and Fienberg, 1983;</ref><ref type="bibr" target="#b11">Niculescu-Mizil and Caruana, 2005)</ref> in Figure <ref type="figure" target="#fig_1">2</ref>. We observe that PRiSM effectively lowers the confidence of the NA label and raises the confidence of low-frequency relations (bottom 89). For high-frequency relations (top 7), confidence is adjusted in both ways. In any case, PRiSM displays the most stable, closest line to the perfect calibration (blue line).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Related Work</head><p>With the introduction of DocRED <ref type="bibr" target="#b22">(Yao et al., 2019)</ref>, many approaches were proposed to extract relations from a document <ref type="bibr" target="#b17">(Wang et al., 2019;</ref><ref type="bibr" target="#b23">Ye et al., 2020;</ref><ref type="bibr" target="#b25">Zhang et al., 2021;</ref><ref type="bibr" target="#b20">Xu et al., 2021;</ref><ref type="bibr" target="#b28">Zhou et al., 2021;</ref><ref type="bibr" target="#b19">Xie et al., 2022)</ref>. The long-tailed data problem of DocRE has been addressed in some studies <ref type="bibr" target="#b4">(Du et al., 2022;</ref><ref type="bibr">Tan et al., 2022a)</ref>, as well as low-resource DocRE <ref type="bibr">(Zhou et al., 2023)</ref>; however, most require additional pretraining, which is compute-and cost-intensive, while PRiSM only requires adjusting logits in existing models. Lowresource RE has been extensively studied at the sentence level, and we specifically focus on leveraging label information <ref type="bibr" target="#b21">(Yang et al., 2020;</ref><ref type="bibr" target="#b3">Dong et al., 2021;</ref><ref type="bibr" target="#b26">Zhang and Lu, 2022)</ref> in which PRiSM applies it to the document level. In contrast to prior work in calibration <ref type="bibr" target="#b5">(Guo et al., 2017;</ref><ref type="bibr" target="#b6">Islam et al., 2021)</ref>, our approach is relation-aware, updating logits at a much finer granularity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion and Future Work</head><p>In this work, we propose a simple modular framework PRiSM, which exploits relation semantics to update logits. We empirically demonstrate that our method effectively improves and calibrates DocRE models where the data is long-tailed and the NA label is overestimated. For future work, we can apply PRiSM to more tasks such as event extraction and dialogue state tracking, which also enclose longtailed data and overestimation of "null" labels.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Although our approach is resilient to data scarcity, quite a few annotated documents are still required for the model to learn the pattern. The ultimate goal of DocRE is undoubtedly to build a model that is able to perform well on zero-shot, but we believe our approach takes a step toward that direction. Moreover, we process the long documents (&gt; 512 tokens) in a very naive way, as described in Appendix A.3, and we think that exploration of long-sequence modeling on longer document data could further enrich the field of DocRE. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix A Additional Dataset Details</head><p>A.1 Data Statistics</p><p>We report the statistics for the datasets in Table <ref type="table" target="#tab_7">5</ref>.</p><p>The test set of DocRED is not included in calculating % NA due to its inaccessibility. 14 documents in DWIE are filtered out because of missing labels, and 1 document is removed because the annotated entities did not exist in the input document. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Class Distribution</head><p>We count the number of ground-truth relations in the train sets and visualize their class distribution in Figure <ref type="figure" target="#fig_2">3</ref>. We observe that the re-annotation of Re-DocRED further skewed the class distribution, and the DWIE dataset seems to demonstrate a relatively less imbalanced distribution. Nevertheless, a few classes still exhibit high frequency, which PRiSM can handle effectively. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Processing Long Document</head><p>For DocRED and Re-DocRED, most of the documents contain less than 512 tokens, and thus we follow the previous work and truncate all of the inputs to 512 tokens, which is the maximum sequence length of BERT. However, we notice that the DWIE dataset mostly contains documents much longer than 512 tokens (as shown in Figure <ref type="figure" target="#fig_3">4</ref>) in which the truncation hurts the performance significantly. Therefore, we choose the most naive way of splitting the input document into multiple chunks of length 512 and passing them through the encoder multiple times. The performance improvement over the truncation method is demonstrated in Table <ref type="table" target="#tab_8">6</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Relation Descriptions</head><p>We provide a small set of relations and their descriptions in DocRED and DWIE in Table <ref type="table" target="#tab_10">7</ref> and<ref type="table" target="#tab_11">8</ref>. For DocRED, a full list can be found either in their paper <ref type="bibr" target="#b22">(Yao et al., 2019)</ref> or link 2 . For DWIE, a full list is not available publicly; however, we were able to obtain a draft of the annotation documentation from the author. Unannotated relation descriptions were crafted with the help of a large language model (OpenAI, 2023).   GPU Hours. Adding PRiSM takes a slightly longer computation time than the existing DocRE models due to having to pass the PLM twice. Note that PRiSM is built for a low-resource setting in which the computation time does not seem to differ as much. The comparison of GPU hours is reported in Table <ref type="table" target="#tab_0">10</ref>.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An overview of our proposed method. Top represents the original DocRE framework. PRiSM (bottom) leverages relation descriptions to compute scores for each relation triple. These scores are then used to reweight the prediction logits.</figDesc><graphic coords="1,306.14,212.60,218.26,55.47" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Reliability diagram for BERT BASE when trained with 3% of DocRED data.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Dataset class distribution.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Lengths of input documents in training sets.</figDesc><graphic coords="7,306.14,286.73,218.27,161.51" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>PRiSM 35.06 ± 0.94 37.02 ± 0.88 35.79 37.88 47.39 ± 0.79 49.09 ± 0.90 46.90 ± 1.59 48.57 ± 1.73 PRiSM 32.40 ± 0.85 34.49 ± 0.76 32.20 34.32 47.71 ± 1.03 49.40 ± 1.14 47.31 ± 0.96 49.04 ± 1.05 PRiSM 50.20 ± 0.68 51.83 ± 0.64 50.29 52.17 60.58 ± 0.18 61.68 ± 0.17 60.90 ± 0.37 61.97 ± 0.40 Performance (%) on DocRED and Re-DocRED. Better scores between with and without PRiSM are in bold. The test results for DocRED are obtained by submitting the best dev model predictions to CodaLab 1 . PRiSM 39.12 ± 0.57 34.72 ± 0.69 26.45 ± 1.01 19.23 ± 1.55</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">DocRED</cell><cell></cell><cell></cell><cell></cell><cell cols="2">Re-DocRED</cell></row><row><cell></cell><cell></cell><cell cols="2">Dev</cell><cell></cell><cell cols="2">Test</cell><cell cols="2">Dev</cell><cell>Test</cell></row><row><cell>Model</cell><cell></cell><cell>Ign F1</cell><cell>F1</cell><cell></cell><cell>Ign F1</cell><cell>F1</cell><cell>Ign F1</cell><cell>F1</cell><cell>Ign F1</cell><cell>F1</cell></row><row><cell cols="3">3% training examples (N = 100)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell></cell><cell>10.27 ± 1.82</cell><cell cols="2">10.44 ± 1.90</cell><cell>11.36</cell><cell>11.50</cell><cell>28.65 ± 2.87</cell><cell>29.40 ± 3.19</cell><cell>28.77 ± 3.34</cell><cell>29.44 ± 3.67</cell></row><row><cell>BERTBASE + RoBERTaBASE</cell><cell></cell><cell>20.70 ± 1.91</cell><cell cols="2">21.31 ± 1.87</cell><cell>21.74</cell><cell>22.25</cell><cell>39.66 ± 2.25</cell><cell>40.74 ± 1.89</cell><cell>39.42 ± 2.80</cell><cell>40.53 ± 2.43</cell></row><row><cell>RoBERTaBASE + SSAN-BERTBASE</cell><cell></cell><cell>10.92 ± 0.88</cell><cell cols="2">11.18 ± 0.89</cell><cell>11.93</cell><cell>12.16</cell><cell>28.89 ± 1.68</cell><cell>29.01 ± 1.69</cell><cell>28.64 ± 1.89</cell><cell>29.29 ± 1.94</cell></row><row><cell cols="2">SSAN-BERTBASE + PRiSM</cell><cell cols="8">32.86 ± 2.35 34.76 ± 2.50 34.00 36.03 46.49 ± 1.16 48.11 ± 1.40 46.51 ± 1.77 48.11 ± 2.00</cell></row><row><cell>ATLOP-BERTBASE</cell><cell></cell><cell>38.99 ± 2.30</cell><cell cols="2">40.50 ± 2.07</cell><cell>40.88</cell><cell>42.37</cell><cell>49.45 ± 2.09</cell><cell>50.60 ± 1.95</cell><cell>49.24 ± 2.25</cell><cell>50.32 ± 2.13</cell></row><row><cell cols="10">ATLOP-BERTBASE + PRiSM 40.59 ± 0.68 42.09 ± 0.66 40.94 42.43 50.10 ± 0.53 51.12 ± 0.64 50.15 ± 1.11 51.14 ± 1.17</cell></row><row><cell cols="3">10% training examples (N = 305)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell></cell><cell>39.84 ± 0.92</cell><cell cols="2">41.55 ± 0.99</cell><cell>40.98</cell><cell>42.98</cell><cell>52.34 ± 0.66</cell><cell>53.54 ± 0.80</cell><cell>52.34 ± 0.68</cell><cell>53.54 ± 0.84</cell></row><row><cell>BERTBASE + PRiSM</cell><cell></cell><cell cols="8">46.01 ± 0.12 48.02 ± 0.13 45.52 47.83 58.10 ± 0.31 59.86 ± 0.27 57.75 ± 0.65 59.53 ± 0.51</cell></row><row><cell>RoBERTaBASE</cell><cell></cell><cell>43.42 ± 1.09</cell><cell cols="2">45.20 ± 1.09</cell><cell>43.78</cell><cell>45.63</cell><cell>54.82 ± 1.85</cell><cell>56.10 ± 1.80</cell><cell>55.36 ± 2.18</cell><cell>56.67 ± 2.06</cell></row><row><cell cols="2">RoBERTaBASE + PRiSM</cell><cell cols="8">46.60 ± 0.20 48.57 ± 0.29 47.02 49.22 59.51 ± 0.36 61.19 ± 0.32 59.08 ± 0.61 60.80 ± 0.52</cell></row><row><cell>SSAN-BERTBASE</cell><cell></cell><cell>40.00 ± 1.62</cell><cell cols="2">41.65 ± 1.63</cell><cell>41.11</cell><cell>43.03</cell><cell>53.57 ± 0.83</cell><cell>54.86 ± 0.81</cell><cell>53.67 ± 1.55</cell><cell>54.94 ± 1.52</cell></row><row><cell cols="2">SSAN-BERTBASE + PRiSM</cell><cell cols="8">46.14 ± 0.15 48.18 ± 0.09 45.48 47.72 58.47 ± 0.39 60.17 ± 0.36 58.21 ± 0.31 59.93 ± 0.19</cell></row><row><cell>ATLOP-BERTBASE</cell><cell></cell><cell>49.93 ± 1.11</cell><cell cols="2">51.61 ± 1.16</cell><cell>50.04</cell><cell>51.85</cell><cell>60.38 ± 0.46</cell><cell>61.52 ± 0.29</cell><cell>60.46 ± 0.55</cell><cell>61.54 ± 0.29</cell></row><row><cell cols="3">ATLOP-BERTBASE + 100% training examples (N = 3053)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell></cell><cell>57.15 ± 0.17</cell><cell cols="2">59.18 ± 0.05</cell><cell>57.02</cell><cell>59.35</cell><cell>71.70 ± 0.61</cell><cell>73.17 ± 0.55</cell><cell>71.01 ± 0.88</cell><cell>72.48 ± 0.78</cell></row><row><cell>BERTBASE + PRiSM</cell><cell></cell><cell cols="8">57.82 ± 0.10 59.93 ± 0.15 57.17 59.52 72.92 ± 0.07 74.25 ± 0.07 72.35 ± 0.07 73.69 ± 0.11</cell></row><row><cell>RoBERTaBASE</cell><cell></cell><cell>58.24 ± 0.36</cell><cell cols="2">60.19 ± 0.38</cell><cell>58.00</cell><cell>60.10</cell><cell>74.00 ± 0.20</cell><cell>75.20 ± 0.20</cell><cell>73.56 ± 0.04</cell><cell>74.75 ± 0.04</cell></row><row><cell cols="2">RoBERTaBASE + PRiSM</cell><cell cols="8">58.73 ± 0.09 60.70 ± 0.02 58.36 60.51 74.50 ± 0.09 75.71 ± 0.06 74.17 ± 0.10 75.38 ± 0.10</cell></row><row><cell>SSAN-BERTBASE</cell><cell></cell><cell>57.59 ± 0.35</cell><cell cols="2">59.62 ± 0.24</cell><cell>57.71</cell><cell>59.79</cell><cell>72.59 ± 0.15</cell><cell>74.01 ± 0.15</cell><cell>71.95 ± 0.11</cell><cell>73.37 ± 0.11</cell></row><row><cell cols="2">SSAN-BERTBASE + PRiSM</cell><cell cols="8">58.20 ± 0.20 60.27 ± 0.14 58.02 60.27 73.22 ± 0.10 74.65 ± 0.07 72.37 ± 0.19 73.80 ± 0.18</cell></row><row><cell>ATLOP-BERTBASE</cell><cell></cell><cell>59.22 ± 0.17</cell><cell cols="2">61.18 ± 0.10</cell><cell cols="2">58.99 61.08</cell><cell>72.78 ± 0.46</cell><cell>73.73 ± 0.37</cell><cell>72.60 ± 0.41</cell><cell>73.51 ± 0.38</cell></row><row><cell cols="5">ATLOP-BERTBASE + PRiSM 59.51 ± 0.09 61.31 ± 0.05</cell><cell>58.80</cell><cell>60.77</cell><cell cols="3">72.85 ± 0.29 73.80 ± 0.35 72.61 ± 0.59 73.53 ± 0.53</cell></row><row><cell>Model</cell><cell>Macro</cell><cell>Macro@500</cell><cell>Macro@200</cell><cell cols="2">Macro@100</cell><cell></cell><cell></cell><cell></cell></row><row><cell>N = 100</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell>0.36 ± 0.05</cell><cell>0</cell><cell>0</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE + PRiSM</cell><cell>7.77 ± 1.87</cell><cell>4.08 ± 0.43</cell><cell>0.44 ± 0.33</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell></cell></row><row><cell>RoBERTaBASE</cell><cell>1.18 ± 0.28</cell><cell>0</cell><cell>0</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell></cell></row><row><cell>RoBERTaBASE + PRiSM</cell><cell>6.41 ± 0.77</cell><cell>2.31 ± 0.82</cell><cell>0.38 ± 0.28</cell><cell></cell><cell>-</cell><cell></cell><cell></cell><cell></cell></row><row><cell>N = 305</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell>9.31 ± 1.59</cell><cell>3.70 ± 1.46</cell><cell>0.29 ± 0.17</cell><cell></cell><cell>0</cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE + PRiSM</cell><cell cols="2">20.19 ± 0.70 14.91 ± 0.64</cell><cell>7.73 ± 0.17</cell><cell cols="2">2.19 ± 1.16</cell><cell></cell><cell></cell><cell></cell></row><row><cell>RoBERTaBASE</cell><cell>14.80 ± 0.51</cell><cell>9.13 ± 0.61</cell><cell>3.74 ± 0.35</cell><cell cols="2">0.83 ± 0.89</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">RoBERTaBASE + PRiSM 21.03 ± 0.27 15.69 ± 0.48</cell><cell>8.37 ± 0.16</cell><cell cols="2">2.63 ± 1.25</cell><cell></cell><cell></cell><cell></cell></row><row><cell>N = 3053</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell>38.31 ± 0.39</cell><cell>34.06 ± 0.45</cell><cell>26.07 ± 0.72</cell><cell cols="2">19.73 ± 0.96</cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE + PRiSM</cell><cell cols="3">38.89 ± 0.52 34.57 ± 0.59 26.51 ± 0.65</cell><cell cols="2">19.57 ± 0.71</cell><cell></cell><cell></cell><cell></cell></row><row><cell>RoBERTaBASE</cell><cell>38.67 ± 1.12</cell><cell>34.28 ± 1.22</cell><cell>26.14 ± 1.44</cell><cell cols="2">18.69 ± 1.70</cell><cell></cell><cell></cell><cell></cell></row><row><cell>RoBERTaBASE +</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p>where z h , z t are concatenated and W (h,t) , b (h,t) are learnable parameters. An adaptive score for relation r between entities h and t is computed by taking a similarity function between the entity pair embedding</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Dev performance (%) on low-frequency relations in DocRED. Test results cannot be reported because the labels are not accessible.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>PRiSM 78.43 ± 0.12 32.85 ± 0.37 78.13 ± 0.61 33.66 ± 1.24</figDesc><table><row><cell></cell><cell>Dev</cell><cell></cell><cell cols="2">Test</cell></row><row><cell>Model</cell><cell>F1</cell><cell>Macro</cell><cell>F1</cell><cell>Macro</cell></row><row><cell>N = 100</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell>11.97 ± 1.78</cell><cell>1.79 ± 0.27</cell><cell>12.41 ± 2.29</cell><cell>1.87 ± 0.32</cell></row><row><cell>BERTBASE + PRiSM</cell><cell cols="3">45.20 ± 1.60 10.34 ± 1.91 44.31 ± 1.47</cell><cell>9.47 ± 1.46</cell></row><row><cell>RoBERTaBASE</cell><cell>50.27 ± 1.57</cell><cell>8.55 ± 0.56</cell><cell>48.29 ± 1.74</cell><cell>8.95 ± 0.86</cell></row><row><cell cols="5">RoBERTaBASE + PRiSM 55.51 ± 1.11 12.76 ± 2.03 54.23 ± 1.24 13.80 ± 0.64</cell></row><row><cell>N = 305</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell>52.98 ± 0.76</cell><cell>15.68 ± 1.71</cell><cell>52.05 ± 0.60</cell><cell>14.80 ± 0.63</cell></row><row><cell>BERTBASE + PRiSM</cell><cell cols="4">58.23 ± 0.40 24.62 ± 0.59 57.05 ± 0.23 22.43 ± 0.88</cell></row><row><cell>RoBERTaBASE</cell><cell>65.45 ± 1.94</cell><cell>21.72 ± 1.29</cell><cell>62.39 ± 1.29</cell><cell>20.39 ± 0.76</cell></row><row><cell cols="5">RoBERTaBASE + PRiSM 71.18 ± 1.98 28.36 ± 1.53 67.12 ± 2.02 25.82 ± 0.34</cell></row><row><cell>N = 587</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERTBASE</cell><cell>62.06 ± 0.33</cell><cell>25.17 ± 0.37</cell><cell>60.78 ± 0.25</cell><cell>22.93 ± 0.40</cell></row><row><cell>BERTBASE + PRiSM</cell><cell cols="4">66.81 ± 0.56 28.17 ± 0.54 66.53 ± 0.52 29.31 ± 1.13</cell></row><row><cell>RoBERTaBASE</cell><cell>76.23 ± 0.72</cell><cell>31.71 ± 0.13</cell><cell>74.07 ± 0.77</cell><cell>28.72 ± 1.54</cell></row><row><cell>RoBERTaBASE +</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Performance (%) on the DWIE dataset.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Comparison of calibration errors (with 10 bins) under a low-resource setting of DocRED.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 5 :</head><label>5</label><figDesc>Dataset statistics. # Relation Types includes the NA label. % NA indicates a ratio of entity pairs having the NA label over all entity pairs.</figDesc><table><row><cell>Statistics</cell><cell cols="2">DocRED Re-DocRED</cell><cell>DWIE</cell></row><row><cell># Train</cell><cell>3,053</cell><cell>3,053</cell><cell>587</cell></row><row><cell># Dev</cell><cell>1,000</cell><cell>500</cell><cell>100</cell></row><row><cell># Test</cell><cell>1,000</cell><cell>500</cell><cell>100</cell></row><row><cell># Relation Types</cell><cell>97</cell><cell>97</cell><cell>66</cell></row><row><cell>% NA</cell><cell>97.05%</cell><cell>94.02%</cell><cell>97.87%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 6 :</head><label>6</label><figDesc>Chunking (ours) 66.81 ± 0.56 66.53 ± 0.52 Performance comparison of long document processing methods. The model is fixed with BERT BASE + PRiSM evaluating on the DWIE dataset.</figDesc><table><row><cell>Method</cell><cell>Dev F 1</cell><cell>Test F 1</cell></row><row><cell>N = 100</cell><cell></cell><cell></cell></row><row><cell>Truncation</cell><cell>36.53 ± 2.09</cell><cell>35.39 ± 0.71</cell></row><row><cell cols="3">Chunking (ours) 45.20 ± 1.60 44.31 ± 1.47</cell></row><row><cell>N = 305</cell><cell></cell><cell></cell></row><row><cell>Truncation</cell><cell>53.65 ± 0.63</cell><cell>51.30 ± 0.62</cell></row><row><cell cols="3">Chunking (ours) 58.23 ± 0.40 57.05 ± 0.23</cell></row><row><cell>N = 587</cell><cell></cell><cell></cell></row><row><cell>Truncation</cell><cell>61.34 ± 0.52</cell><cell>59.17 ± 1.86</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 7 :</head><label>7</label><figDesc>DocRED relation descriptions. Relations between organizations and the nominal variations of the countries they are based in citizen_of-xRelations between people and the nominal variations of the countries they are citizens of</figDesc><table><row><cell cols="2">Relation Name Description</cell></row><row><cell>based_in0</cell><cell>Relations between organizations and the countries</cell></row><row><cell></cell><cell>they are based in</cell></row><row><cell>in0</cell><cell>Relations between geographic locations and the</cell></row><row><cell></cell><cell>countries they are located in</cell></row><row><cell>citizen_of</cell><cell>Relations between people and the country they</cell></row><row><cell></cell><cell>are citizens of</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 8 :</head><label>8</label><figDesc>DWIE relation descriptions.Model Size. PRiSM shares parameters with the PLM used when learning relation representations. The only additional parameter weights come from a linear layer constructing pair representations and an extra embedding space initialized for relation tokens. The number of trainable parameters for each model is illustrated in Table9.</figDesc><table><row><cell cols="2">B Additional Details for PRiSM</cell></row><row><cell cols="2">B.1 Detailed Experimental Setup</cell></row><row><cell cols="2">Device. For all our experiments, we trained the</cell></row><row><cell cols="2">networks on a single NVIDIA TITAN RTX GPU</cell></row><row><cell>with 24GB of memory.</cell><cell></cell></row><row><cell>Model</cell><cell># Parameters</cell></row><row><cell>BERT BASE</cell><cell>108,310,272</cell></row><row><cell>BERT BASE -DocRE</cell><cell>114,259,297</cell></row><row><cell>BERT BASE -DocRE + PRiSM</cell><cell>115,514,209</cell></row><row><cell>RoBERTa BASE</cell><cell>124,645,632</cell></row><row><cell>RoBERTa BASE -DocRE</cell><cell>130,594,657</cell></row><row><cell cols="2">RoBERTa BASE -DocRE + PRiSM 131,849,569</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 9 :</head><label>9</label><figDesc>Comparison of model parameters. DocRE includes a bilinear layer and two linear layers for constructing head and tail representations.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://codalab.lisn.upsaclay.fr/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://www.wikidata.org/wiki/Wikidata: Main_Page</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work was supported by <rs type="institution">Institute of Information &amp; communications Technology Planning &amp; Evaluation (IITP)</rs> grant funded by the <rs type="funder">Korea government (MSIT)</rs> (No.<rs type="grantNumber">2019-0-00075</rs>, <rs type="funder">Artificial Intelligence Graduate School Program (KAIST))</rs>, the <rs type="funder">National Supercomputing Center</rs> with supercomputing resources including technical support (<rs type="grantNumber">KSC-2022-CRE-0312</rs>), and <rs type="institution">Samsung Electronics Co</rs>., Ltd. We thank the anonymous reviewers for their constructive feedback.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_rECctbH">
+					<idno type="grant-number">2019-0-00075</idno>
+				</org>
+				<org type="funding" xml:id="_KXvYWEf">
+					<idno type="grant-number">KSC-2022-CRE-0312</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Training Hyperparameters. We perform a grid search on finding the best hyperparameter configuration and report the tuning range used for our experiments in Table <ref type="table">11</ref>. The evaluation on the validation set is performed for every epoch and the tolerance increases by 1 when the validation F 1 is worse than the previous evaluation. The training stops early when the count reaches the max tolerance. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Evaluation Details</head><p>We elaborate on the details of calculating calibration errors. We utilize two metrics in our paper. <ref type="bibr">ECE (Naeini et al., 2015)</ref> divides the probability interval into a fixed number of bins, calculates the difference between the accuracy of the predictions and the mean of the probabilities (confidence) in each bin, and computes a weighted average over the bins. Formally, the equation can be written as</p><p>where n b is the number of predictions in bin b, B is a hyperparameter for the total number of bins, and T is the total number of samples. On the other hand, ACE <ref type="bibr" target="#b12">(Nixon et al., 2019)</ref> divides up the probability interval by having the same number of predictions in each bin, thereby mitigating the issue of only calibrating the most confident samples. The equation is written as</p><p>where acc(r, k) and conf(r, k) are the accuracy and confidence of adaptive calibration range r for class label k, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 Additional Calibration Results</head><p>We visualize the calibration of the rest of the data setting (i.e., 10% and 100% training data) with reliability diagrams in Figure <ref type="figure">5</ref> and 6. We notice that PRiSM is still effective with 10% of training data, but with full data, the performance gain is minimal; that is, the line barely moves toward the perfect calibration line.</p><p>We understand that calibration results on models other than the BERT BASE may be important  in demonstrating the effectiveness of PRiSM. As shown in Table <ref type="table">12</ref>, we find that RoBERTa BASE and SSAN-BERT BASE follow the same trend as BERT BASE , showing the lowest calibration error when PRiSM is appended. We also observe a similar pattern with the Re-DocRED data. We do not report results for ATLOP because the calibration errors for ATLOP must be computed differently, as it does not use probabilities (confidence) for prediction.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Matching the blanks: Distributional similarity for relation learning</title>
+		<author>
+			<persName><forename type="first">Baldini</forename><surname>Livio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Soares</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kwiatkowski</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1279</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2895" to="2905" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">The comparison and evaluation of forecasters</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Morris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><forename type="middle">E</forename><surname>Degroot</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Fienberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Royal Statistical Society: Series D (The Statistician)</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="issue">1-2</biblScope>
+			<biblScope unit="page" from="12" to="22" />
+			<date type="published" when="1983">1983</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">MapRE: An effective semantic mapping approach for low-resource relation extraction</title>
+		<author>
+			<persName><forename type="first">Manqing</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chunguang</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhipeng</forename><surname>Luo</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.212</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2694" to="2704" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Improving long tailed document-level relation extraction via easy relation augmentation and contrastive learning</title>
+		<author>
+			<persName><forename type="first">Yangkai</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengfei</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingfei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuhong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shouling</forename><surname>Ji</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.10511</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">On calibration of modern neural networks</title>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoff</forename><surname>Pleiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1321" to="1330" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Class-distributionaware calibration for long-tailed visual recognition</title>
+		<author>
+			<persName><forename type="first">Mobarakol</forename><surname>Islam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lalithkumar</forename><surname>Seenivasan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongliang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Glocker</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.05263</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Document-level n-ary relation extraction with multiscale representation learning</title>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cliff</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hoifung</forename><surname>Poon</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1370</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3693" to="3704" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">Roberta: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Decoupled weight decay regularization</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Loshchilov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Hutter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Obtaining well calibrated probabilities using bayesian binning</title>
+		<author>
+			<persName><forename type="first">Gregory</forename><surname>Mahdi Pakdaman Naeini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milos</forename><surname>Cooper</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hauskrecht</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI conference on artificial intelligence</title>
+		<meeting>the AAAI conference on artificial intelligence</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">29</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Predicting good probabilities with supervised learning</title>
+		<author>
+			<persName><forename type="first">Alexandru</forename><surname>Niculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-Mizil</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rich</forename><surname>Caruana</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd international conference on Machine learning</title>
+		<meeting>the 22nd international conference on Machine learning</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="625" to="632" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Measuring calibration in deep learning</title>
+		<author>
+			<persName><forename type="first">Jeremy</forename><surname>Nixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">W</forename><surname>Dusenberry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linchuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ghassen</forename><surname>Jerfel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dustin</forename><surname>Tran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR workshops</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023-03-23">2023. March 23</date>
+		</imprint>
+	</monogr>
+	<note>Version</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Simple bert models for relation extraction and semantic role labeling</title>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.05255</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">2022a. Document-level relation extraction with adaptive focal loss and knowledge distillation</title>
+		<author>
+			<persName><forename type="first">Qingyu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruidan</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidong</forename><surname>Bing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hwee Tou</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.132</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<imprint>
+			<publisher>Dublin, Ireland. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="1672" to="1681" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Revisiting Do-cRED -addressing the false negative problem in relation extraction</title>
+		<author>
+			<persName><forename type="first">Qingyu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidong</forename><surname>Bing</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="8472" to="8487" />
+		</imprint>
+	</monogr>
+	<note>Hwee Tou Ng, and Sharifah Mahani Aljunied. 2022b. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Fine-tune bert for docred with two-step process</title>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christfried</forename><surname>Focke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rob</forename><surname>Sylvester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nilesh</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.11898</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Eider: Empowering documentlevel relation extraction with efficient evidence extraction and inference-stage fusion</title>
+		<author>
+			<persName><forename type="first">Yiqing</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sha</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuning</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.23</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="257" to="268" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Entity structure within and throughout: Modeling mention dependencies for document-level relation extraction</title>
+		<author>
+			<persName><forename type="first">Benfeng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yajuan</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhendong</forename><surname>Mao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI conference on artificial intelligence</title>
+		<meeting>the AAAI conference on artificial intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="14149" to="14157" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Enhance prototypical network with text descriptions for few-shot relation classification</title>
+		<author>
+			<persName><forename type="first">Kaijia</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nantao</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3340531.3412153</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th ACM International Conference on Information &amp; Knowledge Management</title>
+		<meeting>the 29th ACM International Conference on Information &amp; Knowledge Management</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2273" to="2276" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">DocRED: A large-scale document-level relation extraction dataset</title>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deming</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenghao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lixin</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1074</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="764" to="777" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Coreferential Reasoning Learning for Language Representation</title>
+		<author>
+			<persName><forename type="first">Deming</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaju</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenghao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.582</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7170" to="7186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Dwie: An entity-centric dataset for multi-task document-level information extraction</title>
+		<author>
+			<persName><forename type="first">Klim</forename><surname>Zaporojets</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Deleu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Develder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Demeester</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Information Processing &amp; Management</title>
+		<imprint>
+			<biblScope unit="volume">58</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page">102563</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Document-level relation extraction as semantic segmentation</title>
+		<author>
+			<persName><forename type="first">Ningyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shumin</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuanqi</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mosha</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luo</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajun</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2021/551</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirtieth International Joint Conference on Artificial Intelligence, IJCAI-21</title>
+		<meeting>the Thirtieth International Joint Conference on Artificial Intelligence, IJCAI-21</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3999" to="4006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Better few-shot relation extraction with label prompt dropout</title>
+		<author>
+			<persName><forename type="first">Peiyuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Lu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6996" to="7006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Position-aware attention and supervised data improve slot filling</title>
+		<author>
+			<persName><forename type="first">Yuhao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabor</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1004</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="35" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Document-level relation extraction with adaptive thresholding and localized context pooling</title>
+		<author>
+			<persName><forename type="first">Wenxuan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengyu</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="14612" to="14620" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1069 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Few-Shot Adaptation for Parsing Contextual Utterances with LLMs</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Kevin</forename><surname>Lin</surname></persName>
+							<email>k-lin@berkeley.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Patrick</forename><surname>Xia</surname></persName>
+							<email>patrickxia@microsoft.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Hao</forename><surname>Fang</surname></persName>
+							<email>hao.fang@microsoft.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">†</forename><surname>Uc</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Berkeley</forename><forename type="middle">‡</forename><surname>Microsoft</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Semantic</forename><surname>Machines</surname></persName>
+						</author>
+						<title level="a" type="main">Few-Shot Adaptation for Parsing Contextual Utterances with LLMs</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">50EBCE5057275E47B6CEFA84313B1F34</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:52+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We evaluate the ability of semantic parsers based on large language models (LLMs) to handle contextual utterances. In real-world settings, there typically exists only a limited number of annotated contextual utterances due to annotation cost, resulting in an imbalance compared to non-contextual utterances. Therefore, parsers must adapt to contextual utterances with a few training examples. We examine four major paradigms for doing so in conversational semantic parsing i.e., Parse-with-Utterance-History, Parse-with-Reference-Program, Parsethen-Resolve, and Rewrite-then-Parse. To facilitate such cross-paradigm comparisons, we construct SMCalFlow-EventQueries, a subset of contextual examples from SMCalFlow with additional annotations. Experiments with in-context learning and fine-tuning suggest that Rewrite-then-Parse is the most promising paradigm when holistically considering parsing accuracy, annotation cost, and error types.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>A key challenge in conversational semantic parsing (CSP) is handling contextual utterances (i.e., utterances that can only be understood with its context) by mapping them to non-contextual programs that can be fulfilled by an executor without relying on the dialogue state. Many approaches have been proposed, e.g., directly mapping the contextual utterance with utterance history to a non-contextual program <ref type="bibr" target="#b22">(Suhr et al., 2018)</ref>, or mapping to an intermediate contextual program which is then resolved (usually in a deterministic manner) to a non-contextual program (Semantic <ref type="bibr" target="#b17">Machines et al., 2020;</ref><ref type="bibr">Cheng et al., 2020)</ref>. In these prior works, there is often an assumption of having a substantial corpus of annotated data encompassing both noncontextual utterances and contextual utterances for training a parser. However, in practice, it is more expensive to collect and annotate contextual utterances compared to non-contextual utterances, due to the dependency on the conversation history. Furthermore, annotating non-contextual utterances usually precedes annotating contextual utterances. To reflect such real-world settings, we study fewshot adaptation for parsing contextual utterances, where we first build a parser using a large number of annotated non-contextual utterances, and then adapt it for parsing contextual utterances using a few (or even zero) annotated contextual utterances.</p><p>Recent work has shown that large language models (LLMs) are capable of semantic parsing using a few examples <ref type="bibr" target="#b19">(Shin et al., 2021;</ref><ref type="bibr" target="#b20">Shin and Van Durme, 2022)</ref>. Hence, in this work, we conduct a focused study on few-shot adaptation using LLMs for CSP. Specifically, we consider four major paradigms: Parse-with-Utterance-History, Parsewith-Reference-Program, Parse-then-Resolve, and Rewrite-then-Parse. One challenge of carrying out a comparative study on these paradigms is the lack of annotated data, since existing CSP datasets such as SMCalFlow <ref type="bibr" target="#b17">(Semantic Machines et al., 2020)</ref> and CoSQL <ref type="bibr" target="#b24">(Yu et al., 2019)</ref> are often annotated based on a single paradigm. Therefore, we construct a new dataset, SMCalFlow-EQ , derived from a subset of SMCalFlow dialogues with annotations for all four paradigms.</p><p>Our experiments consider both in-context learning (ICL) using GPT-3.5 and fine-tuning (FT) using T5-base 220M <ref type="bibr" target="#b11">(Raffel et al., 2020)</ref> for building and adapting parsers. ICL typically has lower accuracy compared to FT, although the two are not strictly comparable as they use different models. The only exception is Parse-with-Reference-Program, suggesting that GPT-3.5 is effective at editing programs using natural language. Overall, we find Rewrite-then-Parse to be the most promising approach, as it achieves similar accuracy to other paradigms in both ICL and FT experiments, while requiring only a few annotated examples for to de- To generate the program for a user utterance, we first feed the LLM with the user utterance and necessary context information as a sequence of tokens. Then the S-expression of the program is generated incrementally. At each decoding step l, we only keep the partial prefix sequence y 1 y 2 . . . y l if it is allowed by G. This validation can be efficiently performed via Earley's parsing algorithm <ref type="bibr" target="#b3">(Earley, 1970)</ref> using the parsing state of the partial sequence y 1 y 2 . . . y l-1 .</p><p>In this paper, we consider both ICL and FT for constructing LLM-based parsers. For ICL, we prompt the pre-trained LLM with K ICL demonstration examples retrieved via BM25 <ref type="bibr" target="#b14">(Robertson and Walker, 1994;</ref><ref type="bibr" target="#b13">Robertson and Zaragoza, 2009)</ref>, following <ref type="bibr" target="#b16">Rubin et al. (2022)</ref> and <ref type="bibr" target="#b15">Roy et al. (2022)</ref>. For FT, we continue training the LLM on K FT demonstration examples, producing a new model to be used during constrained decoding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Few-Shot Adaptation</head><p>In this paper, we assume there are a large number (M ) of annotated non-contextual utterances, D = {(x (<ref type="foot" target="#foot_0">1</ref>) , y (1) ), . . . , (x (M ) , y (M ) )}, where x (i) denotes the i-th non-contextual utterance in the dataset, y (i) is the corresponding non-contextual program, and M is the number of annotated examples. These examples are used to derive a grammar G 1 and build the parser P 1 for non-contextual utterances via either ICL or FT.</p><p>For a contextual utterance u t at the t-th turn of a dialogue, the goal is to obtain the non-contextual program y t using the utterance history h t = [u &lt;t ], the corresponding programs y &lt;t , and/or other information recorded in the dialogue state. Figure <ref type="figure">1</ref> illustrates four canonical paradigms for parsing contextual utterances. For each of these paradigms, we would like to obtain a new parser by adapting from the base parser P 1 using N demonstration examples, where N ≪ M .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Parsing Paradigms</head><p>Parse-with-Utterance-History: In this paradigm, the parser directly predicts y t by conditioning on the contextual utterance u t and its history h t . This paradigm has been used in contextual semantic parsing <ref type="bibr" target="#b25">(Zettlemoyer and Collins, 2009;</ref><ref type="bibr" target="#b22">Suhr et al., 2018)</ref> and belief state tracking <ref type="bibr" target="#b10">(Mrkšić et al., 2017)</ref>. Parse-with-Reference-Program: This paradigm assumes that the salient additional context to parse u t is captured by a reference program, which is a non-contextual program to be revised and typically that from the preceding turn, y t-1 . The parsing process can be viewed as editing the reference program based on the contextual utterance which directly yields y t . <ref type="bibr" target="#b26">Zhang et al. (2019)</ref> employs a similar strategy by using a copy operation during parsing to copy tokens from the reference program for text-to-SQL. Parse-then-Resolve: This paradigm divides the task into two steps, leading to a modularized system with a parser followed by a resolver. u t is first mapped to an intermediate program ỹt which contains specialized contextual symbols. These contex-tual symbols (marking ellipsis or coreference) are resolved deterministically using the dialogue state determined from y &lt;t , resulting in the final noncontextual prediction y t . Several recent datasets for CSP have adopted this paradigm (Semantic <ref type="bibr" target="#b17">Machines et al., 2020;</ref><ref type="bibr">Cheng et al., 2020)</ref>. Rewrite-then-Parse: This paradigm modularizes the system using a rewriter followed by a parser. The history h t and contextual utterance u t are first rewritten into a single non-contextual utterance u ′ t Then, u ′ t is parsed to y t by a single-turn semantic parser. This paradigm is closely related to incomplete utterance rewriting <ref type="bibr" target="#b6">(Liu et al., 2020)</ref> and conversational query rewriting <ref type="bibr" target="#b12">(Rastogi et al., 2019;</ref><ref type="bibr" target="#b23">Yu et al., 2020;</ref><ref type="bibr" target="#b0">Chen et al., 2020;</ref><ref type="bibr" target="#b21">Song et al., 2020;</ref><ref type="bibr" target="#b5">Inoue et al., 2022;</ref><ref type="bibr" target="#b8">Mao et al., 2023)</ref> though the parsing step is usually unnecessary or overlooked in these related studies. Using this paradigm, the rewriter and the parser can be independently developed and maintained.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Adaptation via ICL</head><p>For ICL, we use GPT-3.5 and the following prompt template provided by <ref type="bibr" target="#b19">Shin et al. (2021)</ref> and <ref type="bibr" target="#b15">Roy et al. (2022)</ref>, where placeholders {X1}, {X2}, . . . are demonstrations input, {Y1}, {Y2}, . . . are demonstrations output, and {X ′ } is the test input. For Rewrite-then-Parse, we can re-use the same grammar G 1 and parser P 1 used for non-contextual utterances, without any annotated programs for contextual utterances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Adaptation via FT</head><p>For FT, the parser P 1 for non-contextual utterances uses an LLM M 1 fine-tuned from T5-base 220M <ref type="bibr" target="#b11">(Raffel et al., 2020)</ref>. To adapt this parser for contextual utterances, we continue fine-tuning M 1 on annotated contextual utterances, except for Rewrite-then-Parse which uses P 1 itself. Similar to ICL, different forms of token sequences are used for different paradigms, i.e., h | u | y for Parse-with-Utterance-History, r | u | y for Parsewith-Utterance-History, and u | ỹ for Parse-then-Resolve. The new grammar is constructed identically to ICL as well.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Data Annotation Effort</head><p>An important axis when comparing different parsing paradigms is the data annotation effort. For Parse-with-Utterance-History, annotating the noncontextual program for a contextual utterance can be a cognitively demanding task, as it needs to account for the full utterance history. Data annotation for Parse-with-Reference paradigm is similar to the Parse-with-Utterance-History, though it may be less cognitively intensive because the human annotator only needs to make a a few edits as opposed to performing a full parse. Compared with Parsewith-Utterance-History, annotations of intermediate programs in the Parse-then-Resolve paradigm are much less context-dependent and more concise, which potentially makes the parser more data efficient. However, this comes at a cost of placing a greater burden on the resolver, which uses custom-designed contextual symbols based on the domain; their expressiveness can greatly affect the quality of the annotations and the complexity of the resolver. Finally, collecting annotations for the the utterance rewriting task is relatively easy and domain independent compared to collecting annotations for parsers which often requires learning a domain-specific language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data</head><p>Existing CSP datasets are often annotated based on only one or two paradigms, making it difficult to compare across different paradigms comprehensively. To address this challenge, we construct a dataset SMCalFlow-EventQueries (SMCalFlow-EQ ) derived from a subset of SMCalFlow (Semantic <ref type="bibr" target="#b17">Machines et al., 2020)</ref>. It contains 31 training and 100 test instances in total. Each instance consists of a contextual user utterance u during an event-related query (e.g., "what about Tuesday?"), the corresponding contextual/intermediate program ỹ and non-contextual program y, the utterance history h, the reference program r, and the rewritten non-contextual utterance u ′ . The programs (y, ỹ, r) are semi-automatically derived from the original SMCalFlow annotations. The rewritten noncontextual utterances u ′ are manually annotated by domain experts. See Appendix B for details of the dataset construction and examples.</p><p>We additionally use 8892 training and 100 test instances of non-contextual utterances (e.g., "do I have any meetings scheduled after Thursday?"), each paired with their corresponding noncontextual programs, semi-automatically derived from SMCalFlow as well. These instances are used to construct and evaluate the base parser P 1 for non-contextual utterances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Experimental Results</head><p>For Parse-with-Reference-Program, we use the oracle reference program, which is the non-contextual program of the preceding turn.<ref type="foot" target="#foot_1">2</ref> For Parse-then-Resolve, we assume an oracle resolver is available, which in practice can be implemented as a rulebased system. The rewriter used for Rewrite-then-Parse is implemented via GPT-3.5, and details are provided in Appendix D. We also consider using the oracle rewritten utterances annotated in the contextual subset of SMCalFlow-EQ .</p><p>We evaluate the program exact match accuracy on the SMCalFlow-EQ test set for all paradigms. among other approaches, including Rewrite-then-Parse using the GPT-3.5 rewriter which does not require additional fine-tuning. For ICL, Parse-with-Reference-Program performs the best, suggesting it is easier for GPT-3.5 to softly edit a program than parsing directly from natural language. Rewritethen-Parse using oracle rewritten utterances is still better than the remaining approaches. By comparing the results of Rewrite-then-Parse, it is clear that improving the rewriter can lead to a corresponding improvement in parsing accuracy. We manually examine incorrect predictions made by parsers for contextual utterances and identify common error categories: incorrect top-level program types, alternative parses for the input, extra constraints, missing constraints, and constraints with incorrect arguments/functions (see Table <ref type="table">A5</ref> for examples).</p><p>For ICL, the most common error type is incorrect function calls. 30% of the errors made by Parsewith-Reference-Program are due to incorrect function use. In particular, the model struggles with predicting rare functions such as negations, potentially because the only knowledge of the target language is from the contextual subset of SMCalFlow-EQ .</p><p>For FT, 33% of the errors in Parse-then-Resolve are from incorrect top-level program types. Introducing new symbols increases the program space, especially different intermediate programs that have similar functions, suggesting that the design of these specialized contextual symbols is crucial. For Parse-with-Utterance-History, we find that 40% of the errors come from missing constraints, indicating that jointly learn parsing and consolidating constraints from multiple turns is challenging for the parsing model. For Rewrite-then-Parse, 55% of the errors are due to incorrect arguments, and 45% are due to differences in capitalization (e.g., the  rewriter converts a lowercase name to uppercase) which is arguably less critical. We also examine the overall parsing accuracy on the joint test set of contextual and non-contextual utterances. We use a binary classifier which takes the user utterance as input and determines whether to use the parser for non-contextual utterances or the parser for contextual utterances. The classifier is obtained by fine-tuning the RoBERTa-base <ref type="bibr" target="#b7">(Liu et al., 2019)</ref> to on SMCalFlow-EQ utterances. The overall classification accuracy is 95.5%. The results are summarized in Table <ref type="table" target="#tab_2">2</ref>. We use exact match accuracy as the evaluation metric, where the prediction is treated as correct only when classification and parsing are both correct.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We study a real-world CSP setting, i.e., few-shot adaptation for parsing contextual utterances with LLMs, and compare four different paradigms using both ICL and FT. To facilitate the study, we construct a new dataset, SMCalFlow-EQ with annotations for all paradigms. Experiments show that ICL with GPT-3.5 usually underperforms FT with T5-base except for Parse-with-Reference-Program, suggesting GPT-3.5 is good at editing programs via natural language in these data conditions. Overall, Rewrite-then-Parse stands out as a promising approach for future development of LLM-based CSP, as it performs as well as other paradigms but require only a few annotated exampels for the rewriter and no additional program annotation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Limitations</head><p>Due to the cost of collecting program annotations for all paradigms, the size of the SMCalFlow-EQ test set is relatively small and we only study dialogues from SMCalFlow. While the experiments results are informative under significance test, it would be useful for future work to conduct a similar study on larger and diverse datasets.</p><p>The LLMs used in this work are pre-trained primarily on English, and the SMCalFlow-EQ also only contains English utterances. It would be interesting to study the few-shot adaptation problem on other languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A CFG for Constrained Decoding</head><p>The CFG used for constrained decoding can be automatically derived from function definitions and types used in the domain. For example, given a function FN(arg 1 , • • • , arg N ) with corresponding argument types τ 1 , • • • , τ N and output type τ O , we can automatically derive a CFG rule NT</p><formula xml:id="formula_0">τ O → ( FN ( NT τ 1 • • • NT τ N ) )</formula><p>where NT τ i denotes the non-terminal symbol for the type τ i , and the function name FN and the parentheses are terminal symbols in G. For each primitive type (e.g., "string", "number"), we additionally define CFG rules to expand the non-terminal of the primitive type to terminals representing acceptable values of the type (sometimes using regular expressions).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Dataset Construction and Examples</head><p>The original SMCalFlow data only provide annotations of contextual programs for individual utterances.</p><p>We develop a heuristicbased implementation of NewClobber and ReviseConstraint to propose candidates of the corresponding non-contextual programs. Specifically, given the non-contextual program i.e., conjoining the two constraints regardless whether they conflicts with each other. For both cases, when there are multiple possible replacements, all resulting candidates are pro-posed. These candidates are manually reviewed and edited by the authors to finalize noncontextual program annotations. For example, if newConstraint contradicts with a part of oldConstraint, we drop the such conflicting parts in the oldConstraint.</p><p>Furthermore, as noted by <ref type="bibr" target="#b9">Meron (2022)</ref>, the original annotations of SMCalFlow can be complex and contain many boilerplate segments. Therefore, we use heuristics to simplify the original annotations to obtain programs that are shorter and potentially easier to read and predict. Similar to <ref type="bibr" target="#b9">Meron (2022)</ref>, the simplification was implemented via a set of tree transformation rules, which convert specific sub-trees of the original program into simplified sub-trees. The list of sub-tree transformations are provided in Table <ref type="table" target="#tab_2">A2</ref>-Table <ref type="table">A4</ref>.</p><p>Two data specialists are asked to produce the annotations for the rewritten non-contextual utterances in the contextual subset. They are provided with instructions and training materials, which explains how to rewrite a contextual user utterance with its preceding utterance into a single noncontextual utterance. Each example takes 10 to 30 seconds to annotate. Additionally, annotators were asked to provide a confidence from 0 (least confident) to 3 (most confident) in the rewritten utterance. The average confidence was 2.9. Then they are asked to review the each other's annotations and answer whether they agree with each other. In our pilot data collection, the agreement rate between the two data specialists was 93.3%.</p><p>Table <ref type="table" target="#tab_5">A1</ref> provides some examples from in SMCalFlow-EQ .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Fine-tuning Experiment Hyperparameters</head><p>For fine-tuning, we employ the Adafactor optimizer <ref type="bibr" target="#b18">(Shazeer and Stern, 2018)</ref> and set the batch size to 32. The slanted triangular learning rate scheduler <ref type="bibr" target="#b4">(Howard and Ruder, 2018)</ref> is used with a maximum learning rate of 10 -5 and 1000 warmup steps. We fine-tune M 0 for 10000 steps on the non-contextual subset to obtain M 1 , and another 10000 steps on the corresponding data to obtain the models for individual paradigms. For constrained decoding, the maximum output sequence length is 1000.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Rewriter Implementation</head><p>The rewriter used for Rewrite-then-Parse is implemented via . The prompt template is shown below, where placeholders {H1}, {H2}, . . . are for the utterance history (i.e., the preceding utterances), {X1}, {X2}, . . . are for contextual user utterances, {Z1}, {Z2}, . . . are for rewritten non-contextual utterances, and {H'} and {X'} are for test input.</p><p>Combine the utterances into a single utterance with the meaning of the last utterance. We sample 8 demonstration examples are sampled uniformly from the contextual subset training instances. Greedy decoding is used with 50 maximum tokens and no frequency or presence penalty. The BLEU score using the oracle rewritten utterances as reference is 93.6.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Let's translate what a human user says into what a computer might say.For Parse-with-Utterance-History, Parse-with-Reference-Program, and Parse-then-Resolve, the input placeholders are respectively instantiated as h | u, r | u, and u, where the character | is used as the separator. The output placeholders are all instantiated by non-contextual programs y, except for Parse-then-Resolve which uses ỹ instead. The test input placeholder follows the same form as demonstration input placeholders. New CFG rules are derived from the program annotations of contextual utterances, i.e., ỹ and y, yielding two new grammars G α and G β , respectively. During constrained decoding, the joint grammar G 1 ∪ G α is used for Parse-then-Resolve, whereas G 1 ∪ G β is used for the other three paradigms. In other words, the adaptation only changes the set of demonstration examples used during prompt instantiation and augments the CFG used during constrained decoding.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1</head><label>1</label><figDesc></figDesc><table><row><cell>presents the experimental results. Across</cell></row><row><cell>all paradigms, FT achieves higher exact match than</cell></row><row><cell>ICL by 7.9% to 29.4% absolute gain. For FT,</cell></row><row><cell>Rewrite-then-Parse with oracle rewritten utterances</cell></row><row><cell>performs the best. There is no significant difference</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Exact match accuracy on SMCalFlow-EQ test set combined with non-contextual utterances. For both ICL and FT, we test each paradigm against the corresponding Parse-with-Utterance-History predictions using McNemar's test and show statistically significant (p &lt; 0.05) results indicated with ⋆ .</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table A1 :</head><label>A1</label><figDesc>Dataset examples.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/microsoft/few_ shot_adaptation_for_parsing_contextual_ utterances_with_llms</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>It is possible that the reference program is from an earlier turn or does not appear in the history, though the contextual subset does not contain such examples.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We would like to thank <rs type="person">Benjamin Van Durme</rs>, <rs type="person">Matt Gardner</rs>, <rs type="person">Adam Pauls</rs>, and <rs type="person">Jason Wolfe</rs> for valuable discussions on this paper.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original Simplified</head><p>Table <ref type="table">A2</ref>: List of sub-tree transformations for simplifying SMCalFlow programs (part 1).</p><p>Original Simplified</p><p>Table <ref type="table">A3</ref>: List of sub-tree transformations for simplifying SMCalFlow programs (part 2).</p><p>Original Simplified</p><p>Table <ref type="table">A4</ref>: List of sub-tree transformations for simplifying SMCalFlow programs (part 3).  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Pretraining for query rewriting in a spoken language understanding system</title>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Ling</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICASSP40776.2020.9053531</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<meeting>2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7969" to="7973" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Jianpeng</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devang</forename><surname>Agrawal</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Conversational semantic parsing for dialog state tracking</title>
+		<author>
+			<persName><forename type="first">Martínez</forename><surname>Alonso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Bhargava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joris</forename><surname>Driesen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Flego</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dain</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitri</forename><surname>Kartsaklis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dhivya</forename><surname>Piraviperumal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><forename type="middle">D</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diarmuid</forename><forename type="middle">Ó</forename><surname>Séaghdha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Johannsen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.651</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8107" to="8117" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">An efficient context-free parsing algorithm</title>
+		<author>
+			<persName><forename type="first">Jay</forename><surname>Earley</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/362007.362035</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Communications of the ACM</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="94" to="102" />
+			<date type="published" when="1970">1970</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Universal language model fine-tuning for text classification</title>
+		<author>
+			<persName><forename type="first">Jeremy</forename><surname>Howard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1031</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="328" to="339" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Enhance incomplete utterance restoration by joint learning token extraction and text generation</title>
+		<author>
+			<persName><forename type="first">Shumpei</forename><surname>Inoue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tsungwei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Son</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh-Tien</forename><surname>Nguyen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.229</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="3149" to="3158" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Incomplete utterance rewriting as semantic segmentation</title>
+		<author>
+			<persName><forename type="first">Qian</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian-Guang</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bin</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongmei</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.227</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2846" to="2857" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">RoBERTa: A robustly optimized BERT pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Large language models know your contextual search intent: A prompting framework for conversational search</title>
+		<author>
+			<persName><forename type="first">Kelong</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhicheng</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haonan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fengran</forename><surname>Mo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongjin</forename><surname>Qian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.06573</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Simplifying semantic annotations of SMCalFlow</title>
+		<author>
+			<persName><forename type="first">Joram</forename><surname>Meron</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th Joint ACL -ISO Workshop on Interoperable Semantic Annotation within LREC2022</title>
+		<meeting>the 18th Joint ACL -ISO Workshop on Interoperable Semantic Annotation within LREC2022<address><addrLine>Marseille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="81" to="85" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Neural belief tracker: Data-driven dialogue state tracking</title>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Mrkšić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ó</forename><surname>Diarmuid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tsung-Hsien</forename><surname>Séaghdha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blaise</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steve</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Young</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1163</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1777" to="1788" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="5485" to="5551" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Scaling multi-domain dialogue state tracking via query reformulation</title>
+		<author>
+			<persName><forename type="first">Pushpendre</forename><surname>Rastogi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arpit</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongfei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mathias</forename><surname>Lambert</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-2013</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="97" to="105" />
+		</imprint>
+	</monogr>
+	<note>Industry Papers. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">The probabilistic relevance framework: BM25 and beyond</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Zaragoza</surname></persName>
+		</author>
+		<idno type="DOI">10.1561/1500000019</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Foundations and Trends in Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="333" to="389" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Some simple effective approximations to the 2-Poisson model for probabilistic weighted retrieval</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><forename type="middle">E</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Walker</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/188490.188561</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th Annual International ACM SI-GIR Conference on Research and Development in Information Retrieval</title>
+		<meeting>the 17th Annual International ACM SI-GIR Conference on Research and Development in Information Retrieval<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1994">1994</date>
+			<biblScope unit="page" from="232" to="241" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Subhro</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongfei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Pauls</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2206.10668</idno>
+		<title level="m">BenchCLAMP: A benchmark for evaluating language models on semantic parsing</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Learning to retrieve prompts for in-context learning</title>
+		<author>
+			<persName><forename type="first">Ohad</forename><surname>Rubin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Herzig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.191</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2655" to="2671" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">Semantic</forename><surname>Machines</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Bufe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Burkett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josh</forename><surname>Clausman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Crawford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kate</forename><surname>Crim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Deloach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leah</forename><surname>Dorner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristin</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kellie</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diana</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wendy</forename><surname>Iwaszuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Smriti</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Theo</forename><surname>Lanman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">H</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Lintsbakh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Mcgovern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandr</forename><surname>Nisnevich ; Subhro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beth</forename><surname>Rusak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Div</forename><surname>Short</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Slomin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephon</forename><surname>Snyder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Striplin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Tellman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izabela</forename><surname>Vorobev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Witoszko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abby</forename><surname>Wolfe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Wray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zotov</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00333</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="556" to="571" />
+			<date type="published" when="2020">2020</date>
+			<pubPlace>Adam Pauls, Dmitrij Petters, Brent Read, Dan Roth,</pubPlace>
+		</imprint>
+	</monogr>
+	<note>oriented dialogue as dataflow synthesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Adafactor: Adaptive learning rates with sublinear memory cost</title>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4596" to="4604" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Constrained language models yield few-shot semantic parsers</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhro</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emmanouil</forename><surname>Antonios Platanios</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Pauls</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.608</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7699" to="7715" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Fewshot semantic parsing with language models trained on code</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.396</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5417" to="5425" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A two-stage conversational query rewriting model with multi-task learning</title>
+		<author>
+			<persName><forename type="first">Shuangyong</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianqian</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinxing</forename><surname>Zu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiqing</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3366424.3382671</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Companion Proceedings of the Web Conference 2020, WWW &apos;20</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6" to="7" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Learning to map context-dependent sentences to executable formal queries</title>
+		<author>
+			<persName><forename type="first">Alane</forename><surname>Suhr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1203</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2238" to="2249" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Fewshot generative conversational query rewriting</title>
+		<author>
+			<persName><forename type="first">Shi</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahua</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingqin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Bennett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3397271.3401323</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR &apos;20</title>
+		<meeting>the 43rd International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR &apos;20<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1933" to="1936" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">CoSQL: A conversational text-to-SQL challenge towards crossdomain natural language interfaces to databases</title>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heyang</forename><surname>Er</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suyi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victoria</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianze</forename><surname>Chern Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youxuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michihiro</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungrok</forename><surname>Yasunaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Shim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zifan</forename><surname>Fabbri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luyao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuwen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shreya</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Dixit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Walter</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dragomir</forename><surname>Lasecki</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Radev</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1204</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1962" to="1979" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Learning context-dependent mappings from sentences to logical form</title>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP<address><addrLine>Suntec, Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="976" to="984" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Editingbased SQL query generation for cross-domain context-dependent questions</title>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heyang</forename><surname>Er</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungrok</forename><surname>Shim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Victoria Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianze</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dragomir</forename><surname>Radev</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1537</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5338" to="5349" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

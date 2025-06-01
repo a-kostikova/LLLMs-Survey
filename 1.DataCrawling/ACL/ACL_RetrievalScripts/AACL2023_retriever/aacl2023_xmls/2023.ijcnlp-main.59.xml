@@ -1,0 +1,507 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Model-based Subsampling for Knowledge Graph Completion</title>
+				<funder ref="#_YRbwYJA #_wWehjn6">
+					<orgName type="full">JSPS KAKENHI</orgName>
+				</funder>
+				<funder ref="#_syVPTbv">
+					<orgName type="full">NAIST Touch Stone</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Xincan</forename><surname>Feng</surname></persName>
+							<email>feng.xincan.fy2@is.naist.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Nara Institute of Science and Technology ‡ Hokkaido University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Hidetaka</forename><surname>Kamigaito</surname></persName>
+							<email>kamigaito.h@is.naist.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Nara Institute of Science and Technology ‡ Hokkaido University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Katsuhiko</forename><surname>Hayashi</surname></persName>
+							<email>katsuhiko-h@ist.hokudai.ac.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Nara Institute of Science and Technology ‡ Hokkaido University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Nara Institute of Science and Technology ‡ Hokkaido University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Model-based Subsampling for Knowledge Graph Completion</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">04DAAF3F155ABC19C1ADFE922CCC0373</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:53+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Subsampling is effective in Knowledge Graph Embedding (KGE) for reducing overfitting caused by the sparsity in Knowledge Graph (KG) datasets. However, current subsampling approaches consider only frequencies of queries that consist of entities and their relations. Thus, the existing subsampling potentially underestimates the appearance probabilities of infrequent queries even if the frequencies of their entities or relations are high.</p><p>To address this problem, we propose Modelbased Subsampling (MBS) and Mixed Subsampling (MIX) to estimate their appearance probabilities through predictions of KGE models. Evaluation results on datasets FB15k-237, WN18RR, and YAGO3-10 showed that our proposed subsampling methods actually improved the KG completion performances for popular KGE models, RotatE, TransE, HAKE, Com-plEx, and DistMult.   </p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>A Knowledge Graph (KG) is a graph that contains entities and their relations as links. KGs are important resources for various NLP tasks, such as dialogue <ref type="bibr" target="#b9">(Moon et al., 2019)</ref>, question-answering <ref type="bibr" target="#b7">(Lukovnikov et al., 2017)</ref>, and natural language generation <ref type="bibr" target="#b2">(Guan et al., 2019)</ref>, etc. However, covering all relations of entities in a KG by humans takes a lot of costs. Knowledge Graph Completion (KGC) tries to solve this problem by automatically completing lacking relations based on the observed ones. Letting e i and e k be entities, and r j be their relation, KGC models predict the existence of a link (e i , r j , e k ) by filling the ? in the possible links (e i , r j , ?) and (?, r j , e k ), where (e i , r j ) and (r j , e k ) are called queries, and the ? are the corresponding answers.</p><p>Currently, Knowledge Graph Embedding (KGE) is a dominant approach for KGC. KGE models represent entities and their relations as continuous vectors. Since the number of these vectors proportionally increases to the number of links in a KG, KGE commonly relies on Negative Sampling (NS) to reduce the computational cost in training. In NS, a KGE model learns a KG by discriminating between true links and false links created by sampling links in the KG. While NS can reduce the computational cost, it has the problem that the sampled links also reflect the bias of the original KG.</p><p>As a solution, <ref type="bibr" target="#b11">Sun et al. (2019)</ref> introduce subsampling <ref type="bibr" target="#b8">(Mikolov et al., 2013)</ref> into NS for KGE. In this usage, subsampling is a method of mitigating bias in a KG by discounting the appearance frequencies of links with high-frequent queries and reserving the appearance frequencies for links with low-frequent queries. Figure <ref type="figure" target="#fig_0">1</ref> shows the effectiveness of using subsampling. From this figure, we can understand that KGE models cannot perform well without subsampling on commonly used datasets such as FB15k-237 (Toutanova and 1 See Appendix A for the details.  Chen, 2015), WN18RR <ref type="bibr" target="#b1">(Dettmers et al., 2018), and</ref><ref type="bibr">YAGO3-10 (Dettmers et al., 2018)</ref>. Furthermore, the improved MRR on FB15k-237, which has more sparse relations than the other datasets, indicates that subsampling actually works on the sparse dataset. However, the current subsampling approaches in KGE <ref type="bibr" target="#b11">(Sun et al., 2019;</ref><ref type="bibr">Kamigaito and Hayashi, 2022a)</ref> only consider the frequencies of queries. Thus, these approaches potentially underestimate the appearance probabilities of infrequent queries when the frequencies of their entities or relations are high. Figure <ref type="figure" target="#fig_2">2</ref> shows the frequencies of entities and relations included in each query that appeared only once in training data. From the statistics, we can find that the current count-based subsampling (CBS) does not effectively use frequencies of entities and relations in infrequent queries, although these have sufficient frequencies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>YAGO3-10</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Entity Relation</head><p>To deal with this problem, we propose Modelbased Subsampling (MBS) that can handle such infrequent queries by estimating their appearance probabilities through predictions from KGE models in subsampling. Since the observed frequency 2 Due to the space limitation, it is difficult to plot all the values in this graph. Thus, we filter the entities and relations for every certain amount after they are sorted by frequency in descending order. The filtering amounts for FB15k-237, WN18RR, and YAGO3-10 are 2,000, 1,778, and 4,444, respectively. By this filtering, the number of plotted entities and relations for FB15k-237, WN18RR, and YAGO3-10 are reduced to <ref type="bibr">45, 44, and 45, respectively.</ref> in training data does not restrict the estimated frequencies of MBS different from CBS, we can expect the improvement of KGC performance using MBS. In addition, we also propose Mixed Subsampling (MIX), which uses the frequencies of both CBS and MBS to boost their advantage by reducing their disadvantages.</p><p>In our evaluation on FB15k-237, WN18RR, and YAGO3-10 datasets, we adopted our MBS and MIX to the popularly used KGE models Ro-tatE <ref type="bibr" target="#b11">(Sun et al., 2019)</ref>, TransE <ref type="bibr" target="#b0">(Bordes et al., 2013)</ref>, HAKE <ref type="bibr" target="#b15">(Zhang et al., 2019)</ref>, ComplEx <ref type="bibr" target="#b13">(Trouillon et al., 2016)</ref>, and DistMult <ref type="bibr" target="#b14">(Yang et al., 2015)</ref>. The evaluation results showed that MBS and MIX improved MRR, H@1, H@3, and H@10 from Countbased Subsampling (CBS) in each setting<ref type="foot" target="#foot_0">3</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Subsampling in KGE</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem Definitions and Notations</head><p>We denote a link of a KG in the triplet format (h, r, t). h is the head entity, t is the tail entity, and r is the relation of the head and tail entity. In a classic KG completion task, we input the query (h, r, ?) or (?, r, t), and output the predicted head or tail entity corresponding to ? as the answer. More formally, let us denote the input query as x and its answer as y, hereafter. A score function s θ (x, y) predicts p θ (y|x), a probability for a given query x linked to an answer y based on a model θ. In general, we train θ by predicting p θ (y|x) on |D| number of links, where</p><formula xml:id="formula_0">D = {(x 1 , y 1 ), • • • , (x |D| , y |D| )} is a set of ob- servables that follow p d (x, y).</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Negative Sampling in KGE</head><p>Since calculating all possible y for given x is computationally inefficient, NS loss is commonly used for training KGE models. The NS loss in KGE, ℓ kge (θ) is represented as follows:</p><formula xml:id="formula_1">ℓ kge (θ) = - 1 |D| (x,y)∈D log(σ(s θ (x, y) + γ)) + 1 ν ν y i ∼pn(y i |x) log(σ(-s θ (x, y i ) -γ)) , (<label>1</label></formula><formula xml:id="formula_2">)</formula><p>where σ is a sigmoid function, p n (y i |x) is a noise distribution describing negative samples, ν is a number of negative samples per positive sample (x, y), γ is a margin term to adjust the value range of the score function. p n (y i |x) has a role of adjusting the frequency of y i <ref type="bibr" target="#b3">(Kamigaito and Hayashi, 2021)</ref>.</p><formula xml:id="formula_3">Method A cbs B cbs Base 1 √ #(x,y) |D| (x ′ ,y ′ )∈D 1 √ #(x ′ ,y ′ ) 1 √ #(x,y) |D| (x ′ ,y ′ )∈D 1 √ #(x ′ ,y ′ ) Freq 1 √ #(x,y) |D| (x ′ ,y ′ )∈D 1 √ #(x ′ ,y ′ ) 1 √ #x |D| x ′ ∈D 1 √ #x ′ Uniq 1 √ #x |D| x ′ ∈D 1 √ #x ′ 1 √ #x |D| x ′ ∈D 1 √ #x ′</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Negative Sampling with Subsampling</head><p>Subsampling <ref type="bibr" target="#b8">(Mikolov et al., 2013)</ref> is a method to reduce the bias of training data by discounting high-frequent instances. <ref type="bibr">Kamigaito and Hayashi (2022a)</ref> show a general formulation to cover currently proposed subsampling approaches in the NS loss for KGE by altering two terms A cbs and B cbs . In that form, the NS loss in KGE with subsampling, ℓ cbs (θ) is represented as follows:</p><formula xml:id="formula_4">ℓ cbs (θ) = - 1 |D| (x,y)∈D A cbs log(σ(s θ (x, y) + γ)) + 1 ν ν y i ∼pn(y i |x) B cbs log(σ(-s θ (x, y i ) -γ)) ,<label>(2)</label></formula><p>where A cbs adjusts the frequency of a true link (x, y), and B cbs adjusts the query x to adjust the frequency of a false link (x, y i ).</p><p>Table <ref type="table" target="#tab_0">1</ref> lists the currently proposed subsampling approaches which are the original subsampling for word2vec <ref type="bibr" target="#b8">(Mikolov et al., 2013)</ref> in KGE of <ref type="bibr" target="#b11">Sun et al. (2019)</ref> (Base), frequency-based subsampling of Kamigaito and Hayashi (2022a) (Freq), and unique-based subsampling of Kamigaito and Hayashi (2022a) (Uniq) <ref type="bibr">(Kamigaito and Hayashi, 2022b)</ref>. Here, # denotes frequency, #(x, y) represents the frequency of (x, y).</p><p>Since frequency for each link (x, y) is at most one in KG, the previous approaches use the follow-ing back-off approximation <ref type="bibr" target="#b6">(Katz, 1987)</ref>:</p><formula xml:id="formula_5">#(x, y) ≈ #(h i , r j )+ #(r j , t k ) 2 ,<label>(3)</label></formula><p>where (x, y) corresponds to the link (h i , r j , t k ), and (h i , r j ) and (r j , t k ) are the queries. Due to their heavily relying on counted frequency information of queries, we call the above conventional subsampling method Count-based Subsamping (CBS), hereafter.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Proposed Methods</head><p>As shown in Equation ( <ref type="formula" target="#formula_5">3</ref>), CBS approximates the frequency of a link #(x, y) by combining the counted frequencies of entity-relation pairs. Thus, CBS cannot estimate #(x, y) well when at least one pair's frequency is low in the approximation. This kind of situation is caused by the sparseness problem in the KG datasets. To deal with this sparseness problem, we propose Model-based Subsampling method (MBS) and Mixed Subsampling method (MIX) as described in the following subsections.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model-based Subsampling (MBS)</head><p>To avoid the problem caused by low-frequent entityrelation pairs, our MBS uses the estimated probabilities from a trained model θ ′ to calculate frequencies for each triplet and query. By using θ ′ , the NS loss in KGE with MBS is represented as follows:</p><formula xml:id="formula_6">ℓ mbs (θ; θ ′ ) = - 1 |D| (x,y)∈D A mbs (θ ′ ) log(σ(s θ (x, y) + γ)) + 1 ν ν y i ∼pn(y i |x) B mbs (θ ′ ) log(σ(-s θ (x, y i ) -γ)) ,<label>(4)</label></formula><p>Here, corresponding to each method in Table <ref type="table" target="#tab_4">4</ref>, A mbs (θ ′ ) and B mbs (θ ′ ) are further represented as follows:</p><formula xml:id="formula_7">A mbs (θ ′ ) =                    #(x, y) -α mbs |D| (x ′ ,y ′ )∈D #(x ′ , y ′ ) -α mbs (Base) #(x, y) -α mbs |D| (x ′ ,y ′ )∈D #(x ′ , y ′ ) -α mbs (Freq) #x -α mbs |D| x ′ mbs ∈D #x ′ -α mbs (Uniq) (5) B mbs (θ ′ ) =                    #(x, y) -α mbs |D| (x ′ ,y ′ )∈D #(x ′ , y ′ ) -α mbs (Base) #x -α mbs |D| x ′ mbs ∈D #x ′ -α mbs (Freq) #x -α mbs |D| x ′ mbs ∈D #x ′ -α mbs (Uniq) (6)</formula><p>where α is a temperature term to adjust the distribution on A mbs (θ ′ ) and B mbs (θ ′ ). The frequencies #(x, y) mbs and #x mbs , estimated by using score θ ′ (x, y) are calculated as follows:</p><formula xml:id="formula_8">#(x, y) mbs = |D|p θ ′ (x, y), (7) #x mbs = |D| y i ∈D p θ ′ (x, y i ),<label>(8)</label></formula><formula xml:id="formula_9">p θ ′ (x, y) = e score θ ′ (x,y) (x ′ ,y ′ )∈D e score θ ′ (x ′ ,y ′ ) . (9)</formula><p>Hereafter, we refer to a model pre-trained for MBS as a sub-model. Different from the counted frequencies in Eq. ( <ref type="formula" target="#formula_5">3</ref>), score θ ′ (x, y) in Eq. ( <ref type="formula">9</ref>) estimates them by sub-model inference regardless of their actual frequencies. Hence, we can expect MBS to deal with the sparseness problem in CBS. However, the ability of MBS depends on the sub-model, and we investigated the performance through our evaluations ( §4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Mixed Subsampling (MIX)</head><p>As discussed in language modeling context (Neubig and Dyer, 2016), count-based and model-based frequencies have different strengths and weaknesses. To boost the advantages of CBS and MBS by mitigating their disadvantages, MIX uses a mixture of the distribution as follows:</p><formula xml:id="formula_10">ℓ mix (θ; θ ′ ) = - 1 |D| (x,y)∈D A mix (θ ′ ) log(σ(s θ (x, y) + γ)) + 1 ν ν y i ∼pn(y i |x) B mix (θ ′ ) log(σ(-s θ (x, y i ) -γ)) ,<label>(10)</label></formula><p>where A mix (θ ′ ) is a mixture of A cbs in Eq. ( <ref type="formula" target="#formula_4">2</ref>) and A mbs (θ ′ ) in Eq. ( <ref type="formula" target="#formula_6">4</ref>), and B mix (θ ′ ) is also a mixture of B cbs in Eq. ( <ref type="formula" target="#formula_4">2</ref>) and B mbs (θ ′ ) Eq. ( <ref type="formula" target="#formula_6">4</ref>) as follows: where λ is a hyper-parameter to adjust the ratio of MBS and CBS. Note that MIX can be interpreted as a kind of multi-task learning<ref type="foot" target="#foot_1">4</ref> .</p><formula xml:id="formula_11">A mix (θ ′ ) = λA mbs (θ ′ ) + (1 -λ)A cbs (11) B mix (θ ′ ) = λB mbs (θ ′ ) + (1 -λ)B cbs (12)</formula><p>4 Evaluation and Analysis</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Settings</head><p>Datasets We used the three commonly used datasets, FB15k-237, WN18RR, and YAGO3-10, for the evaluation. Metrics We evaluated these methods using the most conventional metrics in KGC, i.e., Mean Reciprocal Rank (MRR), Hits@1 (H@1), Hits@3 (H@3), and Hits@10 (H@10). We reported the average scores in three different runs by changing their seeds<ref type="foot" target="#foot_2">5</ref> for each metric. We also reported the standard deviations of the scores by the three runs. reported by <ref type="bibr" target="#b11">Sun et al. (2019)</ref>. For HAKE, we inherited the setting of <ref type="bibr" target="#b15">Zhang et al. (2019)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Implementations and Hyper-parameters</head><p>In our experiments, the performance of subsampling is influenced by the selection of the following hyper-parameters: (1) temperature α;</p><p>(2) λ, the ratio of MBS against CBS. For our proposed MBS subsampling, we chose α from {2.0, 1.0, 0.5, 0.1, 0.05, 0.01} based on validation MRR. For our proposed MIX subsampling, we inherited the best α in MBS. Then, we chose the mix ratio λ from {0.1, 0.3, 0.5, 0.7, 0.9} based on validation MRR.</p><p>In FB15k-237 and WN18RR, we chose the submodel from RotatE, TransE, HAKE, ComplEx, and DistMult with the setting of Base and None based on the validation MRR. In YAGO3-10, we also chose the sub-model from RotatE and HAKE, similar to FB15k-237 and WN18RR.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>Results Table <ref type="table" target="#tab_3">3</ref>, 4, and 5 show the KGC performances on FB15k-237, WN18RR and YAGO3-10, respectively. Note that the results of Wilcoxon signed-rank test for performance differences between MBS/MIX and CBS show statistical significance with p-values less than 0.01 in all cases when MBS/MIX outperforms CBS.</p><p>As we can see, the models trained with MIX or MBS achieved the best results in all models on FB15k-237 and WN18RR. However, in YAGO3-10, HAKE with Freq in CBS outperformed the results of MBS and MIX. Considering that the preprocess of YAGO3-10 filtered out entities with less than 10 relations in the dataset, we can conclude that MBS and MIX are effective on the sparse KGs like that of FB15k-237 and WN18RR. These results are along with our expectation that MBS and MIX can improve the completion performances in sparse KGs as introduced in §1.</p><p>In individual comparison for each metric, CBS sometimes outperformed MIX or MBS. This is because the estimated frequencies in MIX and MBS rely on selected sub-models. From these results, we can understand that MIX and MBS have the potential to improve the KG completion performances by carefully choosing their sub-model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Analysis</head><p>We analyze the remaining question, i.e., which sub-model to choose for MBS. Table <ref type="table" target="#tab_3">3</ref>, 4, and 5 show the selected sub-models for each MBS (See §4.1 in details), where ComplEx dominates over other models in FB15k-237 and WN18RR. To know the reason, we depict MBS frequencies of queries that have the bottom 100 CBS frequencies in Figure <ref type="figure">3</ref>. In FB15k-237, we can see several spikes of frequencies in TransE, RotatE, and NS loss to KGE to reduce training time. <ref type="bibr" target="#b11">Sun et al. (2019)</ref> extend the NS loss for KGE by introducing a margin term, normalization of negative samples, and newly proposed their noise distribution. <ref type="bibr" target="#b3">Kamigaito and Hayashi (2021)</ref> claim the importance of dealing with the sparseness problem of KGs through their theoretical analysis of the NS loss in KGE. Furthermore, <ref type="bibr">Kamigaito and Hayashi (2022a)</ref> reveal that subsampling <ref type="bibr" target="#b8">(Mikolov et al., 2013)</ref> can alleviate the sparseness problem in the NS for KGE.</p><p>Similar to these works, our work aims to investigate and extend the NS loss used in KGE to improve KG performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we propose new subsampling approaches, MBS and MIX, that can deal with the problem of low-frequent entity-relation pairs in CBS by estimating their frequencies using the submodel prediction. Evaluation results on FB15k-237 and WN18RR showed the improvement of KGC performances by MBS and MIX. Furthermore, our analysis also revealed that selecting an appropriate sub-model for the target dataset is important for improving KGC performances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Utilizing our model-based subsampling requires pre-training for choosing a suitable sub-model, and thus may require more than twice the computational budget. However, since we can use a small model as a sub-model, like the use of ComplEx as a sub-model for HAKE, there is a possibility that the actual computational cost becomes less than the doubled one.</p><p>For calculating CBS frequencies, we only use the one with the arithmetic mean since we inherited the conventional subsampling methods as our baseline. Thus, we can consider various replacements not covered by this paper for the operation. However, even if we carefully choose the operation, CBS is essentially difficult to induce the appropriate appearance probabilities of low-frequent queries compared with our MBS, which can use vector-space embedding.</p><p>Our experiments are carried out only on FB15k-237, WN18RR, and YAGO3-10 datasets. Thus, whether our method works for larger and noisier data is to be verified. Furthermore, although our method is generalizable to deep learning models, our current work is conducted purely on KGE models, and whether it works for general deep learning models as well is to be verified.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The averaged KGC performance (MRR) of KGE models 1 with and without subsampling on FB15k-237, WN18RR, and YAGO3-10.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Frequencies of entities and relations included in each query that appeared only once in training data of FB15k-237, WN18RR, and YAGO3-10 2 .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Currently proposed count-based subsampling methods in KGE and their corresponding terms on A cbs and B cbs .</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Datasets statistics. #: Split in terms of number of triples; Ent: Entities; Rel: Relations; Exa: Examples.</figDesc><table><row><cell>Dataset</cell><cell cols="2">#Train #Valid</cell><cell>#Test</cell><cell cols="2">Ent Rel</cell></row><row><cell>FB15K-237</cell><cell cols="3">272,115 17,535 20,466</cell><cell cols="2">14,541 237</cell></row><row><cell>WN18RR</cell><cell>86,835</cell><cell>3,034</cell><cell>3,134</cell><cell>40,943</cell><cell>11</cell></row><row><cell cols="2">YAGO3-10 1,079,040</cell><cell>5,000</cell><cell cols="2">5,000 123,188</cell><cell>37</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Table2shows the statistics for each dataset. Unlike FB15k-237 and WN18RR, the dataset of YAGO3-10 only includes entities that have at least 10 relations and alleviates the sparseness problem of KGs. Thus, we can investigate the effectiveness of MBS and MIX in the sparseness problem by comparing performances on these datasets.</figDesc><table><row><cell>Methods We compared five popular KGE mod-</cell></row><row><cell>els RotatE, TransE, HAKE, ComplEx, and Dist-</cell></row><row><cell>Mult with utilizing subsampling methods Base,</cell></row><row><cell>Freq, and Uniq based on the loss of CBS ( §2.3)</cell></row><row><cell>and our MBS ( §3.1) and MIX ( §3.2). Additionally,</cell></row><row><cell>we conducted experiments with no subsampling</cell></row><row><cell>(None) to investigate the efficacy of the subsam-</cell></row><row><cell>pling method. In YAGO3-10, due to our limited</cell></row><row><cell>computational resources and the existence of tuned</cell></row><row><cell>hyper-parameters by Sun et al. (2019); Zhang et al.</cell></row><row><cell>(2019), we only used RotatE and HAKE for evalu-</cell></row><row><cell>ation.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table><row><cell>For</cell></row></table><note><p>Results on FB15k-237. The bold scores are the best results for each subsampling type (e.g. Base, Freq, and Uniq.). † indicates the best scores for each model. SD denotes the standard deviation of the three trial. Sub-model, α, and λ denote the sub-model, temperature, and mixing ratio chosen by development data.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Results on WN18RR. The notations are the same as the ones in Table3.</figDesc><table><row><cell>916</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Results on YAGO3-10. The notations are the same as the ones in Table3.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_0"><p>Our code is available on https://github.com/ xincanfeng/ms_kge.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_1"><p>See Appendix B for the details.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_2"><p>We fixed seed numbers for the three trials in the training model and sub-model correspondingly. Note that the appearance probabilities drawn in Figure3all use the same seed.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work was supported by <rs type="funder">NAIST Touch Stone</rs>, i.e., JST SPRING Grant Number <rs type="grantNumber">JPMJSP2140</rs>, and <rs type="funder">JSPS KAKENHI</rs> Grant Numbers <rs type="grantNumber">JP21H05054</rs> and <rs type="grantNumber">JP23H03458</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_syVPTbv">
+					<idno type="grant-number">JPMJSP2140</idno>
+				</org>
+				<org type="funding" xml:id="_YRbwYJA">
+					<idno type="grant-number">JP21H05054</idno>
+				</org>
+				<org type="funding" xml:id="_wWehjn6">
+					<idno type="grant-number">JP23H03458</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>HAKE that do not exist in ComplEx. In WN18RR, the peak frequencies of ComplEx with None are larger and broader than that of other sub-models. These results indicate that models in FB15k-237 and WN18RR, respectively, encountered problems of an over and lack of smoothing, and MBS dealt with this problem. Because sparseness is a problem when data is small, these are along with the fact that FB15k-237 has larger training data than WN18RR. Thus, choosing a suitable sub-model for a target dataset is important in MBS.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Discussion</head><p>We discuss how sub-model and hyper-parameter choices contribute to the improvement of KGE performance apart from our method. The choice of the sub-model and the α played significant roles in the observed improvements be-cause distributions from sub-model prediction depend on each sub-model and each dataset. Since we adopted the value of α used in the past stateof-the-art method of <ref type="bibr" target="#b11">Sun et al. (2019)</ref> and <ref type="bibr" target="#b15">Zhang et al. (2019)</ref>, we believe that the performance gains of MBS are not only caused by the values of α. Similarly, keeping λ constant in the MIX strategy may lead to certain improvements depending on used sub-models and datasets. However, as shown in Appendix B, λ has the role of adjusting the loss of multi-task learning, and thus, it may be more sensitive compared with α.</p><p>5 Related Work <ref type="bibr" target="#b8">Mikolov et al. (2013)</ref> originally propose the NS loss to train their word embedding model, word2vec. <ref type="bibr" target="#b13">Trouillon et al. (2016)</ref> introduce the A Note on Figure <ref type="figure">1</ref> To illustrate the results on FB15k-237 and WN18RR datasets, we used TransE, RotatE, ComplEx, DistMult, and HAKE as the KGE models. To plot that on the YAGO3-10 dataset, we used RotatE and HAKE as the KGE models following the setting in §4.1. Regarding the use of subsampling, the MRR scores of using subsampling refer to the result of Base subsampling in Table <ref type="table">1</ref> with CBS frequencies, whereas that without subsampling corresponds to the setting "None" §4.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Interpretation of MIX Subsampling as Multi-task Learning</head><p>We can reformulate Eq. ( <ref type="formula">10</ref>) as follows: </p><p>From Eq. ( <ref type="formula">17</ref>), since ℓ mix (θ; θ ′ ) is the mixed loss of the two loss functions ℓ mbs (θ; θ ′ ) and ℓ cbs (θ), we can understand that using MIX is multi-task learning of using both CBS and MBS.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Translating embeddings for modeling multirelational data</title>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Garcia-Duran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="volume">26</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Convolutional 2d knowledge graph embeddings</title>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Dettmers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pasquale</forename><surname>Minervini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pontus</forename><surname>Stenetorp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Story ending generation with incremental encoding and commonsense knowledge</title>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yansen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v33i01.33016473</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="6473" to="6480" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Unified interpretation of softmax cross-entropy and negative sampling: With case study for knowledge graph embedding</title>
+		<author>
+			<persName><forename type="first">Hidetaka</forename><surname>Kamigaito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katsuhiko</forename><surname>Hayashi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.429</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5517" to="5531" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">2022a. Comprehensive analysis of negative sampling in knowledge graph representation learning</title>
+		<author>
+			<persName><forename type="first">Hidetaka</forename><surname>Kamigaito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katsuhiko</forename><surname>Hayashi</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 39th International Conference on Machine Learning</title>
+		<meeting>the 39th International Conference on Machine Learning</meeting>
+		<imprint>
+			<biblScope unit="volume">162</biblScope>
+			<biblScope unit="page" from="10661" to="10675" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of Machine Learning Research</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">2022b. Subsampling for knowledge graph embedding explained</title>
+		<author>
+			<persName><forename type="first">Hidetaka</forename><surname>Kamigaito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katsuhiko</forename><surname>Hayashi</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Estimation of probabilities from sparse data for the language model component of a speech recognizer</title>
+		<author>
+			<persName><forename type="first">Slava</forename><surname>Katz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE transactions on acoustics, speech, and signal processing</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="400" to="401" />
+			<date type="published" when="1987">1987</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Neural network-based question answering over knowledge graphs on word and character level</title>
+		<author>
+			<persName><forename type="first">Denis</forename><surname>Lukovnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asja</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jens</forename><surname>Lehmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sören</forename><surname>Auer</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3038912.3052675</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th International Conference on World Wide Web, WWW &apos;17, page 1211-1220, Republic and Canton of Geneva, CHE. International World Wide Web Conferences Steering Committee</title>
+		<meeting>the 26th International Conference on World Wide Web, WWW &apos;17, page 1211-1220, Republic and Canton of Geneva, CHE. International World Wide Web Conferences Steering Committee</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName><forename type="first">Tomás</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<idno>CoRR, abs/1310.4546</idno>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">OpenDialKG: Explainable conversational reasoning with attention-based walks over knowledge graphs</title>
+		<author>
+			<persName><forename type="first">Seungwhan</forename><surname>Moon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pararth</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anuj</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rajen</forename><surname>Subba</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1081</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="845" to="854" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Generalizing and hybridizing count-based and neural language models</title>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D16-1124</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1163" to="1172" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Rotate: Knowledge graph embedding by relational rotation in complex space</title>
+		<author>
+			<persName><forename type="first">Zhiqing</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhi-Hong</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian-Yun</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Tang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th International Conference on Learning Representations</title>
+		<meeting>the 7th International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2019">2019. 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Observed versus latent features for knowledge base and text inference</title>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W15-4007</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Continuous Vector Space Models and their Compositionality</title>
+		<meeting>the 3rd Workshop on Continuous Vector Space Models and their Compositionality<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="57" to="66" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Complex embeddings for simple link prediction</title>
+		<author>
+			<persName><forename type="first">Théo</forename><surname>Trouillon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Welbl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Éric</forename><surname>Gaussier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Bouchard</surname></persName>
+		</author>
+		<idno>CoRR, abs/1606.06357</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Embedding entities and relations for learning and inference in knowledge bases</title>
+		<author>
+			<persName><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Learning hierarchy-aware knowledge graph embeddings for link prediction</title>
+		<author>
+			<persName><forename type="first">Zhanqiu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianyu</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongdong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.1911.09419</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,722 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Mitigating Word Bias in Zero-shot Prompt-based Classifiers</title>
+				<funder>
+					<orgName type="full">Cambridge Commonwealth, European &amp; International Trust</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Cambridge University Press &amp; Assessment (CUP&amp;A)</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Adian</forename><surname>Liusie</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution" key="instit1">ALTA Institute</orgName>
+								<orgName type="institution" key="instit2">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Potsawee</forename><surname>Manakul</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution" key="instit1">ALTA Institute</orgName>
+								<orgName type="institution" key="instit2">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><forename type="middle">J F</forename><surname>Gales</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution" key="instit1">ALTA Institute</orgName>
+								<orgName type="institution" key="instit2">University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Mitigating Word Bias in Zero-shot Prompt-based Classifiers</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9A2EA2DD65B93667526B6DAC50543F2F</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:49+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Prompt-based classifiers are an attractive approach for zero-shot classification. However, the precise choice of the prompt template and label words can largely influence performance, with semantically equivalent settings often showing notable performance difference. This discrepancy can be partly attributed to word biases, where the classifier may be biased towards classes. To address this problem, it is possible to optimise classification thresholds on a labelled data set, however, this mitigates some of the advantages of prompt-based classifiers. This paper instead approaches this problem by examining the expected marginal probabilities of the classes. Here, probabilities are reweighted to have a uniform prior over classes, in an unsupervised fashion. Further, we draw a theoretical connection between the class priors and the language models' word prior, and offer the ability to set a threshold in a zero-resource fashion. We show that matching class priors correlates strongly with the oracle upper bound performance and demonstrate large consistent performance gains for prompt settings over a range of NLP tasks. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large language models (LLM) have shown impressive general ability for natural language processing (NLP) tasks. LLMs can effectively handle a range of NLP tasks through 'prompting', where a natural language instruction is added to the input, conditioning the model to the task at hand. Prompting can either be an emergent ability learned through scaling up model size <ref type="bibr" target="#b1">(Brown et al., 2020;</ref><ref type="bibr" target="#b15">Wei et al., 2022)</ref> or an ability learned through instruction tuning <ref type="bibr" target="#b14">(Wei et al., 2021;</ref><ref type="bibr">Chung et al., 2022;</ref><ref type="bibr" target="#b9">Ouyang et al., 2022)</ref>. Despite the recent popularity of prompting, there is a known sensitivity of prompt-based LLMs to elements such as prompt 1 code available on github at https://github.com/ adianliusie/robust-prompt-classifier What is the sentiment of the following review? Inception was great! What is the sentiment of the following review? disappointing, I thought the whale would be a wildlife documentary...</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Language Model</head><p>𝑃 ! 𝑤=amazing |𝑥 " = 0.02 𝑃 ! 𝑤=bad|𝑥 " = 0.03</p><formula xml:id="formula_0">𝑃 ! 𝑤=amazing|𝑥 # = 0.001 𝑃 ! 𝑤=bad|𝑥 # = 0.2 𝑃 ! 𝑤=amazing|𝑥 " 𝑃 ! 𝑤=amazing = 8 𝑃 ! 𝑤=bad|𝑥 " 𝑃 ! 𝑤=bad = 0.6 𝑃 ! 𝑤=amazing|𝑥 # 𝑃 ! 𝑤=amazing = 0.4 𝑃 ! 𝑤=bad|𝑥 # 𝑃 ! 𝑤=bad = 4</formula><p>prior-matched probabilities</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>LM outputs probabilities word prior normalization</head><p>𝛼 " 𝑃 ! 𝑤=amazing |𝑥 " = 0.02 𝛼 # 𝑃 ! 𝑤=bad|𝑥 " = 0.0015 𝛼 " 𝑃 ! 𝑤=amazing|𝑥 # = 0.001 𝛼 # 𝑃 ! 𝑤=bad|𝑥 # = 0.010 Figure 1: Instead of using the raw LM output probabilities of the label words, we consider mitigating bias by finding weights that make the classifier unbiased over classes. This is connected to normalising by word priors, which we use as a zero-resource de-biasing approach.</p><p>template and label words <ref type="bibr" target="#b3">(Gao et al., 2021;</ref><ref type="bibr" target="#b11">Schick and Schütze, 2021)</ref>. Previous works have demonstrated that prompt templates can significantly impact task performance <ref type="bibr" target="#b12">(Shin et al., 2020;</ref><ref type="bibr" target="#b18">Zhou et al.)</ref> and that factors such as chosen label words can influence system performance for classification tasks <ref type="bibr" target="#b17">(Zhao et al., 2021;</ref><ref type="bibr" target="#b5">Holtzman et al., 2021)</ref>. This work focuses on the influence of 'word biases' for prompt-based classifiers. i.e. the bias that prompts may have towards certain classes, independent of the input text. To account for this bias, one could use a labelled dataset to find optimal class decision thresholds. This, however, requires labelled task data, which may limit the zero-shot benefits of prompt-based classifiers. We propose a simple unsupervised solution of re-weighting probabilities, where we use unlabelled data to search for weight parameters that ensure a uniform prior over classes. We show that this prior matching leads to greater robustness for diverse prompt settings and that the unsupervised weights which debias the classifier is highly correlated with the oracle weights that maximise accuracy. Further, we provide theoretical analysis that draws a connection between word priors and inherent class bias, which we use to motivate a zero-resource normalisation approach that is competitive with prior matching. Overall, we demonstrate that our unsupervised approach highly reduces sensitivity to the chosen prompt and label words, and that settings which initially fail can often be made effective through a simple probability re-weighting.</p><p>Our contributions are 1) We propose a simple unsupervised probability re-weighting method, and empirically demonstrate greater robustness to prompt and label word choice, with large accuracy gains across prompt settings for a range of standard NLP tasks. 2) We theoretically connect the weight parameters to word priors and use this to motivate a zero-resource re-weighting approach. 3) We show that the weights of prior matching are highly correlated with the optimal oracle weights that maximize accuracy, illustrating that our approach is a near-optimal use of a system's output probabilities.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Mitigating Bias by Re-weighting</head><p>Prompt-based classifiers Given an input sequence x ∈ X , large language models (LLMs) model P θ (w|x), the output probability distribution over all possible sequences w ∈ X . For a classification task T , a prompt-based classifier 1) reformats the input text x to prompt p ∈ X by including the task instruction, and 2) selects class words {w k } 1:K which are associated to each output class {y k } 1:K . For example in sentiment classification, one can use prompt 'what is the sentiment of the following review? &lt;x&gt;', (where &lt;x&gt; is the current input x, e.g. 'Inception was absolutely brilliant'), and class words w 0 =bad and w 1 =good for the negative and positive classes respectively. For a prompt classifier, Q = {p, {w k } 1:K }, class probabilities can be set to be proportional to the probability of the associated class word, where the final decision ŷ is the class with the highest probability <ref type="bibr" target="#b17">(Zhao et al., 2021;</ref><ref type="bibr" target="#b6">Jiang et al., 2020)</ref>.</p><formula xml:id="formula_1">Pθ (y k |x, Q) = P θ (w k |p(x)</formula><p>)</p><formula xml:id="formula_2">w i P θ (w i |p(x))</formula><p>(1)</p><formula xml:id="formula_3">ŷ = argmax k Pθ (y k |x, Q) (2)</formula><p>However, as a large language model, the promptbased classifier may return probabilities that are influenced by distributional statistics of words <ref type="bibr" target="#b4">(Gardner et al., 2021;</ref><ref type="bibr" target="#b7">Liusie et al., 2022)</ref>. This may lead to inherent class bias, where label words may have high probability not because they better answer the prompt, but because they have a high LM prior.</p><p>Optimal Weights To account for this, one can define weight parameters α = {α k } 1:K , where each α k ∈ R + scales the probabilities of the classifier,</p><formula xml:id="formula_4">Pθ (y k |x, Q, α) = α k Pθ (y k |x, Q) i α i Pθ (y i |x, Q)<label>(3)</label></formula><p>Given labelled task dataset D = {(x (j) , y (j) )} N j=1 , one can then find the optimal weights α * that maximises the accuracy of the prompt classifier Pθ (y k |x, Q, α) over the dataset,</p><formula xml:id="formula_5">α * = argmax α Accuracy(Q, α, D)<label>(4)</label></formula><p>Prior-Matching The previous approach requires labelled data, which may limit the benefit of using prompt-based classifiers. As an alternative, one can find the values ᾱ that ensure that the classifier is unbiased, such that the class prior P (y k |Q, α) matches the true prior P (y k )</p><formula xml:id="formula_6">Pθ (y k |Q, α) = E x { Pθ (y k |x, Q, α)} (5) ≈ 1 N N j=1</formula><p>Pθ (y</p><formula xml:id="formula_7">(j) k |x (j) , Q, α) (6) ᾱ = argmin α ∀y k | Pθ (y k |Q, α) -P (y k )| (7)</formula><p>A deterministic solution that exactly matches the distributions exists, which can be found with a search with 1 degree of freedom (that can be accounted for by setting α 1 = 1). If there is no expected class bias, one can assume equal probabilities over all classes, P (y k ) = U(y k ) = 1 N . This approach is therefore unsupervised and only requires text inputs D x = {x (j) } M j=1 , which therefore can be applied at inference to any test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Null-Input Approximation</head><p>The dependence of prior-matching on unlabelled dataset D x is a drawback. In Appendix A, we show that one can make the analytical approximation ᾱk ≈ 1 </p><formula xml:id="formula_8">E x {P θ (w k |x, Q)} = 1 P θ (w k |Q)<label>(8)</label></formula><formula xml:id="formula_9">P θ (w k |Q) ≈ P θ (w k |p(∅))<label>(9)</label></formula><p>This enables a zero-resource approximation of weight parameters ᾱ.</p><p>3 Experiments </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Experimental Results</head><p>Classification Robustness Table <ref type="table" target="#tab_0">1</ref> shows the mean and standard deviation of accuracies among all prompt and class word settings for a given task. We observe large consistent gains from both re-weighting approaches, with prior-matching increasing baseline accuracy by between 6.7% to 12.1% for sentiment classification, 13.7% for qqp, and over 25% for natural language inference. Prior-matching also demonstrates performance very similar to the oracle upper-bound, often within 1%, showing that the unsupervised prior-match approach is competitive with the supervised threshold search. Prior-matching also performs better than null-input by a small margin in all tasks, where this small gap confirms that the word-prior normalisation is a very reasonable zero-shot approximation.</p><p>Prompt Robustness Figure <ref type="figure">2</ref> illustrates a boxplot of rotten tomatoes performance over all classwords for each considered method, over all 6 prompts. As observed in Table <ref type="table" target="#tab_0">1</ref>, naively using raw label word probabilities (dark blue) leads to considerable fluctuations in accuracy; some prompt and label word settings lead to reasonable accuracy (92%+ accuracy), however there is observed brittleness to label word choice, with many settings demonstrating poor performance. Prior matching (green) leads to significant robustness, with nearly all sensible settings above 85% accuracy. We further find that, as shown in Table <ref type="table" target="#tab_0">1</ref>, the unsupervised approach has accuracies very comparable to those Figure <ref type="figure">2</ref>: boxplots of the accuracy of all label-word pairs for rotten tomatoes, over all the considered prompts when using optimal thresholds. In Figure <ref type="figure" target="#fig_0">3</ref>, we consider similar boxplots for SNLI and observe larger gains through reweighting. This was as higher probabilities are often assigned to the entailment and contradiction labels words, leading to under-classification of the neutral class. We observe greater sensitivity to prompt choice and label words for snli than as observed in rotten tomatoes, even with reweighting. Weight Alignment Figure <ref type="figure" target="#fig_1">4</ref> shows a scatter plot of the weights found by the optimal threshold search α * (equation 4), with those found from the unsupervised prior matching method ᾱ (equation 7) and the zero-resource word prior approximation (equation 9). We see a clear linear relationship between optimal and prior-match, illustrating that accounting for the marginal bias is almost equivalent with maximising accuracy, however, achieved in an unsupervised fashion. Null-input is also well correlated with the optimal thresholds, but there is a less direct relationship. Similar linear relationships are observed also for other binary-classification tasks and prompts, as shown in Appendix C. This paper analyzes prompt-based classifiers and demonstrates that inherent class bias is a significant factor that influences the sensitivity of the system to prompt and label words. We propose an unsupervised approach of prior matching, which we demonstrate performs competitively to the supervised alternative of searching for optimal thresholds, while avoiding the need for labelled data. We relate prior matching with word biases, and motivate a zero-resource approach of debiasing model probabilities. We show that our methods lead to practical approaches that reduce the sensitivity to design choices such as prompts and label words.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>This work considered sentiment classification, natural language inference, and paraphrase detection, and could have been extended over a greater suite of tasks to guarantee its effectiveness. Further, this paper ran experiments on FlanT5 and Llama2, and this work has not yet explored a larger range of prompted language models. FlanT5 has also been instruction-tuned on similar tasks, so the findings may be limited in scenarios where known capabilities have to be elicited from models robustly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethical Considerations</head><p>Though this work suggests methods to improve the robustness of prompt-based classifiers to prompts and label words, this does not imply that all design choices will work. In some set ups, the system may be ineffective and have poor generalisation over the task. Deploying machine learning classifiers in realworld classification settings has many associated risks, and careful analysis should be made before deploying such systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Derivation of Zero-Resource Equation</head><p>For a prompt classifier Q = {p, {w k } 1:K }, class probabilities are assumed to be proportional to the probability of the associated class word,</p><formula xml:id="formula_10">Pθ (y k |x, Q) = P θ (w k |p(x)</formula><p>)</p><formula xml:id="formula_11">w i P θ (w i |p(x))<label>(10)</label></formula><p>Given the task dataset D = {{x (j) , y (j) }} N j=1 , one can calculate the assumed prior of the prompt classifier over the output classes,</p><formula xml:id="formula_12">Pθ (y k |Q) = E x Pθ (y k |Q, x) (11) ≈ 1 N N j=1 Pθ (y k |Q, x (j) ) (12) = 1 N N j=1 P θ (w k |p(x (j)</formula><p>))</p><formula xml:id="formula_13">w i P θ (w i |p(x (j) ))<label>(13)</label></formula><p>This can be compared to the actual prior of the task/domain,</p><formula xml:id="formula_14">P (y k ) ≈ P (y k |D) = 1 N N j=1 1(y, y (j) ) (14)</formula><p>If D is sufficiently large, then an unbiased classifier should have a class prior similar to that approximated via the labels. However, if they diverge, one may wish to debias the classifier by scaling class probabilities by factors α k ,</p><formula xml:id="formula_15">Pθ (y k |x, Q, α) = α k Pθ (y k |x, Q) i α i Pθ (y i |x, Q) (15) = α k P θ (w k |x, Q) Z(x, Q, α)<label>(16)</label></formula><p>Where Z(x, Q, α) = i α i P θ (w i |x, Q, α) and P θ (w k |x, Q) ≡ P θ (w k |p(x)). The parameters ᾱ that lead to an unbiased classifier can then be determined in a deterministic fashion.</p><formula xml:id="formula_16">ᾱ = argmin α ∀y k | Pθ (y k |Q, α) -P (y k )| (17)</formula><p>Note that by constraining α 1 = 1, there will exist a deterministic solution that ensures that Pθ (y k |Q, α) = P (y k ). For given weight parameters α, Consider the prompt-classifier priors, Pθ (y k |Q, α). One can approximate this using a</p><p>Taylor series of the expectation of a ratio, yielding</p><formula xml:id="formula_17">Pθ (y k |Q, α) = E x [ Pθ (y k |x, Q, α)] (18) = E x [ α k P θ (w k |x, Q) Z(x, Q, α) ] (19) ≈ E x [α k P θ (w k |x, Q)] E x [Z(x, Q, α)] (20) = α k P θ (w k |Q) Z(Q, α)<label>(21)</label></formula><p>By equating the predicted prior with the true prior, we find an approximation for ᾱk Pθ (y</p><formula xml:id="formula_18">k |Q) = P (y k |D) (22) α k P θ (w k |Q) Z(Q) = P (y k |D) (23) ⇒ α k = Z(Q) • P (y k |D) P θ (w k |Q)<label>(24)</label></formula><p>A final insight is that in many cases it is assumed that there should be no inherent class bias, and so P (y k |D) can be assumed to be uniform and be included in the normalisation term.</p><p>B Prompts and Label Words       Tables <ref type="table" target="#tab_9">8</ref> and<ref type="table" target="#tab_10">9</ref> show the prompt-based classifier performance for the different methods when using different FlanT5-base and LLama-2-chat 7B respectively. For sentiment classification and natural language tasks, we similarly observe that the various re-weighting methods lead to considerable boosts in accuracy. Both null-norm and prior-match again lead to performance near that to the optimal weights, with considerable performance boost over the baseline. However, for paraphrase detection, we only observe moderate performance boosts over the baseline setting with a larger performance discrepancy with the optimal weights. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Boxplots</head></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: boxplots of the accuracy of all label-word sets for snli, for the first 3 prompts</figDesc><graphic coords="4,70.87,438.08,218.26,136.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Scatter plot of the optimal weights α * (equation 4) with the prior match weights ᾱ (equation 7) and the approximation via null-input (equation 9), for all settings of prompt 1 on amazon</figDesc><graphic coords="4,306.14,367.55,218.27,194.78" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: boxplots of the accuracy of all label-word pairs on IMDB, over all the considered prompts</figDesc><graphic coords="8,70.87,570.80,453.56,178.30" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="9,70.87,70.87,453.55,181.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="9,70.87,286.16,453.55,181.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Average dataset accuracy and standard deviations, over all prompts and label words. baseline and nullinput are zero-resource classification methods, prior matching uses the text inputs but not labels, while optimal is an oracle approach that uses the labels to search for the best thresholds. Results for FlanT5 large</figDesc><table><row><cell>method</cell><cell cols="2">inputs labels</cell><cell>imdb</cell><cell>rt</cell><cell>amazon</cell><cell>snli</cell><cell>mnli</cell><cell>qqp</cell></row><row><cell>baseline</cell><cell>✗</cell><cell>✗</cell><cell cols="6">85.4±12.7 78.8±14.0 86.0±13.8 45.2±13.7 43.5±11.3 65.4±14.0</cell></row><row><cell>null-input</cell><cell>✗</cell><cell>✗</cell><cell cols="6">92.1±3.2 89.1±3.8 95.0±1.8 75.2±10.4 66.1±9.7 77.4±6.6</cell></row><row><cell>prior-match</cell><cell>✓</cell><cell>✗</cell><cell cols="6">93.1±3.3 90.9±1.6 96.0±0.8 78.5±9.3 69.8±9.7 79.1±2.4</cell></row><row><cell>optimal</cell><cell>✓</cell><cell>✓</cell><cell cols="6">93.5±2.7 91.2±1.5 96.1±0.7 79.4±8.2 70.8±8.6 82.3±2.8</cell></row><row><cell cols="4">Inspired by Zhao et al. (2021), we consider a</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">resource-free approximation of the word prior</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">(equation 8) by considering the output word proba-</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">bilities of the null input ∅ (i.e. an empty string).</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>sentiment classification prompts</figDesc><table><row><cell>positive</cell><cell>negative</cell></row><row><cell>good</cell><cell>bad</cell></row><row><cell>great</cell><cell>terrible</cell></row><row><cell cols="2">amazing poor</cell></row><row><cell cols="2">fantastic horrible</cell></row><row><cell>positive</cell><cell>negative</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table /><note><p>label words for sentiment classification B.2 Natural Language Inference prompt is the second text an entailment of the first text? does the second text directly follow from the first text? are the texts related? are the texts consistent? does text 1 imply text 2? can text 2 be logically derived from text 1? does the hypothesis logically follow the premise?</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>NLI prompts</figDesc><table><row><cell cols="2">entailment neutral</cell><cell>contradiction</cell></row><row><cell>yes</cell><cell>maybe</cell><cell>no</cell></row><row><cell>correct</cell><cell>unclear</cell><cell>incorrect</cell></row><row><cell>yeah</cell><cell cols="2">potentially nope</cell></row><row><cell>follows</cell><cell>neutral</cell><cell>contradiction</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>label words for NLI</figDesc><table><row><cell>B.3 Paraphrase Identification</cell></row><row><cell>prompt</cell></row><row><cell>is the second text a paraphrase of the first text?</cell></row><row><cell>are the two texts semantically equivalent?</cell></row><row><cell>are the texts paraphrases of each other?</cell></row><row><cell>do the texts have the same meaning?</cell></row><row><cell>is the meaning of text 1 the same as in text 2?</cell></row><row><cell>would the two texts be classified as paraphrases?</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>NLI prompts</figDesc><table><row><cell cols="2">paraphrase not paraphrase</cell></row><row><cell>yes</cell><cell>no</cell></row><row><cell>correct</cell><cell>incorrect</cell></row><row><cell>yeah</cell><cell>not</cell></row><row><cell>positive</cell><cell>negative</cell></row><row><cell>true</cell><cell>false</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc></figDesc><table><row><cell>method</cell><cell cols="2">inputs labels</cell><cell>imdb</cell><cell>rt</cell><cell>amazon</cell><cell>snli</cell><cell>mnli</cell><cell>qqp</cell></row><row><cell>baseline</cell><cell>✗</cell><cell>✗</cell><cell cols="6">82.1±11.1 70.1±11.7 83.4±12.8 37.4±6.1 37.0±4.3 52.5±11.4</cell></row><row><cell>null-input</cell><cell>✗</cell><cell>✗</cell><cell cols="6">87.5±3.2 78.5±4.8 91.1±2.3 41.8±3.8 40.2±4.1 53.9±10.2</cell></row><row><cell>prior-match</cell><cell>✓</cell><cell>✗</cell><cell cols="6">89.1±2.4 80.8±2.9 92.0±1.3 44.7±6.3 41.8±3.8 58.5±5.5</cell></row><row><cell>optimal</cell><cell>✓</cell><cell>✓</cell><cell cols="6">89.3±2.0 81.2±2.9 92.1±1.4 47.6±5.9 43.5±3.7 65.3±2.9</cell></row></table><note><p><p>label words for sentiment classification C Threshold Alignment Plots</p>Figure 5: weights alignment plot for rotten tomatoes Figure 6: weights alignment plot for imdb D Impact of LLM Choice</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 8 :</head><label>8</label><figDesc>Robustness performance when using FlanT5 base as the base LLM (set-up equivalent to Table1).</figDesc><table><row><cell>method</cell><cell cols="2">inputs labels</cell><cell>imdb</cell><cell>rt</cell><cell>amazon</cell><cell>snli</cell><cell>mnli</cell><cell>qqp</cell></row><row><cell>baseline</cell><cell>✗</cell><cell>✗</cell><cell cols="6">85.8±8.7 78.4±10.3 86.4±10.3 35.1±2.7 36.9±3.2 51.0±11.6</cell></row><row><cell>null-input</cell><cell>✗</cell><cell>✗</cell><cell cols="6">87.4±6.9 83.2±6.6 90.7±6.4 37.9±5.4 39.4±3.7 51.8±8.4</cell></row><row><cell>prior-match</cell><cell>✓</cell><cell>✗</cell><cell cols="6">90.5±3.1 86.3±3.7 93.1±2.4 39.5±5.4 41.2±3.1 52.6±1.9</cell></row><row><cell>optimal</cell><cell>✓</cell><cell>✓</cell><cell cols="6">90.8±2.8 86.7±3.6 93.2±2.4 42.8±4.6 42.8±2.3 66.8±0.4</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 9 :</head><label>9</label><figDesc>Robustness performance when using Llama-2-chat 7B as the base LLM.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>https://huggingface.co/google/flan-t5-large</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work is supported by <rs type="funder">Cambridge University Press &amp; Assessment (CUP&amp;A)</rs>, a department of The Chancellor, Masters, and <rs type="person">Scholars</rs> of the <rs type="institution">University of Cambridge</rs>, and the <rs type="funder">Cambridge Commonwealth, European &amp; International Trust</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A large annotated corpus for learning natural language inference</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabor</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1075</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="632" to="642" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chung</forename><surname>Hyung Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shayne</forename><surname>Longpre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Fedus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.11416</idno>
+		<title level="m">Siddhartha Brahma, et al. 2022. Scaling instruction-finetuned language models</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Making pre-trained language models better few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3816" to="3830" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Competency problems: On finding and removing artifacts in language data</title>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Merrill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Dodge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1801" to="1813" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Surface form competition: Why the highest probability answer isn&apos;t always right</title>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vered</forename><surname>Shwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7038" to="7051" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">How can we know what language models know?</title>
+		<author>
+			<persName><forename type="first">Zhengbao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><forename type="middle">F</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Araki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="423" to="438" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Analyzing biases to spurious correlations in text classification tasks</title>
+		<author>
+			<persName><forename type="first">Adian</forename><surname>Liusie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raina</forename><surname>Vatsal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raina</forename><surname>Vyas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Gales</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online only. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="78" to="84" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Learning word vectors for sentiment analysis</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">L</forename><surname>Maas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raymond</forename><forename type="middle">E</forename><surname>Daly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">T</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="142" to="150" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="27730" to="27744" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Seeing stars: Exploiting class relationships for sentiment categorization with respect to rating scales</title>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lillian</forename><surname>Lee</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1219840.1219855</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)</title>
+		<meeting>the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="115" to="124" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Exploiting cloze-questions for few-shot text classification and natural language inference</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="255" to="269" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Autoprompt: Eliciting knowledge from language models with automatically generated prompts</title>
+		<author>
+			<persName><forename type="first">Taylor</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasaman</forename><surname>Razeghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><forename type="middle">L</forename><surname>Logan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><forename type="middle">V</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4222" to="4235" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">GLUE: A multi-task benchmark and analysis platform for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-5446</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP</title>
+		<meeting>the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="353" to="355" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Finetuned language models zero-shot learners</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adams</forename><forename type="middle">Wei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Lester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishi</forename><surname>Bommasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2206.07682</idno>
+		<title level="m">Emergent abilities of large language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1101</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1112" to="1122" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Calibrate before use: Improving few-shot performance of language models</title>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shi</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="12697" to="12706" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Large language models are human-level prompt engineers</title>
+		<author>
+			<persName><forename type="first">Yongchao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><forename type="middle">Ioan</forename><surname>Muresanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziwen</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keiran</forename><surname>Paster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silviu</forename><surname>Pitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harris</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPS 2022 Foundation Models for Decision Making Workshop</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

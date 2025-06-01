@@ -1,0 +1,1490 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Don&apos;t be Blind to Questions: Question-Oriented Math Word Problem Solving</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Zhenwen</forename><surname>Liang</surname></persName>
+							<email>zliang6@nd.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Notre Dame</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jipeng</forename><surname>Zhang</surname></persName>
+							<email>xzhang33@nd.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Hong Kong University of Science and Technology</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xiangliang</forename><surname>Zhang</surname></persName>
+							<email>jzhanggr@conect.ust.hk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Notre Dame</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Don&apos;t be Blind to Questions: Question-Oriented Math Word Problem Solving</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">ED3C19F5C8003493DA466E422B404316</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:11+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Solving math word problems (MWP) is a challenging task for natural language processing systems, as it requires to not only identify and comprehend the problem description within the context, but also to deduce a solution in accordance with the posed question. Previous solvers have been found to prioritize the context over the question, resulting in low performance when solving multiple questions under the same context. In this paper, we present a question-oriented strategy to address this issue and improve the generalizability of MWP solvers. Our approach features an entity-aware encoder that enhances the connection between MWP context and question via entities in established dependency graphs, aiming at obtaining better problem representations. Then, a question-guided decoder is trained using a contrastive learning strategy to enhance the question representations. Empirical evaluations on four benchmarks demonstrate that our method outperforms previous solvers and exhibits a favorable balance between efficacy and efficiency in MWP solving. In addition, our solver is not reliant on any specific pre-trained model and demonstrates seamless compatibility with different pre-trained model backbones.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Since the 1960s, automated mathematical reasoning has been recognized as a fundamental challenge for computers <ref type="bibr" target="#b6">(Bobrow, 1964)</ref>, with math word problem (MWP) solving garnering particular interest within the field of natural language processing (NLP). As shown in Table <ref type="table">1</ref>, MWPs typically involve mathematical problems elaborated in natural language that are solved through the use of equations, and solving these problems is a demanding task that requires both text comprehension and mathematical reasoning abilities.  <ref type="bibr" target="#b52">(Yang et al., 2022)</ref> dataset. MWP-BERT <ref type="bibr">(Liang et al., 2022a)</ref> failed to solve 2 out of 3 questions with the same context.</p><p>At present, the most advanced MWP solvers tend to be either fine-tuned Seq2Tree models <ref type="bibr" target="#b15">(Jie et al., 2022;</ref><ref type="bibr">Liang et al., 2022b;</ref><ref type="bibr" target="#b54">Zhang et al., 2022)</ref> or large language models (LLMs) <ref type="bibr" target="#b48">(Wei et al., 2022;</ref><ref type="bibr" target="#b33">Lu et al., 2022;</ref><ref type="bibr" target="#b46">Wang et al., 2022;</ref><ref type="bibr" target="#b7">Chen et al., 2022)</ref> prompted with in-context examples. While LLMs may offer higher accuracy in solving these problems, Seq2Tree models have the advantage of requiring fewer parameters, making them a more economical choice. However, current Seq2Tree solvers have been found to prioritize the context over questions. Previous research <ref type="bibr" target="#b36">(Patel et al., 2021;</ref><ref type="bibr" target="#b52">Yang et al., 2022)</ref> has demonstrated that these solvers can actually achieve high accuracy on MAWPS <ref type="bibr" target="#b19">(Koncel-Kedziorski et al., 2016)</ref> and ASDiv-A <ref type="bibr" target="#b35">(Miao et al., 2020)</ref> when the question text has been removed and just using the context, but struggle to achieve similar levels of accuracy on question-diversified datasets such as SVAMP <ref type="bibr" target="#b36">(Patel et al., 2021)</ref> and UnbiasedMWP <ref type="bibr" target="#b52">(Yang et al., 2022)</ref>. For example, as shown in Table <ref type="table">1</ref>, it is evident that the state-of-the-art baseline MWP-BERT <ref type="bibr">(Liang et al., 2022a)</ref> successfully tackles the most challenging question of the three presented. However, it falls short in addressing the more elementary questions, failing to provide satisfactory answers. The fact that MWP-BERT generates the same solution for both questions 1 and 3 serves as empirical evidence supporting the conclusion that current MWP solvers frequently rely on superficial context-based heuristics rather than devoting sufficient attention to solving the question at hand. Our approach consists of three components. Firstly, we observe that MWPs often seek to identify an unknown quantity that is related to some known entities. To facilitate the solver's recollection of these entities, we first construct graphs through dependency parsing and then connect common entities that appear in both the context and the question. Although sub-graphs of the dependency tree have been combined with Recurrent-Neural-Network (RNN)-based solvers in Graph2Tree <ref type="bibr" target="#b53">(Zhang et al., 2020)</ref> and MultiE/D <ref type="bibr" target="#b39">(Shen and Jin, 2020)</ref>, it has not been used with pre-trained language model (PLM)-based solvers. Combining dependency graphs and PLM will equip the solver a detailed analysis of the syntactic and semantic dependencies between different elements of the sentence, identifying key nouns and verbs that are essential for understanding the problem. Our PLM-based approach retains the entire dependency tree and also enhances the connection between the context and the question, enabling the solver to effectively parse the MWP, connect relevant information, and avoid potential misunderstandings.</p><p>As the second component of our approach, we address the issue of previous Seq2Tree solvers that do not distinguish between the encoded representations of the context and the question. When the integrated representation of context and question is directly fed to the decoder, it tends to prioritize the context and ignore the importance of the question, as the context is usually longer than the question in natural <ref type="bibr" target="#b36">(Patel et al., 2021)</ref>. To counter this, our approach utilizes only the question to guide the decoding process, resulting in improved questiongeneralization ability and reduced reliance on the context.</p><p>Finally, our approach addresses the difficulties on solving MWPs that may have semantically similar questions but entirely different solutions, which could confuse the solver and lead to incorrect predictions <ref type="bibr" target="#b27">(Liang and Zhang, 2021;</ref><ref type="bibr" target="#b36">Patel et al., 2021)</ref>. To combat this issue, we introduce a questioncontrastive training strategy that helps our solver to focus on the question. While contrastive learning has been widely applied in MWP solver training <ref type="bibr" target="#b27">(Liang and Zhang, 2021;</ref><ref type="bibr" target="#b22">Li et al., 2021;</ref><ref type="bibr">Liang et al., 2022b)</ref>, most approaches attempt to group analogous MWPs together in the problem representation space. In contrast, our method perturbs the question representation to create negative samples, enabling the model to differentiate genuine questions from these perturbed versions. This helps to mitigate the risk of incorrect predictions due to the confusion caused by semantically similar but ultimately distinct problems.</p><p>Overall, we propose a novel Seq2Tree MWP solver named QoS that considers the importance of the question part in MWPs. We conduct extensive experiments on MWP solving over four benchmarks. Our solver not only achieves state-of-the-art accuracy on Math23k <ref type="bibr" target="#b47">(Wang et al., 2017)</ref>, MAWPS <ref type="bibr" target="#b19">(Koncel-Kedziorski et al., 2016)</ref>, UnbiasedMWP <ref type="bibr" target="#b52">(Yang et al., 2022)</ref>, and SVAMP <ref type="bibr" target="#b36">(Patel et al., 2021)</ref>, to our knowledge, this is also the first fine-tuned approach that beats the chain-of-thought computing approach <ref type="bibr" target="#b48">(Wei et al., 2022)</ref> on the MAWPS dataset. Moreover, ablation studies and qualitative analysis are elaborated to prove the effectiveness of our approach. We also implement our solver with different language model backbones, in order to showcase its backbone agnosticism and its potential for further advancement in conjunction with the evolution of pre-trained models.</p><p>2 Related Work</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Seq2Seq and Seq2Tree Math Word Problem Solving</head><p>Deep learning techniques have garnered widespread popularity as the primary method for solving MWPs due to their efficacy in surpassing traditional statistical rule-based algorithms <ref type="bibr">(Hosseini et al., 2014)</ref> and semantic parsing methods <ref type="bibr" target="#b42">(Shi et al., 2015;</ref><ref type="bibr" target="#b13">Huang et al., 2017)</ref>. Deep neural solver (DNS) <ref type="bibr" target="#b47">(Wang et al., 2017)</ref> was the pioneer in solving MWPs via Seq2Seq models with an RNN encoder and RNN decoder. A tree-structured decoder <ref type="bibr">(Liu et al., 2019a;</ref><ref type="bibr" target="#b51">Xie and Sun, 2019)</ref> was presented to achieve goal-driven decoding. <ref type="bibr" target="#b20">Li et al. (2019)</ref> borrowed the idea from Transformer and applied multi-head attention. Moreover, many pre-processing methods and tricks were also very helpful to Seq2Seq/Seq2Tree solvers, such as number mapping <ref type="bibr" target="#b47">(Wang et al., 2017)</ref>, equation normalization <ref type="bibr" target="#b45">(Wang et al., 2018)</ref>, graph construction <ref type="bibr" target="#b53">(Zhang et al., 2020)</ref> and data augmentation <ref type="bibr" target="#b29">(Liu et al., 2020)</ref>. Some low-resource settings <ref type="bibr" target="#b5">(Alghamdi et al., 2022)</ref> such as weak supervision <ref type="bibr" target="#b12">(Hong et al., 2021;</ref><ref type="bibr">Liang et al., 2023b)</ref> have also been explored.</p><p>In addition to the aforementioned RNN-to-RNN solvers, the advent of transformer-based pre-trained language models (PLMs) has allowed researchers to construct significantly more powerful solvers in these years, such as MWP-BERT <ref type="bibr">(Liang et al., 2022a)</ref>, REAL <ref type="bibr" target="#b14">(Huang et al., 2021)</ref>, BERT-CL <ref type="bibr" target="#b22">(Li et al., 2021)</ref>, Generate&amp;Rank <ref type="bibr" target="#b38">(Shen et al., 2021)</ref>, Deductive Reasoner <ref type="bibr" target="#b15">(Jie et al., 2022)</ref>, Analogical solver <ref type="bibr">(Liang et al., 2022b</ref>) and so on. PLMs are used in these methods as a problem encoder. A decoder is attached to construct a complete Seq2Tree solver, which can be trained end to end.</p><p>Our paper aims to address a common weakness that has plagued previous Seq2Tree solvers, namely their inability to adequately focus on the questions. To remedy this issue, we introduce a questionguided solver that is designed to be more resistant to variations in the formulation of questions. Empirical evaluations demonstrate the efficacy of our approach, with the proposed solver outperforming baseline methods by a substantial margin.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Large Language Models in Math Word</head><p>Problem Solving</p><p>The ability to reason has long been recognized as a fundamental challenge for large language models (LLMs), with these models' mathematical reasoning capabilities not being fully developed until the emergence of chain-of-thought prompts <ref type="bibr" target="#b48">(Wei et al., 2022)</ref>. With the help of it, large language models (LLMs) have demonstrated a remarkable level of accuracy in MWP solving, surpassing that of previous fine-tuned models, simply by being provided with a few examples of such problem-solving processes. Interestingly, researchers <ref type="bibr" target="#b18">(Kojima et al., 2022</ref>) also find that LLMs are sufficient zero-shot reasoners with the prompt "Let's think step by step."</p><p>A number of studies have pursued the goal of improving the performance of chain-of-thought, including <ref type="bibr" target="#b41">(Shi et al., 2022;</ref><ref type="bibr" target="#b46">Wang et al., 2022;</ref><ref type="bibr" target="#b7">Chen et al., 2022)</ref>.</p><p>While the aforementioned studies have focused on the improvement of chain-of-thought prompting, our approach takes a different tack by leveraging a fine-tuned Seq2Tree model with significantly fewer parameters (more than 100×) than</p><p>LLMs, yet achieving comparable accuracy. In fact, our solver even outperforms the original chain-ofthought approach on the MAWPS dataset. Additionally, our solver has a more transparent structure and is amenable to further fine-tuning and has the potential to combine with LLMs in a knowledge distillation way such as <ref type="bibr" target="#b11">(Ho et al., 2022;</ref><ref type="bibr" target="#b21">Li et al., 2022;</ref><ref type="bibr" target="#b34">Magister et al., 2022;</ref><ref type="bibr" target="#b43">Shridhar et al., 2022;</ref><ref type="bibr">Liang et al., 2023a)</ref>. Given these strengths, we believe our work represents a meaningful contribution to the field, providing a powerful Seq2Tree model for MWP solving tasks and advancing the research community's understanding of these problems.</p><p>3 Our Approach</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Problem Formulation</head><p>The goal of our paper is to develop an MWP solver that can take in a description of a problem, represented as W = {w 1 , w 2 , ..., w n }, and output an equation-shaped solution, denoted as S. In addition, we divide the problem description W into two distinct components: the context represented as W c ∈ R a , and the question represented as W q ∈ R b , where a and b are lengths of the context and the question such that a+b = n. In the original dataset, the problem description does not differentiate between these two parts, so we designate the final sentence of the problem as the question and the rest part as the context. There are a few exceptional cases in which there is only a single sentence presented in the problem description, in which case we treat that sentence as a question without any accompanying context. Then, we transform the solution into pre-order traversals of solutions trees to simplify the grammar of the solution <ref type="bibr" target="#b51">(Xie and Sun, 2019)</ref>. In the solution tree, operator nodes serve as the parents of number nodes, which must always be leaf nodes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Model Architecture</head><p>Our proposed network is shown in Figure <ref type="figure">1</ref>, which contains an entity-aware encoder and a questionguided decoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Entity-Aware Encoding</head><p>The encoder is trained to learn the representation of the problem. Firstly, we input the entire problem W into a pre-trained model to get an initial representation Z. We implement BERT <ref type="bibr" target="#b9">(Devlin et al., 2019)</ref>, RoBERTa <ref type="bibr">(Liu et al., 2019b)</ref> DeBERTa <ref type="bibr" target="#b10">(He et al., 2020)</ref> to show that our solver is generalizable across different PLMs.</p><p>Typically, an MWP asks for information about an entity that can be referred to in the context. By identifying the connection between these two references and establishing the understanding that they refer to the same entity, it will construct a more coherent and comprehensive representation of the problem, facilitating the solving process. To this end, we first create a dependency graph of the problem W , which can assist in disambiguating the syntactic roles of words and resolving syntactic ambiguity that may arise in complex word problems. Then we add additional edges related to the entities that appear in both context W c and question W q . The construction method of the graph will be explained later in this section. Generally, the workflow of our encoder is:</p><formula xml:id="formula_0">Ẑ = enc(W ) = Z + GraphN N (Z, A), (1)</formula><p>where the adjacency matrices of the constructed graphs are represented by A, and our encoder is denoted as enc. Leveraging the context-question association enhanced dependency graph A, we employ a graph neural network, designated as GraphN N , to refine the vector Z ∈ R h * n where h is the dimension of hidden representations. A residual connection is established between the refined vector and the original vector. The GraphN N is structured in a transformer-like manner, with the Graph Convolutional Network (GCN) block serving as the fundamental building block. Each GCN block can be decomposed into a two-layer graph convolution:</p><formula xml:id="formula_1">GCN (Z, A) = σ( Â(σ( Â × Z × X 1 ))X 2 ), (2)</formula><p>where Â is normalized adjacency matrix as mentioned in (Kipf and Welling, 2016), and X 1 , X 2 are learnable matrices.</p><p>Borrowing from transformers <ref type="bibr" target="#b44">(Vaswani et al., 2017)</ref>, we also employ a multi-head mechanism. Multiple different GCN blocks are introduced and their output features (equivalent to different heads) are concatenated to get the final representation:</p><formula xml:id="formula_2">M Head(Z, A) = H h=0 GCN (Z, A (h mod 4) ),</formula><p>(3) where || stands for concatenation operation, and H denotes different heads. A is a set of adjacency matrices, which represents 4 different methods of graph construction. To achieve this, we first obtain the dependency structure using Stanza <ref type="bibr" target="#b37">(Qi et al., 2020)</ref>, and then identify all words with POS tags of "NOUN" or "PROPN", as the concepts we are trying to connect are generally nouns. For the first graph, we add edges between w i and w j if they refer to the same entity and belong to context W c and W q , respectively:</p><formula xml:id="formula_3">A 0 (i, j) = 1, if w i = w j , w i ∈ W c , w j ∈ W q , 0, others.<label>(4)</label></formula><p>For the second graph, we connect one entity to the neighbors of its another appearance in the dependency graph:</p><formula xml:id="formula_4">A 1 (i, j) =      1, if A 0 (i, k) = 1, j ∈ N BR(k), 1, if A 0 (k, j) = 1, i ∈ N BR(k), 0, others,<label>(5)</label></formula><p>where N BR(k) are first-hop neighbors of w k in the dependency graph. The first graph is utilized to elicit the encoder of the entity's appearance in the context during question encoding, while the second graph is designed to facilitate the bridging of subtle concepts that pertain to the entities. Both A 0 and A 1 are formed by introducing additional edges into the original dependency graph, which can be either directed or undirected. A directed edge only exists from the parent to the child in the dependency tree, while an undirected edge is bidirectional. Therefore, we eventually have four different graphs in total.</p><p>Finally, similar to transformers, we add a multilayer perception (MLP) with Layer Normalization (LN) at the end of our encoder:</p><formula xml:id="formula_5">GraphN N (Z, A) = M Head(Z, A)+ LN (M LP (M Head(Z, A))). (<label>6</label></formula><formula xml:id="formula_6">)</formula><p>Dependency parsing can assist in disambiguating the syntactic roles of words, which can be particularly useful in resolving syntactic ambiguity that may arise in complex word problems. Overall, the utilization of these four graphs enhances the capacity of our encoder to comprehend the MWP through dependency parsing, and strengthens the association between the context and the question through additional entity linking.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Question-Guided Decoding</head><p>The tree-based decoder (Xie and Sun, 2019) is a popular choice for the design of MWP solvers. It generates the solution in the form of a binary tree, consisting of a predicting module and a decomposing module. Each node in the tree has a hidden state, which the predicting module decodes into a token with an attention score on the problem description. If the prediction is an operator such as + or -, the decomposing module splits the node into two children nodes. On the other hand, if the prediction is a quantity, the node becomes a leaf and is not further decomposed. Similar to Recurrent neural networks (RNNs), the hidden state at each time step depends on the previous time step.</p><p>In this way, we obtain a binary tree whose leaf nodes represent quantities and non-leaf nodes represent operators, which can be easily converted into a mathematical solution. Finally, the decoder outputs the pre-order traversal sequence of the solution tree. However, previously Seq2Tree solvers with tree decoders employed the mean vector of the overall problem representation Ẑ denoted in Equation (1), as the hidden state of the root node. However, MWPs often have more context than the question, leading to the mean vector being heavily influenced by the context. This could potentially explain the observation that Seq2Tree solvers tend to converge on simplistic context-based heuristics, as noted in prior research <ref type="bibr" target="#b36">(Patel et al., 2021;</ref><ref type="bibr" target="#b52">Yang et al., 2022)</ref>.</p><p>To address the aforementioned issue, we follow the structure of the tree decoder but decompose the problem representation Ẑ ∈ R h * n into context representation Ẑc ∈ R h * a and question representation Ẑq ∈ R h * b based on the splitting index between W c and W q , and use the mean vector of Ẑq as the initial hidden state of the tree decoder. This seemingly minor modification has been demonstrated to be quite effective in our experiments. This strategy allows the decoder to incorporate a more balanced representation of the problem at the outset, rather than being biased towards the context.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Question-Contrastive Training</head><p>Our decoder, as previously mentioned, relies on the learned question representation Ẑq to guide the solution generation. Given the potential for MWPs to have similar questions but disparate solutions <ref type="bibr" target="#b27">(Liang and Zhang, 2021)</ref>, it is essential that this question representation be precise. To that end, we introduce question-contrastive learning in our approach, with the aim of augmenting the training process with a degree of variability and bolstering the model's sensitivity to minor data perturbations. This, in turn, provides a more precise encoding for the question and allows for a more accurate decoding towards the solution.</p><p>The regular training criteria for the solver is to minimize the negative log probability:</p><formula xml:id="formula_7">L(W, S) = -log p( Ẑ | W ) -log p(S | Ẑc , Ẑq ),<label>(7)</label></formula><p>where the two terms train the encoder and decoder, respectively. To obtain a question-robust decoder, we apply Gaussian noise to the question representation Ẑq and get a negative question representation 20 Ẑneg q : Ẑneg q = Ẑq + λN (0, 1),</p><p>where λ controls the magnitude of the introduced noise. Toward the end of enabling our solver to execute distinct decoding processes for disparate questions, we strive to augment the discrepancy between the decoding based on Ẑq and Ẑneg q . In other words, we are trying to enlarge the difference D( Ẑq , Ẑneg q ) between those two decoding processes:</p><formula xml:id="formula_9">D( Ẑq , Ẑneg q ) = -log p(S | Ẑc , Ẑq )+ log p(S | Ẑc , Ẑneg q ).<label>(9)</label></formula><p>Then, we adjust our training target to a modified hinge loss with a margin of m:</p><formula xml:id="formula_10">L = L(W, S), if m-D( Ẑq, Ẑneg q ) &gt; 0, -log p( Ẑ | W ) + m-D( Ẑq, Ẑneg q ), otherwise. (<label>10</label></formula><formula xml:id="formula_11">)</formula><p>When the difference D( Ẑq , Ẑneg q ) exceeds the margin m, which means our model does well on differentiating them, we simply utilize the original training loss as outlined in Equation ( <ref type="formula" target="#formula_7">7</ref>). Conversely, when the discrepancy between the two decoded results falls below the margin m, we alter our decoder training target to augment the difference between them. Eventually, we use loss L in Equation (10) as our training target, λ and m are hyper-parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>Math23k Math23k <ref type="bibr" target="#b47">(Wang et al., 2017)</ref> is a commonly utilized benchmark for evaluating the performance of MWP solvers. It is composed of 21,162 Chinese MWPs in the training set and 1,000 in the test set, and is sourced from educational websites.</p><p>MAWPS MAWPS <ref type="bibr" target="#b19">(Koncel-Kedziorski et al., 2016)</ref> comprises 2,373 English MWPs, which were created by integrating several smaller datasets. In our evaluation, we use a 5-fold cross-validation approach on this dataset due to its small size.</p><p>UnbiasedMWP UnbiasedMWP <ref type="bibr" target="#b52">(Yang et al., 2022)</ref> consists of 10,264 Chinese MWPs with diverse questions, which are constructed by varying the grounded expressions and annotating corresponding questions by human annotators. An assessment of the solver's performance on this dataset may serve as an indication of its ability to generalize over different questions.</p><p>SVAMP The SVAMP <ref type="bibr" target="#b36">(Patel et al., 2021)</ref> dataset consists of 1,000 MWPs and is not split into training and testing sets. Previous studies have mainly explored two different settings, i.e., 1). combining MAWPS <ref type="bibr" target="#b19">(Koncel-Kedziorski et al., 2016)</ref> and <ref type="bibr">Asdiv-a (Miao et al., 2020)</ref> as the training set, with SVAMP as the testing set; 2) splitting SVAMP into 5 folds, and performing a leave-one-out crossvalidation, using MAWPS and Asdiv-a as additional training data for each validation. We adopted the latter method, as our proposed approach seeks to optimize the solver towards learning better question generalization capability from the training set to the testing set. In contrast, the first setting does not align with our objective, since the training set has no diversity of questions, while the testing set does. The results in Table <ref type="table" target="#tab_3">3</ref> demonstrate the ability of our solver, in learning to understand different questions under the same context from the training set and generalizing to the testing set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Baselines</head><p>GTS <ref type="bibr" target="#b51">(Xie and Sun, 2019)</ref> proposes a goal-driven tree-based decoder. Graph2Tree <ref type="bibr" target="#b53">(Zhang et al., 2020)</ref> utilizes quantity-related graphs to refine the problem representation. NumS2T <ref type="bibr">(Wu et al., 2021b)</ref> applies explicit numerical encoding. Multi-E/D (Shen and Jin, 2020) uses multiple encoders and decoders in MWP solving. HMS <ref type="bibr" target="#b28">(Lin et al., 2021)</ref> proposes a hierarchical encoder. EEH-G2T <ref type="bibr">(Wu et al., 2021a)</ref> captures the long-range relationship in the text by graphs. REAL <ref type="bibr" target="#b14">(Huang et al., 2021)</ref> proposes an augmented learning strategy by retrieving similar MWPs. BERT-CL <ref type="bibr" target="#b22">(Li et al., 2021)</ref> uses BERT backbone and contrastive learning. MWP-BERT <ref type="bibr">(Liang et al., 2022a)</ref> presents several pre-training tasks to continually pre-trained a BERT model on MWP corpus. Deductive Reasoner <ref type="bibr" target="#b15">(Jie et al., 2022)</ref> proposes a deductive decoding method on RoBERTa backbone. Analogical Solver <ref type="bibr">(Liang et al., 2022b</ref>) is a representation learning method by capturing similar problems during training and uses BERT backbone. CoT <ref type="bibr" target="#b48">(Wei et al., 2022)</ref> is an in-context learning approach with chain-of-thought prompts on large language models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Implementation Details</head><p>In this work, we conducted all experiments using an NVIDIA RTX 3090 24G graphics card, implemented in Python using the PyTorch framework. To get the initial representation Z in Equation (1), we use three different backbones -BERT <ref type="bibr" target="#b9">(Devlin et al., 2019)</ref>, RoBERTa <ref type="bibr">(Liu et al., 2019b)</ref>, and DeBERTa <ref type="bibr" target="#b10">(He et al., 2020)</ref>. The training was performed for 100 epochs with a batch size of 16, using the AdamW <ref type="bibr" target="#b16">(Kingma and Ba, 2014;</ref><ref type="bibr" target="#b32">Loshchilov and Hutter, 2018)</ref> optimizer with an initial learning rate of 3e-5 for base models and 6e-6 for large models, which was halved every 30 epochs. The weight decay during training was set to 0.1, and a dropout rate of 0.5 was applied to the decoder to prevent overfitting. During testing, we employed a 5-beam search to improve the quality of the solutions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Hyper-parameter Tuning</head><p>In order to determine the hyperparameters for our model, we employed a grid search approach with a manually designed search space, using answer accuracy as the evaluation metric. After exploring the search space for the noise magnitude λ, we ultimately selected a value of 1 out of {0.01, 0.1, 1, 10}. Similarly, for the margin m in Equation <ref type="formula" target="#formula_10">10</ref>, we chose a weight of 0.01 from the available options of {0.001, 0.005, 0.01, 0.05, 0.1}. We set the number of heads H in our graph encoder to 8 out of {4, 8, 12, 16}. Additionally, we examined the size of the beam search across the range of {1, 3, 5, 7} and ultimately selected a search size of 5. Lastly, we selected an embedding size of 512 for the tree-based decoder from the options of {128, 256, 512, 1024}.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Backbone Language Models</head><p>Our encoder relies on a pre-trained language model to get the representation of MWPs. Specifically, we use three different backbones -BERT <ref type="bibr" target="#b9">(Devlin et al., 2019)</ref>, RoBERTa <ref type="bibr">(Liu et al., 2019b)</ref>, and DeBERTa <ref type="bibr" target="#b10">(He et al., 2020)</ref>. For English datasets, three models are cloned from For Chinese datasets, we use a continually pre-trained model MWP-BERT <ref type="bibr">(Liang et al., 2022a)</ref> https://huggingface.co/invokerliang/MWP-BERT-zh as our BERT backbone.</p><p>Then, we use whole-word-mask (WWM) <ref type="bibr" target="#b8">(Cui et al., 2020)</ref> pre-trained Chinese RoBERTa </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Accuracy Comparison</head><p>We first report the results on two wellacknowledged datasets, Math23k and MAWPS. As shown in Table <ref type="table" target="#tab_2">2</ref>, our solver outperforms baselines on both benchmarks, achieving a state-of-the-art performance. This improvement over Seq2Seq and Seq2Tree baselines on both datasets is statistically significant, as confirmed by a t-test with a p-value &lt; 0.01. While the improvement on MAWPS may appear small, the rest of the problems in this dataset are difficult to solve. It is worth mentioning that our solver with RoBERTa (large) achieves higher accuracy on MAWPS dataset than the CoT approach presented in <ref type="bibr" target="#b48">(Wei et al., 2022)</ref>, which relies on a 540B-parameter backbone and has a 93.3% accuracy.</p><p>To further test the capabilities of our solver, we conduct experiments on two highly challenging benchmarks, UnbiasedMWP and SVAMP. These datasets are created by introducing diverse variations in the MWP questions. Previous Seq2Seq solvers with limited generalization capability have been unable to achieve satisfactory accuracy on these datasets. However, as shown in proaches <ref type="bibr" target="#b48">(Wei et al., 2022;</ref><ref type="bibr" target="#b33">Lu et al., 2022;</ref><ref type="bibr" target="#b46">Wang et al., 2022;</ref><ref type="bibr" target="#b7">Chen et al., 2022)</ref> have achieved impressive results on the SVAMP dataset, surpassing the accuracy of our solver described here, we posit that our work is fundamentally distinct and not in competition with them. A detailed discussion of this can be found in Section 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.7">Ablation Study</head><p>To assess the contribution of each component to the overall performance of the solver, various combinations of these methods are implemented in Table <ref type="table" target="#tab_5">4</ref>. ✗ and ✓ indicate different combinations of the proposed components. To further elaborate, the term "without entity-aware encoding" refers to the condition in which the adjacency matrix of the original dependency graph is utilized solely to form A in Equation (1). Next, "without question-guided decoding" signifies the scenario in which the entire problem representation is directly input to the decoder. Finally, "without question-contrastive train- ing" refers to the use of Equation ( <ref type="formula" target="#formula_7">7</ref>) as the loss function in place of Equation ( <ref type="formula" target="#formula_10">10</ref>). Generally, the results demonstrate the significance of all three components in achieving optimal performance. To be more specific, the entity-aware encoding can always offer accuracy improvement with different decoding strategy. And the question-guided decoding and question-contrastive loss should be paired to exert their full potential. Because the decoding process is dominated by the context without question decoding, thus question-contrastive training will be less effective. On the other hand, the question decoding without the contrastive loss will be short of obtaining precise representation for similar but different questions <ref type="bibr" target="#b27">(Liang and Zhang, 2021)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.8">Model Efficiency</head><p>As shown in Figure <ref type="figure" target="#fig_1">2</ref>, we evaluate the efficiency of our proposed solver by comparing its training time and memory cost with that of representative baselines. The inference time is not considered in our analysis as they all operate at milliseconds scale. We measure the training time cost from the initiation of the training process until the solver reached convergence at its optimal performance. All the results are measured on a single RTX 3090 24G graphics card to ensure fairness and our backbone encoder is RoBERTa. Our results in Figure <ref type="figure" target="#fig_1">2</ref> demonstrate that our model exhibits a satisfying efficiency advantage over existing Seq2Tree solvers while obtaining a superior performance. We can also find that the analogical solver is particularly slow because it needs to seek similar MWPs during training thus requires a much longer time to converge, although it contains a similar number of parameters as ours. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.9">Case Study</head><p>To investigate the effectiveness of our approach, we conducted a case study that compared our solutions to those produced by the baseline MWP-BERT model and two ablated versions of our approach as shown in Table <ref type="table" target="#tab_6">5</ref>. The first ablated model excluded the use of entity linking in the original dependency graph, while the second replaced our decoder with a vanilla tree-decoder <ref type="bibr" target="#b51">(Xie and Sun, 2019)</ref>. It is worth noting that MWP-BERT misconstrued the first question and seemed to be reasoning based on the context rather than the question itself, whereas our solver accurately solved it. As for the fourth question, our solver utilized entity-aware encoding to precisely comprehend the question's intent and provide a correct solution. This case study demonstrates that our solver is able to concentrate on the questions during the reasoning process and exhibits superior generalizability on questions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion on Large Language Models</head><p>In this era of LLMs, it is not surprising that our method cannot surpass the performance of LLMs on MWP benchmarks such as <ref type="bibr" target="#b48">(Wei et al., 2022;</ref><ref type="bibr" target="#b46">Wang et al., 2022;</ref><ref type="bibr" target="#b33">Lu et al., 2022)</ref>. However, our approach still represents a significant advancement in the field of MWP solving. Its computational efficiency makes it practical for real-world situations where cost and speed are important considerations. For instance, our method has the potential to utilize the capabilities of LLMs through knowledge distillation, serving as a student model to improve performance while maintaining efficiency, like <ref type="bibr" target="#b11">(Ho et al., 2022;</ref><ref type="bibr" target="#b34">Magister et al., 2022;</ref><ref type="bibr" target="#b43">Shridhar et al., 2022;</ref><ref type="bibr">Liang et al., 2023a)</ref>. Therefore, we believe this work has its value to the research field.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this work, we present a question-oriented strategy to solve math word problems, addressing the limitations of the question-generalizability of previous solvers. Our model contains an entity-aware encoder, a question-guided decoder and questioncontrastive loss. Empirical evaluations demonstrate that our approach outperforms fine-tuned Seq2Tree models and even some large language models in terms of effectiveness. Through our case study, we provide further evidence of the effectiveness of our approach. Overall, our solver has a simple structure but exhibits a favorable balance between efficacy and efficiency, and it is also compatible with diverse language model backbones. We believe it has the potential to serve as a valuable reference for future research endeavors in the community.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitation</head><p>Despite achieving superior question-generalization ability, our solver still encounters challenges in explaining its reasoning steps in a human-like manner. This is a common limitation among Seq2Tree MWP solvers when compared to chainof-thought approaches. Additionally, while our solver demonstrates state-of-the-art performance among its peers, its accuracy is still lower in comparison to the latest chain-of-thought approaches such as <ref type="bibr" target="#b46">(Wang et al., 2022;</ref><ref type="bibr" target="#b7">Chen et al., 2022)</ref>.</p><p>In our future work, we plan to investigate methods for integrating our approach with large language models (LLMs) in order to harness their exceptional mathematical reasoning capabilities, making our solver both more explainable and more powerful.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>https://github.com/google-research/bert, https://github.com/facebookresearch/ fairseq/tree/main/examples/roberta, https: //github.com/microsoft/DeBERTa.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Comparison on memory and time cost between our and baselines on Math23k.</figDesc><graphic coords="8,337.35,142.73,72.34,61.07" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>, and Overview of the proposed QoS model. One MWP is first encoded using a pre-trained language model, followed by the use of dependency graph analysis and entity linking to ensure a high-quality representation of the question. A question-guided decoder is then employed, utilizing contrastive training to maximize the margin between the decoding of the genuine and perturbed question representations.</figDesc><table><row><cell>[CLS]</cell><cell>Z_1</cell><cell cols="2">Z_2 Transformer Encoder Z_3</cell><cell>...</cell><cell>Z_n</cell><cell cols="2">Entity Linking</cell><cell cols="2">Graph Encoder Context Question</cell><cell>Gaussian Noise</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Multi-head</cell><cell>GCN GCN …… GCN GCN</cell><cell>Summation</cell><cell>Contrastive Decoding</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Layer Norm</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Feed Forward (MLP)</cell><cell>Maximize</cell></row><row><cell>[CLS]</cell><cell>E_1</cell><cell>E_2</cell><cell>E_3</cell><cell>...</cell><cell>E_n</cell><cell></cell><cell></cell><cell cols="2">Context</cell><cell>Question</cell><cell>Tree Decoder Margin</cell></row><row><cell>[CLS]</cell><cell>Conner</cell><cell>has</cell><cell>N0</cell><cell>...</cell><cell>?</cell><cell></cell><cell cols="3">Dependency Parsing</cell><cell>-</cell></row><row><cell></cell><cell cols="4">Problem Description: Conner has 25,000 (N0) dollars in his</cell><cell></cell><cell>Question:</cell><cell>dollars NOUN</cell><cell cols="2">Conner PROPN VERB ADP NOUN have in account</cell><cell>N0</cell><cell>×</cell></row><row><cell cols="6">account. Every month he spends 1500 (N1) dollars. How many dollars will Conner have in his account</cell><cell>Context:</cell><cell>Conner</cell><cell>has</cell><cell>dollars</cell><cell>in</cell><cell>account</cell><cell>N1</cell><cell>N2</cell></row><row><cell></cell><cell></cell><cell cols="2">after 8 (N2) months?</cell><cell></cell><cell></cell><cell></cell><cell cols="3">PROPN VERB NOUN</cell><cell>ADP</cell><cell>NOUN</cell></row><row><cell>Figure 1:</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Accuracies on Math23k and MAWPS datasets. * denotes our reproduction. The best base/large models are bolded.</figDesc><table><row><cell>as our RoBERTa and DeBERTa backbones,</cell></row><row><cell>respectively.</cell></row></table><note><p>https://github.com/ymcui/Chinese-BERT-wwm and https://github.com/IDEA-CCNL/Fengshenbang-LM</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 ,</head><label>3</label><figDesc>our solver not only becomes the top performer on Un-biasedMWP, but also achieves a superior accuracy on SVAMP. While it is true that LLM-based ap-</figDesc><table><row><cell></cell><cell>UnbiasedMWP</cell><cell>SVAMP</cell></row><row><cell>GTS</cell><cell>63.7</cell><cell>54.6  *</cell></row><row><cell>Graph2Tree</cell><cell>64.6</cell><cell>58.2  *</cell></row><row><cell>MWP-BERT</cell><cell>80.1</cell><cell>63.1  *</cell></row><row><cell>Roberta-Graph2Tree</cell><cell>-</cell><cell>65.0</cell></row><row><cell>Deductive Reasoner</cell><cell>82.7  *</cell><cell>69.8  *</cell></row><row><cell>Analogical Solver</cell><cell>82.3  *</cell><cell>68.7  *</cell></row><row><cell>CoT</cell><cell>-</cell><cell>79.0</cell></row><row><cell cols="3">Our solver with (base / large) backbone:</cell></row><row><cell>QoS -BERT</cell><cell>82.5 / 83.9</cell><cell>50.5 / 69.9</cell></row><row><cell>QoS -RoBERTa</cell><cell>82.8 / 85.1</cell><cell>60.5 / 72.4</cell></row><row><cell>QoS -DeBERTa</cell><cell>82.4 / 86.8</cell><cell>58.8 / 72.6</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Accuracies on UnbiasedMWP and SVAMP datasets. Since the two datasets are recently released and few papers have evaluated their methods on them, only representative baselines (* denotes our reproduction) are selected and compared with our proposed method. The best base/large models are bolded.</figDesc><table><row><cell>Entity-aware encoding</cell><cell>Question-guided decoding</cell><cell>Contrastive Training</cell><cell cols="2">Math23k SVAMP</cell></row><row><cell>✗</cell><cell>✗</cell><cell>✗</cell><cell>85.1</cell><cell>65.3</cell></row><row><cell>✓</cell><cell>✗</cell><cell>✗</cell><cell>86.0</cell><cell>70.5</cell></row><row><cell>✗</cell><cell>✓</cell><cell>✗</cell><cell>85.0</cell><cell>65.2</cell></row><row><cell>✗</cell><cell>✗</cell><cell>✓</cell><cell>84.9</cell><cell>65.3</cell></row><row><cell>✗</cell><cell>✓</cell><cell>✓</cell><cell>85.5</cell><cell>69.1</cell></row><row><cell>✓</cell><cell>✓</cell><cell>✗</cell><cell>86.0</cell><cell>70.1</cell></row><row><cell>✓</cell><cell>✗</cell><cell>✓</cell><cell>86.1</cell><cell>70.3</cell></row><row><cell>✓</cell><cell>✓</cell><cell>✓</cell><cell>86.9</cell><cell>72.4</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Accuracy among different ablated models. All models have RoBERTa-large backbone.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Our case study. Correct solutions are colored in green and wrong solutions are in red.</figDesc><table /></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Context: In a tree planting activity, the fifth-grade students planted 145 trees, 17 fewer than the sixth-grade students. The number of trees planted by the sixth-grade students is 1.5 times that of the fourth-grade. Question 1: How many trees did the sixth-grade students plant?</title>
+		<idno>Solutions: MWP-BERT: (145 + 17)/1.5</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Question 2: How many trees did the fourth-grade students plant?</title>
+		<idno>Solutions: MWP-BERT: (145 + 17)/1.5</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Question 3: How many more trees are planted by fifth-grade students than those by fourth-grade students? Solutions: MWP-BERT</title>
+		<imprint>
+			<biblScope unit="page" from="145" to="162" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Question 4: How many times as many trees were planted by fifth-grade students as fourth-grade students?</title>
+		<idno>Solutions: MWP-BERT: (145 + 17) * 1.5/145</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Qos</surname></persName>
+		</author>
+		<idno>145/((145 + 17)/1.5</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Armath: a dataset for solving arabic math word problems</title>
+		<author>
+			<persName><forename type="first">References</forename><surname>Reem Alghamdi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenwen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangliang</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth Language Resources and Evaluation Conference</title>
+		<meeting>the Thirteenth Language Resources and Evaluation Conference</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="351" to="362" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Natural language input for a computer problem solving system</title>
+		<author>
+			<persName><surname>Dg Bobrow</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1964">1964</date>
+		</imprint>
+		<respStmt>
+			<orgName>Department of Mathematics, MIT</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph. D. Thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Program of thoughts prompting: Disentangling computation from reasoning for numerical reasoning tasks</title>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueguang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.12588</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Revisiting pre-trained models for chinese natural language processing</title>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shijin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoping</forename><surname>Hu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP: Findings</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="657" to="668" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Deberta: Decoding-enhanced bert with disentangled attention</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Namgyu</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Se-Young</forename><surname>Yun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.10071</idno>
+		<title level="m">Large language models are reasoning teachers</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning by fixing: Solving math word problems with weak supervision</title>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qing</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ciao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song-Chun</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<editor>
+			<persName><forename type="first">Aaai</forename></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Mohammad</forename><forename type="middle">Javad</forename><surname>Hosseini</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nate</forename><surname>Kushman</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2014">2021. 2014</date>
+			<biblScope unit="page" from="523" to="533" />
+		</imprint>
+	</monogr>
+	<note>Learning to solve arithmetic word problems with verb categorization</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Learning fine-grained expressions to solve math word problems</title>
+		<author>
+			<persName><forename type="first">Danqing</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuming</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="805" to="814" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Recall and learn: A memoryaugmented solver for math word problems</title>
+		<author>
+			<persName><forename type="first">Shifeng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiao</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Da</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of EMNLP</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="786" to="796" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning to reason deductively: Math word problem solving as complex relation extraction</title>
+		<author>
+			<persName><forename type="first">Zhanming</forename><surname>Jie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jierui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Lu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5944" to="5955" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Semisupervised classification with graph convolutional networks</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Kipf</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Welling</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.02907</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">Takeshi</forename><surname>Kojima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shane</forename><surname>Shixiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Machel</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutaka</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusuke</forename><surname>Matsuo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Iwasawa</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.11916</idno>
+		<title level="m">Large language models are zero-shot reasoners</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Mawps: A math word problem repository</title>
+		<author>
+			<persName><forename type="first">Rik</forename><surname>Koncel-Kedziorski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhro</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aida</forename><surname>Amini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nate</forename><surname>Kushman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1152" to="1157" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Modeling intrarelation in math word problems with different functional multi-head attentions</title>
+		<author>
+			<persName><forename type="first">Jierui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jipeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><forename type="middle">Tian</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongxiang</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6162" to="6167" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shiyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianshu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinlu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baolin</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Mao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.06726</idno>
+		<title level="m">Explanations from large language models make small reasoners better</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhongli</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongzhi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunbo</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2110.08464</idno>
+		<title level="m">Seeking patterns, not just memorizing procedures: Contrastive learning for solving math word problems</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">2023a. Let gpt be a math tutor: Teaching math word problem solvers with customized exercise generation</title>
+		<author>
+			<persName><forename type="first">Zhenwen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tanmay</forename><surname>Rajpurohit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangliang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Kaylan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.14386</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">2022a. Mwp-bert: Numeracy-augmented pre-training for math word problem solving</title>
+		<author>
+			<persName><forename type="first">Zhenwen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jipeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunshi</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangliang</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<biblScope unit="page" from="997" to="1009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">2023b. Generalizing math word problem solvers via solution diversification</title>
+		<author>
+			<persName><forename type="first">Zhenwen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jipeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangliang</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="13183" to="13191" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">2022b. Analogical math word problems solving with enhanced problem-solution association</title>
+		<author>
+			<persName><forename type="first">Zhenwen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jipeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangliang</forename><surname>Zhang</surname></persName>
+		</author>
+		<imprint>
+			<publisher>EMNLP</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Solving math word problems with teacher supervision</title>
+		<author>
+			<persName><forename type="first">Zhenwen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangliang</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3522" to="3528" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Hms: A hierarchical solver with dependency-enhanced understanding for math word problem</title>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenya</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongke</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enhong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shijin</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4232" to="4240" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Reverse operation based data augmentation for solving math word problems</title>
+		<author>
+			<persName><forename type="first">Qianying</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyu</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daisuke</forename><surname>Kawahara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.01556</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">2019a. Tree-structured decoding for solving math word problems</title>
+		<author>
+			<persName><forename type="first">Qianying</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyv</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daisuke</forename><surname>Kawahara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<biblScope unit="page" from="2370" to="2379" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Decoupled weight decay regularization</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Loshchilov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Hutter</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Dynamic prompt learning via policy gradient for semi-structured mathematical reasoning</title>
+		<author>
+			<persName><forename type="first">Pan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><forename type="middle">Nian</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song-Chun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tanmay</forename><surname>Rajpurohit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Kalyan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2209.14610</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Charlotte</forename><surname>Lucie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Magister</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakub</forename><surname>Mallinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Adamek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aliaksei</forename><surname>Malmi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Severyn</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.08410</idno>
+		<title level="m">Teaching small language models to reason</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A diverse corpus for evaluating and developing english math word problem solvers</title>
+		<author>
+			<persName><surname>Shen-Yun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao-Chun</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keh-Yih</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="975" to="984" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Are nlp models really able to solve simple math word problems?</title>
+		<author>
+			<persName><forename type="first">Arkil</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satwik</forename><surname>Bhattamishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Navin</forename><surname>Goyal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2080" to="2094" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Stanza: A python natural language processing toolkit for many human languages</title>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Bolton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="101" to="108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Generate &amp; rank: A multi-task framework for math word problems</title>
+		<author>
+			<persName><forename type="first">Jianhao</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichun</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lifeng</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qun</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of EMNLP</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2269" to="2279" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Solving math word problems with multi-encoders and multi-decoders</title>
+		<author>
+			<persName><forename type="first">Yibin</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheqing</forename><surname>Jin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<biblScope unit="page" from="2924" to="2934" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Language models are multilingual chain-of-thought reasoners</title>
+		<author>
+			<persName><forename type="first">Freda</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirac</forename><surname>Suzgun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suraj</forename><surname>Srivats</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soroush</forename><surname>Vosoughi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyung</forename><forename type="middle">Won</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03057</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Automatically solving number word problems by semantic parsing and reasoning</title>
+		<author>
+			<persName><forename type="first">Shuming</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuehui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaojiang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Rui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1132" to="1142" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">Distilling multi-step reasoning capabilities of large language models into smaller models via semantic decompositions</title>
+		<author>
+			<persName><forename type="first">Kumar</forename><surname>Shridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Stolfo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mrinmaya</forename><surname>Sachan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.00193</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS/NeurIPS</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Translating a math word problem to a expression tree</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deng</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongxiang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaojiang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1064" to="1069" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Self-consistency improves chain of thought reasoning in language models</title>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.11171</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Deep neural solver for math word problems</title>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaojiang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuming</forename><surname>Shi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="845" to="854" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2201.11903</idno>
+		<title level="m">Chain of thought prompting elicits reasoning in large language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">2021a. An edge-enhanced hierarchical graph-to-tree network for math word problem solving</title>
+		<author>
+			<persName><forename type="first">Qinzhuo</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongyu</forename><surname>Wei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of EMNLP</title>
+		<imprint>
+			<biblScope unit="page" from="1473" to="1482" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Math word problem solving with explicit numerical values</title>
+		<author>
+			<persName><forename type="first">Qinzhuo</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongyu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5859" to="5869" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">A goal-driven tree-structured neural model for math word problems</title>
+		<author>
+			<persName><forename type="first">Zhipeng</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shichao</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5299" to="5305" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhicheng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinghui</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodan</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.08108</idno>
+		<title level="m">Unbiased math word problems benchmark for mitigating solving bias</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Graph-totree learning for solving math word problems</title>
+		<author>
+			<persName><forename type="first">Jipeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roy</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ka-Wei</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Bin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ee-Peng</forename><surname>Lim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3928" to="3937" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title level="m" type="main">Multi-view reasoning: Consistent contrastive learning for math word problem</title>
+		<author>
+			<persName><forename type="first">Wenqi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongliang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanna</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoxia</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeqi</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingpeng</forename><surname>Nong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiming</forename><surname>Lu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>Findings of EMNLP</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

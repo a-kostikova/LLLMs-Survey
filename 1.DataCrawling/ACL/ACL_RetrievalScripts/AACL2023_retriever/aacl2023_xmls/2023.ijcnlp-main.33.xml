@@ -1,0 +1,739 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">We Need to Talk About Classification Evaluation Metrics in NLP</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Peter</forename><surname>Vickers</surname></persName>
+							<email>pgjvickers1@sheffield.ac.uk</email>
+						</author>
+						<author>
+							<persName><forename type="first">Loïc</forename><surname>Barrault</surname></persName>
+							<email>loicbarrault@meta.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Meta</forename><forename type="middle">Ai</forename><surname>France</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Emilio</forename><surname>Monti</surname></persName>
+							<email>monti@amazon.co.uk</email>
+						</author>
+						<author>
+							<persName><forename type="first">Nikolaos</forename><surname>Aletras</surname></persName>
+							<email>n.aletras@sheffield.ac.uk</email>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Sheffield</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Sheffield</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">We Need to Talk About Classification Evaluation Metrics in NLP</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">CE1849BDE3782F7B99320B17DFAD0D35</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:35+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>In Natural Language Processing (NLP) classification tasks such as topic categorisation and sentiment analysis, model generalizability is generally measured with standard metrics such as Accuracy, F-Measure, or AUC-ROC. The diversity of metrics, and the arbitrariness of their application suggest that there is no agreement within NLP on a single best metric to use. This lack suggests there has not been sufficient examination of the underlying heuristics which each metric encodes. To address this we compare several standard classification metrics with more 'exotic' metrics and demonstrate that a random-guess normalised Informedness metric is a parsimonious baseline for task performance. To show how important the choice of metric is, we perform extensive experiments on a wide range of NLP tasks including a synthetic scenario, natural language understanding, question answering and machine translation. Across these tasks we use a superset of metrics to rank models and find that Informedness best captures the ideal model characteristics. Finally, we release a Python implementation of Informedness following the SciKitLearn classifier format. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Some of the most widely used classification metrics for measuring classifier performance in NLP tasks are Accuracy, F1-Measure and the Area Under the Curve -Receiver Operating Characteristics (AUC-ROC). For example, seven out of nine tasks of popular NLP benchmark GLUE <ref type="bibr" target="#b20">(Wang et al., 2018)</ref> use either Accuracy or F1.</p><p>Such metrics reduce the full collection of true classes y and predicted classes ŷ to a single scalar value. For instance accuracy, the most common classification metric, is equal to the proportion of 1 Code and documentation is available at https://github.com/petervickers/ aacl-informedness predicted classes which match true classes. Whilst capturing all the qualities of a classifier in any single scalar value is rather impossible <ref type="bibr" target="#b4">(Chicco et al., 2021)</ref>, the quality of the heuristic rule <ref type="bibr" target="#b17">(Valverde-Albacete et al., 2013)</ref> influences both the overall ranking of models and the intra-task understanding of model capability.</p><p>It is difficult to evaluate true model ability with Accuracy due to the 'Accuracy Paradox' (Ben- <ref type="bibr" target="#b2">David, 2007)</ref>: simply guessing the most common class can reward a score equal to that class's prevalence in the test set. We expand this paradox into two phenomena: (1) the reward given to models that predict more classes which appear more often (are more prevalent) <ref type="bibr" target="#b9">(Lafferty et al., 2001)</ref>; and (2) the probabilistic lower bound for accuracy being much greater than zero for random guessing models in most realistic scenarios, a phenomenon we term baseline credit <ref type="bibr" target="#b21">(Youden, 1950)</ref>.</p><p>F1-Measure (Manning and Schütze, 1999) is the harmonic mean of precision and recall and so represents a balance of two desirable characteristics of classifiers. F1 is defined against a single class, and so within even a binary classification case its value changes if the classes are reversed. Additionally, the weighting of precision and recall is a function of the model itself <ref type="bibr" target="#b6">(Hand and Christen, 2018)</ref>, making it a poor metric for ranking models. In order to handle the multi-class case, macro-and micro-averaging strategies have been proposed. In the single-label case we consider, micro averaging is reduced to Accuracy, whilst macro-averaging is equivalent to averaging the F1 score across all classes. Therefore, F1-Macro retains both the biases of F1 in the single class case and introduces a further heuristic in weighting all classes equally regardless of class prevalence.</p><p>An alternative to the F-Measure, the Receiver Operating Characteristic (ROC) curve visually presents the trade-off between Recall and Precision as a function of the decision threshold. The Area Underneath the ROC Curve (AUC) is a metric which integrates the ROC curve to return a scalar value. As <ref type="bibr" target="#b7">Hand (2009)</ref> has shown, AUC is effectively applying a cost function dependent on the False Positive Rate of the specific classifier, so systems cannot be compared if they have different False Positive Rates.</p><p>In this paper we perform an extensive empirical analysis of various classification metrics in synthetic and real settings. We advocate for using Informedness, an unbiased and cognitively plausible multi-class classification metric <ref type="bibr" target="#b11">(Powers, 2003</ref><ref type="bibr" target="#b13">(Powers, , 2013) )</ref> for comparing classification performance of different models instead of common metrics such as accuracy and F1. This metric avoids crediting modes exhibiting guessing or bias which distort the comparability of mainstream classification models. Informedness reports the proportion of the time a classifier makes an informed decision; that is, a decision better than bias exploitation strategies. Finally, it allows comparison between tasks of different bias or complexity, and negates the need for dataset re-balancing to 'fit the metric'.</p><p>Our main contributions are as follows:</p><p>• A definition of Informedness as a classification metric suited to NLP applications</p><p>• Synthetic and real task comparisons of Informedness against an extensive list of classification metrics </p><formula xml:id="formula_0">         {y = C 0 , ŷ = C 0 }, {y = C 1 , ŷ = C 0 }, {y = C 1 , ŷ = C 1 }, . . .         </formula><p>is unwieldy, so a metric is used to reduce the set more compact form, typically a single scalar value. First, the set of classifications may be considered as a Confusion Matrix (or contingency We define this table for a class of interest c . In the binary case, this would be one of two classes and hence two tables could be created, each the 180°rotation of the other. In the multi-class case, there will be c such matrices.</p><p>From this table we also introduce Class Prevalence: the proportion of all samples which have a given real class, and Class Bias: the proportion of all samples which have a given predicted class. Prevalence is (TP+FN)/(TP+FN+TN+FN). Prediction Bias is (TP+FP)/(TP+FN+TN+FN).</p><p>Since an N × N is considered too complex to compare models, a further simplification is often used to produce a single scalar value. As this reduction is an information-destructive operation <ref type="bibr" target="#b4">(Chicco et al., 2021)</ref>, the heuristic rule <ref type="bibr" target="#b17">(Valverde-Albacete et al., 2013)</ref> which the metric applies to obtain a single value will determine what that metric considers be a 'good' model.</p><p>Accuracy: It is defined as the proportion of correctly identified samples out of a total set of evaluation samples. Accuracy encodes the heuristic that the best model will have the most correctly predicted instances. This prior allows for the 'accuracy paradox' where an uninformed model may guess the most common class artificially overestimating the generalizability score.</p><formula xml:id="formula_1">Accuracy = 1 S C c=0 T P c (<label>1</label></formula><formula xml:id="formula_2">)</formula><p>where C is the number of classes, T P c is the number True Positives for class c and S is the total number of samples.</p><p>Balanced Accuracy: This is a variant designed to counteract the class-frequency-weighted nature of accuracy <ref type="bibr" target="#b3">(Brodersen et al., 2010)</ref>. As shown by <ref type="bibr" target="#b4">Chicco et al. (2021)</ref>, the binary case is equivalent to a re-scaled Informedness (see below).</p><p>F-Measure: This metric is defined as the geometric mean of the Precision and Recall of a binary classifier.</p><formula xml:id="formula_3">F1-Macro = 1 C C c=0 T Pc T Pc + 1 2 (F Pc + F Nc)<label>(2)</label></formula><p>where T P c , F P c , F N c denote True Positives, False Positives and False Negatives for each class c. In the multi-class case (3+ classes), those are computed for each class in turn. F1-Macro encodes the heuristic that the average of F1-Measure for all classes is a good representation of model performance. However, this has no intuitive interpretation. Additionally, as the number of negative samples increases, the number of samples which are misclassified as positive will also increase. As F1 is independent of the total number of samples, it ignores this important component of model assessment. F-Measure may be generalised to multi-class classification through micro or macro averaging. Micro-averaging sums the True Positives, False Positives, and False Negatives when calculating Precision and Recall, and is equivalent to accuracy in the uni-label case. Macro-averaging takes the arithmetic mean over Precision and Recall for every class.</p><p>Kappa: This is a family of metrics which calculate the inter-annotator reliability between annotators, rather than the performance of a classifier on a task. However, they account for the probability of chance agreement. Given annotators a 0 , a 1 they take the general form:</p><formula xml:id="formula_4">k = Accuracy(a 0 , a 1 ) -Chance Agreement(a 0 , a 1 ) 1 -Chance Agreement(a 0 , a 1 )</formula><p>(3) Kappa metrics differ in how they estimate from how the chance agreement is calculated <ref type="bibr" target="#b5">(Cohen, 1960)</ref>. It is possible to use Kappa as a metric for classification systems by defining the system and the true labels as annotators <ref type="bibr" target="#b2">(Ben-David, 2007)</ref>. However, <ref type="bibr" target="#b12">Powers (2012)</ref> has shown that Kappa is unfair to models in cases where the rates of true classes and predicted classes are unequal.</p><p>Informedness: This metric treats classification evaluation as an 'odds game', where a model with no predictive capability is unable to gain any credit through either label bias or baseline credit. It was first proposed in the binary case as Youden's Jstatistic <ref type="bibr" target="#b21">(Youden, 1950)</ref> and was generalised to the multi-class case in <ref type="bibr" target="#b11">Powers (2003)</ref>. Informedness is defined as the proportion of samples for which the model guesses better than random chance. The expected value of a model which is always correct is 1, and the expected value of a model which predicts correctly x% of the time, and guesses from the prevalence 100-x% of the time is x.</p><p>For a class with an empirical probability (prevalence) of p(y = c), the gain (or loss) i for a single prediction is computed as:</p><formula xml:id="formula_5">i(y, ŷ) =          1 p(y = c) if ŷ = c - 1 1 -p(y = c) if ŷ ̸ = c<label>(4)</label></formula><p>where p(y = c) is the empirical probability of class c, calculated from the test set. Scores are aggregated across the whole classification set as:</p><formula xml:id="formula_6">I = C c=0 p(ŷ = c) N y 1(y = c)i(y, ŷ) (5)</formula><p>Where 1(y = c) is an indicator function which takes 1 when y = c and 0 otherwise.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Mathew's Correlation Coefficient (MCC):</head><p>MCC is a measure of the correlation of the predicted classes ŷ with the true classes y. Whilst its definition ensures that random guessing will score 0, for any model better than random guessing, it will not report the possibility of random chance. MCC is dependent on the relative frequencies of classes in the test set, which makes comparison between models evaluated on different datasets impossible <ref type="bibr" target="#b4">(Chicco et al., 2021)</ref>. Formally, MCC is defined as:</p><formula xml:id="formula_7">MCC = Cov(ŷ, y) σ ŷ • σ y (6)</formula><p>Normalized Information Transfer (NIT): This information-theoretic measure reports the degree to which the classifier reduces the uncertainty of the input distribution by considering the information transfer through the classifier. It was introduced by Valverde-Albacete et al. <ref type="bibr">(2013)</ref>. Formally, NIT is defined as:</p><formula xml:id="formula_8">NIT = 2 MI ŷ,y -H Uy (7)</formula><p>Where MI ŷ,y is the Mutual Information of the Real and Predicted Classes, whilst H Uy is the Entropy of the Real Classes if they come from a uniform distribution.</p><p>As with Informedness, NIT considers prevalence, forcing classifiers to add Shannon Information, that is, to correctly classify samples, in order to increase the metric score.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experiment 1: Metric Evaluation on a Toy Setting</head><p>We first compare the metrics outlined in Section 2 on a toy setting, aiming to unveil the main differences between them. We assume a simulated model as follows:</p><p>• First, we sample from a uniform distribution [0,1] and then pick the correct label if the sample is smaller than model predictive power;</p><p>• Otherwise, we randomly sample from the class-prevalence weighted output distribution.</p><p>• We score a simulated model with a fixed probability of making a correct classification</p><p>We believe this is an acceptable representation of how a reasonably designed and trained neural network would behave.</p><p>Figure <ref type="figure">1</ref> shows the performance of a binary (top) and multi-class (bottom) classifier as a function of the class distribution and the model's predictive capacity from random guess to perfect.</p><p>In the binary case, we first observe that Accuracy becomes more distored as as the prevalence of either class increases. On the other hand, Balanced Accuracy and F1-Macro score are robust against prevalence, but are susceptible to random chance exploitation. Surprisingly, the NIT is superficially similar to accuracy. This can be explained by the fact that when one class is far more probable than the others, the Mutual Information between a random distribution sampled from the same prior is high.</p><p>In both binary and multi-class cases MCC-Macro appears to behave exactly as Informedness. This only holds in the case where the classification ability of the model is constant across classes <ref type="bibr" target="#b4">(Chicco et al., 2021)</ref>. We simulate model ability as a function of prevalence, so our figures do not capture this dynamic of the MCC-Macro. However, we do show that in this case Informedness correctly identifies the underlying probability of the model making an informed decision. We experiment with following two approaches:</p><p>• Random Guess: A 'most likely' guesser, which chooses the most common class from training;</p><p>• DistilBERT: We also finetune Distil-BERT <ref type="bibr" target="#b14">(Sanh et al., 2019)</ref> for five epochs on each sub-task.</p><p>Table <ref type="table" target="#tab_4">2</ref> shows model performance across models, metrics and tasks. For the sake of clarity, the last two lines show the difference between Distil-BERT and Random Guess scores. The 'All' column is a uniform-weighted mean of the metric scores across the GLUE tasks. In the case of informedness, it represents the average probability of an informed decision across all nine tasks. The use of Informedness across the GLUE tasks allows for direct comparison with the knowledge that bias is discounted.</p><p>First, we note that sampling classes according to their prior probability (see Guess rows) produces high accuracy scores for many tasks whilst Informedness remains very close to 0. This fact  makes it clear that Informedness provides a more interpretable metric when it comes to evaluating model capability. For all tasks, we observe a lower Informedness than Accuracy. This is expected due to the properties of the metrics shown in Figure <ref type="figure">1</ref>. For unbalanced tasks (CoLA, MRPC, WNLI), the gap between accuracy and Informedness is increased as Informedness removes the label bias gain. In the three-class tasks (MNLI-M and MNLI-MM), the delta between accuracy and Informedness is reduced but still pronounced. WNLI is the most interesting result. DistilBERT accuracy (56.3) is a small amount (4.5) larger than random guessing which suggests a weakly predictive model. However, Informedness is strongly negative (-43.1), which suggests that the model is underperforming the prior class distribution to a large degree. We hypothesise this is because the WNLI task is adversarial. We quote the GLUE authors: 'Due to a data quirk, the development set is adversarial: hypotheses are sometimes shared between training and development examples, so if a model memorizes the training examples, they will predict the wrong label on corresponding development set example.' <ref type="bibr" target="#b20">(Wang et al., 2018)</ref> Here accuracy suggests a weak model, whilst Informedness reports the real behaviour.</p><p>Another advantage of Informedness is the possibility of direct comparison between tasks with varying bias (e.g. CoLA and SST-2) and varying classes (e.g. CoLA and MNLI) without the need to correct for prevalence. Because MCC gives each class equal weight, it cannot be used to compare across tasks with varying class distributions <ref type="bibr" target="#b4">(Chicco et al., 2021)</ref>. Informedness and NIT support comparison between tasks, but NIT may be confusing for task comparison as it awards credit for guessing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiment 3: Metric Evaluation in</head><p>Visual Question Answering</p><p>Visual Question Answering (VQA) is the task of answering a question about an image and is often cast as a classification task which requires selecting a correct answer from a large set of candidate classes <ref type="bibr" target="#b1">(Antol et al., 2015)</ref>. Due to the real-world imbalances (for instance, more tables are made of wood than marble), VQA datasets have high tendencies to inherent biases, making accuracy a poor metric to use.</p><p>In this work, we consider two VQA datasets: (1) GQA <ref type="bibr" target="#b8">(Hudson and Manning, 2019)</ref> and ( <ref type="formula" target="#formula_3">2</ref>) KVQA <ref type="bibr" target="#b15">(Shah et al., 2019)</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">GQA</head><p>We select GQA for the high variance in class count and prevalence across question types. It provides 'unbalanced' and 'balanced' versions. 'Unbalanced' is the default dataset and features a strong prevalence skew due to real world biases towards certain classes. 'Balanced' is a resampled version of dataset where the class distributions have been resampled to reduce the class imbalance.</p><p>With GQA, we perform an intra-dataset comparison. Such a comparison is a common step in model and dataset analysis when researchers wish to compare the relative capabilities of a model on different sub-tasks. We provide a model with a predictable behaviour by simulating a 50% probability of choosing the correct answer and a 50% probability of sampling from the class prevalence within a question type. For clarity, we only examine the lowfrequency categories 'company', 'dir' and 'type-Choose' and the high-frequency categories 'relO', 'exist', and 'existRel'. Results for a representative sub-set of the question types are shown in Figure <ref type="figure" target="#fig_1">2</ref>. Refer to Appendix A for the full dataset results.</p><p>First, we have many cases where Accuracy, Balanced Accuracy and F1-Macro are 75% on binary questions. This baseline credit makes it hard to compare between model performance, which is calibrated to be uniform, across dataset sub-tasks. Practically, we are not able to use Accuracy, F1-Macro, or NIT to look at 'typeChoose' questions and see if the model is as strong as on 'existRel'. Meanwhile, MCC-Macro and Informedness converge on the correct value (0.5) even with the 46 samples in 'dir' question type. The 'dir' case demonstrates how the deletion of samples to create a more uniform prevalence is not required with sophisticated metrics. That is, Informedness and MCC are closer to the true value for 'dir' with the unbalanced sample than with the balanced one. Meanwhile, the balanced dataset has only a minor effect on accuracy and F1-score, with 'dir' and 'typeChoose' questions being slightly closer to an unbiased score. This reinforces our hypothesis that dataset balancing is not the correct approach to evaluation.</p><p>For the questions with many samples ('relO', 'exist', and 'existRel'), all metrics have low variance. For 'exist', and 'existRel', F1-Macro and Accuracy converge on 0.75, which reflects correctly predicting a binary task half the time, and randomly guessing the other half. For the 'relO' question class, Accuracy and F1-Macro tend to the true proportion of the time the model is predicting the correct answer, but this can be attributed to the higher entropy for this class of questions. The same behaviour can be observed for additional question types in Appendix A.</p><p>These experiments show that that Informedness automatically accounts for prevalence imbalance and provides a better assessment of the model capability. Whilst MCC appears similar, it overpunishes classifiers which have variable per-class performance <ref type="bibr" target="#b4">(Chicco et al., 2021)</ref>, which we do not believe is in line with desired characterises of classifiers in NLP.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">KVQA</head><p>Having established metric characteristics through controlling model performance, we now move to model evaluation in the wild. First, the KVQA dataset <ref type="bibr" target="#b15">(Shah et al., 2019)</ref> provides multiple question type attributes for each question. The task requires reasoning over retrieved knowledge graph facts as well as arithmetical operations. For modelling, we select 'REUNITER', a simple yet effective transformer based model <ref type="bibr" target="#b18">(Vickers et al., 2021)</ref>, and re-evaluate it with informedness.</p><p>We are interested in this case for the opportunity to have a metric which allows comparison within a dataset between subsections with different class distributions. We present results across unbiased  metrics Informedness, MCC-Macro and NIT <ref type="bibr" target="#b11">(Powers, 2003;</ref><ref type="bibr" target="#b4">Chicco et al., 2021;</ref><ref type="bibr" target="#b16">Valverde-Albacete and Peláez-Moreno, 2014)</ref> along with accuracy grouped by question type in Table <ref type="table" target="#tab_5">3</ref>.</p><p>The '1-Hop' category is a superset of many question types requiring a single KG fact to answer. This question type is scored very differently across all metrics but the difference between Informedness (64.6%), MCC-Macro (10.8%) and NIT (25.8%) is especially striking given the agreement between Informedness and NIT in the synthetic case from Section 5.1. This range indicates the model is do-ing well in general: if it were guessing from a prior, it would have an Informedness of zero. The difference can be explained by the different dynamics of Informedness and MCC raised above. The model is much better than random chance at predicting certain popular classes, but struggles with low-frequency obscure classes. This is supported by a high accuracy at the same time as a low F1-Macro (12.9). In this case, F1-Macro, MCC, and NIT harshly and unfairly penalize the model.</p><p>Looking at the 'Intersection' type, we see the opposite behaviour. Accuracy and F1-Macro are all fairly high (78.5 and above) while Informedness is rather low <ref type="bibr">(56.3)</ref>. This means that Accuracy and F1-Macro exaggerate the predictive power of the model for this type of question. The similar score of MCC-Macro (59.5%) to Informedness indicates that the model has even performance across classes.</p><p>Interestingly, accuracy reports that the model is poor at 'subtraction' questions, which Informedness is much higher (45.9). We hypothesise this is because (1) transformer models are not good at arithmetic without extensive task-specific pretraining and (2) the high number of output labels will have lower baseline credit.</p><p>Through the use of Informedness, we come to a different conclusion of the relative strengths of the model. We find that the model has better mathematical ability than accuracy indicated, whilst the ability to reason over intersectional facts is much poorer than accuracy reports. For example, this could lead to focus on improving this sub-task in the future.</p><p>Meanwhile, we have the issue that both Informedness and NIT are proposed as suitable metrics for reporting the cross-task capability of different classifiers, but they report divergent scores and sub-task rankings. This is because both metrics target different criteria: NIT the transmission of information from the true labels to the predicted labels, and Informedness the probability of an informed decision. We propose that Informedness is a more intuitive measure for NLP, and refer to Section 3 for a toy example demonstration.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiment 4: Metric Evaluation on Formality Control for Spoken Language Translation</head><p>In the last set of experiments, we consider a contextual task involving machine translation (MT). The Special Task on Formality Control for Spoken Lan- guage Translation <ref type="bibr" target="#b0">(Anastasopoulos et al., 2022)</ref> evaluates an MT model to correctly express the desired formality (either formal or informal) in its translation hypotheses. Focusing on the Englishto-German language pair, we use the winning system proposed by <ref type="bibr" target="#b19">Vincent et al. (2022)</ref>. The model is trained to recognise a formality token to generate adequate translations, and an off-the-shelf formality-unaware MT model on the test set provided by the organisers. We report accuracy, Balanced accuracy, F1-Macro and Informedness on the English-to-German test set. Table <ref type="table">4</ref> displays metric scores between off-theshelf and formality-aware MT systems. We see that the model with no knowledge of the formality is still able to achieve accuracy and F1-score of around 0.5, which seems to mean that the model is able to correctly produce a translation with correct formality 50% of the time. Meanwhile, Informedness drops to zero. As the dataset is balanced, this is a product of Informedness removing baseline credit making it a more suitable choice as an evaluation metric.</p><p>Overall, Informedness provides a better and more interpretable measure of the system capability to model the task. This demonstrates that Informedness can be used as an effective tool for comparing two different systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.1">Limitations of current metrics</head><p>The results obtained across all experiments highlight that widely-used metrics (e.g. Accuracy, F1-Macro) for classification evaluation in NLP feature biases which suggest higher performance than either intuitive reasoning or information theory support. Importantly, this bias makes comparing classifiers across tasks with different class distributions impossible.</p><p>Additionally, through the analysis of a real model on the KVQA task, we showed that traditional metrics are not suited to intra-dataset analy-sis when evaluating a single model's performance across various sub-tasks. This is highly problematic, as knowing if a model is better at a particular sub-task such as the sub-tasks of addition or syntactic parsing is crucial for model analysis.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2">Improving Evaluation of Classification</head><p>Tasks in NLP Across all experiments, we found that Informedness better captures model generalizability than all other metrics. Given this finding and the main limitation of popular metrics such as Accuracy and F1 across different NLP tasks, we encourage the community and practitioners to consider reporting Informedness alongside metrics such as Accuracy and F1 in future experiments and analyses.<ref type="foot" target="#foot_0">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>We have presented an extensive empirical analysis of various classification metrics across a wide range of tasks including NLU, VQA and MT with controlled formality. Our experiments demonstrated that the use of a class-invariant metric, Informedness, allows for a fairer ranking and understanding of model generalization capacity.</p><p>Whilst we find that Informedness is the most intuitive metric, we also found that it is also the fairest in driving inter and intra-model comparisons.</p><p>Finally, we provide sklearn.metrics style implementations of both NIT and Informedness, previously unavailable in Python</p><p>We hope that our work is the first step towards rethinking the way NLP classification systems are evaluated in the future and will raise awareness to the community.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Informedness cannot fully represent all of the characteristics of a classification system within a single scalar value. It assumes that the distribution of classes in the training and test set are identical. This assumption is used to determine the loss and gain for a particular class according to the distribution in the test set. However, we allow for train class distributions to be passed to our implementation of Informedness.</p><p>In this work, we further assume that an uninformed model will reproduce the training distribution. In the case that models are poorly parameterised, or the testing set is very small, this may not be the case. This could lead to models which are not using the input data to have Informedness scores other than zero. Likewise, systems which use strategies such as 'guess the most common' may have Informedness scores other than zero.</p><p>Informedness is sensitive to the number of evaluation samples, which may result in less stable estimation of model's performance in situations with low numbers (&lt; 50) of examples. We consider that all metrics are subject to this and that it is reasonable to expect that evaluation is performed on sizeable test sets.  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Figure 1: Accuracy, Balanced Accuracy, F1-Macro, Informedness, MCC, and NIT of the same binary (top) or multi-class (bottom) classifier as a function of the class distribution and the model's prediction capability from 0% (Random Guess) to 100% (Perfect).</figDesc><graphic coords="5,70.87,211.07,453.54,113.03" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Metrics on GQA Unbalanced (left) and Balanced (right) validation splits. Error-bars show the standard deviation across five runs. Numbers after the question category are (question count) and [answer class entropy].</figDesc><graphic coords="7,96.25,70.86,177.80,311.82" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Metrics on GQA Unbalanced. Questions are grouped by reasoning type annotation on the X axis and sorted by count. X axis labels gives the reasoning type, the number of samples, and the entropy of the answer class distribution</figDesc><graphic coords="12,70.87,103.57,453.54,280.91" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Metrics on GQA Balanced. Questions are grouped by reasoning type annotation on the X axis and sorted by count in GQA Unbalanced for comparison. X axis labels gives the reasoning type, the number of samples, and the entropy of the answer class distribution</figDesc><graphic coords="13,70.87,262.75,453.54,270.56" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>table )</head><label>)</label><figDesc></figDesc><table><row><cell></cell><cell></cell><cell>, which is</cell></row><row><cell cols="3">an N × N matrix with the columns by convention</cell></row><row><cell cols="3">indicating the true class and the rows indicating</cell></row><row><cell cols="3">the predicted class. Cells are assigned the num-</cell></row><row><cell cols="3">ber of classification events for the given actual and</cell></row><row><cell cols="3">predicted class. In most NLP cases, creating a clas-</cell></row><row><cell cols="3">sification matrix is a non-destructive operation as</cell></row><row><cell cols="3">the only information lost is the order of the classifi-</cell></row><row><cell>cations.</cell><cell></cell><cell></cell></row><row><cell cols="3">As part of our definitions, we introduce the per-</cell></row><row><cell cols="2">class contingency table:</cell><cell></cell></row><row><cell></cell><cell cols="2">Class of Interest c Other Class Real Class</cell></row><row><cell cols="2">Class of Interest c TP c</cell><cell>FP c</cell></row><row><cell>Other Class</cell><cell>FN c</cell><cell>TN c</cell></row><row><cell>Predicted Class</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>Classification Contingency Table</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Next, we compare metrics across a range of NLU tasks and show that the metric choice affects the model ranking. First, we test on the GLUE Multi-Task Natural Language Understanding Benchmark. GLUE is a suite of nine NLP tasks representing a range of domains, biases, and difficulties<ref type="bibr" target="#b20">(Wang et al., 2018)</ref>. Interestingly the GLUE employs different metrics across tasks, i.e. Accuracy, MCC, Pearson Correlation and Spearman's Correlation.</figDesc><table><row><cell>4 Experiment 2: Metric Evaluation on</cell></row><row><cell>Natural Language Understanding Tasks</cell></row></table><note><p>MCC is a discretised version of the Pearson correlation and Spearman's Correlation is the Pearson Correlation calculated on the Rank transformation of the values. To make the continuous [0, 5] STS-B task values tractable for classification metrics, we discretize into [0, 5] ∩ Z by rounding to the nearest integer.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table><row><cell>DistillBERT (Acc.)</cell><cell>79.7</cell><cell>90.5</cell><cell>84.2</cell><cell>77.4</cell><cell>51.8</cell><cell>81.4</cell><cell>81.6</cell><cell>88.6</cell><cell>57.6</cell><cell>56.3</cell><cell>74.9</cell></row><row><cell>DistillBERT (Inform.)</cell><cell>57.0</cell><cell>81.0</cell><cell>69.4</cell><cell>77.4</cell><cell>41.6</cell><cell>72.1</cell><cell>72.5</cell><cell>77.2</cell><cell>14.7</cell><cell cols="2">-43.1 52.0</cell></row><row><cell>Random Guess (Acc.)</cell><cell>58.1</cell><cell>51.4</cell><cell>56.7</cell><cell>53.5</cell><cell>18.3</cell><cell>33.5</cell><cell>33.6</cell><cell>50.0</cell><cell>49.9</cell><cell>51.8</cell><cell>45.7</cell></row><row><cell>Random Guess (Inform.)</cell><cell>01.2</cell><cell>02.8</cell><cell>-01.1</cell><cell>00.0</cell><cell>01.0</cell><cell>00.1</cell><cell>00.5</cell><cell cols="2">00.0 -00.3</cell><cell>02.0</cell><cell>00.6</cell></row><row><cell>∆ Accuracy</cell><cell>21.6</cell><cell>39.1</cell><cell>27.5</cell><cell>23.9</cell><cell>33.5</cell><cell>47.9</cell><cell>48.0</cell><cell>38.6</cell><cell>07.7</cell><cell>04.5</cell><cell>29.2</cell></row><row><cell>∆ Informedness</cell><cell>55.8</cell><cell>78.2</cell><cell>70.5</cell><cell>77.4</cell><cell>40.6</cell><cell>72.0</cell><cell>72.0</cell><cell>77.2</cell><cell>15.0</cell><cell cols="2">-45.1 51.4</cell></row></table><note><p><p><p><p><p>Single Sentence Similarity and Paraphrase</p>Natural Language Inference Model (Metric)</p>CoLA SST-2 MRPC QQP STS-B MNLI-M MNLI-MM QNLI RTE WNLI All GLUE Results. See</p><ref type="bibr" target="#b20">Wang et al. (2018)</ref> </p>for tasks details and evaluation metrics. All values are scaled by 100. 'All' is a uniform weighted mean of the individual metric scores as in https://gluebenchmark.com/ leaderboard.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Model performance on KVQA across metrics.</figDesc><table><row><cell></cell><cell></cell><cell>Dataset</cell><cell></cell><cell></cell><cell>Metric</cell><cell></cell><cell></cell></row><row><cell cols="8">Question type Classes Entropy Accuracy F1-Macro Informedness MCC-Macro NIT</cell></row><row><cell>1-Hop</cell><cell>5336</cell><cell>7.4</cell><cell>66.9</cell><cell>10.8</cell><cell>64.6</cell><cell>10.8</cell><cell>25.8</cell></row><row><cell>1-Hop Count.</cell><cell>5</cell><cell>1.1</cell><cell>79.3</cell><cell>38.9</cell><cell>58.1</cell><cell>31.5</cell><cell>58.1</cell></row><row><cell>1-Hop Subtr.</cell><cell>66</cell><cell>4.1</cell><cell>26.5</cell><cell>03.0</cell><cell>18.8</cell><cell>02.9</cell><cell>17.3</cell></row><row><cell>Boolean</cell><cell>2</cell><cell>1.0</cell><cell>94.9</cell><cell>63.2</cell><cell>89.7</cell><cell>89.7</cell><cell>81.9</cell></row><row><cell>Comparison</cell><cell>11</cell><cell>2.1</cell><cell>91.1</cell><cell>37.0</cell><cell>90.2</cell><cell>47.3</cell><cell>84.9</cell></row><row><cell>Counting</cell><cell>9</cell><cell>2.1</cell><cell>80.9</cell><cell>56.1</cell><cell>75.4</cell><cell>56.2</cell><cell>61.2</cell></row><row><cell>Intersect.</cell><cell>2</cell><cell>1.0</cell><cell>79.5</cell><cell>78.5</cell><cell>56.3</cell><cell>59.5</cell><cell>62.1</cell></row><row><cell>Multi-Ent.</cell><cell>81</cell><cell>3.2</cell><cell>78.0</cell><cell>10.8</cell><cell>76.1</cell><cell>12.0</cell><cell>56.5</cell></row><row><cell>Multi-Hop</cell><cell>119</cell><cell>3.6</cell><cell>87.9</cell><cell>34.8</cell><cell>87.0</cell><cell>43.9</cell><cell>68.9</cell></row><row><cell>Multi-Relat.</cell><cell>4104</cell><cell>6.8</cell><cell>75.4</cell><cell>11.7</cell><cell>73.7</cell><cell>12.1</cell><cell>38.1</cell></row><row><cell>Spatial</cell><cell>1260</cell><cell>10.0</cell><cell>19.9</cell><cell>07.4</cell><cell>18.6</cell><cell>09.2</cell><cell>16.3</cell></row><row><cell>Subtract.</cell><cell>93</cell><cell>5.9</cell><cell>39.8</cell><cell>36.6</cell><cell>45.9</cell><cell>34.3</cell><cell>08.6</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>For a discussion of the limitations of Informedness, see Limitations section.</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Findings of the IWSLT 2022 evaluation campaign</title>
+		<author>
+			<persName><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Loïc</forename><surname>Barrault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luisa</forename><surname>Bentivogli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zanon</forename><surname>Marcely</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ondřej</forename><surname>Boito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roldano</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Cattoni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georgiana</forename><surname>Currey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Dinu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maha</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Elbayad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yannick</forename><surname>Emmanuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcello</forename><surname>Estève</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Federico</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Souhir</forename><surname>Federmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Gahbiche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roman</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><surname>Grundkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dávid</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vȇra</forename><surname>Javorský</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Surafel</forename><surname>Kloudová</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xutai</forename><surname>Lakew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prashant</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Mcnamee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Murray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satoshi</forename><surname>Nǎdejde</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Negri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Niehues</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename><surname>Ortega</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elizabeth</forename><surname>Pino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiatong</forename><surname>Salesky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Sperber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katsuhito</forename><surname>Stüker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Sudoh</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Turchi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.iwslt-1.10</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Conference on Spoken Language Translation (IWSLT 2022)</title>
+		<editor>
+			<persName><forename type="first">Alexander</forename><surname>Virkar</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Changhan</forename><surname>Waibel</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shinji</forename><surname>Wang</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Watanabe</surname></persName>
+		</editor>
+		<meeting>the 19th International Conference on Spoken Language Translation (IWSLT 2022)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="98" to="157" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Vqa: Visual question answering</title>
+		<author>
+			<persName><forename type="first">Stanislaw</forename><surname>Antol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aishwarya</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiasen</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Margaret</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dhruv</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Lawrence Zitnick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devi</forename><surname>Parikh</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICCV.2015.279</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Computer Vision</title>
+		<meeting>the IEEE International Conference on Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2015">2015. 2015</date>
+			<biblScope unit="page" from="2425" to="2433" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A lot of randomness is hiding in accuracy</title>
+		<author>
+			<persName><forename type="first">Arie</forename><surname>Ben-David</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.engappai.2007.01.001</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Engineering Applications of Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="page" from="875" to="885" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">The balanced accuracy and its posterior distribution</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Kay</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Brodersen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soon</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaas</forename><forename type="middle">E</forename><surname>Ong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joachim</forename><forename type="middle">M</forename><surname>Stephan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Buhmann</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICPR.2010.764</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings -International Conference on Pattern Recognition</title>
+		<meeting>-International Conference on Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="3121" to="3124" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">The matthews correlation coefficient (mcc) is more reliable than balanced accuracy, bookmaker informedness, and markedness in two-class confusion matrix evaluation</title>
+		<author>
+			<persName><forename type="first">Davide</forename><surname>Chicco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niklas</forename><surname>Tötsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><surname>Jurman</surname></persName>
+		</author>
+		<idno type="DOI">10.1186/S13040-021-00244-Z/TABLES/5</idno>
+	</analytic>
+	<monogr>
+		<title level="j">BioData Mining</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="1" to="22" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">A coefficient of agreement for nominal scales. Educational and Psychological Measurement</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Cohen</surname></persName>
+		</author>
+		<idno type="DOI">10.1177/001316446002000104</idno>
+		<imprint>
+			<date type="published" when="1960">1960</date>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="page" from="37" to="46" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A note on using the f-measure for evaluating record linkage algorithms</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Hand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Christen</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/S11222-017-9746-6/METRICS</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Statistics and Computing</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="539" to="547" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Measuring classifier performance: A coherent alternative to the area under the roc curve</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hand</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s10994-009-5119-5</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Mach. Learn</title>
+		<imprint>
+			<biblScope unit="volume">77</biblScope>
+			<biblScope unit="page" from="103" to="123" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Gqa: A new dataset for real-world visual reasoning and compositional question answering</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">A</forename><surname>Hudson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2019.00686</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<meeting><address><addrLine>Los Alamitos, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6693" to="6702" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">D</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fernando</forename><forename type="middle">C N</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighteenth International Conference on Machine Learning, ICML &apos;01</title>
+		<meeting>the Eighteenth International Conference on Machine Learning, ICML &apos;01<address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<date type="published" when="2001">2001</date>
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Foundations of Statistical Natural Language Processing</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Schütze</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+			<publisher>The MIT Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Recall and precision versus the bookmaker</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Powers</surname></persName>
+		</author>
+		<idno type="DOI">10.13140/RG.2.1.3754.1926</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Cognitive Science (ICCS)</title>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="529" to="534" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The problem with kappa</title>
+		<author>
+			<persName><forename type="first">M W</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Powers</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">European Chapter of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="345" to="355" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">A computationally and cognitively plausible model of supervised and unsupervised learning</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">W</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Powers</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-642-38786-9_17</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th International Conference on Advances in Brain Inspired Cognitive Systems, BICS&apos;13</title>
+		<meeting>the 6th International Conference on Advances in Brain Inspired Cognitive Systems, BICS&apos;13<address><addrLine>Berlin, Heidelberg</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer-Verlag</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="145" to="156" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter</title>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1910.0</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Kvqa: Knowledgeaware visual question answering</title>
+		<author>
+			<persName><forename type="first">Sanket</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anand</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naganand</forename><surname>Yadati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Partha</forename><forename type="middle">Pratim</forename><surname>Talukdar</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v33i01.33018876</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="8876" to="8884" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">100% classification accuracy considered harmful: The normalized information transfer factor explains the accuracy paradox</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Francisco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carmen</forename><surname>Valverde-Albacete</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Peláez-Moreno</surname></persName>
+		</author>
+		<idno type="DOI">10.1371/JOURNAL.PONE.0084217</idno>
+	</analytic>
+	<monogr>
+		<title level="j">PLOS ONE</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page">84217</biblScope>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">A proposal for new evaluation metrics and result visualization technique for sentiment analysis tasks. Information Access Evaluation. Multilinguality, Multimodality, and Visualization</title>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>José Valverde-Albacete</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jorge</forename><surname>Carrillo De Albornoz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carmen</forename><surname>Peláez-Moreno</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="volume">8138</biblScope>
+			<biblScope unit="page" from="41" to="52" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Vickers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Aletras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emilio</forename><surname>Monti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Loïc</forename><surname>Barrault</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/V1/2021.ACL-SHORT.60</idno>
+		<title level="m">factuality: Efficient integration of relevant facts for visual question answering. 59th Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="468" to="475" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Controlling formality in low-resource NMT with domain adaptation and re-ranking: SLT-CDT-UoS at IWSLT2022</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Loïc</forename><surname>Barrault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carolina</forename><surname>Scarton</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.iwslt-1.31</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Conference on Spoken Language Translation (IWSLT 2022)</title>
+		<meeting>the 19th International Conference on Spoken Language Translation (IWSLT 2022)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="341" to="350" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">GLUE: A multi-task benchmark and analysis platform for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-5446</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP</title>
+		<meeting>the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="353" to="355" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Index for rating diagnostic tests</title>
+		<author>
+			<persName><forename type="first">W J</forename><surname>Youden</surname></persName>
+		</author>
+		<idno type="DOI">10.1002/1097-0142(1950)3:1&lt;32::AID-CNCR2820030106&gt;3.0.CO;2-3</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Cancer</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="32" to="35" />
+			<date type="published" when="1950">1950</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

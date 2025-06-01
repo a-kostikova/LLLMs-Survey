@@ -1,0 +1,852 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Incorporating Singletons and Mention-based Features in Coreference Resolution via Multi-task Learning for Better Generalization</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yilun</forename><surname>Zhu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Linguistics</orgName>
+								<orgName type="institution">Georgetown University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Siyao</forename><surname>Peng</surname></persName>
+							<email>siyaopeng@cis.lmu.de</email>
+							<affiliation key="aff1">
+								<orgName type="department">Center for Information and Language Processing (CIS)</orgName>
+								<orgName type="institution" key="instit1">LMU Munich ♣ Linguistic Data Consortium</orgName>
+								<orgName type="institution" key="instit2">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Sameer</forename><surname>Pradhan</surname></persName>
+							<email>pradhan@cemantix.org</email>
+						</author>
+						<author>
+							<persName><forename type="first">Amir</forename><surname>Zeldes</surname></persName>
+							<email>amir.zeldes@georgetown.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Linguistics</orgName>
+								<orgName type="institution">Georgetown University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Incorporating Singletons and Mention-based Features in Coreference Resolution via Multi-task Learning for Better Generalization</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C92D8475501000E3A43599F43AC8C730</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:34+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Previous attempts to incorporate a mention detection step into end-to-end neural coreference resolution for English have been hampered by the lack of singleton mention span data as well as other entity information. This paper presents a coreference model that learns singletons as well as features such as entity type and information status via a multi-task learning-based approach. This approach achieves new stateof-the-art scores on the OntoGUM benchmark (+2.7 points) and increases robustness on multiple out-of-domain datasets (+2.3 points on average), likely due to greater generalizability for mention detection and utilization of more data from singletons when compared to only coreferent mention pair matching.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Coreference is a linguistic phenomenon that occurs when two or more expressions in a text refer to the same entity (e.g. the Vice President... She). Conceptually, resolving coreference takes two steps: identifying all mention candidates from a text as opposed to non-referring expressions, and linking identified mentions into clusters. However, in a given document, some mentions are never referred back to: these are called singletons, i.e. mentions that, unlike non-referring expressions, could be referred back to in principle, but are not involved in any coreference relations in context. Singletons are important to coreference resolution since they represent true negatives in cluster linking <ref type="bibr" target="#b10">(Kübler and Zhekova, 2011)</ref>, but also to how humans understand discourse from a theoretical perspective <ref type="bibr" target="#b4">(Grosz et al., 1995)</ref>, since they also constitute mentioned entities (i.e. clusters of size 1).</p><p>However, due to the lack of singleton annotation in the most frequently used coreference dataset for 1 The code is publicly available at https://github. com/yilunzhu/coref-mtl.</p><p>English, i.e. OntoNotes V5.0 <ref type="bibr" target="#b24">(Weischedel et al., 2011;</ref><ref type="bibr" target="#b19">Pradhan et al., 2013)</ref>, previous attempts have either ignored singletons <ref type="bibr" target="#b11">(Lee et al., 2017</ref><ref type="bibr" target="#b12">(Lee et al., , 2018;;</ref><ref type="bibr" target="#b25">Wu et al., 2020;</ref><ref type="bibr" target="#b2">Dobrovolskii, 2021)</ref> or incorporated pseudo-singletons into the model <ref type="bibr" target="#b26">(Wu and Gardner, 2021;</ref><ref type="bibr" target="#b23">Toshniwal et al., 2021)</ref>. The first approach is commonly used in contemporary endto-end (e2e) systems which train directly on detecting coreferring mentions, but causes problems in that models cannot differentiate singleton spans from non-referring or random/meaningless spans, i.e. penalizing these two types equally. Though e2e has achieved significant progress on OntoNotes, it does not align with linguistic theories on how humans resolve the task. The second approach attempts to amend the model with pseudo-singletons by predicting non-coreferring mentions, but the accuracy gap between gold and generated singletons is unknown and ultimately leads to degradation.</p><p>Previous work has also shown that recent coreference models struggle with domain generalization <ref type="bibr" target="#b16">(Moosavi and Strube, 2017;</ref><ref type="bibr">Zhu et al., 2021)</ref>. To alleviate the problem, <ref type="bibr" target="#b17">Moosavi and Strube (2018)</ref> proposed a novel algorithm to incorporate linguistic features and showed improvement in out-ofdomain (OOD) data. <ref type="bibr" target="#b22">Subramanian and Roth (2019)</ref> applied adversarial training to improve generalization. However, the first approach requires carefully designed linguistic features, and both papers evaluated generalization only on one single-genre dataset, limiting the validity of the results.</p><p>To tackle these challenges, we introduce a novel coreference model. Our contributions can be summarized as follows: First, we propose a multi-task learning (MTL) based neural coreference model with constrained mention detection, which jointly learns several mention-based tasks, including singleton detection, entity type recognition, and information status classification. Second, experiments demonstrate that the proposed model achieves new state-of-the-art performance on the OntoGUM test set. Third, we show that our model outperforms strong baselines on two OOD datasets, showing it generalizes more reliably to unseen data than plain e2e. We release all code and provide a system that detects and links all mentions, including singletons, and outputs predicted entity types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>MTL for coreference Multitask learning <ref type="bibr" target="#b0">(Caruana, 1997;</ref><ref type="bibr" target="#b1">Collobert and Weston, 2008)</ref> uses a single model with shared parameters trained to perform multiple tasks, with potential benefits arising from synergies between related objectives. Previous work has investigated the use of MTL for coreference by harnessing related pre-training tasks. <ref type="bibr" target="#b27">Yu and Poesio (2020)</ref>; <ref type="bibr" target="#b9">Kobayashi et al. (2022)</ref> applied an MTL framework to a more specific bridging resolution problem, with standard coreference resolution as the additional task. <ref type="bibr" target="#b15">Luan et al. (2018)</ref> used MTL with coreference resolution, entity recognition, and relation extraction for scientific knowledge graph construction. <ref type="bibr" target="#b14">Lu and Ng (2021)</ref> used five MTL tasks for event coreference resolution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Neural coreference resolution</head><p>The e2e approach jointly learns mention detection and coreferent pair scoring <ref type="bibr" target="#b11">(Lee et al., 2017)</ref>, and achieved SOTA scores on the OntoNotes test set before several extensions were proposed. <ref type="bibr" target="#b12">Lee et al. (2018)</ref>; <ref type="bibr" target="#b8">Kantor and Globerson (2019)</ref> improved span representations to improve pair matching. <ref type="bibr" target="#b7">Joshi et al. (2020)</ref> added better pre-trained language models to gain additional score boosting. <ref type="bibr" target="#b25">Wu et al. (2020)</ref> adapted a question-answering framework into the task and improved both span detection and coreference matching scores. Dobrovolskii (2021) also improved performance by initially matching coreference links via words instead of spans.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methods</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model</head><p>Let N be the number of possible spans in a document D. The coreference task can be formulated as assigning an antecedent span y i for each span i, where the set of possible antecedents for each span i contains a dummy antecedent ϵ and all preceding spans: Y(i) = {ϵ, 1, ..., i -1}.</p><formula xml:id="formula_0">s(i, j) = { 0, j = ϵ s m (i) + s m (j) + s c (i, j), j ≠ ϵ</formula><p>where s m (i) and s m (j) are the mention scores that determine how likely the selected text span is a mention candidate. Previous work utilizes a scoring function to measure how likely the span is a coreference markable. However, singletons in the training data are ignored and thus weaken the model's generalization capability. Therefore, our proposed model uses two scoring functions to represent the distributions of markables and mentions better. The mention scoring function uses two feed-forward networks fed by the representation of each span: one part is a markable score that calculates the score of the span being a coreferent markable in the document; the other is the mention candidate score that determines how likely a span is a mention candidate. The formula is represented as follows:</p><formula xml:id="formula_1">s m (i) = β 1 ⋅ s markable(i) + β 2 ⋅ s mention(i) s markable(i) = w markble ⋅ FFNN(g i ) s mention(i) = w mention ⋅ FFNN(g i )</formula><p>where ⋅ denotes a dot product, FFNN denotes a feed-forward neural network, β 1 and β 2 denote model parameters that adjust the weights of markable scores and mention candidate scores, and g i denotes the represented embeddings of the span (we use the same span representing method as in <ref type="bibr" target="#b11">Lee et al. (2017)</ref>). The two scoring functions are computed via two standard feed-forward neural networks. The purpose of this design is to prevent random text spans being fed to the pair-matching step. Following the e2e approach <ref type="bibr" target="#b11">(Lee et al., 2017</ref><ref type="bibr" target="#b12">(Lee et al., , 2018;;</ref><ref type="bibr" target="#b7">Joshi et al., 2020)</ref>, we concatenate the boundary representations, the soft head vector and an additional feature vector ϕ containing speaker information, and feed the resulting vector into separate feed-forward neural networks to calculate markable scores and mention candidate scores.</p><p>In addition to the main pair-matching task, our model adds three mention-based tasks: a (possibly singleton) mention span detection task, entity type recognition, and information status classification (see below). For each task, the span vector is fed into a separate feed-forward network for classification. Each task is assigned a weight to calculate the total loss score:</p><formula xml:id="formula_2">L total = C ∑ c=1 W c ⋅ L c</formula><p>where W c is the weight for task c. See Appendix A for an overview of the model architecture. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Task Selection</head><p>Since OntoNotes does not contain singletons, we choose a corpus for which singleton information is available but follows the same annotation scheme as OntoNotes. The OntoGUM corpus <ref type="bibr">(Zhu et al., 2021)</ref> is an adapted version of the GUM corpus <ref type="bibr" target="#b28">(Zeldes, 2017)</ref>, a multi-layer corpus with a range of annotations at the word level (part-of-speech, morphology), phrase level (phrase trees, entity recognition, and linking), dependency level (Universal Dependencies syntax) and document-level (discourse parses and coreference). Although On-toGUM uses the same singleton-free coreference scheme as OntoNotes, information about singletons can be recovered from the original GUM corpus. We therefore select three annotations from GUM and investigate whether they are helpful for coreference resolution on OntoGUM: nested mention span detection, entity type, and information status.</p><p>Mention detection As outlined in Section 1, we integrate gold nested mentions, including singletons (sg), into our model to improve mention detection and coreference. The task aims to recognize meaningful referential text spans and makes more information available to the model than the plain e2e approach that only trains on coreferring mentions (∼39% of mentions in GUM are singletons).</p><p>Entity type GUM assigns one of ten entity types (ent) to each mention -person, organization, etc. (see Figure <ref type="figure" target="#fig_1">2</ref> in Appendix D). Since a cluster usually has one entity type, this feature instructs the model regarding which mentions belong to the same semantic class.</p><p>Information status Information status (infs.) indicates how an entity was introduced into discourse, e.g. new, previously mentioned or inferrable from other mentions <ref type="bibr" target="#b20">(Prince, 1981)</ref>. Each mention is assigned one of six labels (see Appendix C). This task is expected to inform the model about the likelihood and how an entity was previously introduced.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>4.1 Datasets OntoGUM (Zhu et al., 2021) is a coreference dataset following the same annotation scheme as OntoNotes. This paper adds other layers to the coreference annotation, such as mention spans (including singletons), aligned entity types, and information status, automatically extracted from the GUM corpus. We train the model with GUM v8.0, which includes 193 documents across 12 written and spoken genres with ∼180K tokens.</p><p>We also evaluate our model on two OOD datasets of the same annotation scheme: OntoNotes and WikiCoref. OntoNotes includes richly annotated documents with layers including syntax, propositions, named entities, word senses, and coreference, but no singleton mentions or aligned (non-named) entity types <ref type="bibr" target="#b19">(Pradhan et al., 2013)</ref>. Its test set includes 348 documents with 170K tokens. WikiCoref <ref type="bibr" target="#b3">(Ghaddar and Langlais, 2016</ref>) is a manually annotated corpus from English Wikipedia, containing 30 documents with ∼60K tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Baseline</head><p>Combining the e2e approach with a contextualized language model (LM) and span masking is one of the best models on OntoNotes. Following <ref type="bibr" target="#b7">Joshi et al. (2020)</ref>, we use large SpanBERT embeddings as the LM and the improved coarse-to-fine <ref type="bibr" target="#b12">(Lee et al., 2018)</ref> SOTA model as our baseline model (see Appendix B for implementation details).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Task Weights</head><p>The task weights are a list of parameters that controls the relative importance of various tasks in our model, which are optimized via hyperparameter search on the OntoGUM dev set to achieve the best performance. In the optimal setting with 2 auxiliary tasks, the loss weight for the major task coreference relation identification is set to 0.4 and the weights for singleton detection and entity type recognition are set to 0.2 each. The weights are 0.15 for each auxiliary task when information status is added to training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Results</head><p>In-domain Evaluation We train the model on OntoGUM and evaluate it in-domain. As shown in the first part of Table <ref type="table" target="#tab_0">1</ref>, our model with the best setting improves average F1 by 2.7 points and achieves new SOTA performance on the OntoGUM benchmark, indicating the benefit of the MTL tasks. We also note that recall scores of both mention detection and coreference matching show a significant increase by 3.2 and 4.0 points, respectively, which suggests that the MTL approach helps the model capture more non-trivial markable spans and coreference relations than the baseline model, with little or no precision cost. In addition, though information status contributes to the result as a sole auxiliary task (see Table <ref type="table" target="#tab_1">2</ref>), it is harmful when training with other tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Out-of-domain Evaluation</head><p>To test the robustness of our model, we evaluate on two OOD datasets sharing the same annotation scheme with OntoGUM. The second part of Table <ref type="table" target="#tab_0">1</ref> shows that our best in-domain model with mention detection and entity type as auxiliary tasks outperforms the baseline model on both datasets by 2.3 points on average. For OntoNotes, though our model has slightly lower precision, the recall results in substantially better performance; for WikiCoref, our model performs better on both precision and recall. These results indicate that the knowledge gained from the multiple mention-based tasks can be transferred to unseen text types, and is likely a combination of more training data (since singletons include instances not considered by the baseline training) and the learning of features distinguishing non-mentions from mentions and ones corresponding to semantic types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Ablation Study</head><p>To show the importance of each task in our model, we ablate each task in the architecture and report the average F1 on the OntoGUM development set. In Table <ref type="table" target="#tab_1">2</ref>, singleton scores and the mention detection task contribute 1.3 points to the final result, indicating that this feature is the most important one. With the addition of the nested entity type recognition task, the model brings a smaller increase (0.4 points) to the final result. There could be several reasons for this: one is that the LM has already learned entity types latently, so giving this as an explicit feature is redundant; the other reason is that the baseline model rarely groups mentions with different entity types into clusters so that entity type features can only correct few errors.</p><p>When only integrating information status into the model, the result (avg. F1 67.6) outperforms the baseline model, showing the effectiveness of this type of information. However, when all three tasks are incorporated, the overall score (67.8) is lower than excluding information status classification (68.7), which shows that information status is redundant when other mention-based features are specified.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Error analysis</head><p>We conduct quantitative and qualitative error analyses to illustrate how our model differs from the baseline. Firstly we conduct a quantitative analysis following <ref type="bibr" target="#b13">Lu and Ng (2020)</ref>, who classify resolution errors into 13 classes. Following their approach, we merge coreference errors into 6 groups.  The majority of mtl errors involve definite nominals, revealing the challenge of resolving cherrypicked cases that must be memorized within a multi-genre context. However, our proposed model demonstrates its ability to correctly identify relations when multiple clusters are involved. Furthermore, nearly 16% of resolved errors are associated with pronouns, indicating that our model is more capable of accurately identifying coreference relationships within the context of third-person pronouns and demonstrates a slight improvement in handling pronouns in dialogue, particularly first and second-person pronouns.</p><p>We also observe that our proposed model reduces errors across nearly all types compared to the baseline model, particularly in the case of thirdperson pronouns. This result suggests that integrating entity type recognition and mention detection in the MTL framework enables accurate recognition of noun-pronoun relations, particularly for pronouns that do not provide explicit entity type information, e.g., it. Additionally, the MTL model demonstrates improved error avoidance with definite nouns. These findings highlight the enhanced performance of our proposed model in identifying coreference relations within the local context.</p><p>We also identify several errors that illustrate the impact of singleton detection and entity type recognition. Examples in Table <ref type="table" target="#tab_5">4</ref> demonstrate how including singletons and mention-based features improves the retrieval of accurate mention spans and enhances coreference relationships. The first three examples highlight how entity-type recognition contributes to resolution by avoiding type mismatches. In example (1), the pressure from entity type recognition likely aids in identifying Harrow as a school (an ORGANIZATION). In example (2), the MTL model recognizes it as an EVENT, thereby correctly creating two distinct groups and  avoiding coreference with the grass (a PLANT entity). Similarly, example (3) presents pressure to recognize that they is not an inanimate OBJECT, so it correctly prefers noises as the antecedent. Examples ( <ref type="formula">4</ref>) and ( <ref type="formula">5</ref>) illustrate how mention detection identifies missing mentions in the baseline model or improves boundary recognition. These representative examples provide valuable insights into the significance of incorporating singletons and auxiliary mention-based tasks into a coreference model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>This paper presents a neural coreference model that connects singletons and other mention-based features to coreference relation matching via an MTL architecture, which (1) outperforms a strong baseline and achieves new SOTA results on OntoGUM and ( <ref type="formula">2</ref>) beats the baseline model on two unseen datasets. The results show the effect of singletons and mention features and indicate improvements in model robustness when transferring to unseen data rather than overfitting distributions in the training data. In addition, our resulting system can output all mentions (incl. singletons) with entity types outof-the-box, which benefits a series of downstream applications such as Entity Linking, Dialogue Systems, Machine Translation, Summarization, and more, since our single model already outputs typed spans for all entities mentioned in a text (see Figure <ref type="figure" target="#fig_1">2b</ref> in Appendix D for an illustration).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>In this work, we have experimented with training our model on OntoGUM. Due to the lack of singletons and other mention-based annotations, we do not train the model on the most frequently used and one of the largest coreference datasets. Thus the proposed model has not been tested on a largescale dataset and compared with other coreference models on OntoNotes. We evaluate the model on two English OOD datasets to investigate the model generalization. Several coreference datasets in other languages share the same annotation scheme as OntoGUM, such as Arabic <ref type="bibr" target="#b19">(Pradhan et al., 2013)</ref>, and Chinese <ref type="bibr" target="#b19">(Pradhan et al., 2013)</ref>. The proposed model needs to be evaluated on datasets in other languages and demonstrate the model generalization across languages. However, this would require singleton annotated data in those languages as well. With recent releases such as CorefUD <ref type="bibr" target="#b18">(Nedoluzhko et al., 2022)</ref> promoting standardization of multilingual coreference annotations and singleton annotations, we are hopeful that such experiments will be possible in the near future. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Model architecture oveview</head><p>Figure <ref type="figure" target="#fig_0">1</ref> shows the architecture of the model proposed in this paper.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Implementation details</head><p>We use Pytorch and the pre-trained SpanBERTlarge <ref type="bibr" target="#b7">(Joshi et al., 2020)</ref>   <ref type="bibr">et al., 2020)</ref> and each auxiliary task uses Cross Entropy loss. We use AdamW to optimize coreference loss and Adam to optimize auxiliary loss. We train 14,500 steps with task_learning_rate of 0.0003 for baselines and our models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Information Status</head><p>There are six types of information status in the data:</p><p>• new (first, unmediated mention of an entity)</p><p>• given:active (subsequent mention after a recent previous mention)</p><p>• given:inactive (subsequent mention of a nonrecently mentioned entity)</p><p>• accessible:inferrable (new entity whose existence could be inferred from other mentions, e.g. via bridging anaphora <ref type="bibr" target="#b21">(Roesiger et al., 2018;</ref><ref type="bibr" target="#b5">Hou, 2020)</ref>, as in a house ... [the door])</p><p>• accessible:commonground (entities accessible to speakers in the situation, e.g. pass [the salt]!) • accessible:aggregate (new entities referring back to multiple entities, i.e. split antecedents as in Kim ... Yun ..</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>. [they]).</head><p>When information status is included in the auxiliary tasks, our model is trained to predict the label for each mention.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Sample data</head><p>Figure <ref type="figure" target="#fig_1">2b</ref> shows the extent of annotations available to the MTL model for training, compared to the data restricted to coreferring pairs in Figure <ref type="figure" target="#fig_1">2a</ref>, as used by the baseline e2e approach. Since OntoNotes-style data, such as OntoGUM, does not contain singletons, mention types or information status, only coreferring mentions and their spans can be used for learning by the baseline model.</p><p>The information in the bottom panel, by contrast, is much richer and covers all referring expressions with information status and one of ten entity types:</p><p>ABSTRACT, ANIMAL, EVENT, OBJECT, ORGANI-ZATION, PERSON, PLACE, PLANT, SUBSTANCE and TIME.</p><p>While each information type (coreference, mention boundaries, mention types, and information status) is not totally predictable from others, they overlap to some extent and exhibit different information densities: mention boundaries are available for many spans and are densely attested. Mention types are available for each mention, but some types are rare, e.g. abstract mentions marked by in Figure <ref type="figure" target="#fig_1">2</ref> are the most common. Information status is mostly predictable from coreference, e.g. singletons and chain-initial mentions are new, and chain-medial or final mentions are given (given:active if recently mentioned, otherwise given:inactive). Accessible mentions are less trivial and comparatively rare (about 7.1% of mentions in GUM), indicating whether they are accessible in the common ground, their identity is inferrable from some other mention (accessible:inferrable), or by aggregating information from multiple mentions (accessible:aggregate). This information could help systems to learn whether a span is likely to have an antecedent.  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An overview of the proposed MTL model architecture. Only selected spans with high mention scores (in blue) are considered in the three auxiliary tasks.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Training data from an OntoGUM article in the news genre.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Comparison between<ref type="bibr" target="#b6">Joshi et al. (2019)</ref> and our model on test sets of both in-domain (OntoGUM 8.0) and out-of-domain datasets (OntoNotes and WikiCoref). The overall F1 score is the average of F1s from three evaluation metrics MUC, B3 , and CEAF φ4 . All models are trained on OntoGUM.</figDesc><table><row><cell></cell><cell>Markble Detection P R F1</cell><cell>P</cell><cell>MUC R</cell><cell>F1</cell><cell>P</cell><cell>B 3 R</cell><cell>F1</cell><cell>P</cell><cell>CEAF φ4 R</cell><cell>F1</cell><cell>Avg. F1</cell></row><row><cell cols="2">In-domain -ONTOGUM</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Joshi et al. (2019)</cell><cell cols="10">91.0 71.9 80.3 83.3 69.7 75.9 70.8 59.2 64.5 70.5 45.8 55.5</cell><cell>65.5</cell></row><row><cell>MTL (sg)</cell><cell cols="10">90.2 75.0 81.9 82.7 72.8 77.4 70.4 63.1 66.5 71.5 49.2 58.3</cell><cell>67.6</cell></row><row><cell>MTL (sg+ent)</cell><cell cols="10">90.0 75.1 81.9 82.8 72.9 77.6 71.2 63.6 67.2 71.9 50.2 59.1</cell><cell>68.2</cell></row><row><cell cols="11">MTL (sg+ent+infs.) 90.0 75.0 81.8 82.1 72.3 76.9 70.0 62.3 65.9 70.0 48.6 57.3</cell><cell>66.9</cell></row><row><cell cols="2">Out-of-domain -ONTONOTES</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Joshi et al. (2019)</cell><cell cols="10">83.9 76.9 80.3 77.6 72.7 75.1 66.9 60.6 63.6 64.3 54.5 59.0</cell><cell>65.9</cell></row><row><cell>MTL (sg+ent)</cell><cell cols="10">82.2 80.2 81.2 77.0 76.1 76.5 67.1 64.0 65.5 63.6 59.5 61.5</cell><cell>67.8</cell></row><row><cell cols="2">Out-of-domain -WIKICOREF</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Joshi et al. (2019)</cell><cell cols="10">79.9 58.8 67.7 73.7 60.1 66.2 66.4 43.4 52.4 56.6 31.6 40.5</cell><cell>53.0</cell></row><row><cell>MTL (sg+ent)</cell><cell cols="10">80.4 60.0 68.7 74.5 61.8 67.5 67.8 45.3 54.4 59.0 33.0 42.4</cell><cell>55.6</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Comparison of various tasks included in the coreference model on the OntoGUM development data.</figDesc><table><row><cell>Avg. F1</cell><cell>∆</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Table 3 displays the distribution of errors observed in the OntoGUM development set. These errors are present in the baseline e2e model but correctly resolved by our proposed MTL model (e2e errors) or vice versa (mtl errors).</figDesc><table><row><cell>Error type</cell><cell cols="2">mtl errors</cell><cell cols="2">e2e errors</cell></row><row><cell>Pronouns</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>-1st &amp; 2nd person pronouns</cell><cell>6</cell><cell>3.6%</cell><cell>12</cell><cell>5.0%</cell></row><row><cell>-3rd person pronouns</cell><cell>20</cell><cell>12.1%</cell><cell>68</cell><cell>28.3%</cell></row><row><cell>Definiteness</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>-Definite nouns</cell><cell>63</cell><cell>38.2%</cell><cell>98</cell><cell>40.8%</cell></row><row><cell>-Indefinite nouns</cell><cell>13</cell><cell>7.9%</cell><cell>13</cell><cell>5.4%</cell></row><row><cell>Proper nouns</cell><cell>23</cell><cell>14.0%</cell><cell>19</cell><cell>7.9%</cell></row><row><cell>Others</cell><cell>40</cell><cell>24.2%</cell><cell>30</cell><cell>12.5%</cell></row><row><cell>Total</cell><cell cols="4">165 100.0% 240 100.0%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Number and percentage of errors by class that are produced by e2e but avoided by the MTL model (e2e errors) and produced by the MTL model but resolved by the e2e model (mtl errors).</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>Entity type errors 1 he did represent [the school] 1 during the very first Eton v [Harrow] 1 cricket match 2 Who cut [the grass] 1 ? Marlena did [it] 2 . Marlena did [it] 2 a long time ago, but [it] 1 hasn't been watered. [It] 1 's dying. 3 I made [noises] 1 with my heels but [they] 1 were too loud so I stopped. This means that if [the govt] 1 decided to print 1 quadrillion dollars in the span of a week ... we 're loaning [the US govt] 1 the very money it prints</figDesc><table><row><cell>Singleton errors</cell></row><row><cell>4 The main reason attributed for the pollution of Athens</cell></row><row><cell>is because the city is enclosed by mountains in [a</cell></row><row><cell>basin which does not let the smog leave] 1 ... have</cell></row><row><cell>greatly contributed to better atmospheric conditions in</cell></row><row><cell>[the basin] 1 .</cell></row><row><cell>5</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>A qualitative analysis of OntoGUM dev errors that appear in the e2e model but are avoided by our MTL model. MTL predictions (gold) are represented by[brackets]  x . E2e predictions (errors) are highlighted in colored text and each color in an example denotes a coreference cluster.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head></head><label></label><figDesc>et al., 2020), we use a batch size of 1 document for training and evaluation. The coreference task uses the same loss strategy as the baseline model (Joshi</figDesc><table><row><cell>Face</cell><cell>model from Hugging-2 for token representations. Experiments run</cell></row><row><cell cols="2">on Nvidia RTX A6000 GPUs with 64GB RAM.</cell></row><row><cell cols="2">Following previous work (Lee et al., 2018; Joshi</cell></row></table><note><p>2 https://huggingface.co/</p></note></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Multitask learning</title>
+		<author>
+			<persName><forename type="first">Rich</forename><surname>Caruana</surname></persName>
+		</author>
+		<idno type="DOI">10.1023/A:1007379606734</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Mach. Learn</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="41" to="75" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A unified architecture for natural language processing: Deep neural networks with multitask learning</title>
+		<author>
+			<persName><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/1390156.1390177</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th International Conference on Machine Learning, ICML &apos;08</title>
+		<meeting>the 25th International Conference on Machine Learning, ICML &apos;08<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="page" from="160" to="167" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Word-level coreference resolution</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Dobrovolskii</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.605</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7670" to="7675" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Wiki-Coref: An English coreference-annotated corpus of Wikipedia articles</title>
+		<author>
+			<persName><forename type="first">Abbas</forename><surname>Ghaddar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillippe</forename><surname>Langlais</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)</title>
+		<meeting>the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)<address><addrLine>Portorož, Slovenia</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="136" to="142" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Centering: A framework for modeling the local coherence of discourse</title>
+		<author>
+			<persName><forename type="first">Barbara</forename><forename type="middle">J</forename><surname>Grosz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aravind</forename><forename type="middle">K</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Weinstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="203" to="225" />
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Bridging anaphora resolution as question answering</title>
+		<author>
+			<persName><forename type="first">Yufang</forename><surname>Hou</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.132</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1428" to="1438" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Span-BERT: Improving pre-training by representing and predicting spans</title>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<idno>CoRR, abs/1907.10529</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Span-BERT: Improving pre-training by representing and predicting spans</title>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00300</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="64" to="77" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Coreference resolution with entity equalization</title>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Kantor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Globerson</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1066</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="673" to="677" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Constrained multi-task learning for bridging resolution</title>
+		<author>
+			<persName><forename type="first">Hideo</forename><surname>Kobayashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufang</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.56</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Dublin, Ireland. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="759" to="770" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Singletons and coreference resolution evaluation</title>
+		<author>
+			<persName><forename type="first">Sandra</forename><surname>Kübler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Desislava</forename><surname>Zhekova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference Recent Advances in Natural Language Processing 2011</title>
+		<meeting>the International Conference Recent Advances in Natural Language Processing 2011<address><addrLine>Hissar, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="261" to="267" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">End-to-end neural coreference resolution</title>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="188" to="197" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Higher-order coreference resolution with coarse-tofine inference</title>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-2108</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Short Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="687" to="692" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Conundrums in entity coreference resolution: Making sense of the state of the art</title>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.536</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6620" to="6631" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Constrained multi-task learning for event coreference resolution</title>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.356</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4504" to="4514" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Multi-task identification of entities, relations, and coreference for scientific knowledge graph construction</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mari</forename><surname>Ostendorf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1360</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3219" to="3232" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Lexical features in coreference resolution: To be used with caution</title>
+		<author>
+			<persName><forename type="first">Sadat</forename><surname>Nafise</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Moosavi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Strube</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-2003</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="14" to="19" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Using linguistic features to improve the generalization capability of neural coreference resolvers</title>
+		<author>
+			<persName><forename type="first">Sadat</forename><surname>Nafise</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Moosavi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Strube</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="193" to="203" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">CorefUD 1.0: Coreference meets Universal Dependencies</title>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Nedoluzhko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michal</forename><surname>Novák</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Popel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zdeněk</forename><surname>Žabokrtský</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Zeldes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Zeman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth Language Resources and Evaluation Conference</title>
+		<meeting>the Thirteenth Language Resources and Evaluation Conference<address><addrLine>Marseille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4859" to="4872" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Towards robust linguistic analysis using OntoNotes</title>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Sameer Pradhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nianwen</forename><surname>Moschitti</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tou</forename><surname>Hwee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Uryupina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventeenth Conference on Computational Natural Language Learning</title>
+		<meeting>the Seventeenth Conference on Computational Natural Language Learning<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="143" to="152" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Toward a taxonomy of given-new information</title>
+		<author>
+			<persName><forename type="first">Ellen</forename><forename type="middle">F</forename><surname>Prince</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Radical Pragmatics</title>
+		<title level="s">Syntax and semantics</title>
+		<editor>
+			<persName><forename type="first">P</forename><surname>Cole</surname></persName>
+		</editor>
+		<meeting><address><addrLine>New York</addrLine></address></meeting>
+		<imprint>
+			<publisher>Academic Press</publisher>
+			<date type="published" when="1981">1981</date>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="223" to="255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Bridging resolution: Task definition, corpus resources and rule-based experiments</title>
+		<author>
+			<persName><forename type="first">Ina</forename><surname>Roesiger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arndt</forename><surname>Riester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Kuhn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th International Conference on Computational Linguistics</title>
+		<meeting>the 27th International Conference on Computational Linguistics<address><addrLine>Santa Fe, New Mexico, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3516" to="3528" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Improving generalization in coreference resolution via adversarial training</title>
+		<author>
+			<persName><forename type="first">Sanjay</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S19-1021</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth Joint Conference on Lexical and Computational Semantics (*SEM 2019)</title>
+		<meeting>the Eighth Joint Conference on Lexical and Computational Semantics (*SEM 2019)<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="192" to="197" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">On generalization in coreference resolution</title>
+		<author>
+			<persName><forename type="first">Shubham</forename><surname>Toshniwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Livescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.crac-1.12</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Computational Models of Reference, Anaphora and Coreference</title>
+		<meeting>the Fourth Workshop on Computational Models of Reference, Anaphora and Coreference<address><addrLine>Punta Cana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="111" to="120" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">OntoNotes: A large training corpus for enhanced processing</title>
+		<author>
+			<persName><forename type="first">Ralph</forename><surname>Weischedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitchell</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martha</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Belvin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Handbook of Natural Language Processing and Machine Translation: DARPA Global Autonomous Language Exploitation</title>
+		<editor>
+			<persName><forename type="first">Joseph</forename><surname>Olive</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Caitlin</forename><surname>Christianson</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">John</forename><surname>Mccary</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+	<note>Sameer Pradhan, Lance Ramshaw, and Nianwen Xue</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">CorefQA: Coreference resolution as querybased span prediction</title>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arianna</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.622</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6953" to="6963" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Understanding mention detector-linker interaction in neural coreference resolution</title>
+		<author>
+			<persName><forename type="first">Zhaofeng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.crac-1.16</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Computational Models of Reference, Anaphora and Coreference</title>
+		<meeting>the Fourth Workshop on Computational Models of Reference, Anaphora and Coreference<address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="150" to="157" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Multitask learning-based neural bridging reference resolution</title>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Massimo</forename><surname>Poesio</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.315</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3534" to="3546" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">The GUM corpus: Creating multilayer resources in the classroom</title>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Zeldes</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s10579-016-9343-x</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Language Resources and Evaluation</title>
+		<imprint>
+			<biblScope unit="volume">51</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="581" to="612" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Only 5% Attention Is All You Need: Efficient Long-range Document-level Neural Machine Translation</title>
+				<funder ref="#_Rf7dM9s">
+					<orgName type="full">Liaoning Provincial Research Foundation for Basic Research</orgName>
+				</funder>
+				<funder ref="#_PQQRWRt #_pSmf26E">
+					<orgName type="full">National Science Foundation of China</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Zihan</forename><surname>Liu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">National Key Laboratory for Novel Software Technology</orgName>
+								<address>
+									<settlement>Nanjing</settlement>
+									<country>University</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="laboratory">ByteDance</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zewei</forename><surname>Sun</surname></persName>
+							<email>sunzewei.v@bytedance.com</email>
+							<affiliation key="aff1">
+								<orgName type="laboratory">ByteDance</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Shanbo</forename><surname>Cheng</surname></persName>
+							<email>chengshanbo@bytedance.com</email>
+							<affiliation key="aff1">
+								<orgName type="laboratory">ByteDance</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+							<email>huangsj@nju.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="laboratory">National Key Laboratory for Novel Software Technology</orgName>
+								<address>
+									<settlement>Nanjing</settlement>
+									<country>University</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mingxuan</forename><surname>Wang</surname></persName>
+							<email>wangmingxuan.89@bytedance.com</email>
+							<affiliation key="aff1">
+								<orgName type="laboratory">ByteDance</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Only 5% Attention Is All You Need: Efficient Long-range Document-level Neural Machine Translation</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C32B73D330FFFD5282A4265FE91CCA09</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:43+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Document-level Neural Machine Translation (DocNMT) has been proven crucial for handling discourse phenomena by introducing document-level context information. One of the most important directions is to input the whole document directly to the standard Transformer model. In this case, efficiency becomes a critical concern due to the quadratic complexity of the attention module. Existing studies either focus on the encoder part, which cannot be deployed on sequence-to-sequence generation tasks, e.g., Machine Translation (MT), or suffer from a significant performance drop. In this work, we keep the translation performance while gaining 20% speed up by introducing extra selection layer based on lightweight attention that selects a small portion of tokens to be attended. It takes advantage of the original attention to ensure performance and dimension reduction to accelerate inference. Experimental results show that our method could achieve up to 95% sparsity (only 5% tokens attended) approximately, and save 93% computation cost on the attention module compared with the original Transformer, while maintaining the performance. * * Work was done while Z. Liu was an intern at ByteDance.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Recent developments in neural machine translation have focused on the translation of individual sentences, but research has shown that document-level information is crucial for handling discourse phenomena such as lexical consistency and pronominal anaphora, which rely on long-range context. As a result, various attention mechanisms <ref type="bibr" target="#b37">(Zhang et al., 2018;</ref><ref type="bibr" target="#b14">Maruf et al., 2019;</ref><ref type="bibr">Zheng et al., 2020;</ref><ref type="bibr" target="#b0">Bao et al., 2021)</ref> that encode document-level context information have been proposed.</p><p>However, the computation cost of these attention mechanisms increases quadratically with the length of the input sequence. To address this issue, researchers have proposed efficient transformer models <ref type="bibr">(Tay et al., 2020b</ref>) that aim to reduce the computation cost of attention through techniques such as sparsity patterns <ref type="bibr">(Tay et al., 2020a;</ref><ref type="bibr" target="#b3">Child et al., 2019;</ref><ref type="bibr" target="#b36">Zaheer et al., 2020;</ref><ref type="bibr" target="#b2">Beltagy et al., 2020)</ref> that limit the number of tokens to attend to, memory or global tokens that compress contextual tokens into a single representation <ref type="bibr" target="#b8">(Lee et al., 2019;</ref><ref type="bibr" target="#b13">Ma et al., 2021)</ref>, approximation to softmax with kernel methods <ref type="bibr" target="#b4">(Choromanski et al., 2020;</ref><ref type="bibr" target="#b20">Qin et al., 2022;</ref><ref type="bibr" target="#b17">Peng et al., 2021)</ref>, or a combination of above <ref type="bibr">(Tay et al., 2021a;</ref><ref type="bibr" target="#b39">Zhu et al., 2021)</ref>.</p><p>Despite the emergence of various efficient transformer models, long-range sequence-to-sequence tasks such as document-level machine translation still need more exploration.</p><p>On the one hand, some of the existing efficient models <ref type="bibr" target="#b33">(Wang et al., 2020;</ref><ref type="bibr" target="#b36">Zaheer et al., 2020;</ref><ref type="bibr" target="#b9">Lee-Thorp et al., 2022)</ref> focus on the encoder part and can not be used for generation because of the autoregressive property. Some <ref type="bibr">(Tay et al., 2021b;</ref><ref type="bibr" target="#b3">Child et al., 2019;</ref><ref type="bibr" target="#b2">Beltagy et al., 2020)</ref> have a strong relationship to the position of tokens thus can not be applied to cross attention where no alignment is obvious between query and key.</p><p>On the other hand, the studies that target on efficient sequence-to-sequence generation only verify their methods on normal sentence-level translation benchmarks like WMT EN-DE test sets <ref type="bibr" target="#b17">(Peng et al., 2021;</ref><ref type="bibr" target="#b18">Petrick et al., 2022;</ref><ref type="bibr" target="#b13">Ma et al., 2021)</ref>. In our preliminary experiments, we find that almost all the work severely drops in BLEU when dealing with real document translation tasks.</p><p>To address this issue, we try to reduce the computation cost while ensuring the translation performance. In this paper, we mainly focus on the attention mechanism following other efficient transformer models.</p><p>Specifically, we want to select important tokens <ref type="bibr" target="#b23">(Sun et al., 2020</ref><ref type="bibr">(Sun et al., , 2022a) )</ref> and only conduct attention to them. Previous studies sharing a similar motivation either design sparsity patterns with human prior like a fixed sliding window <ref type="bibr" target="#b2">(Beltagy et al., 2020;</ref><ref type="bibr">Tay et al., 2020a;</ref><ref type="bibr" target="#b36">Zaheer et al., 2020)</ref> which lack flexibility, or try to learn the sparsity pattern by clustering methods. However, the poor performance of learnable pattern methods on Doc-NMT reflects that the query does not attend to the keys expected in original attention.</p><p>In order to ensure the performance, we take advantage of the original attention and propose Lightweight Attention Selection Transformer (Lasformer). Lasformer incorporates selection layers that utilize lightweight attention, whose distribution is guided by supervision from the original attention. The achievement of lightweight processing is attained by reducing the hidden dimension, while the selection process involves retaining tokens with the highest attention scores, a strategy validated for its efficacy by <ref type="bibr" target="#b38">(Zhao et al., 2019)</ref>. By employing these mechanisms, we are able to efficiently filter out insignificant tokens at a comparatively low expense, resulting in a reduction of the overall computational burden, particularly when a significant proportion of tokens can be filtered out.</p><p>Determining the appropriate number of tokens to retain is of utmost importance, as they must contribute sufficient information to ensure optimal performance, while also minimizing their quantity to enhance efficiency. In our approach, the sparsity is learned adaptively, which gradually increases during the training process until it reaches an optimal level that strikes a balance between performance and efficiency for each selection layer.</p><p>Experiments show that Lasformer can effectively reduce the computation of attention. Only 5% of tokens are used in attention and translation performance remains almost unchanged. For the long sequence of thousands of words, our method can lower the attention cost to 7%. And end-to-end inference speed can be enhanced to 1.2x.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Document-level Machine Translation</head><p>Document-level machine translation involves an additional source and target context to improve the translation in terms of coherence and consistency <ref type="bibr" target="#b31">(Voita et al., 2019;</ref><ref type="bibr" target="#b15">Müller et al., 2018;</ref><ref type="bibr" target="#b10">Lopes et al., 2020;</ref><ref type="bibr" target="#b1">Bawden et al., 2018)</ref>. There exist two lines of methods to use context. One introduces an extra encoder to encode context and integrate it into the current sentence <ref type="bibr" target="#b37">(Zhang et al., 2018;</ref><ref type="bibr" target="#b14">Maruf et al., 2019)</ref>. The limitation is that the same sentence might be encoded multiple times thus increasing the complexity. It is solved by recent works by sharing the parameters of context encoder and current sentence encoder <ref type="bibr">(Zheng et al., 2020;</ref><ref type="bibr" target="#b12">Ma et al., 2020)</ref>.</p><p>Another line of work concatenates the context and the current sentence and translate it as if it is a single sentencec <ref type="bibr" target="#b29">(Tiedemann and Scherrer, 2017;</ref><ref type="bibr">Sun et al., 2022b)</ref>. However, the concatenation results in a long input sequence and makes it difficult to train the model, because of the high entropy of attention distribution. To alleviate the problem, locality bias is introduced, where sentence-level information is augmented <ref type="bibr" target="#b0">(Bao et al., 2021)</ref>.</p><p>In short, the former is based on sentence translation while integrating the context. The latter tries to translate the whole document while introducing sentence-level locality. And they seem to reach the same scheme that uses both local attention and global attention.</p><p>The local attention implies human-designed sparsity pattern and it is natural to introduce learnable sparsity pattern to global attention in documentlevel machine translation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Efficient Transformer</head><p>There have been several previous methods for efficient Transformers that have focused on the properties of attention, specifically sparsity and low rank to reduce the computation cost.</p><p>Sparsity refers to the idea that only a few tokens receive a significant amount of attention, while the rest contribute little to the output. Some methods <ref type="bibr">(Tay et al., 2021a;</ref><ref type="bibr" target="#b3">Child et al., 2019;</ref><ref type="bibr" target="#b2">Beltagy et al., 2020;</ref><ref type="bibr" target="#b36">Zaheer et al., 2020)</ref> have proposed handcrafted patterns such as the sliding window or dilated window, which is inspired by human prior knowledge that close tokens contribute the most attention. Other methods <ref type="bibr" target="#b7">(Kitaev et al., 2020;</ref><ref type="bibr" target="#b32">Wang et al., 2022;</ref><ref type="bibr">Tay et al., 2020a;</ref><ref type="bibr" target="#b21">Roy et al., 2021)</ref> have attempted to make the sparsity pattern learnable with a lower cost by using techniques like clustering, based on the idea that similar tokens are expected to attend to each other and belong to the same cluster. These clustering methods can include techniques like locality sensitive hashing <ref type="bibr" target="#b7">(Kitaev et al., 2020)</ref>, K-means <ref type="bibr" target="#b21">(Roy et al., 2021)</ref>, or learnable sorting networks <ref type="bibr">(Tay et al., 2020a</ref>  on the idea that N dimensional features can be compressed into fewer dimensions. Some work <ref type="bibr" target="#b8">(Lee et al., 2019;</ref><ref type="bibr" target="#b13">Ma et al., 2021;</ref><ref type="bibr" target="#b5">Jaegle et al., 2021)</ref> has used global tokens or memory to compress longrange information into a limited number of embeddings or has used kernel methods <ref type="bibr" target="#b17">(Peng et al., 2021;</ref><ref type="bibr" target="#b20">Qin et al., 2022)</ref> to approximate softmax scores, allowing the computation of keys and values first and reducing the complexity from O(N 2 d) to O(N d 2 ) (where d is the dimension of self-attention).</p><formula xml:id="formula_0">Q 5 K 0 K 1 K 2 K 3 K 4 Attention Score 0 0 1 0 0 Top-K mask</formula><p>While sparsity methods maintain a token-totoken attention structure, low-rank methods use a compressed embedding for attention. The tokento-token approach is more interpretable but may lose some information, while the other may contain more information but may also be noisier. Since the information in DocNMT is sparse <ref type="bibr" target="#b11">(Lupo et al., 2022)</ref>, the noise of low-rank methods might be much more severe and thus we exploit the sparsity methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>Sequence-to-sequence document-level translation aims at fully capturing the distant context. It is achieved by attention mechanism, which allows each query attending to all of the keys, resulting in quadratically growing computation cost with the sequence length. However, only a quite small part of tokens is truly relevant. Therefore, it is important to select those important ones and filter the others to reduce the number of aligned objects.</p><p>Specifically, we take advantage of the origin attention mechanism and distill it into a lightweight attention with lower hidden dimension to select important tokens, as shown in Figure <ref type="figure" target="#fig_0">1</ref>. It still takes O(N 2 ) calculation but has much less computation. After filtration, only remaining tokens will be attended. Although the selection introduces extra cost, the total efficiency can be improved as far as the aligned range is limited enough.</p><p>Basically, we divide our methods into four parts: lightweight attention, attention supervision, adaptive sparsity, and layer sharing, which will be introduced in the following sections.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Lightweight Attention</head><p>Suppose the sequence has N tokens in total and we need to select kN tokens that are important for the current token. k is the selection ratio. Since the selection is only a preliminary process and should only take very little calculation, we project the hidden state of all the tokens from d to d s (e.g. from 512 to 64). Then a lightweight version of attention is conducted with those low-dimensional hidden states:</p><formula xml:id="formula_1">A s = softmax(Q s K T s / d s )<label>(1)</label></formula><p>where Q s , K s , and A s represent the projected query, key, and attention.</p><formula xml:id="formula_2">Q s = XW Q , K s = XW K , and W Q ∈ R d×ds , W K ∈ R d×ds .</formula><p>After sorting all the logits, we only preserve the top k keys for each query token and mask the others:</p><formula xml:id="formula_3">mask = top-k(A s ) (2)</formula><p>Obviously, the top-k function is not differentiable. To train the selection network, we use the reparameter trick from Gumbel Softmax <ref type="bibr" target="#b6">(Jang et al., 2017)</ref> to make the parameters learnable:</p><formula xml:id="formula_4">mask = mask + A s -SG(A s )<label>(3)</label></formula><p>where SG refers to stop-gradient. Then the gradient can be passed to A s while remaining the value of the mask.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Attention Supervision</head><p>Intuitively, the distribution of lightweight attention should be consistent with the original attention layer to ensuring performance. Therefore, we pulls the former to the latter during the training by an addition KL loss. Such distilling process requires no pretrained Transformer model, but the low and high dimension layers are trained with consistency constraint. However, the utilization of original attention prevent speeding up at training time, so we only focus the inference efficiency.</p><formula xml:id="formula_5">A = softmax(QK T / √ d)<label>(4)</label></formula><formula xml:id="formula_6">L s = kl_div(A s , A)<label>(5)</label></formula><p>where Q and K are high-dimensional projected hidden states from the original attention layer. kl_div is the Kullback-Leibler Divergence. The loss is added to the NMT loss with a hyperparameter α:</p><formula xml:id="formula_7">Loss = L nmt + α * L s (6)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Adaptive Sparsity</head><p>k represents the level of sparsity and is important in the whole selection procedure. However, the optimal choice of k is not apparent. We propose an adaptive algorithm to search for it. Specifically, we set a threshold t, for the sum of attention. The intuition is that, since a small amount of tokens contribute to most of the attention weights, "the most of weights" can be quantified as threshold t. If the current sum of attention is below t, some important tokens might be filtered, so we slightly increase k for a small step, and vice versa:</p><formula xml:id="formula_8">k = k -step if sum(topk) &gt; t k + step else (7)</formula><p>We regard k as a percentage, so k is in the range [0, 1], and the step is a small constant such as 0.001. We initialize k as 1 and limit k great than or equal to 1%. For documents with few sentences, at least 10 tokens are attended to avoid poor performance. While k gradually decreases and converges in the training process, the model is encouraged to learn a concentrated attention distribution and get rid of unrelated information. In some layers, especially encoder layer, k might stuck at some point and sometimes never decrease, so we manually disable k + step when k is large.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Layer Sharing</head><p>Furthermore, we share the learned sparsity patterns across layers as <ref type="bibr" target="#b35">(Xiao et al., 2019)</ref> has proved that attention weights can be directly reused because intuitively, each query in different layers often attends to the same keys. So the extra selection cost can be further reduced while keeping the translation performance.</p><p>Basically, we divide all the selection layers into m groups and each group has r = n/m layers, where n is the original layer number. We only calculate the attention of the lowest selection layer in each group. Then the other selection layers share the same attention as the lowest one:</p><formula xml:id="formula_9">A s i = A s ⌊i/r⌋ * r<label>(8)</label></formula><p>In this way, we can save m * (r -1) calculation of attention selection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Cost Saving</head><p>In the end, we try to formalize the attention cost with these algorithms and parameters. The attention cost of the original Transformer attention <ref type="bibr">(Tay et al., 2020b)</ref>:</p><formula xml:id="formula_10">C T ransf ormer = 2nN 2 d (<label>9</label></formula><formula xml:id="formula_11">)</formula><p>where n is the layer number, N is the sequence length, and d is the dimension of the hidden states. "2" means dot product (A = QK) and weighted sum (AV ). And Lasformer can achieve a complexity as:</p><formula xml:id="formula_12">C Lasf ormer = 1 r • nN 2 d s + 2knN 2 d (<label>10</label></formula><formula xml:id="formula_13">)</formula><p>where r is the layer number in each group, d s is the dimension of the selection layer, and k is the selection ratio. The first item means the d sdimension rough selection. The second item means masked attention.</p><p>With a small dimension for selection (d s ), a high sparsity for attention (k), and a large layer group size (r), we can greatly reduce the total computation cost. If we set n = 6, d = 512 as Transformer base, and d s = 64, t = 0.95 (k = 0.05), r = 3, the attention cost can be only 7% compared with original Transformer. The detailed results are listed in the following sections.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>We conduct experiments on three English-German datasets and one Chinese-English datasets. The English-German datasets include TED, News, and Europarl, following <ref type="bibr" target="#b14">Maruf et al. (2019)</ref>. The TED corpus is from the IWSLT 2017, and we use tst2016-2017 as test est and the rest are used for development. News are aligned document-delimited News Commentary-v11 corpus, and WMT'16 new-stest2015 and news-test2016 are used for development and testing, respectively. Europarl is extracted as proposed in <ref type="bibr" target="#b14">Maruf et al. (2019)</ref>. For Chinese-English datasets, we follow <ref type="bibr">Sun et al. (2022b)</ref>, using PDC which is crawled bilingual news corpus with diverse domains.</p><p>The above training data are organized into a mix of sentence-level data and document-level data as used in <ref type="bibr">Sun et al. (2022b)</ref>. All of the data are cut into sub-words using BPE with 32k merge operations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Model settings</head><p>We build our translation model based on Transformer base <ref type="bibr" target="#b30">(Vaswani et al., 2017)</ref> using fairseq <ref type="bibr" target="#b16">(Ott et al., 2019)</ref>, including 6 layers, 512 dimensions, 8 heads, 2048 feed-forward hidden size, for both encoders and decoders. We use a small dropout of 0.1, as well as word dropout, on large datasets like Europarl and PDC, and a large dropout of 0.3 on small datasets like TED and News.</p><p>As for our proposed selection layer, we use d s = 64 dimensions, m = 2 groups, and r = 3 layers. The coefficient α is set to 0.01 and the threshold t for dynamic top-k is set to 0.95.</p><p>We adopt case-insensitive sacreBLEU <ref type="bibr" target="#b19">(Post, 2018)</ref> on the whole documents, following all the previous document-level NMT studies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Comparison Work</head><p>We compare the results with three typical efficient Transformers from different classes of methods and directly use their open-source code to conduct experiments on the datasets:</p><p>• LSH-trans <ref type="bibr" target="#b18">(Petrick et al., 2022)</ref> <ref type="foot" target="#foot_0">1</ref> is based on Reformer and uses locality sensitive hashing to obtain a cluster of tokens to be attended to each other within it.</p><p>• Luna <ref type="bibr" target="#b13">(Ma et al., 2021)</ref> 2 is a low-rank-based model that compresses the long sequence into a fixed number of global tokens using the attention mechanism.</p><p>• RFA-trans <ref type="bibr" target="#b34">(Wu et al., 2022)</ref> extends the RFA <ref type="bibr" target="#b17">(Peng et al., 2021)</ref> with sentence level gating mechanism to enhance the locality 3 .</p><p>There are many other efficient Transformer studies <ref type="bibr" target="#b2">(Beltagy et al., 2020;</ref><ref type="bibr" target="#b36">Zaheer et al., 2020;</ref><ref type="bibr">Tay et al., 2020a</ref><ref type="bibr">Tay et al., , 2021a))</ref>. However, since they bypass sequence-to-sequence generation tasks and only focus on the encoder-only or decoder-only task, we do not involve them here.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Results</head><p>Table <ref type="table">1</ref> shows the translation results compared to previous document-level translation models. As for efficiency, all related studies achieve cost saving to various extents. They yield better results in terms of cost or speed. However, they face a serious quality drop when dealing with real long-range documents. We find that although they report a comparable result on WMT or IWSLT (with very limited context, around 30 tokens per sentence), there is a large performance decrease on long documents like TED, Europarl, and PDC. These results are obtained by their open-source codes. We suggest that all efficient-related studies should be ♠ Its complexity is nCd(N/C) 2 + ndN logN , where C is hashing chunk size, and we set C=N/32 as decribed in the paper. The hashing (independent of attention) and sorting take a very long time, yielding a overall low speed. ♦ Its complexity is 2nN dm, where m is the number of compressed tokens. We set m=64. ♣ Its complexity is 2n(N d ′2 + N dd ′ ), where d ′ is the projection dim set to 128, n is the number of layers and N is the sequence length. We set n=6 and N = 1000 for the above settings.</p><p>Table <ref type="table">1</ref>: The results of document-level translation. Except for baseline, we also list the attention cost and inference speed of three typical studies on efficient seq2seq generation. They achieve better efficiency, in terms of cost or speed. However, they face severe drop when dealing with the real document-level translation. Overall, Lasformer achieves the best results of long-range document-level translation.</p><p>verified on real long-range sequences. Otherwise, some potential risks may be ignored. Overall, Lasformer achieves the best results, not only reducing the attention calculation and boosting end-to-end inference speed effectively but also maintaining the translation quality. Notably, we cut down the attention cost to 7%, which is important for the quadratic growth with the sequence length. Meanwhile, except for BLEU, we conduct experiments on document-level test set to evaluate the capability of utilizing document context. We do not use contrastive test sets <ref type="bibr" target="#b31">(Voita et al., 2019;</ref><ref type="bibr" target="#b1">Bawden et al., 2018)</ref> because their instance only contains at most 5 sentences. Instead, we test our model on PDC <ref type="bibr">(Sun et al., 2022b)</ref>, including Tense Consistency(TC), Conjunction Presence(CP), Pronoun Translation(PT) and an overall score TCP that is the geometric mean of above. Table <ref type="table" target="#tab_2">2</ref> shows that our model achieve comparable results as Transformer baseline and our selection strategy keeps the tokens of importance for handling discourse coherence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Analysis</head><p>In this section, we will dive into the method and analyze some important parts and interesting phenomena. Except for extra explanation, the basic set-ting of all the experiments is as follows: t = 0.95, d s = 64, r = 2. Datasets are PDC.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Sparsity Distribution</head><p>Since the efficiency of our model totally relies on the learned topk sparse pattern, it is our major concern that to what extent the sparsity can achieve. As is shown in Table <ref type="table">3</ref>, Lasformer yields very sparse attention results.</p><p>We also find the degree of sparsity among different modules is different. The decoder self-attention can achieve an extreme sparsity of 2%, showing most past contexts are not crucial to the language model. While encoder self-attention only shows 10% sparsity. We suggest that the distribution of attention on the source side is relatively flat so the model needs more tokens. Considering the encoder is non-autoregressive, the strong reduction of the decoder side, including cross-attention and selfattention, can significantly boost efficiency. And even under such great sparsity, Lasformer can still reach a comparable translation result.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Sparsity</head><p>Enc Crs Dec Layer 0 10.0% 3.0% 1.8% Layer 3 9.8% 2.9% 2.7%</p><p>Table <ref type="table">3</ref>: Sparsity that different attention modules can achieve. Enc, Crs, Dec refer to encoder self-attention, cross-attention and decoder self-attention respectively. Layer 0-2 and layer 3-5 share the same attention.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Abalation Study</head><p>Table <ref type="table" target="#tab_3">4</ref> shows the effects of the different modules we proposed.</p><p>"-Top-k Selection" means that we abandon the Top-k selection. Instead, we limit the attention range within a fixed window whose center is the query and length is 20. Though getting a lower attention cost, its quality deterioration shows that naive human prior is not robust and leads to quality drop.</p><p>"-Attention Supervision" means that we set α in formula 6 to 0, thus not constraining the consistency between the attention of the selection layer and the original layer. Consequently, the BLEU score has a large drop, showing the importance of attention supervision. And the lack of supervision might cause the failure of previous sparsity-based efficient transformers.</p><p>"-Re-parameter trick" means that we do not use formula 3 so that the parameters of the selection layer are only trained by attention supervision loss and do not contribute to NMT loss. The BLEU score has a small drop, showing that the re-parameter trick helps.</p><p>It achieves a comparable result but significantly raises the computation cost. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">t and k: Sparsity Effects</head><p>The sparsity degree k is also an important index. We conduct some experiments to check the relationship between the attention sum t and the sparsity k. As is shown in Table <ref type="table" target="#tab_5">5</ref>, lower attention sum requirements bring more sparsity but also slightly lower BLEU. We choose t = 0.95 as a tradeoff.  5.4 N : The Longer, The More Efficient</p><p>Since our method aims at long-range sequences, it is necessary to look into the effect of the sequence length. We calculate the total cost of attention (including QKV linear projection) with the sequence length.</p><p>As is shown in Figure <ref type="figure" target="#fig_1">2</ref>, as the sequence gets longer, the attention cost ratio gradually decreases, which means we obtain higher and higher efficiency. For the extremely long sequence like 8K tokens, we can lower the attention cost to 15% (7% if not including QKV linear projection). This shows the extraordinary potential of our methods. As the translation range gets wider and wider (e.g. a whole book or movie), Lasformer can obtain high efficiency. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">d s : U-shaped Curve with Cost</head><p>Obviously, the low dimension sacrifices the model precision to decrease the computation cost. Therefore, it is a tradeoff to balance efficiency and performance. We conduct a series of experiments. Table <ref type="table" target="#tab_7">6</ref> shows the efficiency and performance under different dimensions. We find that a low dimension of 32 is enough for a coarse selection, while a dimension of 16 hurts the performance. Also, a lower dimension of the selection layer can bring higher sparsity k which conversely raises the computation cost. Even if we only focus on efficiency, the lowest dimension does not mean the lowest cost. The attention cost goes down and then up as d s decreases. Therefore, we pick d s = 64 as our final setting.   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">r: Sharing Layers Helps</head><p>Another point is that the sparse pattern is obtained in one selection layer and applied to all of the layers within a layer group. We suggest that some adjacent layers share the same function so their attention can be shared together. For example, the lower layers are expected to learn the syntactic information while the higher ones are expected to learn semantic information. So some attention distribution can be shared across the layers. As is shown in Table <ref type="table" target="#tab_8">7</ref>, sharing layers slightly enhance k and drop BLEU. We suggest that sharing too many layers limits the model capacity while not sharing results in some redundancy. Taking r = 3 yields the best results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.7">Visualization: Attention Patterns</head><p>Figure <ref type="figure" target="#fig_2">3</ref> shows the sparsity patterns on encoder self-attention, cross-attention, and decoder selfattention.</p><p>On the one hand, there exist some common characteristics, such as: 1) Most tokens prefer to at- tend to nearby tokens. 2) Some tokens serve as the global token that almost all tokens attend to it, which might be some punctuation. These characteristics shares the same idea with human prior <ref type="bibr" target="#b3">(Child et al., 2019;</ref><ref type="bibr" target="#b2">Beltagy et al., 2020)</ref>. On the other hand, there are also plenty of ruleless distributions, including very far tokens. We suggest that long-range context can contribute to the current token like tense or pronoun <ref type="bibr">(Sun et al., 2022b)</ref>. These drifting attentions can not be handled by human prior while Lasformer can well cope with it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we focus on the long-range documentlevel translation efficiency due to its quadratic cost growth with the length. However, previous studies suffer severe performance drops when inferring real long sequences. To address this issue, We propose to select important tokens with lightweight attention, which is supervised by the original attention. The proposed Lasformer effectively reduces the attention expense while successfully maintains the translation quality. It turns out that only around 5% of attention is necessary and the attention cost can be reduced to 7%. In the end, we achieve an overall acceleration of 20%.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitation</head><p>The main limitation of this work is that the reduction of cost does not reflect the actual acceleration, which is influenced by linear modules and GPU optimization.</p><p>Linear modules include embedding layers, projection of query, key, value, and feed-forward network. Actually, they are the dominant bottleneck when the sequence length is short. We test the time cost for different modules of various input length and find that the attention modules becomes the bottleneck (over 50%) only when the input length is over 1500 tokens. Therefore, the acceleration is relatively minor when the input is short.</p><p>GPU optimization is another important concern. First, due to the parallel computing property, a linear layer of 512 x 32 is not 8x faster than a linear layer of 512 x 512. It depends on the GPU architecture and even batch size. The more GPU cores and a small batch size result in a lower GPU utilization and a small speedup. Second, the sparse model is not as fast as a dense model in terms of GPU memory access and pre-fetching, so more memory reading cost is inevitable, which hurts the final end-to-end speedup.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The left figure is the whole architecture of Lasformer. Its left part represents the selection module.It accepts a low-dimensional input to calculate lightweight attention. With the rough attention, we mask the unimportant tokens in the main module (right part of the left figure). In addition, the selection mask is shared across some layers. The right figure illustrates the masking procedure. Taking cross-attention as an example, the current query only attends to those tokens with high rough attention.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Attention cost (including QKV linear projection) of Lasformer compared to original Transformer with different sequence length.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure3: Visualization of all three kinds of attention. On the one hand, only a handful of tokens are necessary while most of the others are noise. On the other hand, the distribution shows some regular pattern but many attended tokens is still ruleless.</figDesc><graphic coords="8,245.23,80.38,100.80,133.06" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Results on TCP.</figDesc><table><row><cell></cell><cell>TC</cell><cell>CP</cell><cell>PT TCP</cell></row><row><cell cols="4">Transformer 56.3 38.1 40.2 44.1</cell></row><row><cell>Lasformer</cell><cell cols="3">54.4 37.4 41.9 44.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 4 :</head><label>4</label><figDesc>Effects of different modules. Dynamic Selection, Attention Supervision, and Re-parameter Trick mainly contribute to the quality maintaince. Layer Sharing mainly contributes to the efficiency boost.</figDesc><table><row><cell></cell><cell cols="2">Attn Cost BLEU</cell></row><row><cell>Lasformer</cell><cell>7%</cell><cell>28.04</cell></row><row><cell>-Top-k Selection</cell><cell>4%</cell><cell>26.52</cell></row><row><cell>-Attention Supervision</cell><cell>7%</cell><cell>12.94</cell></row><row><cell>-Re-parameter Trick</cell><cell>7%</cell><cell>27.58</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Effects of the attention threshold and the sparsity they achieve.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>Effects of different selection dimensions and the sparsity they achieve.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc>Attention sharing in the selection layer. The numbers sharing a underline are in the same group and share the same attention pattern.</figDesc><table><row><cell></cell><cell>k</cell><cell cols="2">Attn Cost BLEU</cell></row><row><cell>012345</cell><cell>9%</cell><cell>10%</cell><cell>27.85</cell></row><row><cell>012 345</cell><cell>5%</cell><cell>7%</cell><cell>28.04</cell></row><row><cell>01 23 45</cell><cell>5%</cell><cell>8%</cell><cell>28.12</cell></row><row><cell cols="2">0 1 2 3 4 5 5%</cell><cell>11%</cell><cell>28.26</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/rwth-i6/ returnn-experiments/tree/master/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>2022-lsh-attention 2 https://github.com/XuezheMax/ fairseq-apollo 3 https://github.com/ZhaofengWu/ rfa-doc-mt</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgement</head><p>We would like to thank the anonymous reviewers for their insightful comments. Part of this work is supported by <rs type="funder">National Science Foundation of China</rs> (No. <rs type="grantNumber">62376116</rs>, <rs type="grantNumber">62176120</rs>), the <rs type="funder">Liaoning Provincial Research Foundation for Basic Research</rs> (No. <rs type="grantNumber">2022-KF-26-02</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_PQQRWRt">
+					<idno type="grant-number">62376116</idno>
+				</org>
+				<org type="funding" xml:id="_pSmf26E">
+					<idno type="grant-number">62176120</idno>
+				</org>
+				<org type="funding" xml:id="_Rf7dM9s">
+					<idno type="grant-number">2022-KF-26-02</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">G-transformer for document-level machine translation</title>
+		<author>
+			<persName><forename type="first">Guangsheng</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyang</forename><surname>Teng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boxing</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihua</forename><surname>Luo</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.267</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing, ACL/IJCNLP 2021</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing, ACL/IJCNLP 2021</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2021-08-01">2021. August 1-6, 2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3442" to="3455" />
+		</imprint>
+	</monogr>
+	<note>Virtual Event. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Evaluating discourse phenomena in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Rachel</forename><surname>Bawden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1118</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Long Papers; New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1304" to="1313" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Longformer: The long-document transformer</title>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arman</forename><surname>Cohan</surname></persName>
+		</author>
+		<idno>CoRR, abs/2004.05150</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Generating long sequences with sparse transformers</title>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno>CoRR, abs/1904.10509</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Rethinking attention with performers</title>
+		<author>
+			<persName><forename type="first">Krzysztof</forename><surname>Choromanski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valerii</forename><surname>Likhosherstov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingyou</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreea</forename><surname>Gane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tamás</forename><surname>Sarlós</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Hawkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Afroz</forename><surname>Mohiuddin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Belanger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><forename type="middle">J</forename><surname>Colwell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrian</forename><surname>Weller</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009">2020. 2009.14794</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Perceiver: General perception with iterative attention</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Jaegle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Gimeno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Brock</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Zisserman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">João</forename><surname>Carreira</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Machine Learning, ICML 2021</title>
+		<meeting>the 38th International Conference on Machine Learning, ICML 2021</meeting>
+		<imprint>
+			<date type="published" when="2021-07">2021. 18-24 July 2021</date>
+			<biblScope unit="volume">139</biblScope>
+			<biblScope unit="page" from="4651" to="4664" />
+		</imprint>
+	</monogr>
+	<note>Virtual Event</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Categorical reparameterization with gumbel-softmax</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shixiang</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Poole</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">5th International Conference on Learning Representations</title>
+		<title level="s">Conference Track Proceedings. OpenReview.net</title>
+		<meeting><address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-04-24">2017. 2017. April 24-26, 2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Reformer: The efficient transformer</title>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Kitaev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anselm</forename><surname>Levskaya</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">8th International Conference on Learning Representations</title>
+		<meeting><address><addrLine>Addis Ababa, Ethiopia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-04-26">2020. April 26-30, 2020</date>
+			<biblScope unit="volume">2020</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Set transformer: A framework for attention-based permutation-invariant neural networks</title>
+		<author>
+			<persName><forename type="first">Juho</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoonho</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jungtaek</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><forename type="middle">R</forename><surname>Kosiorek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seungjin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yee</forename><forename type="middle">Whye</forename><surname>Teh</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th International Conference on Machine Learning, ICML</title>
+		<meeting>the 36th International Conference on Machine Learning, ICML<address><addrLine>Long Beach, California, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-06">2019. 2019, 9-15 June 2019</date>
+			<biblScope unit="volume">97</biblScope>
+			<biblScope unit="page" from="3744" to="3753" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Fnet: Mixing tokens with fourier transforms</title>
+		<author>
+			<persName><forename type="first">James</forename><surname>Lee-Thorp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Ainslie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Eckstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Santiago</forename><surname>Ontañón</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.319</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL 2022</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL 2022<address><addrLine>Seattle, WA, United States</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022-07-10">2022. July 10-15, 2022</date>
+			<biblScope unit="page" from="4296" to="4313" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Document-level neural MT: A systematic comparison</title>
+		<author>
+			<persName><forename type="first">António</forename><surname>Lopes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Amin Farajian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rachel</forename><surname>Bawden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">T</forename><surname>André</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Martins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd Annual Conference of the European Association for Machine Translation</title>
+		<meeting>the 22nd Annual Conference of the European Association for Machine Translation<address><addrLine>Lisboa, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Association for Machine Translation</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="225" to="234" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Divide and rule: Effective pre-training for context-aware multi-encoder translation models</title>
+		<author>
+			<persName><forename type="first">Lorenzo</forename><surname>Lupo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Dinarelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Besacier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4557" to="4572" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">A simple and effective unified encoder for documentlevel machine translation</title>
+		<author>
+			<persName><forename type="first">Shuming</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongdong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.321</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3505" to="3511" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Linear unified nested attention</title>
+		<author>
+			<persName><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sinong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chunting</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Conference on Neural Information Processing Systems 2021, NeurIPS 2021</title>
+		<meeting><address><addrLine>Luna</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-12-06">2021. December 6-14, 2021</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="2441" to="2453" />
+		</imprint>
+	</monogr>
+	<note>Advances in Neural Information Processing Systems</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Selective attention for context-aware neural machine translation</title>
+		<author>
+			<persName><forename type="first">Sameen</forename><surname>Maruf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">T</forename><surname>André</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gholamreza</forename><surname>Martins</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Haffari</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/n19-1313</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2019</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2019<address><addrLine>Minneapolis, MN, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-06-02">2019. June 2-7, 2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3092" to="3102" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A large-scale test set for the evaluation of context-aware pronoun translation in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Mathias</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Annette</forename><surname>Rios</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Voita</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-6307</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Conference on Machine Translation: Research Papers</title>
+		<meeting>the Third Conference on Machine Translation: Research Papers<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="61" to="72" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">fairseq: A fast, extensible toolkit for sequence modeling</title>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexei</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<publisher>Demonstrations</publisher>
+			<date type="published" when="2019">2019. 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Random feature attention</title>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Pappas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roy</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">th International Conference on Learning Representations, ICLR 2021, Virtual Event</title>
+		<meeting><address><addrLine>Austria</addrLine></address></meeting>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2021-05-03">2021. May 3-7, 2021</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Locality-sensitive hashing for long context neural machine translation</title>
+		<author>
+			<persName><forename type="first">Frithjof</forename><surname>Petrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Rosendahl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Herold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hermann</forename><surname>Ney</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.iwslt-1.4</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Conference on Spoken Language Translation, IWSLT@ACL 2022</title>
+		<meeting>the 19th International Conference on Spoken Language Translation, IWSLT@ACL 2022<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-05-26">2022. May 26-27, 2022</date>
+			<biblScope unit="page" from="32" to="42" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">A call for clarity in reporting BLEU scores</title>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Conference on Machine Translation: Research Papers</title>
+		<meeting>the Third Conference on Machine Translation: Research Papers<address><addrLine>Belgium, Brussels</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="186" to="191" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">cosformer: Rethinking softmax in attention</title>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weixuan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongxu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunshen</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baohong</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Zhong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Tenth International Conference on Learning Representations, ICLR 2022, Virtual Event</title>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2022-04-25">2022. April 25-29, 2022</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Efficient content-based sparse attention with routing transformers</title>
+		<author>
+			<persName><forename type="first">Aurko</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Saffar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00353</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="53" to="68" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">2022a. Alleviating the inequality of attention heads for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Zewei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Computational Linguistics, COLING 2022</title>
+		<meeting>the 29th International Conference on Computational Linguistics, COLING 2022<address><addrLine>Gyeongju, Republic of Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">October 12-17, 2022</date>
+			<biblScope unit="page" from="5246" to="5250" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Generating diverse translation by manipulating multi-head attention</title>
+		<author>
+			<persName><forename type="first">Zewei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hao-Ran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajun</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v34i05.6429</idno>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirty-Fourth AAAI Conference on Artificial Intelligence, AAAI 2020, The Thirty-Second Innovative Applications of Artificial Intelligence Conference, IAAI 2020, The Tenth AAAI Symposium on Educational Advances in Artificial Intelligence</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2020-02-07">2020. February 7-12, 2020</date>
+			<biblScope unit="volume">2020</biblScope>
+			<biblScope unit="page" from="8976" to="8983" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">2022b. Rethinking document-level neural machine translation</title>
+		<author>
+			<persName><forename type="first">Zewei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengqi</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.279</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">May 22-27, 2022</date>
+			<biblScope unit="page" from="3537" to="3548" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">2021a. Synthesizer: Rethinking self-attention for transformer models</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dara</forename><surname>Bahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Da-Cheng</forename><surname>Juan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Che</forename><surname>Zheng</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Machine Learning, ICML 2021</title>
+		<meeting>the 38th International Conference on Machine Learning, ICML 2021</meeting>
+		<imprint>
+			<date type="published" when="2021-07-24">18-24 July 2021</date>
+			<biblScope unit="volume">139</biblScope>
+			<biblScope unit="page" from="10183" to="10192" />
+		</imprint>
+	</monogr>
+	<note>Virtual Event</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Sparse sinkhorn attention</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dara</forename><surname>Bahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Da-Cheng</forename><surname>Juan</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Machine Learning, ICML 2020</title>
+		<meeting>the 37th International Conference on Machine Learning, ICML 2020</meeting>
+		<imprint>
+			<date type="published" when="2020-07-18">2020. 18 July 2020</date>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="9438" to="9447" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">2021b. Long range arena : A benchmark for efficient transformers</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samira</forename><surname>Abnar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yikang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dara</forename><surname>Bahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinfeng</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">9th International Conference on Learning Representations, ICLR 2021, Virtual Event</title>
+		<meeting><address><addrLine>Austria</addrLine></address></meeting>
+		<imprint>
+			<publisher>OpenReview</publisher>
+			<date type="published" when="2021">May 3-7, 2021</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Efficient transformers: A survey</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dara</forename><surname>Bahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<idno>CoRR, abs/2009.06732</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Neural machine translation with extended context</title>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yves</forename><surname>Scherrer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W17-4811</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Workshop on Discourse in Machine Translation</title>
+		<meeting>the Third Workshop on Discourse in Machine Translation<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="82" to="92" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-09">2017. 2017. December 4-9, 2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">When a good translation is wrong in context: Context-aware machine translation improves on deixis, ellipsis, and lexical cohesion</title>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Voita</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1116</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1198" to="1212" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">ClusterFormer: Neural clustering attention for efficient and effective transformer</title>
+		<author>
+			<persName><forename type="first">Ningning</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guobing</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junqiu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.170</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2390" to="2402" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Linformer: Self-attention with linear complexity</title>
+		<author>
+			<persName><forename type="first">Sinong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Belinda</forename><forename type="middle">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Madian</forename><surname>Khabsa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ma</surname></persName>
+		</author>
+		<idno>CoRR, abs/2006.04768</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Modeling context with linear attention for scalable document-level translation</title>
+		<author>
+			<persName><forename type="first">Zhaofeng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Pappas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2210.08431</idno>
+		<idno>CoRR, abs/2210.08431</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinqiao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengtao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongran</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.11024</idno>
+		<title level="m">Sharing attention weights for fast transformer</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Big bird: Transformers for longer sequences</title>
+		<author>
+			<persName><forename type="first">Manzil</forename><surname>Zaheer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guru</forename><surname>Guruganesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avinava</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Dubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Ainslie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Santiago</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Ontañón</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anirudh</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qifan</forename><surname>Ravula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amr</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ahmed</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-12-06">2020. 2020. 2020. December 6-12, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Improving the transformer translation model with document-level context</title>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huanbo</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feifei</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/d18-1049</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018-10-31">2018. October 31 -November 4, 2018</date>
+			<biblScope unit="page" from="533" to="542" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Zaixiang Zheng, Xiang Yue, Shujian Huang, Jiajun Chen, and Alexandra Birch. 2020. Towards making the most of context in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Guangxiang</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuancheng</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2020/551</idno>
+		<idno type="arXiv">arXiv:1912.11637</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Ninth International Joint Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Ninth International Joint Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">2020</biblScope>
+			<biblScope unit="page" from="3983" to="3989" />
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Explicit sparse transformer: Concentrated attention through explicit selection. ijcai.org</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Long-short transformer: Efficient transformers for language and vision</title>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Ping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Shoeybi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Goldstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Catanzaro</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 34: Annual Conference on Neural Information Processing Systems 2021, NeurIPS 2021</title>
+		<imprint>
+			<date type="published" when="2021-12-06">2021. December 6-14, 2021</date>
+			<biblScope unit="page" from="17723" to="17736" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

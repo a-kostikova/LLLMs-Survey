@@ -1,0 +1,1813 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Benchmarking Procedural Language Understanding for Low-Resource Languages: A Case Study on Turkish</title>
+				<funder ref="#_mG9Q9TP">
+					<orgName type="full">Scientific and Technological Research Council of Türkiye (TÜB İTAK)</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Arda</forename><surname>Uzunoglu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Johns Hopkins University</orgName>
+								<address>
+									<settlement>Maryland</settlement>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gül</forename><surname>Gözde</surname></persName>
+						</author>
+						<author>
+							<persName><surname>Şahin</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Computer Engineering Department</orgName>
+								<orgName type="institution">Koç University</orgName>
+								<address>
+									<settlement>Istanbul, Türkiye † https://gglab-ku.github.io</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Benchmarking Procedural Language Understanding for Low-Resource Languages: A Case Study on Turkish</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">495ACBCBC1EC3041D33EA90629471A3F</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:44+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Understanding procedural natural language (e.g., step-by-step instructions) is a crucial step to execution and planning. However, while there are ample corpora and downstream tasks available in English, the field lacks such resources for most languages. To address this gap, we conduct a case study on Turkish procedural texts. We first expand the number of tutorials in Turkish wikiHow from 2,000 to 52,000 using automated translation tools, where the translation quality and loyalty to the original meaning are validated by a team of experts on a random set. Then, we generate several downstream tasks on the corpus, such as linking actions, goal inference, and summarization. To tackle these tasks, we implement strong baseline models via fine-tuning large language-specific models such as TR-BART and BERTurk, as well as multilingual models such as mBART, mT5, and XLM. We find that language-specific models consistently outperform their multilingual models by a significant margin across most procedural language understanding (PLU) tasks. We release our corpus, downstream tasks and the baseline models with https://github.com/ GGLAB-KU/turkish-plu. *</p><p>The work was done while the first author was at Eskişehir Bahçeşehir College.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>A procedural text typically comprises a sequence of steps that need to be followed in a specific order to accomplish a goal. For example, to care for an indoor plant, one must undertake tasks such as i) selecting an appropriate location for the plant, ii) maintaining indoor humidity levels, and iii) selecting the right fertilizer, usually in the given order. To accomplish a goal given with step-by-step instructions, a set of diverse skills that can be related to traditional NLP tasks such as semantic analysis (e.g., who did what to whom), commonsense reasoning (e.g., plant requires water), and coreference resolution (e.g., it refers to the plant) are required. Hence, procedural language understanding (PLU) can be considered a proxy to measure the performance of models on a combination of these distinct skills.</p><p>Previous work has immensely utilized the Wik-iHow tutorials, and proposed several downstream tasks on procedural text. For example, <ref type="bibr">Zhang et al. (2020b)</ref> introduced step and goal inference tasks where the objective is to predict the most likely step given the goal or vice versa. Similarly, <ref type="bibr" target="#b49">Zellers et al. (2019)</ref> proposed predicting the next event given the goal and the current step. All of these tasks are formulated as multiple-choice QA and require a partial understanding of step-goal relations in procedural documents. Furthermore, <ref type="bibr" target="#b52">Zhou et al. (2022)</ref> proposed an information retrieval task where the goal is to link steps to related goals to create a wikiHow hierarchy. Finally, several other works <ref type="bibr" target="#b16">(Koupaee and Wang, 2018;</ref><ref type="bibr" target="#b17">Ladhak et al., 2020)</ref> proposed an abstractive summarization task, that requires competitive language generation skills.</p><p>Despite its importance, PLU has been largely ignored for the majority of the languages due to a lack of language-specific web corpora. Except from <ref type="bibr" target="#b17">Ladhak et al. (2020)</ref>, all the aforementioned tasks are only available in English. In addition to the scarcity of raw text, creating downstream task data is challenging and might require languagespecific filtering techniques to ensure high quality. Finally, all previous works study the proposed tasks in isolation, which can only give a limited insight into the model's performance.</p><p>Considering the uneven distribution of available procedural data across languages 1 , our objective is to inspire research efforts on PLU for other understudied languages from different language families. To achieve this, we design a case study focused on the Turkish language. Unlike previous works, we adopt a centralized approach and introduce a comprehensive benchmark that contains six downstream tasks on procedural documents.</p><p>To address the scarcity of resources, we utilize automatic machine translation tools. We implement rigorous quality control measures for machine translation including human evaluation, and show that the data is indeed high-quality. Next, we survey and study several downstream tasks and create high-quality, challenging task data through language-specific filtering and manual test data annotation. Finally, we perform a comprehensive set of experiments on a diverse set of language models with different pretraining, fine-tuning settings, and architectures. We find that language-specific models mostly outperform their multilingual counterparts; however, the model size is a more important factor than training language, i.e., large enough multilingual models outperform medium sized language-specific models. We show that tasks where we can perform rigorous language-specific preprocessing such as goal inference, are of higherquality, thus more challenging. Finally, we find that our best-performing models for most downstream tasks, especially reranking, goal inference, and step ordering, are still far behind their English counterparts, suggesting a large room for improvement. We release all the resources-including the structured corpus of more than 52,000 tutorials, data splits for six downstream tasks and the experimented baseline models-at https://github. com/GGLAB-KU/turkish-plu.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>WikiHow is an eminent source for studying procedural text, allowing for a broad range of NLP tasks to be proposed and studied, such as linking actions <ref type="bibr" target="#b20">(Lin et al., 2020;</ref><ref type="bibr" target="#b52">Zhou et al., 2022)</ref>, step and goal inference <ref type="bibr">(Zhang et al., 2020b;</ref><ref type="bibr" target="#b47">Yang et al., 2021)</ref>, step ordering <ref type="bibr">(Zhang et al., 2020b;</ref><ref type="bibr" target="#b53">Zhou et al., 2019)</ref>, next event prediction <ref type="bibr" target="#b25">(Nguyen et al., 2017;</ref><ref type="bibr" target="#b49">Zellers et al., 2019)</ref>, and summarization <ref type="bibr" target="#b16">(Koupaee and Wang, 2018;</ref><ref type="bibr" target="#b17">Ladhak et al., 2020)</ref>. While these works serve as a proxy to procedural text understanding, they are mostly limited to English.</p><p>Exploiting machine translation tools is a common practice to generate semantic benchmarks for many resource-scarce languages. For instance, <ref type="bibr" target="#b24">Mehdad et al. (2010)</ref> automatically translated hypotheses from English to French to generate a textual entailment dataset. Similarly, <ref type="bibr" target="#b29">Real et al. (2018)</ref> created a Portuguese corpus for natural language inference (NLI), namely as SICK-BR, and <ref type="bibr" target="#b14">Isbister and Sahlgren (2020)</ref> introduced the first Swedish benchmark for semantic similarity, by solely employing automatic translation systems. Moreover, <ref type="bibr" target="#b3">Budur et al. (2020) and</ref><ref type="bibr" target="#b1">Beken Fikri et al. (2021)</ref> employed Amazon and Google translate to generate Turkish NLI and sentence similarity, datasets via automatically translating existing resources such as SNLI <ref type="bibr" target="#b2">(Bowman et al., 2015)</ref>, MNLI <ref type="bibr" target="#b44">(Williams et al., 2018)</ref> and STS-B <ref type="bibr" target="#b4">(Cer et al., 2017)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Turkish PLU Benchmark</head><p>To evaluate the procedural language understanding capacity of existing models and to improve upon them, we introduce i) a large procedural documents corpus covering a wide range of domains for Turkish, ii) a diverse set of downstream tasks derived from the corpus to evaluate distinct large language models and iii) strong baselines for each task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Corpus</head><p>Following previous work <ref type="bibr">(Zhang et al., 2020b)</ref>, we utilize wikiHow, a large-scale source for procedural texts that contains how-to tutorials in a wide range of domains, curated by experts. We follow the format used by <ref type="bibr">Zhang et al. (2020b)</ref> and extract the title, methods/parts, steps, and additional information, such as the related tutorials, references, tips, and warnings. We focus on the categories with the least subjective instructions (e.g., Crafts) and ignore subjective categories (e.g., Relationships).</p><p>Our corpus creation process has two steps: i) scraping the original Turkish wikiHow, and ii) translating the English tutorials from the English wikiHow corpus <ref type="bibr">(Zhang et al., 2020b)</ref>.</p><p>Scraping Turkish Wikihow Using the beautifulsoup library <ref type="bibr" target="#b33">(Richardson, 2007)</ref>, we scrape the Turkish wikiHow tutorials from the sitemap files. After the category filtering and deduplication process, we get over 2,000 tutorials.</p><p>Translating the English Wikihow To automatize the translation process, we first develop an open-source file-level translation tool: ÇEVERI. It is simply an easy-to-use Google Translate<ref type="foot" target="#foot_2">2</ref> wrapper that utilizes recursive search to find, translate  and replace nested text fields within a file (see Appendix D). After filtering the subjective categories, we translate over 50,000 tutorials using ÇEVERI.</p><p>MT Quality Control To measure the translation quality of ÇEVERI, we translate the English counterparts of the original Turkish wikiHow tutorials and calculate a set of automatic evaluation metrics such as BLEU and COMET <ref type="bibr" target="#b26">(Papineni et al., 2002;</ref><ref type="bibr" target="#b21">Lin, 2004;</ref><ref type="bibr" target="#b0">Banerjee and Lavie, 2005;</ref><ref type="bibr" target="#b30">Rei et al., 2020;</ref><ref type="bibr" target="#b27">Popović, 2015)</ref> given in Table <ref type="table" target="#tab_0">1</ref>. Although we use conventional metrics such as BLEU to align well with the literature, we are aware of the concerns related to them <ref type="bibr" target="#b10">(Freitag et al., 2022)</ref>. Therefore, we include metrics that better correlate with human evaluations, such as COMET <ref type="bibr" target="#b23">(Mathur et al., 2020;</ref><ref type="bibr">Freitag et al., 2021)</ref>, and consider characterlevel information such as chrF <ref type="bibr" target="#b27">(Popović, 2015)</ref>. Considering these, ÇEVERI achieving considerably high COMET and chrF scores indicate that the translation is, indeed, of high quality.</p><p>We also conduct human validation with three native Turkish speakers fluent in English. We randomly sample 104 step triplets: a) the original Turkish step, b) the corresponding English step, and c) the translation of the English step with respect to the category distribution of our corpus. Each expert is asked to evaluate the triplets by i) scoring the translation quality with the English step and the translated Turkish step and ii) scoring the semantic similarity between the original and the translated Turkish steps both between 1 and 5 (inclusive; 5 is the best). As given in Table <ref type="table" target="#tab_1">2</ref>, the results are highly reassuring, indicating high average scores with substantial agreement <ref type="bibr" target="#b9">(Fleiss, 1971</ref>  tionally, we perform a pilot study to investigate the feasibility of using machine-translated data and find that silver data bring a noticeable improvement (see Appendix E). Therefore, we consider the automatically generated part of our corpus to be of high quality due to the results of both the automatic and manual quality controls and the pilot study.</p><p>Corpus Statistics Our final corpus has more than 52,000 tutorials from six wikiHow categories, which contain around 719K steps and around 127K methods, with an average of 13.83 steps and 2.43 methods per tutorial as given in Table <ref type="table" target="#tab_3">3</ref>. Computers and Electronics is the largest category, while the Cars and Other Vehicles is the smallest. We posit the number of tutorials for a category decreases as the level of expertise needed for writing tutorials for that category increases. Health category is an exception to this, as most of its articles do not really go into depth, and contain basic and simple instructions. Although average numbers of steps and methods per tutorial are consistent by categories, they vary by data creation methods. We believe the reason for such a difference is that the tutorials translated and added to Turkish wikiHow by editors are far more popular and gripping tutorials, which probably correlates with the level of ease, thus the descriptiveness and comprehen- siveness, of the tutorials. We hypothesize that they are prioritized in the translation line by wikiHow editors, as they attract more attention.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Downstream Tasks</head><p>Next, we inspire from previous works that studied a single downstream task created on wikiHow and combine them under a single benchmark, summarized in Table <ref type="table" target="#tab_4">4</ref> and explained below.</p><p>Linking Actions The task is defined as detecting the links between the steps and the goals across articles as shown in Figure <ref type="figure" target="#fig_0">1</ref>. The steps provided in the tutorials, along with their hyperlinked goals, serve as the ground-truth data for the linking actions task. Goal Inference The goal inference task is simply defined as predicting the most likely goal, given a step. This task is structured as a multiple-choice format <ref type="bibr">(Zhang et al., 2020b)</ref>. For instance, when the prompt step is "Kıyafetlerini sık, böylece daha hızlı kuruyacaktır. We collect the positive step-goal pairs by iteratively picking them from each tutorial. For the negative candidate sampling, we consider both the semantic similarity with the positive candidate and the contextual plausibility for the step. We first encode each step in our corpus by averaging the BERT embeddings <ref type="bibr" target="#b7">(Devlin et al., 2019)</ref> of the verb, noun, and proper noun tokens<ref type="foot" target="#foot_3">3</ref> contrary to <ref type="bibr">Zhang et al. (2020b)</ref>, which only considers the verb tokens. The reason why we include the additional POS tags is that most of the steps and goals in our corpus contain auxiliary verbs, which are common to Turkish such as "yemek yapmak" (to cook)<ref type="foot" target="#foot_4">4</ref> . Although contextualized embeddings help distinguish such differences to a certain extent, we observe that the incorporation of the additional parts brings a significant improvement in our negative candidate sampling strategy. Using FAISS <ref type="bibr" target="#b15">(Johnson et al., 2021)</ref> with the our vector representations, we choose the top-3 goals with the highest cosine similarity to the positive candidate as the negative candidates. After the positive and negative candidate sampling, we randomly reassign one of the candidates as positive and correct the labels accordingly with a probability of 0.15 to avoid the model learning the sampling strategy. Lastly, we apply a set of hand-crafted filters <ref type="bibr">(Zhang et al., 2020b)</ref> to ensure the quality of the task-specific data.</p><p>Step Inference Similar to the goal inference task, step inference is defined as predicting the most likely goal for the given step. It is also formulated as a multiple choice task <ref type="bibr">(Zhang et al., 2020b)</ref>. For instance, when the prompt goal is "Makas Nasıl We follow the same steps as in goal inference to sample positive and negative candidates by simply reversing the roles of the goals and the steps in the sampling process.</p><p>Step Ordering Here, the goal is to predict the preceding step out of the two given steps that help achieve a given goal. Similarly, it is formulated as a multiple-choice task. For instance, when the prompt goal is "YouTube'da Nasıl Yorum Bırakılır? (How to Leave a Comment on Youtube)" and the candidate steps are: A. Bir video arayın. (Search for a Video.) B. YouTube'u açın. (Open Youtube.) B would be the answer since it must precede A.</p><p>For this task, we use the sampling strategy of <ref type="bibr">(Zhang et al., 2020b)</ref>. In wikiHow, some tutorials follow an ordered set of steps, while others contain alternative steps parallel to each other. Out of the ordered portion of our corpus, obtained in Appendix B, we use each goal as a prompt to sample step pairs with a window size of 1 and do not include any non-consecutive steps. We also randomly shuffle the pairs to prevent any index biases.</p><p>Next Event Prediction This task aims to produce the following action for a given context. It can be formulated as either a text generation task <ref type="bibr" target="#b25">(Nguyen et al., 2017;</ref><ref type="bibr">Zhang et al., 2020a)</ref> or a multiplechoice task <ref type="bibr" target="#b48">(Zellers et al., 2018</ref><ref type="bibr" target="#b49">(Zellers et al., , 2019))</ref>. Following the formulation of the SWAG dataset <ref type="bibr" target="#b48">(Zellers et al., 2018)</ref>, we approach next event prediction task as a multiple-choice task, in which a model needs to predict the most likely continuation to a given setting out of the candidate events. For instance, when the prompt goal is "Sabit Disk Nasıl Çıkarılır? (How to Remove a Hard Drive)", the prompt step is "Bilgisayarın kasasını aç. (Open the Computer Case. ) then the answer would be A.</p><p>With the subgroup of our corpus labeled as ordered, we iteratively collect the prompt goals and two consecutive steps to use the prior step as the prompt step and the later step as the positive candidate.</p><p>After obtaining the positive candidate, we use a similar sampling strategy that we used for goal inference. Unlike in goal inference, we additionally take pronoun token embeddings into account in order not to break the coreference chains.</p><p>Summarization Similar to <ref type="bibr" target="#b17">Ladhak et al. (2020)</ref>; <ref type="bibr" target="#b16">Koupaee and Wang (2018)</ref>, we formulate it as an abstractive summarization. We follow the data format proposed by <ref type="bibr" target="#b16">Koupaee and Wang (2018)</ref> and build on the WikiLingua's <ref type="bibr" target="#b17">(Ladhak et al., 2020)</ref> contributions to performing summarization over Turkish procedural text. Within the wikiHow platform, every step is composed of a concise headline resembling a summary and a descriptive paragraph providing detailed information about the step. In cases where tutorials lack methods or parts, we use the descriptions and headlines of the steps to form two distinct text bodies. These text bodies are then utilized to generate document-summary pairs. In the tutorials containing methods or parts, we follow a similar approach at the method or part level. An illustration of a step from the tutorial "Giysiden Küf Nasıl Çıkarılır? (How to Get Mold Out of Clothing)" is presented in Figure <ref type="figure" target="#fig_4">2</ref>. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Test Split Construction via Expert Annotation</head><p>Despite being synthetic, we incorporate examples from the machine-translated portion of our corpus into the test splits of our datasets. This decision stems from the limited availability of intersecting how-to tutorials on similar topics within the original Turkish wikiHow. Consequently, sampling negative candidates with high semantic similarity becomes challenging, leading to easily distinguishable positive candidates.</p><p>Due to the automated nature of our dataset creation process, some noise is present in the multiple choice task datasets. This noise includes false negative candidates and translations that are incorrect or ambiguous. For instance, consider the step "Yarayı tedavi etmeden önce ve sonra uygun el yıkama yapın. (Perform proper hand washing before and after treating the wound.)" which has a positive candidate of "Drenaj Yarasını Tedavi Etmek (Treat a Draining Wound)" and a negative candidate of "Yatak Yaralarını Tedavi Etmek (Treat Bedsores)." While the negative candidate is sampled due to its high semantic similarity with the positive candidate, it is also a plausible option for the given step. To address this issue, we employ expert annotation to validate the test splits of the multiple choice datasets and eliminate such noisy examples.</p><p>We randomly sample 1000 examples for each of goal inference, step inference, and next event prediction tasks and 1500 examples for step ordering tasks, to be annotated by two experts. Firstly, the experts verify if there are multiple plausible candidates for each example. Secondly, the experts examine whether the translation has altered the meaning of any candidate. The annotation process results in approximately 60-80% of the randomly sampled examples, which are later utilized as the test splits, as illustrated in Table <ref type="table" target="#tab_4">4</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Models</head><p>Due to the distinct formulation of each task, we describe them individually below. For each task, we define the overall methodology. The implementation settings are described in Appendix G.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Linking Actions</head><p>We employ the retrieve-then-rerank strategy proposed by <ref type="bibr" target="#b52">Zhou et al. (2022)</ref>. As the name suggests, retrieve-then-rerank approach consists of two stages: i) Retrieval: the steps and goals are encoded in the dense embeddings space to perform semantic similarity search, and ii) Reranking: the top-n candidate goals are reranked for a given step by jointly encoding them.</p><p>During the retrieval stage, we initially encode the steps and goals individually. By obtaining embeddings of the steps and goals, we proceed to calculate the cosine similarity between pairs of goals and steps. Leveraging these computed cosine similarities, we employ semantic similarity search with FAISS <ref type="bibr" target="#b15">(Johnson et al., 2021)</ref> to retrieve the top-n most similar candidates for each step. We experiment with both dense and sparse retrieval (e.g., BM25 <ref type="bibr" target="#b34">(Robertson and Zaragoza, 2009)</ref>). For dense retrieval, we experiment with various sentence embedding models with different architectures (e.g., bi-encoder, cross-encoder), different fine-tuning data (e.g., NLI, STS, or both), and different pretraining data (e.g., Turkish or multilingual) described in details at Appendix A.1. In addi-tion to existing sentence embeddings, we inspire by the recent success of the SimCSE architecture <ref type="bibr" target="#b12">(Gao et al., 2021)</ref>, and train our own Turkish-specific sentence embedding model, SimCSE-TR, in several training stages utilizing the text from Turkish Wikipedia and Turkish NLI (see Appendix C). Since each step has only one ground-truth goal, we use the standard recall metric to evaluate the retrieval models.</p><p>Encoding steps and goals independently is efficient; however, might result in information loss. Therefore, we rerank the top-n candidate list for each step, considering the step itself, the candidate goal, and the step's context, which includes surrounding steps or its goal. To accomplish this, we concatenate and input them into another model, utilizing the [CLS] token in the final hidden state to calculate a second similarity score. By reordering the top-n candidates based on the second similarity scores, we obtain the final list.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Multiple Choice Tasks</head><p>Since the goal inference, step inference, step ordering, and next event prediction tasks share a consistent formulation and adhere to the data format of the SWAG <ref type="bibr" target="#b48">(Zellers et al., 2018)</ref> dataset, we employ an identical methodology across these tasks.</p><p>The models we investigate utilize a common strategy for the aforementioned multiple choice tasks. We provide the models with a questionthe goal text for step inference and step ordering, the step text for goal inference, and both for next event prediction. Alongside the question, the models are given a candidate answer from the multiple options and generate a logit for that particular candidate. During the training process, we employ the cross-entropy loss to fine-tune our models, aiming to predict the correct candidate. We experiment with both Turkish-specific (i.e. BERTurk and Dis-tilBERTurk <ref type="bibr" target="#b37">(Schweter, 2020)</ref>) and multilingual (i.e. XLM <ref type="bibr" target="#b5">(Conneau et al., 2020)</ref>) Transformer encoder models, as described in Appendix A.2. We use the standard metric, accuracy, to measure the performance. In addition to fine-tuning, we employ the models in a zero-shot setting. <ref type="formula">2022</ref>) introduces large pre-trained text generation models fine-tuned on the Turkish news summarization datasets, presenting out-ofdomain baselines for summarization. We further fine-tune the aforementioned models to generate the short descriptions (summaries) of the procedural tutorials (longer text bodies). We then test both the out-of-domain and in-domain procedural summarization models. Similarly, we experiment with both language-specific decoder models such as TR-BART <ref type="bibr" target="#b35">(Safaya et al., 2022)</ref>, and multilingual decoder models such as mBART <ref type="bibr" target="#b22">(Liu et al., 2020)</ref> and mT5 <ref type="bibr">(Xue et al., 2021)</ref>, described in Appendix A.3. We use the standard ROUGE metrics for evaluation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Summarization</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Safaya et al. (</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results and Discussion</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Linking Actions</head><p>We give the main results for both the retrieval and reranking models in Table <ref type="table" target="#tab_5">5</ref>. We observe that our SimCSE-TR models discussed in Appendix C outperform other baselines by a large margin. Furthermore, multilingual models generally perform worse than Turkish-specific models, which is expected. Similarly, XLM-R based models trained on parallel data for 50 languages <ref type="bibr" target="#b5">(Conneau et al., 2020)</ref> generally perform worse than BERTurk-based models. Finally, we find that BM25 cannot be used in practical scenarios due to its low performance.</p><p>In the reranking stage, we introduce the groundtruth goal into the candidates' list, initially generated by the top-performing retrieval model. This addition occurs randomly after the 10th candidate, allowing us to assess the impact of reranking models. This modification significantly enhances the R@10 metric. However, it is noteworthy that DistilBER-Turk exhibits a decline in R@1 performance, indicating that while it can distinguish the ground truth goals from other candidates, its improvement is limited to R@10. Conversely, BERTurk demonstrates a boost in both R@1 and R@10 performances.</p><p>The top-performing Turkish retrieval model achieves a comparable performance to the bestperforming English retrieval model examined in <ref type="bibr" target="#b52">Zhou et al. (2022)</ref>. We attribute this similarity to the fact that the effectiveness of semantic similarity search remains consistent when the data and model quality levels are comparable across languages. However, it is worth noting that the bestperforming Turkish reranking model exhibits a noticeable decline in performance compared to its English counterpart. We speculate that two factors contribute to this discrepancy: firstly, English dataset is significantly larger than Turkish dataset (21K vs. 1.7K), and secondly, the best-performing English reranking model, DeBERTa <ref type="bibr">(He et</ref>  2021), is larger in size compared to the bestperforming Turkish reranking model, BERTurk.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Multiple Choice Tasks</head><p>We observe a common pattern for the goal inference, step inference, and next event prediction tasks<ref type="foot" target="#foot_5">5</ref> : BERTurk performs the best, XLM-R is a close runner-up to the BERTurk, and DistilBER-Turk performs slightly worse than XLM-R, as given in Table <ref type="table" target="#tab_6">6</ref>. In step ordering, DistilBERTurk performs slightly better than XLM-R. Zero-shot performances of these models are on par with the random chance of guessing correctly, which means they cannot inherently understand the relationships between goal and step pairs, as well as step and step pairs. Furthermore, zeroshot performances of XLM-R are noticeably worse than those of BERTurk and DistilBERTurk. We believe this is due to the multilingual nature of XLM-R, which is not specialized in Turkish, unlike BERTurk and DistilBERTurk.</p><p>Significant improvements are observed with the fine-tuned models. The fine-tuned XLM-R model outperforms the fine-tuned DistilBERTurk model in all multiple choice tasks, except for step ordering. This observation suggests that the XLM-R model not only enhances its ability to select the correct candidate but also improves its understanding of the Turkish language through fine-tuning.</p><p>When comparing the performance of languagespecific models trained on Turkish data to those trained on English data, noticeable differences are observed. Turkish models exhibit significantly lower performances in goal inference and step ordering tasks. We attribute these variations to the dissimilarity in our sampling strategy, as explained in §3.2. Our sampling strategy considers a broader range of parts of speech compared to the approach used by <ref type="bibr">Zhang et al. (2020b)</ref>, resulting in candidates that are more similar at the embedding level and thereby increasing the difficulty. Additionally, while the performance decreases in goal inference, there is a slight improvement in step inference. This can be attributed to the fact that goals typically consist of less diverse parts of speech, mostly composed of a noun and a verb. As a result, the candidates sampled for goal inference tend to be more similar at the embedding compared to step inference candidates, which often include additional parts of speech such as adjectives and adverbs.</p><p>Although we do not practice adversarial filtering to create our next event prediction dataset, we believe our sampling strategy also presents its own challenges. While the results shared in <ref type="bibr" target="#b48">Zellers et al. (2018</ref><ref type="bibr" target="#b49">Zellers et al. ( , 2019) )</ref> are significantly lower than those of our models, the leaderboards for SWAG<ref type="foot" target="#foot_6">6</ref> and Hel-laSwag<ref type="foot" target="#foot_7">7</ref> datasets show that the challenge adversarial filtering brings can be overcome. Considering these, our results given in Table <ref type="table" target="#tab_6">6</ref> are significantly lower than their English counterparts, suggesting a large room for improvement.</p><p>Additionally, we evaluate out-of-domain performances of some best-performing models to better understand their abilities in procedural tasks and find out their performances are generalizable to a certain extent, as discussed in Appendix F.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Summarization</head><p>The results are given in Table <ref type="table" target="#tab_7">7</ref>. As anticipated, in the summarization task, models that are finetuned on procedural summarization data outperform their out-of-domain fine-tuned counterparts. However, the performance improvement observed is relatively modest. We attribute this to the fact that the out-of-domain models still possess a robust capability acquired through their prior training on news summarization tasks.</p><p>Additionally, the multilingual out-of-domain models demonstrate superior performance compared to the single Turkish-specific model, TR-BART. However, in the procedural summarization task, TR-BART exhibits a higher performance boost and performs marginally better than procedural mT5. Both out-of-domain and procedural mBART models outperform other models. We attribute this to substantial size difference of mBART, which gives it an advantage over the other models.</p><p>When taking into account the model sizes and their multilingual capabilities, we conclude that both the specialization to Turkish and larger model sizes contribute to the overall performance improvement. However, our analysis reveals that a substantial difference in size can compensate for the multilingual aspect. This is evident in the comparison between out-of-domain and procedural TR-BART and mBART models, as presented in Table <ref type="table" target="#tab_7">7</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>PLU tasks encompass various skills such as semantic analysis, commonsense reasoning, and coreference resolution. However, PLU has been primarily explored in English and the scarcity of language-specific resources limits its study in other languages. To address this gap, we present a case study in Turkish and introduce a centralized benchmark comprising six downstream tasks on procedural documents. We leverage machine translation tools and implement stringent quality control measures. We curate high-quality task data through language-specific filtering and manual annotation. Our experiments reveal that language-specific models tend to outperform multilingual models, but the model size is a critical factor. Tasks that involve rigorous language-specific preprocessing, such as goal inference, prove to be more challenging. Despite advancements, our best-performing models still lag behind their English counterparts, indicating large room for improvement. We release all resources publicly for further research.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Our corpus creation method heavily relies on the success of the machine translation systems. However, such systems might have downfalls in specific cases. Local contexts and metrics are examples of such downfalls. We observe that some tutorials from the original Turkish wikiHow are localized, not directly translated. For instance, the Turkish counterpart of the tutorial titled "How to Lose 10 Pounds in 10 Days" is "10 Günde Nasıl 5 Kilo Verilir?" (How to Lose 5 Kilograms in 10 Days). In our case, Google Translate cannot distinguish these nuances.</p><p>Since the translated portion of our corpus makes up the majority, our models might pick up the translation artifacts, which, in turn, diminishes their success in actually learning their objective tasks.</p><p>mBART and mT5 models might generate biased summarizations, since they are previously trained on multilingual data and then fine-tuned on news summarizations before being fine-tuned on procedural documents.</p><p>The heavyweight fine-tuning and inference of mBART and mT5 sets a natural limitation to their usage. However, we overcome this limitation by practicing lightweight alternative solutions, such as half precision floating point format (FP16) training, optimization libraries, and gradient accumulation and checkpointing<ref type="foot" target="#foot_8">8</ref> .</p><p>Lastly, the method we propose for the creation of procedural corpora in low-resource languages is implicitly dependent on the amount of resources BERTurk + NLI + STS is the cross-encoder model that averages the BERT embeddings <ref type="bibr" target="#b1">(Beken Fikri et al., 2021)</ref>.</p><p>XLM-R + NLI + STS is the cross-encoder model that averages the XLM-R embeddings <ref type="bibr" target="#b1">(Beken Fikri et al., 2021)</ref>.</p><p>LaBSE stands for Language-agnostic BERT Sentence Embedding. It is trained on multilingual data for translation language modeling and produces sentence embeddings for 109 languages, including Turkish <ref type="bibr" target="#b8">(Feng et al., 2022)</ref>. We use the pretrained LaBSE model to generate Turkish sentence embeddings 9 .</p><p>XLM-RoBERTA-base-XL-Paraphrase is a XLM-R model <ref type="bibr" target="#b5">(Conneau et al., 2020)</ref> trained to imitate SBERT-paraphrases on parallel data for 50 languages (including Turkish) using multi-lingual knowledge distillation <ref type="bibr" target="#b32">(Reimers and Gurevych, 2020)</ref>. We use the pretrained XLM-RoBERTA-base-XL-Paraphrase model to generate Turkish sentence embeddings 10 .</p><p>BM25 is a ranking function used to estimate the relevance between a set of documents to a given query based on the query terms appearing in each document <ref type="bibr" target="#b34">(Robertson and Zaragoza, 2009)</ref>. We use the BM25+ algorithm from the Rank-BM25 library 11 , which implements the BM25 algorithms from <ref type="bibr" target="#b41">(Trotman et al., 2014)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Multiple Choice Tasks</head><p>DistilBERTurk is the distilled version of its teacher model BERTurk, trained following the knowledge distillation method introduced by Sanh et al. ( <ref type="formula">2019</ref>) <ref type="bibr" target="#b37">(Schweter, 2020)</ref>.</p><p>XLM-R is a transformer-based model trained on large multilingual data using the objective of multilingual masked language modeling <ref type="bibr" target="#b5">(Conneau et al., 2020)</ref>.</p><p>BERTurk is a transformer-based model trained on a combination of Turkish web corpora following the training methodology of <ref type="bibr" target="#b7">Devlin et al. (2019)</ref>  <ref type="bibr" target="#b37">(Schweter, 2020)</ref>. 9 https://huggingface.co/sentence-transformers/LaBSE 10 https://huggingface.co/sentencetransformers/paraphrase-xlm-r-multilingual-v1 11 https://github.com/dorianbrown/rank_bm25</p><p>A.3 Summarization TR-BART OOD is a Seq2Seq Transformer <ref type="bibr" target="#b42">(Vaswani et al., 2017)</ref> trained on the Turkish split of the MLSUM dataset <ref type="bibr" target="#b38">(Scialom et al., 2020)</ref> following the configuration of BART Base <ref type="bibr" target="#b18">(Lewis et al., 2020)</ref> <ref type="foot" target="#foot_9">12</ref> .</p><p>mBART OOD is a fine-tuned version of the pretrained mBART50 <ref type="bibr" target="#b22">(Liu et al., 2020)</ref>. mBART50 is pre-trained on data from 50 different languages, and mBART OOD is fine-tuned on the Turkish split of MLSUM <ref type="bibr" target="#b38">(Scialom et al., 2020)</ref> <ref type="foot" target="#foot_10">13</ref> .</p><p>mT5-base OOD is a fine-tuned version of the pre-trained mT5-base <ref type="bibr">(Xue et al., 2021)</ref>. mT5-base is a multilingual variant of T5 <ref type="bibr" target="#b28">(Raffel et al., 2020)</ref> that was pre-trained on a new Common Crawlbased dataset covering 101 languages, and mT5base OOD is fine-tuned on the Turkish split of MLSUM <ref type="bibr" target="#b38">(Scialom et al., 2020)</ref>  Since the step ordering and next event prediction tasks require tutorials with ordered steps, we need to predict the orderliness of the tutorials in our corpus. First, expert authors annotate 900 tutorials based on the criteria of orderliness. With the obtained data, we fine-tune a BERTurk <ref type="bibr" target="#b37">(Schweter, 2020)</ref> model for the binary text classification objective. Finally, we use it to classify each tutorial in our corpus, and use the tutorials labeled as ordered for the step ordering and next event predic-tion tasks. Our fine-tuned model's performance on our test split can be seen in Table <ref type="table" target="#tab_9">8</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Accuracy Precision Recall F1</head><p>86.67 85.34 90.14 87.67 </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C SimCSE-TR</head><p>From using them to filter the goal and step inference tasks data to utilizing them in the retrieval stage of the linking actions task, we take advantage of sentence embeddings in a broad range. Therefore, we train a new Turkish-specific sentence embedding model utilizing the SimCSE architecture <ref type="bibr" target="#b12">(Gao et al., 2021)</ref>, which we name as SimCSE-TR. SimCSE architecture employs a contrastive learning objective to derive meaningful sentence embeddings, with the hidden dropout mask acting as a minimal data augmentation method. In the unsupervised setting, SimCSE uses sentences from English Wikipedia to sample positive pairs by generating the representations of the same sentence with different dropout masks and negative pairs with the representations of different sentences. In the supervised setting, it integrates the annotated sentence pairs from natural language inference datasets into its contrastive training objective, utilizing the "entailment" pairs as positive pairs and "contradiction" pairs as hard negative pairs <ref type="bibr" target="#b12">(Gao et al., 2021)</ref>. Compared to other sentence embedding models and architectures, SimCSE converges faster with fewer data, which makes it lightweight to train and use. Furthermore, with a better aligned and more uniform latent space, it performs better on semantic textual similarity tasks and generates more distinguishable representation for sentences.</p><p>Following the implementation in SimCSE, we use randomly sampled one million sentences from Turkish Wikipedia for the unsupervised setting and the Turkish NLI datasets <ref type="bibr" target="#b3">(Budur et al., 2020)</ref> for the supervised setting to train BERTurk <ref type="bibr" target="#b37">(Schweter, 2020)</ref> and XLM-R based Turkish SimCSE models <ref type="bibr" target="#b5">(Conneau et al., 2020)</ref>. Similar to the English SimCSE, we train the unsupervised models for 1 epoch and the supervised models for 3 epochs. For each of the settings, we carry out a grid-search of batch size∈{64, 128, 256, 512}, learning rate∈{1e -5, 3e -5, 5e -5}, and max- imum sequence length∈{16, 32, 64} on Turkish STS-B development set, and report the best combinations in Table <ref type="table">9</ref>. We use the edited version of the SentEval <ref type="bibr" target="#b6">(Conneau and Kiela, 2018)</ref> library shared in SimCSE Github repository<ref type="foot" target="#foot_12">15</ref> for the testing, and share the results in Table <ref type="table" target="#tab_10">10</ref>. Although they are not trained or fine-tuned on the train split of the Turkish STS-B, SimCSE-TR models perform comparably to other Turkish-specific sentence embedding models that are trained on Turkish STS-B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D ÇEVERI</head><p>ÇEVERI utilizes the pandas library (Wes McKinney, 2010) and recursive search to detect text values in seven different file format, .txt, .json, .xlsx, .csv, .xml, .pkl, and .docx. It, then, uses Google Translate to translate and replace detected texts. Although there is no usage-limit set by ÇEVERI, employment of the Google Translate makes it optimal to use ÇEVERI for a dataset consisting of a high number of smaller files, instead of a dataset consisting of a lower number of bigger files. Since it uses Google Translate in its backend, ÇEVERI can translate not only English but also all the languages Google Translate supports, as well as detecting and translating from unknown source languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Investigating the Feasibility of the Usage of Machine-Translated Data</head><p>In order to analyze the feasibility of using machinetranslated data for studying procedural tasks, we conduct a pilot study in linking actions task. First, we shuffle and recreate the train and test splits of our linking actions dataset. However, we do not include any silver data in the test split this time, contrary to what we did in §3.2. To test the practicability of using silver data, we incrementally increase the amount of the machine-translated data in the train split. We train the reranking models on these train splits with varying amounts of silver data and test them on the test split that solely consists of gold data. As seen in Figure <ref type="figure" target="#fig_5">3</ref>, the utilization of silver data brings a noticeable improvement over the usage of only gold data to the performance of the reranking model. Furthermore, reranking models trained with a combination of gold and silver data outperforms the retrieval model consistently, on the contrary of reranking model trained with solely gold data underperforming the retrieval model in R@1 performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Out-of-Domain Evaluation</head><p>To better understand the extent of our models' abilities in procedural tasks, we evaluate some of the best-performing models across other tasks.</p><p>Since the system needs to bring a continuation to the given set of actions in the next event prediction task, we hypothesize that next event prediction task implicitly covers the step inference task. In this regard, we believe that next event prediction models learn the relationship between the goals and steps, because the following actions to a given context must simultaneously serve the given goal. To investigate our claim, we test the BERTurk Next Event Prediction model on the test split of our step inference task. As Table <ref type="table" target="#tab_11">11</ref> shows, BERTurk Next Event Prediction model achieves much higher performances than all the zero-shot models and the random probability.</p><p>To further examine the relationship between the next event prediction and step inference tasks, we also test the BERTurk Step Inference model on the test split of our next event prediction task. As Table <ref type="table" target="#tab_11">11</ref> shows, BERTurk Step Inference model outperforms all zero-shot performances and the random probability, and performs closely to fine-tuned Dis-tilBERTurk NEP, XLM-R NEP, and BERTurk NEP models. We believe the lower performance of BERTurk NEP on step inference data than the performance of BERTurk SI on next event prediction data is because BERTurk NEP is fine-tuned in a way that makes it dependent on the context information, which is absent in the step inference task. Similarly, we believe BERTurk SI obtains higher scores on next event prediction data than does BERTurk NEP on step inference data, because next event prediction task provides the context information, which might ease the objective of choosing the positive candidate.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G Implementation Details</head><p>We implement the reranking models as they are in <ref type="bibr" target="#b52">Zhou et al. (2022)</ref> We implement the summarization and multiple choice models using the Hugging Face libraries: Transformers <ref type="bibr" target="#b45">(Wolf et al., 2020)</ref>, accelerate <ref type="bibr" target="#b40">(Sylvain et al., 2022)</ref>, datasets <ref type="bibr" target="#b19">(Lhoest et al., 2021)</ref>, and evaluate. Transformers library enables us to work with the pre-trained models, accelerate library eases and accelerates the fine-tuning process and makes it more efficient, datasets library makes it easier to load and use datasets, and evaluate library facilitates the evaluation of the models.</p><p>With the accelerate library, we use FP16 training, gradient accumulation and checkpointing, and the Adafactor loss <ref type="bibr" target="#b39">(Shazeer and Stern, 2018)</ref>. This combination enables fine-tuning all the models on four NVIDIA T4s and test them on only one NVIDIA T4. In this setting, step inference and next event prediction models take 15 to 45 minutes, goal inference models take 30 to 90 minutes, step ordering models take 1 to 3 hours, and summarization models take approximately 9 to 18 hours to fine-tune.</p><p>Since we work with various models across different tasks, the hyperparameter setups for each dedicated task is given in details at https://github. com/GGLAB-KU/turkish-plu.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An example step with a hyperlink redirecting it to a tutorial. (Step says "Connect your printer to your computer" and the redirected tutorial has the title of "How to Connect a Printer to a Computer")</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>(Squeeze your clothes, they would get dry quicker this way.)" and the candidate goals are: A. Lavanta Nasıl Kurutulur? (How to Dry Lavender) B. Kıyafetler Elde Nasıl Yıkanır? (How to Hand-Wash Clothes) C. Kıyafetler Çabucak Nasıl Kurutulur? (How to Dry Clothes Quickly) D. Islak Bir iPhone Nasıl Kurutulur? (How to Dry a Wet iPhone) then the answer would be C.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Bileylenir? (How to Whet a Scissors)" and the candidate steps are: A. Camı temizle. (Clean the glass/windows.) B. Makası sil. (Wipe the scissors.) C. Tuvaleti sil. (Wipe the toilet.) D. Kartonu kes. (Cut the cardboard.) the answer would be B.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>)" and the candidate steps are: A. Bilgisayar kasasının içinde sabit diski bul. (Locate the hard drive inside the computer.) B. Bilgisayarının verilerini yedekle. (Back up your computer's data.) C. Masaüstü anakartınla uyumlu bir sabit disk satın al. (Buy a hard drive that is compatible with your desktop motherboard.) D. Windows yüklü bir masaüstü bilgisayarının oldugundan emin ol. (Make sure that you have a Windows desktop computer.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: An example step from the "How to Get Mold Out of Clothing" tutorial. The bolded part is the step headline, used as the summary, while the step description serves as the text to be summarized. The step description does not include the step headline, formulating the summarization task as the abstractive summarizaton.</figDesc><graphic coords="5,306.14,340.82,226.77,52.24" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Performances of the BERTurk-based reranking models trained with different percentages of the translated data's train split. a) shows the performance change on R@1 and b) on R@10. 0% means reranking model is trained only with the originally Turkish data.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>BLEU, ROUGE, METEOR, COMET, chrF, and chrF++ scores calculated over 1734 translated English-Turkish article pairs. All of the metrics are mapped to the interval of [0, 100] for convenience. Higher score indicates better translation for each evaluation metric.</figDesc><table><row><cell cols="5">BLEU ROUGE METEOR COMET chrF chrF++</cell></row><row><cell>23.51</cell><cell>52.25</cell><cell>44.32</cell><cell>88.12 67.91</cell><cell>62.08</cell></row><row><cell></cell><cell cols="4">Fleiss' Kappa Average Agree 5 Agree +4</cell></row><row><cell>i)</cell><cell>0.751</cell><cell>4.40</cell><cell>47%</cell><cell>69%</cell></row><row><cell>ii)</cell><cell>0.813</cell><cell>4.76</cell><cell>78%</cell><cell>87%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Results of the expert human validation on automatic machine translation quality control. Agree 5 and +4 respectively represent the percentage of the experts who agree that the score must be 5 or 4 and more.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>). Addi-</figDesc><table><row><cell>Source</cell><cell>#Tutorials</cell><cell cols="2">#Steps Avg Steps Avg Methods #Methods</cell></row><row><cell>C&amp;OV</cell><cell>2K</cell><cell>32K 13.42</cell><cell>5K 2.33</cell></row><row><cell>C&amp;E</cell><cell>16K</cell><cell>229K 13.89</cell><cell>34K 2.10</cell></row><row><cell>HE</cell><cell>11K</cell><cell>154K 14.34</cell><cell>31K 2.87</cell></row><row><cell>H&amp;C</cell><cell>9K</cell><cell>119K 13.37</cell><cell>19K 2.20</cell></row><row><cell>H&amp;G</cell><cell>10K</cell><cell>133K 13.66</cell><cell>25K 2.59</cell></row><row><cell>P&amp;A</cell><cell>4K</cell><cell>53K 13.75</cell><cell>11K 2.86</cell></row><row><cell>Original</cell><cell>2K</cell><cell>38K 19.15</cell><cell>7K 3.35</cell></row><row><cell>Translated</cell><cell>50K</cell><cell>681K 13.61</cell><cell>120K 2.40</cell></row><row><cell>Total</cell><cell>52K</cell><cell>719K 13.83</cell><cell>127K 2.43</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3</head><label>3</label><figDesc></figDesc><table><row><cell>: Final corpus statistics. C&amp;OV: Cars and Other</cell></row><row><cell>Vehicles, C&amp;E: Computers and Electronics, HE: Health,</cell></row><row><cell>H&amp;C: Hobbies and Crafts, H&amp;G: Home and Garden,</cell></row><row><cell>P&amp;A: Pets and Animals. Avg Step and Method: Aver-</cell></row><row><cell>age number of steps and methods per tutorial, respec-</cell></row><row><cell>tively. A method is a set of steps that can be followed to</cell></row><row><cell>achieve the given goal, while a step is a single instruc-</cell></row><row><cell>tion.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Downstream tasks and dataset split sizes.</figDesc><table><row><cell>Task</cell><cell cols="3">Train Validation Test</cell></row><row><cell>Linking Actions</cell><cell>1319</cell><cell>-</cell><cell>440</cell></row><row><cell>Goal Inference</cell><cell>255K</cell><cell>5K</cell><cell>837</cell></row><row><cell>Step Inference</cell><cell>124K</cell><cell>5K</cell><cell>612</cell></row><row><cell>Step Ordering</cell><cell>539K</cell><cell cols="2">10K 1021</cell></row><row><cell>Next Event Prediction</cell><cell>82K</cell><cell>5K</cell><cell>656</cell></row><row><cell>Summarization</cell><cell>113K</cell><cell>6K</cell><cell>6K</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>al., The R@n indicates the percentage of the ground-truth goal being in the top-n candidates for a given step. The last two rows show the performances of the reranker models after including the gold goals in top-30 candidates generated by the best performing model, while the rest is retrieval only. We discuss the baseline models in Appendix A.</figDesc><table><row><cell>Model</cell><cell cols="3">R@1 R@10 R@30</cell></row><row><cell>XLM-R+NLI+STS</cell><cell>0.2</cell><cell>0.9</cell><cell>1.1</cell></row><row><cell>BM25</cell><cell>4.5</cell><cell>13.4</cell><cell>18.4</cell></row><row><cell>BERTurk+NLI+STS</cell><cell>9.3</cell><cell>17.3</cell><cell>24.3</cell></row><row><cell>Unsup. SimCSE-TRXLM-R</cell><cell>11.6</cell><cell>24.5</cell><cell>33.9</cell></row><row><cell>XLM-R-XL-Paraphrase</cell><cell>15.9</cell><cell>33.0</cell><cell>41.1</cell></row><row><cell>S-XLM-R+NLI+STS</cell><cell>17.0</cell><cell>31.6</cell><cell>40.7</cell></row><row><cell>LaBSE</cell><cell>19.8</cell><cell>32.0</cell><cell>40.0</cell></row><row><cell>Sup. SimCSE-TRXLM-R</cell><cell>25.9</cell><cell>42.7</cell><cell>54.1</cell></row><row><cell>S-BERTurk+NLI+STS</cell><cell>27.3</cell><cell>47.7</cell><cell>55.7</cell></row><row><cell cols="2">Unsup. SimCSE-TRBERTurk 31.4</cell><cell>52.0</cell><cell>61.4</cell></row><row><cell>Sup. SimCSE-TRBERTurk</cell><cell>33.4</cell><cell>55.7</cell><cell>67.3</cell></row><row><cell>+ DistilBERTurk</cell><cell>30.7</cell><cell>74.8</cell><cell>-</cell></row><row><cell>+ BERTurk</cell><cell>40.5</cell><cell>78.9</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>Zero-Shot and Fine-Tuned performances of XLM-R, DistilBERTurk, and BERTurk models on multiple choice tasks, evaluated using accuracy. FT indicates that the model is fine-tuned on the task-specific data and ZS indicates zero-shot performance.</figDesc><table><row><cell>Task</cell><cell cols="4">Goal Inference Inference Ordering Prediction Step Step Next Event</cell></row><row><cell>Random</cell><cell>25.00</cell><cell>25.00</cell><cell>50.00</cell><cell>25.00</cell></row><row><cell>XLM-R ZS (125M)</cell><cell>22.70</cell><cell>23.86</cell><cell>42.90</cell><cell>25.65</cell></row><row><cell>DistilBERTurk ZS (66M)</cell><cell>25.81</cell><cell>24.51</cell><cell>47.01</cell><cell>27.02</cell></row><row><cell>BERTurk ZS (110M)</cell><cell>26.52</cell><cell>27.45</cell><cell>49.46</cell><cell>32.82</cell></row><row><cell>DistilBERTurk FT (66M)</cell><cell>66.19</cell><cell>85.78</cell><cell>70.13</cell><cell>83.66</cell></row><row><cell>XLM-R FT (125M)</cell><cell>69.30</cell><cell>87.42</cell><cell>68.17</cell><cell>85.95</cell></row><row><cell>BERTurk FT (110M)</cell><cell>72.40</cell><cell>91.34</cell><cell>72.09</cell><cell>88.55</cell></row><row><cell>Model</cell><cell cols="4">ROUGE-1 ROUGE-2 ROUGE-L</cell></row><row><cell>TR-BART OOD (120M)</cell><cell>16.28</cell><cell></cell><cell>4.21</cell><cell>12.35</cell></row><row><cell>mT5-base OOD (220M)</cell><cell>17.09</cell><cell></cell><cell>4.53</cell><cell>13.05</cell></row><row><cell>mBART OOD (680M)</cell><cell>18.30</cell><cell></cell><cell>5.12</cell><cell>13.82</cell></row><row><cell>TR-BART PRO (120M)</cell><cell>19.59</cell><cell></cell><cell>5.64</cell><cell>13.68</cell></row><row><cell>mT5-base PRO (220M)</cell><cell>19.30</cell><cell></cell><cell>5.33</cell><cell>14.42</cell></row><row><cell>mBART PRO (680M)</cell><cell>22.62</cell><cell></cell><cell>6.43</cell><cell>15.69</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 7 :</head><label>7</label><figDesc>Out-of-Domain Fine-Tuned, and Procedural Fine-Tuned performances of TR-BART, mBART, and mT5-base models in summarization task.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head></head><label></label><figDesc>14 .</figDesc><table><row><cell>B Classifying Orderliness of the Tutorials</cell></row><row><cell>wikiHow mostly contains two type of tutorials: i)</cell></row><row><cell>tutorials with consecutive steps that must be fol-</cell></row><row><cell>lowed in sequence (i.e. HDMI Televizyona Nasıl</cell></row><row><cell>Baglanır? (How to Connect HDMI to TV) has the</cell></row><row><cell>steps Televizyonunda kullanılabilir bir HDMI gir-</cell></row><row><cell>işi bul. (Locate an available HDMI port on your</cell></row><row><cell>TV.), Dogru HDMI kablosunu al. (Get the right</cell></row><row><cell>HDMI cable.), Kablonun bir ucunu cihaza bagla.</cell></row><row><cell>(Connect one end of the cable to the device.)), ii)</cell></row><row><cell>tutorials with steps that are parallel or alternative</cell></row><row><cell>procedures to each other (i.e. Evde Ateş Nasıl</cell></row><row><cell>Düşürülür? (How to Cure Fever at Home) tutorial</cell></row><row><cell>has the steps Bol su iç. (Drink lots of water.), Ra-</cell></row><row><cell>hat giysiler giy. (Wear comfy clothes.), and Oda</cell></row><row><cell>sıcaklıgını düşür. (Lower the room temperature.)).</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 8 :</head><label>8</label><figDesc>Finetuned BERTurk's performance on our test split. We split the annotated 900 tutorials with the ratio of 70:15:15 (training:evaluation:test).</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 10 :</head><label>10</label><figDesc>Performances of SimCSE-TR and other Turkish-specific sentence embedding models on the test split of the Turkish STS-B. ♡: taken directly from<ref type="bibr" target="#b1">(Beken Fikri et al., 2021)</ref>. Pearson and Spearman correlations were reported as ρ × 100.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 11 :</head><label>11</label><figDesc>'s Github repository 16 with the same training setting. Since the dataset is small, training of the reranking models are quite lightweight, taking 15 to 45 minutes to train. Performances of the best-performing Step Inference and Next Event Prediction models across step inference and next event prediction tasks. SI: Step Inference, NEP: Next Event Prediction.</figDesc><table><row><cell>819</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Although wikiHow comprises 19 languages, only two languages (English and Spanish) have more than 100k articles in parallel(Ladhak et al.,  </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>2020).</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>https://cloud.google.com/translate</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_3"><p>We conduct the POS tagging with the nlpturk library. https://github.com/nlpturk/nlpturk</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_4"><p>Such auxiliary verbs are mainly etmek, eylemek, olmak, kılmak and yapmak.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_5"><p>While we manually check the performances of models with different random seeds, we only report the best run for all models, since the observed variances among different runs are small and would not cause any change in the rankings.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_6"><p>https://leaderboard.allenai.org/swag/submissions/public</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_7"><p>https://rowanzellers.com/hellaswag/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_8"><p>To the best of our knowledge, mT5 models currently cannot be trained with gradient checkpointing. for a language. This is because machine translation systems might not work in some low-resource languages as well as they work for Turkish.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="12" xml:id="foot_9"><p>https://huggingface.co/mukayese/transformer-turkishsummarization</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="13" xml:id="foot_10"><p>13 https://huggingface.co/mukayese/mbart-large-turkish-</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="14" xml:id="foot_11"><p>summarization 14 https://huggingface.co/mukayese/mt5-base-turkishsummarization</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="15" xml:id="foot_12"><p>https://github.com/princeton-nlp/SimCSE</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="16" xml:id="foot_13"><p>https://github.com/shuyanzhou/wikihow_hierarchy</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work has been supported by the <rs type="funder">Scientific and Technological Research Council of Türkiye (TÜB İTAK)</rs> as part of the project "<rs type="projectName">Automatic Learning of Procedural Language from Natural Language Instructions for Intelligent Assistance</rs>" with the number <rs type="grantNumber">121C132</rs>. We also gratefully acknowledge <rs type="institution">KUIS AI Lab</rs> for providing computational support. We thank our anonymous reviewers and the members of GGLab who helped us improve this paper. We especially thank <rs type="person">Shadi Sameh Hamdan</rs> for his contributions to setting up the implementation environment.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_mG9Q9TP">
+					<idno type="grant-number">121C132</idno>
+					<orgName type="project" subtype="full">Automatic Learning of Procedural Language from Natural Language Instructions for Intelligent Assistance</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>We use the content of wikiHow, which allows for the usage of its content under limited specific circumstances within the Creative Commons license. We abide all the conditions required by the Creative Commons license. The requirements of the Creative Commons also make the usage of English wikiHow corpus that we translate possible.</p><p>Since the source of the majority of our corpus and datasets are from translated tutorials, they might contain implicit biases due to the translation. Consequently, models trained on such data are also vulnerable to these biases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Baselines</head><p>A.1 Linking Actions S-BERTurk + NLI + STS is the bi-encoder model that employs the Siamese and ternary network structures <ref type="bibr" target="#b31">(Reimers and Gurevych, 2019)</ref> to derive close fixed-size sentence embeddings in vector space <ref type="bibr" target="#b1">(Beken Fikri et al., 2021)</ref>.</p><p>S-XLM-R + NLI + STS is the bi-encoder model that employs the Siamese and ternary network structures <ref type="bibr" target="#b31">(Reimers and Gurevych, 2019)</ref> to derive close fixed-size sentence embeddings in vector space <ref type="bibr" target="#b1">(Beken Fikri et al., 2021)</ref>. </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">METEOR: An automatic metric for MT evaluation with improved correlation with human judgments</title>
+		<author>
+			<persName><forename type="first">Satanjeev</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization</title>
+		<meeting>the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Semantic similarity based evaluation for abstractive news summarization</title>
+		<author>
+			<persName><forename type="first">Kemal</forename><surname>Figen Beken Fikri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Berrin</forename><surname>Oflazer</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yanikoglu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.gem-1.3</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Workshop on Natural Language Generation, Evaluation, and Metrics (GEM 2021)</title>
+		<meeting>the 1st Workshop on Natural Language Generation, Evaluation, and Metrics (GEM 2021)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="24" to="33" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A large annotated corpus for learning natural language inference</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabor</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1075</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="632" to="642" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Data and Representation for Turkish Natural Language Inference</title>
+		<author>
+			<persName><forename type="first">Emrah</forename><surname>Budur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rıza</forename><surname>Özçelik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tunga</forename><surname>Gungor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.662</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8253" to="8267" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">SemEval-2017 task 1: Semantic textual similarity multilingual and crosslingual focused evaluation</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Diab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Lopez-Gazpio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/S17-2001</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Workshop on Semantic Evaluation</title>
+		<meeting>the 11th International Workshop on Semantic Evaluation<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1" to="14" />
+		</imprint>
+	</monogr>
+	<note>SemEval-2017</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Unsupervised cross-lingual representation learning at scale</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartikay</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.747</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8440" to="8451" />
+		</imprint>
+	</monogr>
+	<note>Online. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">SentEval: An evaluation toolkit for universal sentence representations</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)</title>
+		<meeting>the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)<address><addrLine>Miyazaki, Japan</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Language-agnostic BERT sentence embedding</title>
+		<author>
+			<persName><forename type="first">Fangxiaoyu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naveen</forename><surname>Arivazhagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.62</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="878" to="891" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Measuring nominal scale agreement among many raters</title>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">L</forename><surname>Fleiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Psychological Bulletin</title>
+		<imprint>
+			<biblScope unit="volume">76</biblScope>
+			<biblScope unit="page" from="378" to="382" />
+			<date type="published" when="1971">1971</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Results of WMT22 metrics shared task: Stop using BLEU -neural metrics are better and more robust</title>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Rei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitika</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi-Kiu</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Stewart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eleftherios</forename><surname>Avramidis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Kocmi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">T</forename><surname>André</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Martins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Conference on Machine Translation (WMT)</title>
+		<meeting>the Seventh Conference on Machine Translation (WMT)<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates (Hybrid). Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="46" to="68" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Alon Lavie, and Ondřej Bojar. 2021. Results of the WMT21 metrics shared task: Evaluating metrics with expert-based human evaluations on TED and news domain</title>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Rei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitika</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi-Kiu</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Stewart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Foster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Sixth Conference on Machine Translation</title>
+		<meeting>the Sixth Conference on Machine Translation</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="733" to="774" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">SimCSE: Simple contrastive learning of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingcheng</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.552</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6894" to="6910" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Deberta: Decoding-enhanced bert with disentangled attention</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Why not simply translate? a first swedish evaluation benchmark for semantic similarity</title>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Isbister</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Magnus</forename><surname>Sahlgren</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2009.03116</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Billion-scale similarity search with gpus</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Douze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jegou</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/TBDATA.2019.2921572</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Big Data</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">03</biblScope>
+			<biblScope unit="page" from="535" to="547" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Wikihow: A large scale text summarization dataset</title>
+		<author>
+			<persName><forename type="first">Mahnaz</forename><surname>Koupaee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<idno>ArXiv, abs/1810.09305</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">WikiLingua: A new benchmark dataset for cross-lingual abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Ladhak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esin</forename><surname>Durmus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.360</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4034" to="4048" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Datasets: A community library for natural language processing</title>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Villanova Del Moral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Thakur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suraj</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lewis</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Tunstall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gunjan</forename><surname>Šaško</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavitvya</forename><surname>Chhablani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Malik</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Brandeis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Teven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angelina</forename><surname>Patry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Mcmillan-Major</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Théo</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Matussière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stas</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Bekman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Goehringer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Mustar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lagunas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wolf</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing: System Demonstrations<address><addrLine>Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="175" to="184" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">A recipe for creating multimodal aligned datasets for sequential tasks</title>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sudha</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asli</forename><surname>Celikyilmaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elnaz</forename><surname>Nouri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Debadeepta</forename><surname>Dey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Dolan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.440</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4871" to="4884" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ROUGE: A package for automatic evaluation of summaries</title>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Text Summarization Branches Out</title>
+		<meeting><address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="74" to="81" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Multilingual denoising pretraining for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00343</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="726" to="742" />
+		</imprint>
+	</monogr>
+	<note>Transactions of the Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Results of the WMT20 metrics shared task</title>
+		<author>
+			<persName><forename type="first">Nitika</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johnny</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingsong</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ondřej</forename><surname>Bojar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifth Conference on Machine Translation</title>
+		<meeting>the Fifth Conference on Machine Translation</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="688" to="725" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Towards cross-lingual textual entailment</title>
+		<author>
+			<persName><forename type="first">Yashar</forename><surname>Mehdad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Negri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcello</forename><surname>Federico</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies: The 2010 Annual Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Los Angeles, California</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="321" to="324" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning for event prediction</title>
+		<author>
+			<persName><forename type="first">Dat</forename><surname>Dai Quoc Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cuong</forename><surname>Quoc Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Thater</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manfred</forename><surname>Pinkal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Joint Conference on Natural Language Processing</title>
+		<meeting>the Eighth International Joint Conference on Natural Language Processing<address><addrLine>Taipei, Taiwan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="37" to="42" />
+		</imprint>
+	</monogr>
+	<note>Asian Federation of Natural Language Processing</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Philadelphia, Pennsylvania, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">chrF: character n-gram F-score for automatic MT evaluation</title>
+		<author>
+			<persName><forename type="first">Maja</forename><surname>Popović</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W15-3049</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth Workshop on Statistical Machine Translation</title>
+		<meeting>the Tenth Workshop on Statistical Machine Translation<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="392" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">140</biblScope>
+			<biblScope unit="page" from="1" to="67" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Sick-br: A portuguese corpus for inference</title>
+		<author>
+			<persName><forename type="first">Livy</forename><surname>Real</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Rodrigues</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andressa</forename><surname>Vieira E Silva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beatriz</forename><surname>Albiero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bruna</forename><surname>Thalenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bruno</forename><surname>Guide</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cindy</forename><surname>Silva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guilherme</forename><surname>De Oliveira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><forename type="middle">C S</forename><surname>Lima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miloš</forename><surname>Câmara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rodrigo</forename><surname>Stanojević</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valeria</forename><surname>Souza</surname></persName>
+		</author>
+		<author>
+			<persName><surname>De Paiva</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational Processing of the Portuguese Language</title>
+		<meeting><address><addrLine>Cham</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer International Publishing</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="303" to="312" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">COMET: A neural framework for MT evaluation</title>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Rei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Stewart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><forename type="middle">C</forename><surname>Farinha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.213</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2685" to="2702" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Sentence-BERT: Sentence embeddings using Siamese BERTnetworks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1410</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3982" to="3992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Making monolingual sentence embeddings multilingual using knowledge distillation</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.365</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4512" to="4525" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Beautiful soup documentation</title>
+		<author>
+			<persName><forename type="first">Leonard</forename><surname>Richardson</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2007-04">2007. April</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">The probabilistic relevance framework: Bm25 and beyond</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Zaragoza</surname></persName>
+		</author>
+		<idno type="DOI">10.1561/1500000019</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Found. Trends Inf. Retr</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="333" to="389" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Mukayese: Turkish NLP strikes back</title>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Safaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emirhan</forename><surname>Kurtuluş</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arda</forename><surname>Goktogan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deniz</forename><surname>Yuret</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.69</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="846" to="863" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter</title>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1910.01108</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Berturk -bert models for turkish</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Schweter</surname></persName>
+		</author>
+		<idno type="DOI">10.5281/zenodo.3770924</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">MLSUM: The multilingual summarization corpus</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul-Alexis</forename><surname>Dray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Lamprier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Piwowarski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacopo</forename><surname>Staiano</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.647</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8051" to="8067" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Adafactor: Adaptive learning rates with sublinear memory cost</title>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 35th International Conference on Machine Learning</title>
+		<meeting>the 35th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">80</biblScope>
+			<biblScope unit="page" from="4596" to="4604" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<author>
+			<persName><forename type="first">Gugger</forename><surname>Sylvain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Debut</forename><surname>Lysandre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolf</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Schmid</forename><surname>Philipp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mangrulkar</forename><surname>Sourab</surname></persName>
+		</author>
+		<ptr target="https://github.com/huggingface/accelerate" />
+		<title level="m">Accelerate: Training and inference at scale made simple, efficient and adaptable</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Improvements to bm25 and language models examined</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Trotman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antti</forename><surname>Puurula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blake</forename><surname>Burgess</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Australasian Document Computing Symposium</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ł Ukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Data Structures for Statistical Computing in Python</title>
+		<author>
+			<persName><forename type="first">Wes</forename><surname>Mckinney</surname></persName>
+		</author>
+		<idno type="DOI">10.25080/Majora-92bf1922-00a</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th Python in Science Conference</title>
+		<meeting>the 9th Python in Science Conference</meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="56" to="61" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1101</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1112" to="1122" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Aditya Barua, and Colin Raffel. 2021. mT5: A massively multilingual pre-trained text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.41</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="483" to="498" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Visual goal-step inference using wikiHow</title>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Artemis</forename><surname>Panagopoulou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qing</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Yatskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.165</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2167" to="2179" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">SWAG: A large-scale adversarial dataset for grounded commonsense inference</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roy</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1009</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="93" to="104" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">HellaSwag: Can a machine really finish your sentence?</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1472</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4791" to="4800" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Analogous process structure induction for sub-event sequence prediction</title>
+		<author>
+			<persName><forename type="first">Hongming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangqiu</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.119</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1541" to="1550" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Reasoning about goals, steps, and temporal ordering with WikiHow</title>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qing</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.374</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4630" to="4639" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Show me more details: Discovering hierarchies of procedures from semi-structured web data</title>
+		<author>
+			<persName><forename type="first">Shuyan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qing</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.214</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2998" to="3012" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Learning household task knowledge from WikiHow descriptions</title>
+		<author>
+			<persName><forename type="first">Yilun</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julie</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Schockaert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th Workshop on Semantic Deep Learning (SemDeep-5)</title>
+		<meeting>the 5th Workshop on Semantic Deep Learning (SemDeep-5)<address><addrLine>Macau, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="50" to="56" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

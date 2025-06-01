@@ -1,0 +1,1254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Automatic Translation of Span-Prediction Datasets</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Ofri</forename><surname>Masad</surname></persName>
+							<email>ofri.masad@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="department">Efi Arazi School of Computer Science</orgName>
+								<orgName type="institution">Reichman University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Kfir</forename><surname>Bar</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Efi Arazi School of Computer Science</orgName>
+								<orgName type="institution">Reichman University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Amir</forename><surname>David</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">Bar-Ilan University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Nissan</forename><surname>Cohen</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">Bar-Ilan University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Automatic Translation of Span-Prediction Datasets</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">7A3F346D79842E11CC460C44582114E1</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:03+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Generating high-quality non-English language datasets is crucial for achieving high performance in various Natural Language Processing (NLP) tasks. In this paper, we propose a new approach for translating NLP datasets that relies on a two-phase pipeline and online translation services. Our approach focuses on solving the alignment problem that affects span prediction tasks and utilizes automatically labeled data for training an alignment model. We demonstrate that our model-based approach shows higher accuracy than any other alignment method and improves the average F1 score on several Question-Answering (QA) datasets, specifically on the XQuAD Translated-train dataset, achieving new state-of-the-art results.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>During the past ten years, natural language processing (NLP) has rapidly developed in all aspects of research. New models, datasets, training platforms, and techniques are published almost daily while accuracy and efficiency are soaring to new heights. Yet, most works focus mainly on English, given its global dominance, and maybe a small number of other languages, while most languages get less attention. This lack of focus subsequently leads to a scarcity of resources for the majority of languages, as demonstrated in Appendix C, resulting in less performing models. Nevertheless, real-world NLP applications are needed in other languages, as they are in English. Focusing mainly on English may divert the research community's attention away from addressing linguistic features not typically found in English, such as dealing with intricate morphological structures. Creating large labeled datasets is labor intensive; it requires the engagement of experts in the domain and language in focus. Thus, non-English datasets tend to be less abundant and usually smaller.</p><p>In this work, we focus on automatically generating datasets for the traditional question-answering (QA) task, written in many diverse languages. In this task, the input consists of a question, a context, and an answer. The context is a short passage, and the answer is defined as a specific span of text within that context. The model is expected to predict the span of the answer within the given context. This task is deemed one of the foundational tasks in NLP and is frequently used as a performance measure for various models <ref type="bibr" target="#b30">(Wang et al., 2018;</ref><ref type="bibr" target="#b21">Liu et al., 2019;</ref><ref type="bibr" target="#b16">Lan et al., 2020)</ref>. Additionally, QA has recently been employed as a preliminary training step for models before they are trained on downstream NLP tasks. These tasks include event extraction <ref type="bibr" target="#b10">(Du and Cardie, 2020)</ref>, named entity recognition <ref type="bibr" target="#b19">(Li et al., 2019</ref><ref type="bibr" target="#b18">(Li et al., , 2020))</ref>, relation classification <ref type="bibr" target="#b7">(Cohen et al., 2021)</ref>, information extraction <ref type="bibr" target="#b25">(Pires et al., 2022)</ref>, and other downstream tasks <ref type="bibr" target="#b12">(Hashavit et al., 2018)</ref>.</p><p>Constructing a QA dataset from the ground up or through manual translation from another language requires significant work, time, resources, and a substantial level of expertise in NLP. Recently, the idea of utilizing automated translation tools to generate these datasets has been suggested as a way to reduce both costs and the amount of manual labor required <ref type="bibr" target="#b0">(Abadani et al., 2021;</ref><ref type="bibr" target="#b24">Mozannar et al., 2019;</ref><ref type="bibr" target="#b23">Macková and Straka, 2020)</ref>. Using automated translation tools in such settings presents challenges, which can often compromise the overall data quality. A fundamental challenge that arises is the identification of specific text spans in the translated document. The translation of a QA instance written in English includes translating the question, the context and the original span of the answer. However, locating the translated version of the answer in the translated context is not a straightforward task since the answer may appear in a different translated surface form, as dictated by the context.</p><p>Figure <ref type="figure" target="#fig_0">1</ref> illustrates this problem. For example, consider the answer "Greek" (highlighted in blue).</p><p>This word is inherently ambiguous as it can refer to both nationality and language, which may have different forms in other languages. Identifying the accurate span of Greek in the translated version of this context becomes challenging, as we may not have prior knowledge of the original meaning we are looking for. Moreover, in some languages, the translation may undergo morphological modifications to account for gender, person, number, case, or other language-specific affixations. When translating the answer in isolation, the contextual meaning associated with it can be lost, resulting in a noticeable difference between the translated answer and its counterpart within the translated context.</p><p>As we show, simple string matching proves insufficient to identify the translated answer's span within the translated context. Instead, an alignment process becomes necessary after translation to establish the most suitable semantic equivalent match in the translated context. If the answer is not properly aligned during the translation process, the corresponding instance may be excluded from the translated dataset, leading to a reduction in the overall number of samples available. Conversely, misaligned answers compromise the quality of the dataset, emphasizing the critical role of precision and recall in the alignment process to ensure highquality datasets.</p><p>In this paper, we aim to enhance the use of automated translation tools for translating spanprediction datasets, with a specific focus on QA from English to other languages. We employ commercially available translation tools and introduce a novel alignment model that can be easily trained for any language, improving the coverage of the target language.</p><p>We propose a new span alignment method, described in greater detail in Section 3, which formulates the alignment problem as a span extraction problem and uses a multilingual language model to predict the alignment. We define an automatic data labeling process for creating data for training that model and show that this new approach can generate high-quality QA datasets. Finally, in Section 4, we evaluate our new approach by generating machine-translated QA datasets in 13 languages, training QA models on these datasets, and comparing our training results to models trained on existing datasets in the same languages. The average improvement of our approach over those baseline English original C: Symbiosis (from Greek "together" and "living") is close and often long-term interaction between two different biological species... Q: What language does the word "symbiosis" come from? A: Greek Czech translation C: Symbióza (z řeckého "spolu" a "živ-ing") je úzká a často dlouhodobá interakce mezi dvěma různými biologickými druhy... Q: V jakém jazyce je slovo "symbióza" pocházet z? A: řecký  <ref type="bibr">)</ref>, and an answer (A) from the SQuAD v1.1 dataset. The answer in the original English sample is highlighted in blue as a span within the context and on its own. The answer in the translated Czech sample is highlighted in red and appears in different surface forms within the context and on its own models is +3.3 in F1 score and +2.9 in exact-match (EM) score.</p><p>In summary, we make the following contributions:</p><p>1. We formulate the span alignment task as a span extraction task and suggest a new modelbased approach to address it.</p><p>2. We achieve state-of-the-art results in QA in nine languages.</p><p>3. We have made our code and the generated QA datasets in 13 languages publicly available. They can be accessed at the following URL: https://github.com/ ofrimasad/translated_qa.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>The most popular QA dataset is SQuAD v1.1 <ref type="bibr" target="#b28">(Rajpurkar et al., 2016)</ref>, containing 100K questionanswer pairs in English. It has been extended in SQuAD v2.0<ref type="foot" target="#foot_0">1</ref>  <ref type="bibr" target="#b27">(Rajpurkar et al., 2018)</ref>, with 50K questions that have no answer in the given content.</p><p>A popular non-English version of this benchmark is the XQuAD<ref type="foot" target="#foot_1">2</ref> benchmark dataset for evaluating cross-lingual QA performance. This dataset consists of only 1,190 question-answer pairs from the development set of SQuAD v1.1 translated into ten languages by professional translators <ref type="bibr" target="#b2">(Artetxe et al., 2020)</ref>. It also includes the XQuAD-Translate-train dataset, a machine-translated version of the full SQuAD v1.1 train set.</p><p>The current state-of-the-art results on SQuAD v1.1 were achieved by using Google's T5-11B model <ref type="bibr" target="#b26">(Raffel et al., 2019)</ref>, with F1 and EM scores of 96.22 and 91.26, respectively. In comparison, the equivalent multilingual model, mT5, trained on XQuAD-Translate-train dataset achieved only 85.2/71.3 F1 and EM scores <ref type="bibr">(Xue et al., 2021</ref><ref type="bibr" target="#b31">(Xue et al., , 2022) )</ref> averaged on ten languages (Arabic, German, Greek, Spanish, Hindu, Russian, Thai, Turkish, Vietnamese, Chinese), highlighting a significant gap of 20% in EM performance.</p><p>Moreover, even when using large amounts of unlabeled data for pre-training large language models (LLMs), better results can be achieved in the QA task by fine-tuning the model using a dataset labeled explicitly for the task. GPT-3, as an example, achieves F1 of 69.8 on SQuAD v2.0 <ref type="bibr" target="#b27">(Rajpurkar et al., 2018)</ref> when attempting few-shot predictions. In contrast, the fine-tuned current state-ofthe-art models achieve F1 of 93 on the same dataset <ref type="bibr" target="#b4">(Brown et al., 2020)</ref>.</p><p>Both versions of SQuAD (1.1, 2.0) have already been manually or automatically translated into other languages: Spanish <ref type="bibr" target="#b5">(Carrino et al., 2019)</ref>, Czech <ref type="bibr" target="#b23">(Macková and Straka, 2020)</ref>, Arabic <ref type="bibr" target="#b24">(Mozannar et al., 2019)</ref>, Swedish (von Essen and Hesslow, 2020), <ref type="bibr">Dutch (van Toledo et al., 2022)</ref>, Finnish <ref type="bibr" target="#b15">(Kylliäinen and Yangarber, 2022)</ref>, Bangla <ref type="bibr" target="#b3">(Bhattacharjee et al., 2021)</ref>, and Persian <ref type="bibr" target="#b0">(Abadani et al., 2021)</ref>. Moreover, equivalent datasets were created in French <ref type="bibr" target="#b13">(Heinrich et al., 2022;</ref><ref type="bibr" target="#b9">d'Hoffschmidt et al., 2020)</ref>, Russian <ref type="bibr" target="#b11">(Efimov et al., 2019)</ref>, Hebrew <ref type="bibr" target="#b14">(Keren and Levy, 2021;</ref><ref type="bibr" target="#b6">Cohen et al., 2023)</ref>, and Korean <ref type="bibr" target="#b20">(Lim et al., 2019)</ref>.</p><p>Although the majority of translated versions have been generated using a consistent translation approach, such as utilizing pre-trained machine translation (MT) models or online MT services supported by these models, alternative approaches have been proposed to address the alignment challenge mentioned earlier.</p><p>A naive approach to handling this problem is to keep only samples where the translated answer can be found in the text, using either simple string matching <ref type="bibr" target="#b13">(Heinrich et al., 2022)</ref> or more advanced fuzzy-matching methods that include some text normalization operations (e.g., white spaces and punctuation removal, lower-casing) <ref type="bibr" target="#b15">(Kylliäinen and Yangarber, 2022)</ref> and some other basic heuristics. Adopting these approaches often leads to the removal of many instances from the translated dataset. for example, in <ref type="bibr" target="#b13">(Heinrich et al., 2022)</ref>, around 60% of the instances were discarded during this process. Furthermore, as the matching becomes fuzzier or less precise, the likelihood of generating incorrect alignments increases. This ultimately reduces the quality of the translated dataset. We later demonstrate that significant data loss incurred during the translation process has a significant impact on the accuracy of a QA model trained using the translated dataset.</p><p>Another approach involves utilizing word relation trees, often extracted by a model. In this method, both the context and answer are lemmatized, and the stem of each lemma is extracted <ref type="bibr" target="#b23">(Macková and Straka, 2020;</ref><ref type="bibr" target="#b15">Kylliäinen and Yangarber, 2022)</ref>. The stem of the answer is searched within the list of stems present in the context. Depending on the implementation, either the entire lemma is considered as the answer, or some simplified reductions are applied. This method can also be applied to a set of words aligned individually from the source to the target language using a DL model (the span of the aligned words is used in this case) <ref type="bibr" target="#b33">(Zhen et al., 2021)</ref>. This process still results in a significant data loss of 18%-28%, as shown by <ref type="bibr" target="#b15">(Kylliäinen and Yangarber, 2022)</ref>.</p><p>A third approach includes adding markers or tags directly to the text or as additional tokens <ref type="bibr" target="#b29">(von Essen and Hesslow, 2020)</ref>. The markers are short strings usually added before and after the appearance of the answer in the source text. The idea is that these markers are designed to survive the translation process by being copied as-is to the target text and could be located after translation so that the translated answer will be located in the translated text. Typically, markers used for this purpose are designed to be distinguishable from running text. They often take the form of non-standard text patterns or symbols, such as &lt;p&gt;, «H», ##, @@, and &amp;&amp;&amp;. This approach poses a new challenge: the markers should be resilient enough to survive the translation process and show up in the translated text, while having minimal effect on the context of the text. Figure <ref type="figure" target="#fig_1">2</ref> shows how different markers are preserved during translation vs. the effect of these markers on the context of the sentence. A very resilient marker, like "[34456]", has a very high chance of being included in the translation. However, in many cases, it significantly impacts the translation quality. On the other hand, a less resilient marker (i.e., "__") has little effect on the translation quality, but it is dropped from the translated text very often (more than 12% of the times).  <ref type="formula">2019</ref>) proposed another approach, using a Bayesian model with Markov-chain Monte Carlo (MCMC) inference for word alignments. The context is broken into sentences before translation, and each translated sentence is aligned with the original one. This process produced a complete word mapping from the source context to the translated context. Finally, they extracted the translated answer from the translated context using the mapping of the answer from the original context. This approach reduces data loss. However, it is less applicable to languages with a different morphology than English. To accommodate such languages, a work by von Essen and Hesslow (2020) presented two methods focusing on reordering the words. The initial word alignments are obtained using cosine similarity between the source and target texts, represented by embeddings generated using a multilingual model. Then, the Gromov-Wasserstein word distance matrix is minimized to force minimal word reordering while preserving the correct context of the answer. A work by <ref type="bibr" target="#b22">(Lou et al., 2022)</ref> presented a similar approach with a different word distance matrix computation.</p><p>In a recent work proposed by von Essen and Hesslow (2020), a new approach was presented, in which a multilingual model was trained to align the translated answer and context. The model was trained using a contextual pyramid, holding a translated version of the span and its surroundings. When training, the task is to align this translated contextual pyramid to the correct span in the English text. During inference, the model is expected to carry out the same task, but to align the translated contextual pyramid to the translated Swedish text. The model is not directly trained on the task it is required to eventually perform due to a lack of training data. Instead, this method relies on the generalization abilities of a multilingual BERT model to solve this task by taking a zero-shot learning approach. The reported data loss using this method is only 8%.</p><p>Most methods depicted above apply some heuristics and basic statistical tools to solve the alignment problem. In this work, we show that the alignment problem should be solved using a more advanced algorithm, based on a language model, which has proven efficient in solving other NLP tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>We propose a two-phase approach to tackle the alignment problem and generate span-prediction datasets of high quality. Our approach consists of the following two steps: 1) Train an alignment model for the target language; and 2) Translate the given dataset. We will now explain each step in more detail.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Step 1 -Train an Alignment Model for the Target Language</head><p>The alignment model is trained to accomplish the following task: given a translated sentence in the target language, and a phrase in English, find the span of the phrase within the translated sentence. Figure <ref type="figure" target="#fig_2">3</ref> illustrates the alignment process. The model predicts a span that closely aligns with the meaning of the translated phrase. We train the model to predict directly from the phrase in English. We train this model on a dataset that we automatically generate with labels. We start by translating only the contexts of SQuAD v1.1 (train) to the target language, using a machine-translation model, which we use as a black box. This allows us to utilize existing off-the-shelf models; in this work we use Google Translate. <ref type="foot" target="#foot_2">3</ref> We proceed to sample sentences from the translated dataset. Within each sentence, we randomly select a segment, defined as a few consecutive words. This segment will be our gold-label in the generated dataset. We then translate the selected segment into English.</p><p>Note that the translation into English is done insensitive to the context. We make sure to select sentences and segments, according to the distribution of the length and position of the answers in SQuAD. The resulting dataset is formatted as a QA dataset, where each sentence we sample is considered as context, the selected segment as the answer, and the translated segment in English is treated as the question. Some examples from this dataset are listed in Table <ref type="table" target="#tab_5">5</ref>.</p><p>Following that, we proceed to fine-tune a pretrained multilingual model<ref type="foot" target="#foot_3">4</ref> for the QA task on the dataset we have generated. To evaluate the performance of our model, we use a validation set that is created in a similar way to the one described earlier. The dataset also includes negative instances (questions that are impossible to answer based on the given context), as introduced in SQuAD v2.0. These instances are generated by choosing a phrase that does not appear in the sentence. By using negative instances, the model is trained to predict two values, the span of the answer, as well as the confidence level of the predicted span. When the confidence level is low it indicates that the model was unable to identify any span within the context that it deems as a suitable answer. We control the confidence level using a threshold value in order to reduce false predictions. We elaborate more on that in the next phase.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Phase 2 -Dataset Translation</head><p>We use the online Google Translate service to translate SQuAD v1.1 into other languages. Each context, question, and answer are translated together as a single unit to preserve as much context as possible in the translation process.</p><p>In Figure <ref type="figure" target="#fig_1">2</ref> we show how in-sentence markers may disappear in the translation, along with the impact they have on the translation quality. However, we noticed that if markers are placed between pairs of sentences, as sort of sentence delimiters, the markers predominantly remain intact, and the translation maintains its fidelity to the original text. Inserting such sentence-delimiter markers enables us to translate the context as one unit, as well as maintain sentence-level alignment between the source text of the context and its translated version. Using such markers is essential as the segmentation of the context into sentences in the source and target languages, does not always produce parallel sentences. We found that depending on the target language, between 7-15% of the contexts are divided into a different number of sentences in the target language. With the added markers, this was minimized to a range of 0.5-3%.</p><p>Following this, we would like to find the answer (written in English) in the translated version of the context. We refer to this procedure as answer alignment. To accomplish this, we employ three methods that essentially serve to complement one another:</p><p>1. First, if possible, we attempt to align the answer by locating it within the translated context using exact matching.</p><p>2. In cases where the answer cannot be aligned using exact matching, we use the alignment model described above to align the answer with the translated sentence.</p><p>3. Finally, when the alignment model predicts relatively low confidence, we segment the context into subsets of words with a total word count that approximates the word count of the answer. More formally:</p><p>∀(w i , . . . , w j ) ⊆ (w 1 , w 2 , . . . , w m )</p><formula xml:id="formula_0">N ans + 2 &gt; j -i + 1 &gt; N ans -2</formula><p>where N ans is the number of words in the answer, and m is the total number of words in the context. Then, we calculate the embeddings of the answer and all context segments using a pre-trained multilingual BERT model (cased), also known as mBERT, and use cosine similarity to find the closest segment to the answer. To prevent weak alignments, we set a threshold on the similarity value.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We experiment on different languages and answeralignment methods and compare our approach to other methods described in Section 2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Settings</head><p>We evaluated our model on ten languages, using the Cross-lingual Question Answering Dataset (XQuAD) <ref type="bibr" target="#b1">(Artetxe et al., 2019)</ref> as a benchmark. The creators of this dataset also released the Translate-train benchmark, in which SQuAD v1.1 <ref type="bibr" target="#b28">(Rajpurkar et al., 2016)</ref> train set was automatically translated into ten languages using an automatictranslation model. We perform evaluations on the XQuAD dataset comprised of 240 paragraphs and 1,190 samples taken from the development set of SQuAD v1.1. Those instances were manually translated by professionals into the same ten languages. We use the Google Translate API service to translate the SQuAD v1.1 train set into ten languages. Both our alignment models and language-specific QA models are fine-tuned based on the multilingual BERT model (cased) <ref type="bibr" target="#b8">(Devlin et al., 2019)</ref>. We follow the XQuAD Translate-train benchmark, and assign the same values to all training hyperparameters. We train each model for the duration of three epochs, with a learning-rate value of 3.0e -5, and a warm-up value of 6%. In all our training executions, we use a batch size of 8, a gradient accumulation of 8, and employ the widely-used AdamW optimizer. We set the model-based answer-alignment threshold to 0.05 and the cosine-similarity alignment threshold to 0.5. Unfortunately, we did not have access to the same translation model used by the creators of XQuAD, as it seems the model used by XQuAD has better capabilities than the online Google Translation service provided by the vendor.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>We compare four groups of datasets, each containing datasets in ten languages translated from the original SQuAD v1.1 dataset: Simple Alignment: created using Google Translate with only simple string matching XQuAD Translate-train: created by the creators of XQuAD using a superior translation model than ours. Simple + Cosine Alignment: created using Google Translate following two answer-alignment methods, string matching, and cosine similarity, as described in §3.2. Full Alignment: our main approach. Created using Google Translate, and the full answer-alignment process described in §3.2.</p><p>Table <ref type="table" target="#tab_0">1</ref> summarizes the F1 and EM scores on the XQuAD test set (in the same language as the train set) after training the multilingual BERT model on each one of the translated datasets. The table also provides the size of the translated train set as a percentage of the size of the SQuAD v1.1 original train set.</p><p>Compared to the baseline approach (Simple Alignment), which experiences a dataset size reduction of approximately 50%, our main approach (Full Alignment) maintains 93.4% of the original dataset size. Additionally, our main approach demonstrates improvements in both F1 and EM scores across all languages, with an average increase of 3.3% points in F1 and 2.98% points in EM. We attribute this improvement to the utilization of a larger number of samples in our approach.</p><p>When comparing our method to the XQuAD benchmark, we observe variations in performance across different languages. Nonetheless, our approach achieves an average improvement of 3.4% points in F1 and 2% points in EM over XQuAD. It is worth noting that XQuAD Translate-train outper- forms our method in certain languages. Nevertheless, our approach outperforms XQuAD in seven out of the ten tested languages. Notably, upon examining the language that yielded better results on the XQuAD dataset, we discover a significant difference in translation quality between XQuAD and our translation model. Based on this observation, we hypothesize that employing the same translation model utilized by our approach could potentially yield improved results. However, due to the unavailability of detailed information regarding the translation process of the XQuAD Translat-train dataset, we cannot provide a comprehensive analysis.</p><p>Alignment from English vs. Alignment from the Target Language. We found that using the English phrase as an input to the alignment model produced better results (1.7% F1 on average) than using the target-language phrase. We hypothesize that this happens due to some contextual biases added to the translated text. To demonstrate that, consider the following sample for alignment in Spanish:</p><p>C: Cuando se encuentran por primera vez, se considera de buena educación inclinarse.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Q: bow A: inclinarse</head><p>The Spanish sentence says: "When you first meet, it is considered polite to bow". The alignment should be between the word "bow" in English and "inclinarse" in Spanish. But if we translate the word "bow" back to Spanish, we get the word "arco", which refers to another meaning of bow, a weapon (e.g., bow and arrow). Suppose the alignment model is trained using the translated phrase instead of the English one. In that case, it needs to handle a harder challenge, as the translated phrase "arco" and the target phrase "inclinarse" in the context, are completely different. The phrase "bow" in English is closer to the contextual meaning since it does not assume only one meaning of the word.</p><p>The same concept can apply not only to words with multiple meanings, but also to words that appear in different surface forms depending on the context. All the results reported in this paper were achieved by training the alignment model using the English phrase. Table <ref type="table" target="#tab_3">3</ref> shows a comparison between the results of the alignment model training with the two approaches.</p><p>Multiple Alignment Methods. We utilize a multi-method approach for aligning answers. Three different alignment techniques are applied based on the results of our experiments. Our findings indicate that basic string matching can successfully resolve 30-60% of the samples, contingent on the target language, consuming minimal resources and time. For the remaining unresolved samples, we utilize an alignment model along with the cosine similarity method described in Section 3.2. Preliminary testing showed that while cosine similarity achieves lower performance overall, it surpasses the alignment model on sequences with length ≥ 15 words. Thus, using cosine similarity as a complementary alignment method to modelbased alignment improves overall results.</p><p>Size vs. Quality of the Dataset. An important insight that can be drawn from our results is that while preserving the maximal number of samples from the dataset in the translation is crucial, adding misleading samples counter-affects this. We observe that by using cosine similarity, we increased the average size of the dataset from 53.9% to 96.4%, but when using the model-based alignment process, we gain a larger improvement in F1 and EM scores, even though the average size of the generated dataset was only 93.4% of the original one (smaller than the 96.4% we get by using cosine similarity). We illustrate this observation in Figure <ref type="figure" target="#fig_3">4</ref>. While the size of the dataset grows monotonically when decreasing the threshold, we see that the F1 score is less predictable. When the threshold is over 0.2, the F1 gradually decreases correlated with the size of the dataset, but when the threshold is under 0.2, the F1 score is quite noisy. At this range of threshold values, the trade-off between adding more samples and adding misleading samples causes extreme changes in F1 over small changes in the threshold. In addition, we quantify the effect of using additional data on the overall model performance. We discuss this in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Using a Large Language Model to Generate the Dataset</head><p>To investigate the potential of LLMs in generating QA datasets in languages other than English, we employed the OpenAI GPT-3.5 API. Our initial experiment focused on generating samples comprising question-answer pairs within a context written in Hebrew. We sourced 50 distinct contexts from Hebrew Wikipedia. Each context was concatenated with five different English-written prefixes that were manually formulated to instruct GPT-3.5 (i.e., Generate a SQuAD question and answer in Hebrew.</p><p>Note that the answer must appear in the context itself. The context: &lt;Hebrew context&gt;).</p><p>To evaluate the generated answers, we implemented a validation step by cross-referencing the answers with the corresponding context. Only answers present within the context were deemed usable. The obtained results revealed that the most successful prefix achieved a mere 18% usability rate. Notably, the handling of non-Latin languages by GPT-3.5 entails character-level tokenization, causing an elevated token count in requests and responses. Consequently, the cost estimation for producing an extensive dataset is prohibitively expensive due to the pricing structure based on price per 1k tokens.</p><p>In another experiment, we aimed to explore the feasibility of translating samples from the SQuAD v1.1 dataset into Hebrew, maintaining the alignment between the translated answer and the translated context. This experiment was designed to ascertain the LLM's effectiveness in performing high-quality translations while retaining the contextual coherence of the content. Surprisingly, our efforts to identify an optimal prompt configuration to successfully translate the samples yielded discouraging results. The experiment recorded a success rate of less than 5%, indicating significant challenges in achieving accurate and reliable translations using the employed methodology.</p><p>These experiments collectively underscore the complexities involved in generating non-English QA datasets and performing accurate dataset translations using current LLMs. Additional Languages. We conduct another set of experiments, to compare our general approach for dataset translation to the approaches described in Section 2. We collect the datasets and models used by previous works to translate QA datasets into Spanish, Swedish, Hebrew, and Czech. The results of these experiments are described in Table <ref type="table" target="#tab_2">2</ref>. The results show that our translation approach outperforms the other approaches in all languages except Swedish (von Essen and Hesslow, 2020).</p><p>These experiments facilitate a comparison between our automated, language-agnostic technique and some language-specific methodologies. We learned that the creators of the language-specific datasets possess intrinsic knowledge of the particular language, which can play a significant role when producing a dataset for a specified language. Some languages contain unique punctuation marks, different structures, and concepts that may be used to improve translation when handled correctly. Moreover, the evaluation process of a QA task includes a phase referred to as normalization. This process includes the removal of language-specific articles. In   English directly to the target language, and from the target language to itself.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this paper, we presented a novel two-step approach for automatically translating spanprediction datasets. We have identified the alignment process as the differentiating component between different approaches, and formulated the alignment problem as a span extraction problem. We presented a method for training an alignment model and using such a model to obtain highquality translations of instances of a QA dataset.</p><p>The evaluation results show that our approach improves the quality of the datasets created through translation from English into 13 different languages, with an average F1 score improvement of 3.4%, achieving state-of-the-art results on XQuAD.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Limitations</head><p>Our approach is fully dependent on the quality of the machine translation system for the target language. Although machine translation systems are available for most languages, they might not yet be available for some less common languages.</p><p>The quality of the said machine translation system might affect the result of our process and produce lesser results. Any biases in the machine translation system may be inherited by the resulting dataset, which may lead to bias confirmation. Moreover, our approach requires either local computing resources or access to online services. These resources might be expensive or limited when used under the free usage terms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">CO2 Emission Related to Experiments</head><p>Experiments were conducted on a RTX 3090 GPU (TDP of 350W). A cumulative of 5-9 hours per language to train the alignment model + 3 hours to train and test the final model which evaluates the dataset's quality. Total emissions are estimated to be 1.68 kgCO 2 eq per language or 30.3kgCO 2 eq for all experiments.  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Example of a QA instance consists of a context (C), a question (Q), and an answer (A) from the SQuAD v1.1 dataset. The answer in the original English sample is highlighted in blue as a span within the context and on its own. The answer in the translated Czech sample is highlighted in red and appears in different surface forms within the context and on its own</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: A plot of markers resilience vs. context preservation. Different markers are plotted in different colors. The survival rate is calculated as the percentage of times the marker has survived and appeared in the translation. Context is compared by calculating cosine similarity between the embeddings (generated by the multilingual model) of the text translated with and without the markers</figDesc><graphic coords="4,70.87,287.44,226.77,163.54" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: The translation and alignment process. Both the context (in yellow) and answer (in green) are translated. However, since the answer is translated out-of-context while its span inside the context is translated in-context, the translated answer does not appear in the translated context. The Alignment model takes the translated context and English answer, and predicts the span in the translated context</figDesc><graphic coords="5,70.87,70.87,453.54,59.80" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: F1 score and dataset size vs. threshold value. Results of a BERT multilingual model trained on the SQuAD v1.1 dataset translated to German by using the alignment model with different thresholds and tested on the XQuAD-de test set.</figDesc><graphic coords="8,306.14,231.82,226.77,140.54" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="13,138.90,123.64,317.48,555.84" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>The results of mBERT-cased on the XQuAD test set, using the XQuAD Translated-train set as well as our datasets.</figDesc><table><row><cell></cell><cell cols="3">XQuAD Translate-train</cell><cell cols="3">Simple Alignment</cell><cell cols="3">Simple + Cosine Alignment</cell><cell cols="3">Full Alignment</cell></row><row><cell>Language</cell><cell>F1</cell><cell>EM</cell><cell>Size</cell><cell>F1</cell><cell>EM</cell><cell>Size</cell><cell>F1</cell><cell>EM</cell><cell>Size</cell><cell>F1</cell><cell>EM</cell><cell>Size</cell></row><row><cell>Arabic (ar)</cell><cell>68.01</cell><cell>51.51</cell><cell>99.1%</cell><cell>68.06</cell><cell>51.51</cell><cell>56.8%</cell><cell>70.17</cell><cell>52.02</cell><cell>97.6%</cell><cell>70.71</cell><cell>53.70</cell><cell>94.2%</cell></row><row><cell>German (de)</cell><cell>74.67</cell><cell>60.08</cell><cell>94.3%</cell><cell>73.34</cell><cell>58.24</cell><cell>55.1%</cell><cell>75.13</cell><cell>57.90</cell><cell>97.8%</cell><cell>76.84</cell><cell>61.18</cell><cell>95.4%</cell></row><row><cell>Greek (el)</cell><cell>71.63</cell><cell>53.95</cell><cell>91.3%</cell><cell>68.43</cell><cell>50.34</cell><cell>48.2%</cell><cell>73.43</cell><cell>55.46</cell><cell>97.5%</cell><cell>72.83</cell><cell>56.22</cell><cell>89.2%</cell></row><row><cell>Spanish (es)</cell><cell>79.30</cell><cell>62.27</cell><cell>99.9%</cell><cell>77.17</cell><cell>59.66</cell><cell>55.2%</cell><cell>77.50</cell><cell>58.15</cell><cell>97.4%</cell><cell>79.27</cell><cell>62.27</cell><cell>96.1%</cell></row><row><cell>Hindi (hi)</cell><cell>70.08</cell><cell>55.80</cell><cell>98.0%</cell><cell>68.58</cell><cell>53.78</cell><cell>56.4%</cell><cell>70.13</cell><cell>53.53</cell><cell>97.8%</cell><cell>70.82</cell><cell>55.46</cell><cell>91.9%</cell></row><row><cell>Russian (ru)</cell><cell>75.17</cell><cell>58.91</cell><cell>96.9%</cell><cell>65.53</cell><cell>47.73</cell><cell>41.2%</cell><cell>73.22</cell><cell>54.29</cell><cell>97.1%</cell><cell>73.94</cell><cell>55.88</cell><cell>94.6%</cell></row><row><cell>Thai (th)</cell><cell>31.85</cell><cell>28.57</cell><cell>98.0%</cell><cell>59.01</cell><cell>51.26</cell><cell>52.2%</cell><cell>63.59</cell><cell>55.97</cell><cell>95.5%</cell><cell>61.95</cell><cell>53.45</cell><cell>86.8%</cell></row><row><cell>Turkish (tr)</cell><cell>69.51</cell><cell>55.46</cell><cell>98.8%</cell><cell>65.58</cell><cell>49.75</cell><cell>59.7%</cell><cell>66.75</cell><cell>49.92</cell><cell>97.8%</cell><cell>69.54</cell><cell>52.52</cell><cell>93.9%</cell></row><row><cell>Vietnamese (vi)</cell><cell>75.75</cell><cell>56.55</cell><cell>99.5%</cell><cell>75.85</cell><cell>55.21</cell><cell>58.1%</cell><cell>75.69</cell><cell>53.95</cell><cell>97.8%</cell><cell>76.24</cell><cell>54.20</cell><cell>95.5%</cell></row><row><cell>Chinese (zh-CN)</cell><cell>66.20</cell><cell>56.60</cell><cell>97.8%</cell><cell>61.13</cell><cell>53.78</cell><cell>56.3%</cell><cell>55.93</cell><cell>45.55</cell><cell>87.6%</cell><cell>63.56</cell><cell>55.29</cell><cell>96.1%</cell></row><row><cell>Average</cell><cell>68.2</cell><cell>54.0</cell><cell>97.3%</cell><cell>68.27</cell><cell>53.13</cell><cell>53.9%</cell><cell>70.15</cell><cell>53.67</cell><cell>96.4%</cell><cell>71.57</cell><cell>56.02</cell><cell>93.4%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>The results of mBERT trained on datasets translated by previous work (described in Section 2) and by our translation approach (described in Section 3). The results are reported on the dataset used by each study: Spanish(Carrino et al., 2019), Swedish (von Essen and<ref type="bibr" target="#b29">Hesslow, 2020)</ref>, and Czech<ref type="bibr" target="#b23">(Macková and Straka, 2020)</ref>. The Hebrew dataset, ParaShoot<ref type="bibr" target="#b14">(Keren and Levy, 2021)</ref>, was created manually (not a translation) and formatted similarly to SQuAD.English, these articles are [a, an, the], in French[le,  la, less, l', du, des, au, aux, un, une], and in German[in, wine, einen, einem, wines, Weiner, der, die, das,  den, dem, des]. Not knowing the language-specific articles may dramatically affect the performance of the QA model, and unfortunately, there is not a source yet that outlines these articles for prevalent languages.</figDesc><table><row><cell></cell><cell cols="2">English to Target</cell><cell cols="2">Target to Target</cell></row><row><cell>Language</cell><cell>F1</cell><cell>EM</cell><cell>F1</cell><cell>EM</cell></row><row><cell>Arabic(ar)</cell><cell>81.41</cell><cell>77.36</cell><cell>80.44</cell><cell>74.13</cell></row><row><cell>German(de)</cell><cell>81.80</cell><cell>78.79</cell><cell>80.26</cell><cell>75.42</cell></row><row><cell>Greek(el)</cell><cell>78.34</cell><cell>74.55</cell><cell>78.62</cell><cell>73.73</cell></row><row><cell>Spanish(es)</cell><cell>76.42</cell><cell>71.75</cell><cell>76.94</cell><cell>70.53</cell></row><row><cell>Hindi(hi)</cell><cell>80.06</cell><cell>73.55</cell><cell>78.37</cell><cell>68.15</cell></row><row><cell>Russian(ru)</cell><cell>81.74</cell><cell>77.93</cell><cell>80.78</cell><cell>75.49</cell></row><row><cell>Thai(th)</cell><cell>66.55</cell><cell>64.45</cell><cell>64.79</cell><cell>61.91</cell></row><row><cell>Turkish(tr)</cell><cell>82.49</cell><cell>77.45</cell><cell>80.79</cell><cell>73.94</cell></row><row><cell>Vietnamese(vi)</cell><cell>80.57</cell><cell>71.71</cell><cell>80.35</cell><cell>70.14</cell></row><row><cell>Chinese(zh-CN)</cell><cell>72.94</cell><cell>72.17</cell><cell>70.44</cell><cell>69.14</cell></row><row><cell>Average</cell><cell>78.23</cell><cell>73.97</cell><cell>77.18</cell><cell>71.26</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>The results of alignment model training in ten languages. Comparing two types of alignment, from</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>D Samples from the Alignment Dataset English Phrase Target Language Phrase (span) Context Pointe-Noire and along the Atlantic coast. Pointe-Noire und entlang der Atlantikküste. (103-146) Die bedeutendsten Untergruppen des Kongo sind Laari in den Regionen Brazzaville und Pool sowie Vili um Pointe-Noire und entlang der Atlantikküste. 16 year olds, but in practice 16-Jährige, aber in der Praxis (78-108) Die öffentliche Bildung ist theoretisch kostenlos und obligatorisch für unter 16-Jährige, aber in der Praxis fallen Kosten an. less than the 79% weniger als die 79% (72-92) Die Netto-Einschulungsrate im Grundschulbereich lag 2005 bei 44%, viel weniger als die 79% im Jahr 1991. of the boom and the des Aufschwungs und der (186-209) Die derzeitige Regierung herrscht über einen unruhigen inneren Frieden und steht trotz der seit 2003 rekordhohen Ölpreise vor schwierigen wirtschaftlichen Problemen bei der Stimulierung des Aufschwungs und der Verringerung der Armut. Die derzeitige Regierung herrscht über einen unruhigen inneren Frieden und steht trotz der seit 2003 rekordhohen Ölpreise vor schwierigen wirtschaftlichen Problemen bei der Stimulierung des Aufschwungs und der Verringerung der Armut. he professed to be public bekundete er öffentlich sein (82-110) Als Sassou Nguesso am Ende des Krieges im Oktober 1997 an die Macht zurückkehrte, bekundete er öffentlich sein Interesse daran, Wirtschaftsreformen und Privatisierungen voranzutreiben und die Zusammenarbeit mit internationalen Finanzinstitutionen zu erneuern.</figDesc><table><row><cell>government</cell><cell>Regierung (15-24)</cell><cell>Die derzeitige Regierung herrscht über einen unruhigen inneren</cell></row><row><cell></cell><cell></cell><cell>Frieden und steht trotz der seit 2003 rekordhohen Ölpreise vor</cell></row><row><cell></cell><cell></cell><cell>schwierigen wirtschaftlichen Problemen bei der Stimulierung des</cell></row><row><cell></cell><cell></cell><cell>Aufschwungs und der Verringerung der Armut.</cell></row><row><cell>Peace</cell><cell>Frieden (63-70)</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Samples from the dataset used for training the alignment model (German in this example)</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Both versions are under CC-BY-SA-4.0 license</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>CC-BY-SA-4.0 license</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://translate.google.com</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>We use a multilingual model since the phrase is in English while the span is searched in text written in the target language.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8">Acknowledgements</head><p>We would like to express our gratitude to <rs type="person">Gal Rapoport</rs> for his valuable contributions and technical discussions throughout the course of this project.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>A F1 Scores on Subsets of SQuAD v1.1</p><p>Generally speaking, increasing the size of the dataset improves the model's performance, up to a certain threshold. It can be seen in Figure <ref type="figure">5</ref>, which shows the F1 scores reached by the same model trained on different sizes of subsets of the SQuAD v1.1 dataset (in English). In this case, the model still benefits from increasing the number of samples up to 100% of the dataset.    </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">ParSQuAD: Machine translated SQuAD dataset for persian question answering</title>
+		<author>
+			<persName><forename type="first">Negin</forename><surname>Abadani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamshid</forename><surname>Mozafari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Afsaneh</forename><surname>Fatemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammd</forename><surname>Ali Nematbakhsh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arefeh</forename><surname>Kazemi</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/ICWR51868.2021.9443126</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2021 7th Interna-tional Conference on Web Research (ICWR)</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="163" to="168" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">On the cross-lingual transferability of monolingual representations</title>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">On the cross-lingual transferability of monolingual representations</title>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.421</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4623" to="4637" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">BanglaBERT: Language model pretraining and benchmarks for low-resource language understanding evaluation in Bangla</title>
+		<author>
+			<persName><forename type="first">Abhik</forename><surname>Bhattacharjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tahmid</forename><surname>Hasan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kazi</forename><surname>Samin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL-HLT</title>
+		<editor>
+			<persName><forename type="middle">Saiful</forename><surname>Md</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Wasi Uddin</forename><surname>Islam</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Anindya</forename><surname>Ahmad</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Iqbal</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rifat</forename><surname>Sohel Rahman</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Shahriyar</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">M</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Amodei</surname></persName>
+		</author>
+		<idno>CoRR, abs/2005.14165</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Automatic Spanish translation of SQuAD dataset for multi-lingual question answering</title>
+		<author>
+			<persName><forename type="first">Casimiro</forename><surname>Pio Carrino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marta</forename><surname>Ruiz Costa-Jussà</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">José</forename><forename type="middle">A R</forename><surname>Fonollosa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Language Resources and Evaluation</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Heq: a large and diverse hebrew reading comprehension benchmark</title>
+		<author>
+			<persName><forename type="first">Hilla</forename><surname>Amir Dn Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Merhav Fine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reut</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Tsarfaty</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Shachar</forename><surname>Amir Dn Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Rosenman</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Goldberg</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>Relation classification as two-way spanprediction</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">FQuAD: French question answering dataset</title>
+		<author>
+			<persName><forename type="first">Wacim</forename><surname>Martin D'hoffschmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Belblidia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Heinrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxime</forename><surname>Brendlé</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vidal</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.107</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1193" to="1208" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Event extraction by answering (almost) natural questions</title>
+		<author>
+			<persName><forename type="first">Xinya</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.49</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="671" to="683" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">SberQuAD -Russian reading comprehension dataset: Description and analysis</title>
+		<author>
+			<persName><forename type="first">Pavel</forename><surname>Efimov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leonid</forename><surname>Boytsov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavel</forename><surname>Braslavski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference and Labs of the Evaluation Forum</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Implicit user modeling in group chat</title>
+		<author>
+			<persName><forename type="first">Anat</forename><surname>Hashavit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naama</forename><surname>Tepper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Inbal</forename><surname>Ronen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lior</forename><surname>Leiba</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Amir Dn Cohen</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3213586.3225236</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Adjunct Publication of the 26th Conference on User Modeling, Adaptation and Personalization, UMAP &apos;18</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="275" to="280" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">FQuAD2.0: French question answering and learning when you don&apos;t know</title>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Heinrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Viaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wacim</forename><surname>Belblidia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Language Resources and Evaluation</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">ParaShoot: A Hebrew question answering dataset</title>
+		<author>
+			<persName><forename type="first">Omri</forename><surname>Keren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.mrqa-1.11</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Machine Reading for Question Answering</title>
+		<meeting>the 3rd Workshop on Machine Reading for Question Answering<address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="106" to="112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Question answering and question generation for Finnish</title>
+		<author>
+			<persName><forename type="first">Ilmari</forename><surname>Kylliäinen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roman</forename><surname>Yangarber</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2211.13794</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">ALBERT: A lite BERT for self-supervised learning of language representations</title>
+		<author>
+			<persName><forename type="first">Zhenzhong</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingda</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Goodman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piyush</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radu</forename><surname>Soricut</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Datasets: A community library for natural language processing</title>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Villanova Del Moral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Thakur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suraj</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lewis</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Tunstall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gunjan</forename><surname>Šaško</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavitvya</forename><surname>Chhablani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Malik</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Brandeis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Teven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angelina</forename><surname>Patry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Mcmillan-Major</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Théo</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Matussière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stas</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Bekman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Goehringer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Mustar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lagunas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wolf</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-demo.21</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing: System Demonstrations<address><addrLine>Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="175" to="184" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">A unified MRC framework for named entity recognition</title>
+		<author>
+			<persName><forename type="first">Xiaoya</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingrong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxian</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinghong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.519</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5849" to="5859" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Entityrelation extraction as multi-turn question answering</title>
+		<author>
+			<persName><forename type="first">Xiaoya</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijun</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiayu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arianna</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duo</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingxin</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1129</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1340" to="1350" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">KorQuAD1.0: Korean QA dataset for machine reading comprehension</title>
+		<author>
+			<persName><forename type="first">Seungyoung</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myungji</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jooyoul</forename><surname>Lee</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1909.07005</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">RoBERTa: A robustly optimized BERT pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Translation-based implicit annotation projection for zero-shot cross-lingual event argument extraction</title>
+		<author>
+			<persName><forename type="first">Chenwei</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changlong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiwei</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruifeng</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3477495.3531808</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR &apos;22</title>
+		<meeting>the 45th International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR &apos;22<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2076" to="2081" />
+		</imprint>
+	</monogr>
+	<note>Association Computing Machinery</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Reading comprehension in Czech via machine translation and cross-lingual transfer</title>
+		<author>
+			<persName><forename type="first">Katerina</forename><surname>Macková</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milan</forename><surname>Straka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop on Time-Delay Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Neural Arabic question answering</title>
+		<author>
+			<persName><forename type="first">Hussein</forename><surname>Mozannar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elie</forename><surname>Maamary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><forename type="middle">El</forename><surname>Hajal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hazem</forename><surname>Hajj</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W19-4612</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Arabic Natural Language Processing Workshop</title>
+		<meeting>the Fourth Arabic Natural Language Processing Workshop<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="108" to="118" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Sequence-to-sequence models for extracting information from registration and legal documents</title>
+		<author>
+			<persName><forename type="first">Ramon</forename><surname>Pires</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Fábio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guilherme</forename><surname>De Souza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><forename type="middle">A</forename><surname>Rosa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rodrigo</forename><surname>Lotufo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nogueira</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-031-06555-2_6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Document Analysis Systems: 15th IAPR International Workshop</title>
+		<meeting><address><addrLine>La Rochelle, France; Berlin, Heidelberg</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer-Verlag</publisher>
+			<date type="published" when="2022-05-22">2022. May 22-25, 2022</date>
+			<biblScope unit="volume">2022</biblScope>
+			<biblScope unit="page" from="83" to="95" />
+		</imprint>
+	</monogr>
+	<note>DAS</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Exploring the limits of transfer learning with a unified text-to</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.1910.10683</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>text transformer</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Know what you don&apos;t know: Unanswerable questions for SQuAD</title>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-2124</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="784" to="789" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Exploring the utility of Dutch question answering datasets for human resource contact centres</title>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Konstantin</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><surname>Chaïm Van Toledo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marijn</forename><surname>Schraagen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Friso Van Dijk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Brinkhuis</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Spruit</surname></persName>
+		</author>
+		<idno type="DOI">10.3390/info13110513</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016. 2022</date>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="2383" to="2392" />
+		</imprint>
+	</monogr>
+	<note>SQuAD: 100,000+ questions for machine comprehension of text</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Building a Swedish question-answering model</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Hannes Von Essen</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hesslow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Probability and Meaning Conference</title>
+		<meeting>the Probability and Meaning Conference</meeting>
+		<imprint>
+			<publisher>Gothenburg. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020. PaM 2020</date>
+			<biblScope unit="page" from="117" to="127" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">GLUE: A multi-task benchmark and analysis platform for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanpreet</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-5446</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP</title>
+		<meeting>the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="353" to="355" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">ByT5: Towards a token-free future with pre-trained byte-to-byte models</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Barua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00461</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="291" to="306" />
+		</imprint>
+	</monogr>
+	<note>Transactions of the Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Aditya Barua, and Colin Raffel. 2021. mT5: A massively multilingual pre-trained text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.41</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="483" to="498" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Chinese opinion role labeling with corpus translation: A pivot study</title>
+		<author>
+			<persName><forename type="first">Ranran</forename><surname>Zhen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guohong</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengguo</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meishan</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.796</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="10139" to="10149" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

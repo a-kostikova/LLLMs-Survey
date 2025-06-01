@@ -1,0 +1,1052 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">PROVER: Generating Intermediate Steps for NLI with Commonsense Knowledge Retrieval and Next-Step Prediction</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Deepanway</forename><surname>Ghosal</surname></persName>
+							<email>deepanwayghosal@mymail.sutd.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="institution">ISTD</orgName>
+								<address>
+									<country key="SG">Singapore</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Technology</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Aditya</forename><surname>Somak</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="department">Department of CSE</orgName>
+								<address>
+									<country>IIT Kharagpur</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Monojit</forename><surname>Choudhury</surname></persName>
+							<email>monojitc@microsoft.com</email>
+							<affiliation key="aff3">
+								<orgName type="institution">Turing India</orgName>
+								<address>
+									<region>Microsoft</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">PROVER: Generating Intermediate Steps for NLI with Commonsense Knowledge Retrieval and Next-Step Prediction</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C2B47BB8ED220A4FF44715D93B1B79BE</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:49+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The Natural Language Inference (NLI) task often requires reasoning over multiple steps to reach the conclusion. While the necessity of generating such intermediate steps (instead of a summary explanation) has gained popular support, it is unclear how to generate such steps without complete end-to-end supervision and how such generated steps can be further utilized. In this work, we train and enhance a sequence-to-sequence next-step prediction model with external commonsense knowledge and search to generate intermediate steps with limited next-step supervision. We show the correctness of such generated steps through human verification, on MNLI and MED datasets (and discuss the limitations through qualitative examples). We show that such generated steps can help improve end-to-end NLI task performance using simple data augmentation strategies. Using a CHECKLIST dataset for NLI, we also explore the effect of augmentation on specific reasoning types. The code and human-evaluation dataset is available at https://github.com/deepanwayx/prover.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Complex NLP tasks such as Natural Language Inference (NLI) often requires reasoning over multiple steps using multiple facts and implicit commonsense knowledge <ref type="bibr" target="#b29">(Trivedi et al., 2020;</ref><ref type="bibr" target="#b21">Sap et al., 2019;</ref><ref type="bibr" target="#b2">Camburu et al., 2018)</ref>. For such cases, it has been long argued that <ref type="bibr" target="#b14">(Lipton, 2018)</ref>, the state-ofthe-art models should also output some sort of explanation (such as intermediate steps or a textual explanation) alongwith the final answer. The opaque performance and poor out-of-distribution generalization performance of Transformers-based models <ref type="bibr" target="#b12">(Kaushik et al., 2019;</ref><ref type="bibr" target="#b19">Ribeiro et al., 2020)</ref> have refuelled this discussion. However, it is unclear how these intermediate steps can be generated for unconstrained natural language Premise-hypothesis pairs (such as in crowd-sourced NLI datasets) as it A dog jumping for a frisbee in the snow.</p><p>A frisbee is a plastic toy.</p><p>Snow comes down in cold weather.</p><p>A dog is jumping for a plastic toy in cold weather.</p><p>An animal is jumping for a plastic toy in cold weather.</p><p>A dog is jumping for a plastic toy in the snow.</p><p>Dog is an animal. is non-trivial to collect crowd-sourced fine-grained explanations or generate them synthetically. Most importantly, it is unclear how such steps can be utilized further for the NLI task.</p><p>Crowd-sourced collection of intermediate steps (or explanations) <ref type="bibr" target="#b2">(Camburu et al., 2018)</ref> comes with complications, as human-written explanation can be subjective, and it is hard to automatically verify or utilize such explanations. Recently, researchers have explored synthetic generation of intermediate steps (or proof trees) templated from first order logic theories <ref type="bibr" target="#b3">(Clark et al., 2020;</ref><ref type="bibr" target="#b26">Tafjord et al., 2021;</ref><ref type="bibr" target="#b20">Saha et al., 2020)</ref>. Here, the objective is to test whether Transformer models can perform deductive reasoning over natural language statements. Provided their examples come from an underlying symbolic system with closed world rules and facts, it is unclear how this strategy of generating proof tree can be extended to unconstrained natural language premise-hypothesis pairs. Similarly, Entail-mentBank <ref type="bibr" target="#b5">(Dalvi et al., 2021)</ref> is another dataset to benchmark performance of recent multi-hop prover models. EntailmentBank provides a set of supporting facts such that no external facts are required to prove the given hypothesis. Here, we consider proving hypothesis with an open-ended context, as is typical in NLI or QA datasets.</p><p>We assume that an ideal NLI system reaches a series of intermediate conclusions to derive the final conclusion (entailment/contradiction/neutral). Such intermediate steps may require commonsense knowledge external to the input. These intermediate steps and external facts constitute a proof. Since such proof s can widely vary linguistically, logically and in length; to make verification (without groundtruth) and generation easier, we impose various constraints of correctness, minimality, and atomicity on what we expect as natural language proof s for a given premise-hypothesis pair. We primarily use human verification for evaluation. As human annotation of groundtruth proofs for NLI examples is non-trivial, we utilize single-step supervision to train a T5 encoder-decoder model <ref type="bibr" target="#b17">(Raffel et al., 2019)</ref> on various available entailment datasets; learning various aspects of proof generation from SNLI, Monotonicity Entailment Dataset, and Entailment Bank. To enrich single-step generation with external knowledge, we build a fact retriever and sentence composition model; that retrieves facts from external commonsense knowledge bases and learns to deduce new facts. We then explore search-based methods that utilizes the retrieval-augmented T5 model to generate multiplestep proof s. Manual verification results show the efficacy of the proof generation process. We use these generated steps as additional training data and show improvement in end-to-end NLI task performance.</p><p>Our contributions include, 1) using next-step supervision to train a general-purpose T5 encoderdecoder based entailment model to generated entailment chains. 2) We use a fact retriever, a fact composition model; and search to generate sequence of commonsense-augmented intermediate steps. We use human verification metrics to show the correctness of the generated proofs. Lastly, 3) we also show that augmenting such proofs during training can help enhance an NLI system's performance on MNLI, and MED (under low-training data regimes), 4) while benefitting examples of specific reasoning types (shown through LONLI).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Proofs in the NLI Context</head><p>Given a natural language premise-hypothesis pair, an ideal NLI system should follow a logical sequence of steps to determine whether the hypothesis is entailed by, contradicts, or is neutral w.r.t the premise. We call this logical sequence of steps as proofs. However, as <ref type="bibr" target="#b6">Dalvi et al. (2022)</ref> observes, such proofs do not come with guarantees as given by formal axiomatic systems. To make generation and verification easier, we resort to defining some logical properties that valid proofs should have.</p><p>Given a premise (P ), a hypothesis (H), and an implicit knowledge base KB<ref type="foot" target="#foot_0">1</ref> , an NLI proof ⟨P, H⟩ (or ⟨P, ¬H⟩ for contradiction) is a sequence of sentences (Y 1 , . . . , Y m ), where Y j is either an inferred intermediate step (denoted by I j ), or an external fact or rule (denoted by F j ). Proof ⟨P, H⟩ can also be thought of a postorder traversal of an Entailment Tree <ref type="bibr" target="#b6">(Dalvi et al., 2022)</ref>. A valid proof should satisfy the following properties: i) (Correctness 1) each step is either a generic rule, or a fact which is a entailed by the premise; ii) (Correctness 2) hypothesis (or negated hypothesis) is a valid entailment of premise and intermediate steps; iii) (Minimality 1) each proof upto Y j (including H) should be minimal proof for ⟨P, Y j ⟩, iv) (Minimality 2) the sentences in the intermediate step (I j ) should not be trivially decomposable (us-ing common linguistic or logical constructs) 2 and consecutive inferred steps should be sufficiently different, and v) (Order) a step can only be generated with the help of previous steps.</p><p>We provide few example proofs in Table <ref type="table" target="#tab_0">1</ref>, highlighting the properties of correctness and minimality. These constraints motivate our method to generate proof s for arbitrary P-H pairs with only nextstep supervision. In Figure <ref type="figure" target="#fig_0">1</ref>, we show an example proof which uses external (commonsense) facts (or rules) in sequence. For neutral cases, such properties are hard to define. Inspired from <ref type="bibr" target="#b13">Kumar and Talukdar (2020)</ref>, we proposed a method for intermediate step generation of neutral instances which is used only for data augmentation experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Provers: Generating Proofs with Next-Step Supervision</head><p>A typical possibility to build provers is by training on an NLI dataset with groundtruth proofs, collected using crowd-sourcing or created using formal logic. However, crowd-sourced explanations are highly subjective and diverse; hence not easily verifiable. Similarly, following ProofWriter, generating formal logic-based proof is possible but hard to scale for arbitrary P-H pairs. We instead rely on various NLI datasets, from which models can learn multiple ways of generating entailments, contradictions, and intermediate steps. We then enhance such provers with facts retrieved from knowledge bases and sentence composition methods. We use these techniques effectively to search for more generalized multiple-step proofs. We start from the premise P and generate the steps of the proof recursively with the PROVER model. We use the term PROVER to collectively denote the models in §3.1 and §3.2 as discussed next.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Multi-Task Supervision</head><p>We train a single T5-Large model with various objectives to generate inferences from the premise. The objectives are specified by prefix tokens in the input text. The objectives are as follows.</p><p>Entailed Sentence Generation: The model is trained to generate possible entailments E from the 2 M1 captures redundancy (see E4 in Tab. 1). M2 captures some aspects of atomicity. Sentences should not be compound in nature. We prefer "John is going to Paris. Mia is going to Paris." over "John and Mia are going to Paris". It also entails that intermediate conclusions should correspond to a semantic frame (which can not be trivially decomposable without losing context). However the latter is quiet hard to verify. premise P . The entailment instances of the SNLI dataset <ref type="bibr" target="#b1">(Bowman et al., 2015)</ref> is used for training. The hypothesis H is considered as E during training. The input to the model is entail: P and the output to be generated is H.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Contradictory Sentence Generation:</head><p>The model is trained to generate possible contradictions rom the premise P . We use the relevant instance pairs in the SNLI dataset for this objective. The input to the model is contradict: P and the output to be generated is the contradictory hypothesis H.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Monotonic Sentence Generation:</head><p>The model is trained to generate monotonic inferences M from the premise P . The input is monotonic: P and the output to be generated is M. We use the Monotonicity Entailment Dataset (MED) <ref type="bibr" target="#b32">(Yanaka et al., 2019)</ref> for this objective.</p><p>We merge and shuffle instances from the respective datasets to ensure that training is performed for all the objective functions simultaneously.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Fact Retriever and Sentence Composition</head><p>Fact Retriever The generator model ( §3.1) can not generate proofs, which need reference to some external facts, or commonsense knowledge. Such knowledge may not be readily available in the generator model. It is thus necessary to assist the proof generation algorithm with relevant factual knowledge to generate accurate and complete proofs.</p><p>We use sentences in Open Mind Commonsense (OMCS) <ref type="bibr" target="#b24">(Singh et al., 2002)</ref> and Generic-sKB <ref type="bibr" target="#b0">(Bhakthavatsalam et al., 2020)</ref> as the knowledge base (KB). The sentence embedding model all-mpnet-base-v2 <ref type="bibr" target="#b18">(Reimers and Gurevych, 2019)</ref> is used to retrieve facts for a given (premise, hypothesis) pair from the KB. For a sentence s, we retrieve the facts F from KB based on highest embedding cosine similarity in the following way: noun tokens n p , n h are extracted from the premise and the hypothesis. n p , n h are divided into small groups of related words using clustering with word embeddings. For instance, the following groups are created for the example in Figure <ref type="figure" target="#fig_0">1</ref>: {dog, animal}, {snow, cold}, {frisbee, toy, plastic}. Each of the groups is then merged together in a single string s for performing retrieval. We deduplicate semantically close facts before the next stage ( §4.2). Sentence Composition We train another T5-Large model to generate compositions from a pair of input sentences. The model is trained on sentence triplets from the Entailment Bank <ref type="bibr" target="#b5">(Dalvi et al., 2021)</ref> and RuleTaker <ref type="bibr" target="#b3">(Clark et al., 2020)</ref> datasets. Few example triplets ⟨S 1 , S 2 , S 3 ⟩ are: ⟨Bob is green, All green people are rough, Bob is rough⟩, and ⟨Eruptions produce ash clouds, Ash blocks sunlight, Eruptions block sunlight⟩. Here, input S 1 and S 2 can be composed to conclude output S 3 . The sentence composition model, the fact retriever model and the monotonic entailment model is used to generate proofs ( §4.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Proof Generation</head><p>We generate proofs with two different methods as described below, and provide some examples of generated proofs in Figure <ref type="figure" target="#fig_0">1</ref> and Table <ref type="table" target="#tab_2">2</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Unconstrained Proof Search</head><p>The entailment and monotonic sentence generation setup use the premise P to create possible inference chains. We use this generation setup recursively with level/beam search to find multistep proofs (I 1 , I 2 ) as follows: i) Given P , we first generate one-step implications î1 from the T5 generator. We denote the n closest implications to the hypothesis H as the filtered set i 1 . The closeness is computed using cosine similarity with H using the all-mpnetbase-v2 <ref type="bibr" target="#b18">(Reimers and Gurevych, 2019)</ref> model. ii) i 1 is used to generate the next set of implications î2 , which is filtered further to obtain i 2 . iii) The n implications in i 2 and their respective source sentences in i 1 form the multistep proof set (I 1 , I 2 ) for level search. The top n implications (according to closeness with H) from the merged set of i 1 and (i 1 , i 2 ) form the proof set for beam search.</p><p>We use the terminology unconstrained proof search for the above chaining algorithm with sentence embedding based closeness measure. We use n = 10 in our experiments. The generation and filtering process can be performed repeatedly to form proofs with more steps: (I 1 , I 2 , ..I m ). However, we observe diminishing results after I 2 , as steps tend to become repetitions of each other.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Proof Search with External Facts</head><p>Given a premise, hypothesis pair (P, H), we denote the facts retrieved from KB as F . Let F consist of m distinct facts {F 1 , F 2 , .., F m }. We now use the sentence composition model in two stages to generate the proof: i) Fact Filtering Stage: We compose the premise with the retrieved facts individually. The fact is used in the next stage if the composition is closer to the hypothesis than the premise and Algorithm 1: Proof Search with Facts Algorithm Given: 1) ⟨P, H⟩ pair and knowledge base KB.</p><p>2) Entailment Predictor Model E(x, y) = RoBERTa Large MNLI 3) Next-step Entailment Model N S(x) = T5 Large in §3.1 4) Distance D(x, y) = cosine similarity using all-mpnet-base-v2. (Higher scores indicate closer pairs.) Output: Proof Steps ⟨I1, . . . , Im⟩ Retrieve F = {F1, .., Fm} from KB based on §3.2 Fact Filtering Stage:</p><formula xml:id="formula_0">Useful Facts U , Useful Facts Distances U d = [ ], [ ] // ⊕ denotes appending to list. for Fi in F do Compose P, Fi → Ii if D(Ii, H) &gt; D(P, H) &amp; E(Ii, H) = entailed then U ← U ⊕ [Fi]; U d ← U d ⊕ D(Ii, H) end Sort U based on higher to lower U d Initialize Step S = P , score = 0, All Steps = [P ] Search Stage: for Fi in U do Ii ← compose(S, Fi) Next step Mi ← N S(Ii) d1, d2, d3 = D(S, H), D(Ii, H), D(Mi, H) if d2 &gt; d1 &amp; d2 &gt; d3 &amp; d2 &gt; score then S ← Ii S ← S ⊕ [Ii] score ← d2 else if d3 &gt; d1 &amp; d3 &gt; d2 &amp; d3 &gt; score then S ← Mi S ← S ⊕ [Mi] score = d3 end S ← S ⊕ [H] Proof ← S</formula><p>the hypothesis is entailed by the composition; ii) Search Stage: The selected facts are ranked based on their corresponding composition's distance from the hypothesis. The facts are then iteratively used with the sentence composition model and monotonic sentence generator models. For each step, we ensure that the step is closer to the hypothesis than the preceding step. The detailed algorithm is presented in Algorithm 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Results</head><p>We perform two sets of experiments -i) we use human evaluation to evaluate different aspects of the proofs generated from our proposed method, and ii) we use the generated proofs as additional labeled data for NLI and analyze its effect on the NLI classification task performance. We compare our results against the baseline ENTAILER <ref type="bibr" target="#b27">(Tafjord et al., 2022)</ref> model (a representative of Class B models, see §6 Fig. <ref type="figure" target="#fig_1">2</ref>). We do not compare with Class A algorithms, which require a pre-specified complete set of facts and rules (such as METGEN,  IRGR, NLPROOFS) 3 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Qualitative Analysis.</head><p>We perform a qualitative analysis of generated proofs and show some examples in Table <ref type="table" target="#tab_2">2</ref>. We show correct proofs with fact composition in examples (i) -(iii). The first proof uses a monotonically generated sentence as one of the intermediate steps. In example (ii) the fact: Sunsets can happen at the end of the day is used for proving the hypothesis. For example (iii), the fact: A drum is a percussion instrument is retrieved and used for the proof. A more concise proof could have used the alternative fact: A drum is an instrument. However, this alternative fact does not appear in our retrieval corpus of OMCS and GenericsKB. Hence, some proofs have constituting facts that are somewhat over-informative. Finally, we show an example of unconstrained proof without facts composition in example (iv). We observe that fact composition provides consistently superior results, especially when ontological knowledge (IsA, HasA, is-part-of relations) is involved.</p><p>We also perform error analysis and show some common error patterns in Table <ref type="table" target="#tab_2">2</ref>. In example (v), an unrelated fact is retrieved which is not useful for 3 Our experiment with premise and retrieved facts for NL-PROOFS show inferior performance, which is expected. the proof. The premise and the hypothesis are lexical/syntactic paraphrases in example (vi). Hence, no intermediate steps are required as proof. In example (vii), undue specialization or hallucinations are introduced in the intermediate steps, as the word person is changed to a woman and girl. Example (viii) requires spatial reasoning about physical objects skateboard and rock.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Human Verification of Proofs</head><p>We perform human verification on a subset of generated proofs in the SNLI dataset. We train four CS graduate students (trained in NLP) with explicit instructions (in Appendix). We select top-2 proofs from unconstrained proof search (PROVER UPS) with beam search for 500 randomly selected SNLI entailment instances -resulting in a total of 1000 proofs. We also evaluate 500 proofs from the proof search with facts (PROVER PSF) method and the ENTAILER method. Human annotators score each proof based on the following: (i) correctness, (ii) minimality, (iii) number of useful facts, and (iv) if the hypothesis follows from the premise and retrieved facts. The (iii), (iv) scores are judged for the PROVER PSF and ENTAILER methods. We refer the reader to Appendix E for detailed instructions for human verification.</p><p>We normalize the scores on a scale of 0-100 and show the results in Table <ref type="table">3</ref>. Human verification results in a normalized correctness score of 69.45% for PROVER UPS and a significantly improved 84.66% for PROVER PSF. The minimality scores for both methods are around 74-75%. The Useful metric is built in a way such that the presence of redundant facts is penalized. We find that 45.18% of the facts are useful 4 , suggesting that proofs contain redundant facts and compositions.</p><p>Overall, the retrieved facts can be used to conclude the hypothesis in 82.54% cases. In contrast, the ENTAILER method achieves correctness of 74.23%, which is around 5% better than PROVER UPS, but still much lesser than PROVER PSF. The minimality score of ENTAILER is around the same range as our models, but the Useful and Follow score for is much poorer compared to PROVER PSF.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Usefulness of the Prover for NLI Tasks</head><p>As illustrated in §3.1, the PROVER model is trained on various objective functions to generate inferences from the premise. Here, we show that these inferences could be used to improve end-to-end NLI task accuracy. We consider the entailed, contradictory, neutral, and monotonic sentence generation setup of §3.1 and apply it on the premises of the SNLI dataset to create corresponding inferences. For a particular premise P , the inferences generated from the above four setups are considered to have a label of entailment, contradiction, neutral, and entailment, respectively. The inferences generated from the PROVER are considered as additional labeled data for supervised learning in NLI tasks. In particular, we finetune RoBERTa-Large model on the MNLI <ref type="bibr" target="#b31">(Williams et al., 2018)</ref> dataset in a low-data regime. The models are trained with either (i) MNLI-only data or (ii) a mix of MNLI and PROVER generated data. We also benchmark the ENTAILER model as the main comparative baseline where (iii) mix of MNLI and ENTAILER generated data is used for training.</p><p>We evaluate the models on MNLI, Monotonicity 4 our retriever is frozen and the commonsense knowledge base may not contain the appropriate useful fact Entailment Dataset (MED) and LoNLI <ref type="bibr" target="#b28">(Tarunesh et al., 2021)</ref>. The incorporation of PROVER generated data helps in improving performance across most settings in these datasets. We also observe that PROVER generated data is significantly better than ENTAILER generated data in MED and LoNLI.</p><p>We also train and evaluate DeBERTa models for which the results are shown in Appendix D.  categories, such as quantifier, temporal, and syntactic. We report results for evaluation on LoNLI with models trained on subsets of MNLI and optionally the PROVER or ENTAILER generated data in Table <ref type="table" target="#tab_6">5</ref>. We observe a similar trend, where incorporation of PROVER generated data helps in improving the overall performance with significant gains across a number of reasoning categories. The improvement in numerical, relational, and temporal categories are most prominent. We also find an almost 2% overall improvement for 5% MNLI + 5% Proofs over 10% MNLI + 0% Proofs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Results for MNLI and MED:</head><p>Performance of Prover on Multi-Tasks: We report the performance of PROVER on the constituting tasks it was initially trained on (Sections 3.1 and 3.2) in Table <ref type="table" target="#tab_7">6</ref>. We generate potential entailment and contradictory sentences from the premises in SNLI and monotonic sentences from the premises in MED. We measure the quality of the generations using the generative metrics BLUE unigram, METEOR, ROUGE-L, and CIDEr. We also measure the NLI label of the (premise, generated sentence) pair using a pre-trained NLI prediction model. The percentage of generated instances that corresponds to the correct label is shown in the Acc or Accuracy column in Table <ref type="table" target="#tab_7">6</ref>. In particular, 93.39% of the generated entailment instances are classified as entailment, and 83.35% of the gener-ated contradictory instances are classified as a contradiction. The accuracy scores combined with the generative metrics let us conclude that the PROVER model is indeed able to generate high-quality inferences as required.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>We explore generation of multiple-step natural language proofs for the NLI task for real-world cases, without full context and without complete supervision. We discuss types of proof datasets, proof generation algorithms and how proofs can be further utilized.</p><p>Categories of Proofs. The NLP community has transitioned from summarized explanations (Wiegreffe and Marasović, 2021) to multiple-step natural language-based or structured proof trees (NL-Prolog). Human-provided explanations <ref type="bibr" target="#b2">(Camburu et al., 2018)</ref> are hard to validate; and structured explanations are hard to scale. For certain closedworld setting <ref type="bibr" target="#b26">(Tafjord et al., 2021;</ref><ref type="bibr" target="#b22">Saparov and He, 2022)</ref> and symbolic domains, using synthetically generated explanations as supervision has been a popular choice. In these datasets (and En-tailmentBank, ProntoQA), the common assumption is that, all sentences (or facts) required to prove (or disprove) a statement is provided in context. Similarly, <ref type="bibr" target="#b16">Nye et al. (2021)</ref> explored NATU-RALPROOFS, where each proof step consists of both natural language and mathematical symbols.</p><p>The underlying reasoning task being mathematical, makes the steps more well-defined. Here, we consider an open-ended context and define constraints over natural language proofs to ease validation and generation.  <ref type="bibr" target="#b11">(Hong et al., 2022;</ref><ref type="bibr" target="#b33">Yang et al., 2022)</ref>. Class B uses backward-chaining, while taking the entire premise and (optional) external facts into context in each step <ref type="bibr" target="#b27">(Tafjord et al., 2022)</ref>. Ours is Class C , where we use forward chaining, and add single retrieved fact in each step (or uses monotonic entailment generator to generate entailments).</p><p>Iterative Proof Generation and Search.  We study multi-step reasoning for the NLI task; where connecting a premise and hypothesis may require external knowledge. Our underlying T5 model is motivated by ProofWriter. However, we do not provide the required rules explicitly, do not restrict the natural language input in any form and do not use end-to-end supervision. The fact retrieval method is inspired from <ref type="bibr" target="#b8">Guu et al. (2020)</ref>; <ref type="bibr" target="#b7">Gontier et al. (2020)</ref>. <ref type="bibr" target="#b7">Gontier et al. (2020)</ref> proposes to combine a non-parametric retriever model with a parametric generator for knowledge-augmented NLP tasks. We use a retrieval method with frozen parameters as we do not have knowledge-augmented sentence composition supervision for learning retrieval and generation in an end-to-end fashion.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We propose a method to generate knowledgeenriched multiple-step textual proofs (intermediate conclusions) for the NLI task utilizing only next-step supervision. We train a T5 model to generate the next step given a premise-hypothesis pair, and use external commonsense knowledge augmentation to search for more generalized proofs. To ease generation and verification, we introduce constraints over expected proofs, and associated metrics. Human verification shows the effectiveness of our proposed method. We also show that our generated proofs can be used to improve NLI task performance using standard data augmentation techniques (on low-data scenarios), benefiting targeted reasoning types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Limitations</head><p>Firstly, we evaluated our model on the NLI task of English language. Multilingual NLI models have been proposed in the last few years, on which we want to evaluate our framework as future work. However, the absence of large commonsense corpus for retrieval could present some difficulty for non-English languages. Secondly, we have evaluated our model on SNLI which contains simple premise hypothesis pairs. In the future our work could be extended to tackle more complex sentences or paragraphs and mathematical reasoning datasets for proof generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Prover</head><p>The multitask T5 generator model( §3.1) can be trained on additional objective functions for improved performance and better generalization. The objectives are as follows: Explanation Generation: The model is trained to generate an explanation X given the premise P and hypothesis H. The input is explain: P &lt;sep&gt; H and the output to be generated is X. The non-neutral instances of the E-SNLI <ref type="bibr" target="#b2">(Camburu et al., 2018)</ref> dataset is used for this objective.</p><p>Entailment Bank Proof Generation: The model is also trained to generate one-step proofs given a premise and a conclusion. Suppose conclusion c can be derived from premise sentences s 1 , s 2 . For this instance, the input to the model is proof: s 1 &lt;sep&gt; c and the output to be generated is s 2 . Another instance is also created by interchanging s 1 and s 2 in the input and output. We consider all leaf sentences, intermediate conclusions, and the final hypothesis of the proof trees in the Bank dataset <ref type="bibr" target="#b5">(Dalvi et al., 2021)</ref> to create these instances.</p><p>These two objectives are more useful for explanation / intermediate step generation for neutral premise-hypothesis pairs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Constrained Proof Generation</head><p>The explain: and proof: generation setup can be used to directly generate the proof in using the premise P and hypothesis H. We observe that the generator model learns to exploit the proof generation process by generating a single sentence as proof, due to the nature of the training data in E-SNLI and Entailment Bank. We thus evaluate the generated proofs against the gold test set annotations in E-SNLI with a number of text generation evaluation metrics -BLEU, METEOR, ROUGE, CIDER and semantic similarity (SIM) using allmpnet-base-v2. The results are reported in </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Additional Results</head><p>We show some additional results to show the usefulness of the PROVER for various NLI tasks. This is an extension of the results reported in §5.3. As described earlier, we use the PROVER generated data as additional labeled data for supervised learning in NLI tasks. We train a DeBERTa-Large model <ref type="bibr">(He et al., 2021b)</ref> with i) MNLI-only data or ii) a mix of MNLI data and PROVER or ENTAILER generated data. The results are reported for MNLI and MED datasets in table 8, and for Lo-NLI dataset in table <ref type="table">9</ref>.</p><p>For the DeBERTa-Large model, we found similar conclusions that we made for the RoBERTa-Large model. The incorporation of PROVER generated data helps in improving performance across most settings in the three datasets. In the low data  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: We illustrate a type of proof algorithm that we explore in this paper: proof search with facts ( §4.2).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Types of proof generation algorithms based on how they utilize external knowledge and premise sentences. Class A use a select-compose-iterate strategy and do not use openended set of facts<ref type="bibr" target="#b11">(Hong et al., 2022;</ref><ref type="bibr" target="#b33">Yang et al., 2022)</ref>. Class B uses backward-chaining, while taking the entire premise and (optional) external facts into context in each step<ref type="bibr" target="#b27">(Tafjord et al., 2022)</ref>. Ours is Class C , where we use forward chaining, and add single retrieved fact in each step (or uses monotonic entailment generator to generate entailments).</figDesc><graphic coords="8,103.61,70.87,152.78,159.36" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>we use external sentences and are not limited to full-context specifications as input. We generate the tree by adding individual external facts in each step (or generating single-step entailments), adding a flavor of sentence selection by Class A . Utilization of Proofs to Improve End-task Accuracy. He et al. (2021a) and Kumar and Talukdar (2020) has demonstrated the utility of generating proofs (or natural language explanations). In Knowledge-graph based QA context, He et al. (2021a) show how a teacher network trained on additional intermediate hops can be used to enhance the performance of a student network, that is exposed only to the final output supervision. Most importantly, Kumar and Talukdar (2020) uses labelspecific explanations and use them directly to generate the NLI conclusion. While the authors show how explanations are used to generate the conclusion, the authors do not generate fine-grained steps. Authors also compare with a non-recent baseline by Camburu et al. (2018) on MNLI, instead of SOTA methods such as DeBERTA-large.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>I1: A young girl in a red shirt and cap is in front of others. → I2: The young girl is wearing a cap and red shirt. → H Correctness and minimality of proofs as outlined in §2.</figDesc><table><row><cell>Premise (P)</cell><cell>Hypothesis (H)</cell><cell>Proof</cell><cell cols="4">Correctness Minimality C1 C2 M1 M2</cell></row><row><cell>The wind propels a sailing ship on a group of cruisers.</cell><cell>There are many boats out.</cell><cell>P → I1: A group of cruisers are in the water. → H water. → I2: A group of boats are in the</cell><cell>✔</cell><cell>✔</cell><cell>✔</cell><cell>✔</cell></row><row><cell>A young girl wearing a red shirt and cap</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>smiling and holding a small toy is</cell><cell>The young girl is wearing a</cell><cell></cell><cell>✔</cell><cell>✔</cell><cell>✖</cell><cell>✖</cell></row><row><cell>standing in front of a group of children</cell><cell>red shirt.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>playing behind her.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Numerous customers browsing for products in a market.</cell><cell>People are shopping.</cell><cell>P → I1: A group of people are shopping. shopping. → H → I2: There are a bunch of people</cell><cell>✔</cell><cell>✔</cell><cell>✖</cell><cell>✔</cell></row><row><cell>A gentleman with his eyes closed playing an old fluglehorn into a microphone.</cell><cell>A man plays an instruement with his eyes closed.</cell><cell>P → I1: The gentleman is listening to music. → H</cell><cell>✔</cell><cell>✖</cell><cell>✖</cell><cell>✔</cell></row></table><note><p>P →</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>Bicyclist ride the course near the ocean as the day comes to an end. H: The cyclist was riding near the ocean at sunset. F1: Sunsets can happen at the end of the day. F1 &amp; P → I1: A cyclist ride the course near the ocean during the sunset.</figDesc><table><row><cell>#</cell><cell>Premise (P) &amp; Hypothesis (H)</cell><cell>Proof</cell><cell>Remarks</cell></row><row><cell>(i)</cell><cell>P: A female guitarist is playing on stage. H: A woman is playing her instrument.</cell><cell>F1: A guitar is an instrument. F1 &amp; P → Monotone → I1 A woman is playing an I1 → H instrument.</cell><cell>Correct proof with fact composition.</cell></row><row><cell>(ii)</cell><cell></cell><cell></cell><cell>Correct proof with fact composition.</cell></row><row><cell></cell><cell></cell><cell>I1 → H</cell><cell></cell></row><row><cell></cell><cell></cell><cell>F1: A drum is a percussion instrument.</cell><cell></cell></row><row><cell></cell><cell>P: A baby girl and little boy are standing next to a guitar</cell><cell>F1 &amp; P → I1: A baby girl and little boy are standing next</cell><cell></cell></row><row><cell>(iii)</cell><cell>and a drum.</cell><cell>to a percussion instrument. I1 → I2: A baby girl standing next to a percussion</cell><cell>Correct proof with fact composition.</cell></row><row><cell></cell><cell>H: The girl is near an instrument.</cell><cell>instrument.</cell><cell></cell></row><row><cell></cell><cell></cell><cell>I2 → H</cell><cell></cell></row><row><cell>(iv)</cell><cell>P: An old woman in a white hat and purple and blue clothes is sitting down by a wooden building. H: There is a building.</cell><cell>P → I1: A woman is sitting by a wooden building. I1 → I2: The building is made out of wood. I2 → H</cell><cell>Unconstrained proof without fact composition.</cell></row><row><cell>(v)</cell><cell>P: A professional swimmer spits water out after surfacing while grabbing the hand of someone helping him back to land. H: A person is swimming.</cell><cell>F1: A hand is part of the arm. F1 &amp; P → Monotone → I1 A person is swimming. I1 → H</cell><cell>An unrelated fact is retrieved that is not useful for the proof.</cell></row><row><cell>(vi)</cell><cell>P: A black-haired man is entertaining a crowd with a hula hoop. H: A man has black hair.</cell><cell>P → I1: A man with black hair is performing. I1 → H</cell><cell>P and H are lexical or syntactic paraphrases.</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Introduction of undue</cell></row><row><cell>(vii)</cell><cell></cell><cell></cell><cell>specialization or</cell></row><row><cell></cell><cell></cell><cell></cell><cell>hallucinations.</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Requires spatial reasoning</cell></row><row><cell>(viii)</cell><cell></cell><cell></cell><cell>about physical objects</cell></row><row><cell></cell><cell></cell><cell></cell><cell>skateboard and rock.</cell></row></table><note><p><p><p>P: P: A person in a green robe sits on a couch with a blanket. H: A person in a robe sits on a couch. P → I1: A woman in a green robe sits on a couch. I1 → I2: A girl in a green robe sits on a couch. I2 → H P: A man gets a skateboard up on a big rock.</p>H:</p>The skateboarder is near a rock. P → I1: A person puts his skateboard on a rock. I1 → I2: Person skateboarding on a rock. I2 → H</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Examples of generated proofs. Analysis can be found in §5.1. Incorrect/unrelated snippets are shown in red.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>F1 scores for MNLI (val-matched) and MED datasets with the RoBERTa-Large model. Numbers on the MNLI % column indicate the percentage of the MNLI train set instance used for training. Numbers on the Proofs % column indicate the equivalent number of generated instances used for training.The instances are generated from our PROVER method or the baseline ENTAILER method. Scores are average of 3 runs.</figDesc><table><row><cell cols="3">Trained On MNLI % Proofs % Proofs From</cell><cell cols="2">MNLI MED</cell></row><row><cell>1</cell><cell>0</cell><cell>-</cell><cell>84.47</cell><cell>40.02</cell></row><row><cell>1</cell><cell>1</cell><cell>ENTAILER</cell><cell>84.73</cell><cell>39.10</cell></row><row><cell>1</cell><cell>1</cell><cell>PROVER</cell><cell>85.22</cell><cell>42.89</cell></row><row><cell>5</cell><cell>0</cell><cell>-</cell><cell>87.18</cell><cell>41.11</cell></row><row><cell>5</cell><cell>5</cell><cell>ENTAILER</cell><cell>86.93</cell><cell>39.72</cell></row><row><cell>5</cell><cell>5</cell><cell>PROVER</cell><cell>87.58</cell><cell>42.91</cell></row><row><cell>10</cell><cell>0</cell><cell>-</cell><cell>87.44</cell><cell>43.01</cell></row><row><cell>10</cell><cell>10</cell><cell>ENTAILER</cell><cell>88.02</cell><cell>40.95</cell></row><row><cell>10</cell><cell>10</cell><cell>PROVER</cell><cell>88.48</cell><cell>44.30</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4</head><label>4</label><figDesc></figDesc><table><row><cell>shows re-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Reasoning category wise F1 scores on the Lo-NLI dataset for the RoBERTa-Large model. Scores are average of 3 runs. We omit categories, for which relevant knowledge is absent from MNLI, SNLI, and EntailmentBank. Implicature and Presupposition are marked as * as they are rare in the source datasets.</figDesc><table><row><cell>Task</cell><cell cols="5">BLEU1 METEOR ROUGE CIDEr Acc</cell></row><row><cell>Entailment</cell><cell>28.29</cell><cell>17.70</cell><cell>38.56</cell><cell cols="2">61.50 93.39</cell></row><row><cell>Contradiction</cell><cell>21.46</cell><cell>10.55</cell><cell>25.76</cell><cell cols="2">26.24 83.35</cell></row><row><cell>Monotonicity</cell><cell>25.74</cell><cell>18.35</cell><cell>38.58</cell><cell cols="2">88.07 91.96</cell></row><row><cell>Composition</cell><cell>53.54</cell><cell>39.37</cell><cell>81.10</cell><cell>128.42</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>Results for Prover on various tasks it was supervised on as described in §3.1 and §3.2.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 .</head><label>7</label><figDesc></figDesc><table><row><cell>Prefix</cell><cell cols="4">BLEU1 METEOR ROUGE CIDEr SIM</cell></row><row><cell>explain</cell><cell>40.63</cell><cell>24.91</cell><cell>38.98</cell><cell>66.03 63.72</cell></row><row><cell>proof</cell><cell>26.31</cell><cell>15.37</cell><cell>26.98</cell><cell>77.05 47.20</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 7 :</head><label>7</label><figDesc>Results for constrained proof generation. The generated proofs are matched against the gold annotations in E-SNLI. SIM indicates semantic similarity. All scores except CIDEr are shown on a scale of 0-100.All datasets used and results reported in this paper are for English language. LoNLI: The dataset contains templates of (premise, hypothesis) pairs, associated examples, and corresponding entailment, neutral, or contradiction labels. For instance, one such entailment template is -premise: Name moved from Country1 to Country2; hypothesis: Name now lives in Coun-try2. All examples created from this template are labeled as entailment. There are 363 templates in total (166 entailment, 163 contradiction, 34 neutral) each having 1000 examples. The templates are categorized according to reasoning categories, such as lexical, syntactic, boolean, causal, etc. The dataset was inspired by the behavioral testing methodology of NLP systems proposed in CHECKLIST (Ribeiro et al., 2020).</figDesc><table><row><cell>C Datasets used</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 8 :</head><label>8</label><figDesc>F1 scores for MNLI (val-matched) and MED datasets for the DeBERTa-Large model. Scores are average of 3 runs.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Following(Dagan et al.,  </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>2005), we assume KB encodes commonly assumed knowledge as facts and rules.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>regime, the additional instances from PROVER helps in improving average performance in the MED dataset. The additional instances from EN-TAILER do help in improving the performance in some cases, but not always. In contrast, the performance in MED drops when ENTAILER generated data is used.</p><p>The incorporation of PROVER generated data also helps in improving the overall performance with significant gains across a number of reasoning categories in the Lo-NLI dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Instructions for Human Verification</head><p>We performed human verification for proofs with two intermediate steps. The following instructions were given as it is to the human annotators.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.1 Definition of Entailment</head><p>Entailment is a directional relation between two sentences -S1 and S2. The relation holds whenever the truth of the second sentence S2 follows from the first sentence S1. In other words, if a human reading S1 infers that S2 is true, then (S1, S2) is an entailment pair. Note that, (S1, S2) being an entailment pair does not necessarily mean that the reverse pair (S2, S1) is an entailment pair. Some examples are given below: Please note the difference between the last two examples carefully. The usage of the word musical instrument makes the third pair unique.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.3 Instructions</head><p>Consider a proof from the proof search with facts method. Each instance has four elements: i) Premise, ii) Intermediate Steps, iii) Hypothesis, and iv) Facts used. We are aiming to evaluate the quality of the proof. We illustrate a proof example which uses two facts -Fact 1, Fact 2, and has two intermediate steps -Step 1, Step 2. Considering this, we have 3 sentence pairs from the proof:</p><p>Each instance has to be scored in five aspects using the three above pairs and the two facts:</p><p>1. Correctness: Give a score among [3, 2, 1, 0]. This is assigned by checking the entailment label of the three pairs.</p><p>• X1, X2, X3 are all entailment: Score is 3.</p><p>• Only X1, X2 are entailment: Score is 2.</p><p>• Only X1 is entailment: Score is 1.</p><p>• All other cases: Score is 0.</p><p>Note that the priority of the pairs are: X1 &gt; X2 &gt; X3. If X2, X3 are both entailment but X1 is not then we will give a score of 0.</p><p>2. Minimality: Give a score among [3, 2, 1, 0]:</p><p>• If X1, X2, X3 are all unique pairs: Score is 3. • Score of 2, or 1, or 0 analogous to correctness, but conditioned on uniqueness.</p><p>3. Useful Facts: Give a score between [2, 1, 0] denoting how many facts are useful for the proof.</p><p>• Both facts are useful: Score is 2 • Only one fact is useful: Score is 1.</p><p>• Neither facts are useful: Score is 0.</p><p>4. Hypothesis follows: Does the hypothesis follow from the premise and the listed facts? This score is inspired from <ref type="bibr" target="#b6">Dalvi et al. (2022)</ref>.</p><p>• Clearly follows: Score is 2 • Somewhat follows: Score is 1.</p><p>• Does not follow: Score is 0.</p><p>We do not have any facts in the proof for the unconstrained proof search method. So, we measure only correctness and minimality for such proofs.</p><p>The scores for Correctness, Minimality, and Useful Facts are scaled appropriately for proofs with more intermediate steps and facts. During evaluation, we normalize all the scores between 0-1 (0-100 in %) by appropriately considering the number of intermediate steps and facts.</p><p>Details of the Annotators : The human verification was performed by five graduate students who are trained in natural language processing. All the students are fluent in English. They were paid hourly rates as deemed by our university.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Experimental Setup</head><p>We use beam search to generate outputs from the T5-Large models. A beam length of 10 is used. The T5-Large models were trained with the Adafactor optimizer <ref type="bibr" target="#b23">(Shazeer and Stern, 2018)</ref> with a learning rate of 5e-6. We retrieve top 8 facts (according to cosine similarity) from the retriever model for composition. We compute the generative evaluation metrics using this package: https://github.com/Maluuba/nlg-eval</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G Computational Resources</head><p>We use a single Quadro RTX 8000 GPU for our experiments. We train the PROVER T5 model and composition T5 model for 15 and 5 hours in this GPU. The T5-Large and RoBERTa-Large models have 770M and 355M parameters, respectively.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sumithra</forename><surname>Bhakthavatsalam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chloe</forename><surname>Anastasiades</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.00660</idno>
+		<title level="m">Genericskb: A knowledge base of generic statements</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A large annotated corpus for learning natural language inference</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabor</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1075</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="632" to="642" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">e-snli: Natural language inference with natural language explanations</title>
+		<author>
+			<persName><forename type="first">Oana-Maria</forename><surname>Camburu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Lukasiewicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page">31</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Transformers as soft reasoners over language</title>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oyvind</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Richardson</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2020/537</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Ninth International Joint Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Ninth International Joint Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">2020</biblScope>
+			<biblScope unit="page" from="3882" to="3890" />
+		</imprint>
+	</monogr>
+	<note>ijcai.org</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">The pascal recognising textual entailment challenge</title>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oren</forename><surname>Glickman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernardo</forename><surname>Magnini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning Challenges Workshop</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="177" to="190" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Bhavana</forename><surname>Dalvi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oyvind</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengnan</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannah</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leighanna</forename><surname>Pipatanangkura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2104.08661</idno>
+		<title level="m">Explaining answers with entailment trees</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Towards teachable reasoning systems</title>
+		<author>
+			<persName><forename type="first">Bhavana</forename><surname>Dalvi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oyvind</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2204.13074</idno>
+		<idno>CoRR, abs/2204.13074</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Measuring systematic generalization in neural proof generation with transformers</title>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Gontier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koustuv</forename><surname>Sinha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Pal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="22231" to="22242" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Retrieval augmented language model pre-training</title>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zora</forename><surname>Tung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Machine Learning, ICML 2020</title>
+		<meeting>the 37th International Conference on Machine Learning, ICML 2020</meeting>
+		<imprint>
+			<date type="published" when="2020-07-18">2020. 18 July 2020</date>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="3929" to="3938" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Improving multi-hop knowledge base question answering by learning intermediate supervision signals</title>
+		<author>
+			<persName><forename type="first">Gaole</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunshi</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wayne</forename><forename type="middle">Xin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Wen</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3437963.3441753</idno>
+	</analytic>
+	<monogr>
+		<title level="m">WSDM &apos;21, The Fourteenth ACM International Conference on Web Search and Data Mining</title>
+		<meeting><address><addrLine>Israel</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2021-03-08">2021. March 8-12, 2021</date>
+			<biblScope unit="page" from="553" to="561" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Improving deberta using electra-style pretraining with gradient-disentangled embedding sharing</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2111.09543</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">3</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">METGEN: A modulebased entailment tree generation framework for answer explanation</title>
+		<author>
+			<persName><forename type="first">Ruixin</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changshui</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-naacl.145</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: NAACL 2022</title>
+		<meeting><address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="1887" to="1905" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Learning the difference that makes a difference with counterfactually-augmented data</title>
+		<author>
+			<persName><forename type="first">Divyansh</forename><surname>Kaushik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><forename type="middle">C</forename><surname>Lipton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">NILE : Natural language inference with faithful natural language explanations</title>
+		<author>
+			<persName><forename type="first">Sawan</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Partha</forename><forename type="middle">P</forename><surname>Talukdar</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.771</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-07-05">2020. July 5-10, 2020</date>
+			<biblScope unit="page" from="8730" to="8742" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">The mythos of model interpretability</title>
+		<author>
+			<persName><forename type="first">Zachary</forename><forename type="middle">C</forename><surname>Lipton</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3233231</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Commun. ACM</title>
+		<imprint>
+			<biblScope unit="volume">61</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="36" to="43" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Entailment tree explanations via iterative retrieval-generation reasoner</title>
+		<author>
+			<persName><forename type="first">Danilo</forename><surname>Neves Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaofei</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaokai</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henghui</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinchi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiheng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Arnold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-naacl.35</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: NAACL 2022</title>
+		<meeting><address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="465" to="475" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Show your work: Scratchpads for intermediate computation with language models</title>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Nye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Johan Andreassen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Gur-Ari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henryk</forename><surname>Michalewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Bieber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aitor</forename><surname>Lewkowycz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Augustus</forename><surname>Odena</surname></persName>
+		</author>
+		<idno>CoRR, abs/2112.00114</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.10683</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Sentence-bert: Sentence embeddings using siamese bert-networks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Beyond accuracy: Behavioral testing of NLP models with CheckList</title>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Tulio Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongshuang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4902" to="4912" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Prover: Proof generation for interpretable reasoning over rules</title>
+		<author>
+			<persName><forename type="first">Swarnadeep</forename><surname>Saha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sayan</forename><surname>Ghosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.9</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020-11-16">2020. 2020. November 16-20, 2020</date>
+			<biblScope unit="page" from="122" to="136" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ATOMIC: an atlas of machine commonsense for ifthen reasoning</title>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Sap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Ronan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Bras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandra</forename><surname>Allaway</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannah</forename><surname>Lourie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brendan</forename><surname>Rashkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Roof</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Choi</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v33i01.33013027</idno>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirty-Third AAAI Conference on Artificial Intelligence, AAAI 2019, The Thirty-First Innovative Applications of Artificial Intelligence Conference, IAAI 2019, The Ninth AAAI Symposium on Educational Advances in Artificial Intelligence</title>
+		<meeting><address><addrLine>Honolulu, Hawaii, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2019-01-27">2019. 2019. January 27 -February 1, 2019</date>
+			<biblScope unit="page" from="3027" to="3035" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Language models are greedy reasoners: A systematic formal analysis of chain-of-thought</title>
+		<author>
+			<persName><forename type="first">Abulhair</forename><surname>Saparov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>He</surname></persName>
+		</author>
+		<idno>CoRR, abs/2210.01240</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Adafactor: Adaptive learning rates with sublinear memory cost</title>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4596" to="4604" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Open mind common sense: Knowledge acquisition from the general public</title>
+		<author>
+			<persName><forename type="first">Push</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erik</forename><forename type="middle">T</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Grace</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Travell</forename><surname>Perkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wan</forename><forename type="middle">Li</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">OTM Confederated International Conferences&quot; On the Move to Meaningful Internet Systems</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="1223" to="1237" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Natural language deduction with incomplete information</title>
+		<author>
+			<persName><forename type="first">Zayne</forename><surname>Sprague</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaj</forename><surname>Bostrom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swarat</forename><surname>Chaudhuri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="8230" to="8258" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Proofwriter: Generating implications, proofs, and abductive statements over natural language</title>
+		<author>
+			<persName><forename type="first">Oyvind</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavana</forename><surname>Dalvi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-acl.317</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL/IJCNLP 2021</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021-08-01">2021. August 1-6, 2021</date>
+			<biblScope unit="page" from="3621" to="3634" />
+		</imprint>
+	</monogr>
+	<note>ACL/IJCNLP 2021 of Findings of ACL</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Entailer: Answering questions with faithful and truthful chains of reasoning</title>
+		<author>
+			<persName><forename type="first">Oyvind</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavana</forename><surname>Dalvi Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2078" to="2093" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ishan</forename><surname>Tarunesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Somak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Monojit</forename><surname>Choudhury</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2107.07229</idno>
+		<title level="m">Trusting roberta over bert: Insights from checklisting the natural language inference task</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Is multihop QA in DiRe condition? measuring and reducing disconnected reasoning</title>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niranjan</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8846" to="8863" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Teach me to explain: A review of datasets for explainable nlp</title>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wiegreffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Marasović</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NeurIPS</title>
+		<meeting>NeurIPS</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1112" to="1122" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Can neural networks understand monotonicity reasoning?</title>
+		<author>
+			<persName><forename type="first">Hitomi</forename><surname>Yanaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koji</forename><surname>Mineshima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daisuke</forename><surname>Bekki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kentaro</forename><surname>Inui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satoshi</forename><surname>Sekine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lasha</forename><surname>Abzianidze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johan</forename><surname>Bos</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W19-4804</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 ACL Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP</title>
+		<meeting>the 2019 ACL Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="31" to="40" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Generating natural language proofs with verifier-guided search</title>
+		<author>
+			<persName><forename type="first">Kaiyu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jia</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="89" to="105" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

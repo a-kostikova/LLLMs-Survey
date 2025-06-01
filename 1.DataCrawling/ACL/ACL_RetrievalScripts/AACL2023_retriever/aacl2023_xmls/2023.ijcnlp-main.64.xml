@@ -1,0 +1,1595 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Towards LLM-based Fact Verification on News Claims with a Hierarchical Step-by-Step Prompting Method</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Xuan</forename><surname>Zhang</surname></persName>
+							<email>xuanzhang.2020@phdcs.smu.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and Information Systems Singapore Management University</orgName>
+								<address>
+									<addrLine>80 Stamford Rd</addrLine>
+									<postCode>178902</postCode>
+									<country key="SG">Singapore</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Wei</forename><surname>Gao</surname></persName>
+							<email>weigao@smu.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and Information Systems Singapore Management University</orgName>
+								<address>
+									<addrLine>80 Stamford Rd</addrLine>
+									<postCode>178902</postCode>
+									<country key="SG">Singapore</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Towards LLM-based Fact Verification on News Claims with a Hierarchical Step-by-Step Prompting Method</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2B8A39E5376BD79AFC9E149E4AC3CEA0</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:55+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>While large pre-trained language models (LLMs) have shown their impressive capabilities in various NLP tasks, they are still underexplored in the misinformation domain. In this paper, we examine LLMs with in-context learning (ICL) for news claim verification, and find that only with 4-shot demonstration examples, the performance of several prompting methods can be comparable with previous supervised models. To further boost performance, we introduce a Hierarchical Step-by-Step (HiSS) prompting method which directs LLMs to separate a claim into several subclaims and then verify each of them via multiple questionsanswering steps progressively. Experiment results on two public misinformation datasets show that HiSS prompting outperforms stateof-the-art fully-supervised approach and strong few-shot ICL-enabled baselines.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Chain-of-Thought Promp1ng</head><p>Claim: Professor Lieber was arrested for hiding funds from a Chinese lab tied to the new coronavirus.</p><p>Professor Lieber was arrested due to alleged funds from WUT and ties to a Chinese government program, unrelated to the novel coronavirus. Among [label set], the claim is classified as false.</p><p>Claim: Donald Trump has said he loves war, "including with nukes."</p><p>Human fact checker: half-true.</p><p>Vanilla CoT output: true.</p><p>During his term as the 45th President of the US, Donald Trump gave speeches proclaiming his love for war. Among [label set], the claim is classified as true.</p><p>Trump did say the phrase "I love war in a certain way" . But regarding 'including nukes', he suggested Japan could benefit from having them, not the US using them.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Misinformation such as fake news often causes confusion or wrong belief because they contain claims that are factually false or inaccurate <ref type="bibr" target="#b15">(Lazer et al., 2018)</ref>. To combat misinformation in news claims, stakeholders rely on fact-checking practices for claim verification. Fact-checking services online, such as PolitiFact<ref type="foot" target="#foot_0">1</ref> and Snopes<ref type="foot" target="#foot_1">2</ref> ) require laborious manual efforts, making it challenging to match the rapid pace of misinformation being produced.</p><p>In recent years, deep neural networks-based misinformation detection and fact-checking methods have been studied extensively <ref type="bibr" target="#b30">(Wang, 2017;</ref><ref type="bibr" target="#b25">Rashkin et al., 2017;</ref><ref type="bibr" target="#b22">Popat et al., 2018;</ref><ref type="bibr" target="#b20">Ma et al., 2019;</ref><ref type="bibr" target="#b13">Kotonya and Toni, 2020;</ref><ref type="bibr" target="#b1">Atanasova et al., 2020;</ref><ref type="bibr" target="#b36">Yang et al., 2022)</ref>. In particular, pre-trained language models (PLMs) like <ref type="bibr">BERT (Kenton and Toutanova, 2019)</ref> have demonstrated superior results and surpassed traditional methods in fake news related benchmarks <ref type="bibr" target="#b27">(Soleimani et al., 2020;</ref><ref type="bibr" target="#b1">Atanasova et al., 2020;</ref><ref type="bibr" target="#b14">Kruengkrai et al., 2021)</ref>, thanks to their strong ability to understand nuanced context for more accurate decision. Recently, large pre-trained language models (LLMs) with a massive number of parameters, such as GPT-3.5, have shown impressive performances in various downstream tasks <ref type="bibr" target="#b3">(Brown et al., 2020;</ref><ref type="bibr" target="#b32">Wei et al., 2022;</ref><ref type="bibr" target="#b39">Zhou et al., 2022;</ref><ref type="bibr" target="#b23">Press et al., 2022)</ref>. But it is basically unclear how well LLMs can perform on fact verification task as this is not at the core of LLM pre-training <ref type="bibr" target="#b3">(Brown et al., 2020;</ref><ref type="bibr">Anil et al., 2023)</ref>.</p><p>While it is not practical to directly fine-tune most LLMs, in-context learning (ICL) <ref type="bibr" target="#b3">(Brown et al., 2020)</ref> offers an alternative way to instruct LLMs to learn new tasks via inference only, conditioning on demonstration examples without any gradient updates. Properly prompted LLMs can carry out similar steps of logical traces with that in demonstration examples, which is known as Chain-of-Thought (CoT) reasoning <ref type="bibr" target="#b32">(Wei et al., 2022)</ref>. This generative reasoning process not only enhances the model's performance on tasks such as arithmetic, commonsense, and symbolic reasoning, but also facilitates the understanding of the underlying rationale behind the results from LLMs.</p><p>Previous research has suggested the importance of reasoning in improving the accuracy and explainability of fake news detection <ref type="bibr" target="#b11">(Jin et al., 2022)</ref>. However, leveraging LLM reasoning in the context of fake news related tasks remains under-explored. In this work, we first evaluate three classical ICL methods, including standard prompting and CoTbased methods for news claim verification. The standard prompting takes in a news claim for LLM to return its factuality judgment on the claim, while CoT additionally generates a series of intermediate verbal reasoning steps in the result. On two fake news benchmark datasets RAWFC <ref type="bibr" target="#b36">(Yang et al., 2022)</ref> and LIAR <ref type="bibr" target="#b30">(Wang, 2017)</ref>, we find that the standard prompting performs comparably well as strong supervised baselines, but the vanilla CoT is worse than the standard prompting, which is counter-intuitive. We found that there are two main issues causing the failure of vanilla CoT, as illustrated in Figure <ref type="figure" target="#fig_0">1:</ref> (1) Omission of necessary thoughts -vanilla CoT tends to ignore some noteworthy parts in the claim, resulting in inaccurate decisions; (2) Fact hallucination<ref type="foot" target="#foot_2">3</ref> -When necessary information is not available, the model tends to generate relevant but unreliable "facts" on its own, which misleads the final prediction.</p><p>To address the issues, we instruct LLMs to decompose a complex claim into smaller subclaims, so that the reasoning follows up with the finegrained decomposition. This aims to enable a much more thorough examination of the claim, reducing the risk of overlooking necessary details in the claim and enhancing the reasoning effect based on different reasoning chains. This is analogous to breaking down complex questions into subquestions <ref type="bibr" target="#b23">(Press et al., 2022)</ref> for QA and devising a plan for solving complex tasks into multiple steps <ref type="bibr" target="#b29">(Wang et al., 2023)</ref>. Additionally, we instruct LLM to employ a search engine for providing upto-date external information, aiding the model in reasoning and mitigating the hallucination problem. In light of this, we propose a Hierarchical Step-by-Step (HiSS) prompting method, which is composed of two main processes: (1) Claim Decomposition, which prompts the LLM to split a complex claim into smaller subclaims. (2) Subclaim Verification, which prompts LLM to verify the subclaim step-bystep employing a search engine to obtain relevant evidence. Our contributions are three-fold:</p><p>• We investigate the ability of LLMs with ICL for news claim verification. And we find that with only four-shot demonstration examples, LLMs can outperform most of the supervised methods, which indicates LLM is a promising tool to combat misinformation.</p><p>• We propose a HiSS prompting method to prompt LLM to do fine-grained checking of news claims.</p><p>Experiments on two public datasets show that HiSS-prompted LLMs outperform traditionally strong fully-supervised models with an improvement of 4.95% on average in macro-average F1 and set a new state-of-the-art for few-shot news claim verification<ref type="foot" target="#foot_3">4</ref> .</p><p>• Compared with previous methods, our HiSSprompted LLMs provide superior explanations, which are more fine-grained and easier to follow based on automatic and human evaluation.</p><p>2 Related Work</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Explainable Fake News Detection</head><p>Existing research on explainable fake news detection is mainly focused on generating explanations from input evidence. These approaches include generating human-comprehensible explanations for candidate facts based on background knowledge encoded in the form of Horn clauses <ref type="bibr" target="#b6">(Gad-Elrab et al., 2019)</ref>, as well as using attention-based models to highlight relevant factual words <ref type="bibr" target="#b22">(Popat et al., 2018)</ref>, news attributes <ref type="bibr" target="#b34">(Yang et al., 2019)</ref> and suspicious users <ref type="bibr" target="#b19">(Lu and Li, 2020)</ref>. Such an approach is based on general deep neural networks and knowledge base instead of language models. Later, <ref type="bibr" target="#b1">Atanasova et al. (2020)</ref> and <ref type="bibr" target="#b13">Kotonya and Toni (2020)</ref> propose directly producing veracity explanations based on extractive and abstractive summarization. However, these methods predominantly generate explanations by summarizing factchecking articles. While such an approach can somewhat explain fact-checking decisions following human thoughts written in the articles, it does not reason based on raw evidence to form the thoughts for drawing conclusions, which should be the core of fact verification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Fact Verification with Language Models</head><p>Previous research has utilized PLMs (e.g., BERT and BART) in fake news related tasks. For example, <ref type="bibr" target="#b17">Lee et al. (2020)</ref> directly uses the internal knowledge implicitly stored as PLMs' parameters for fact verification. <ref type="bibr" target="#b18">Lewis et al. (2020)</ref> proposes a retrieval-augmented approach to endow language models with document retrieval capability, which was applied for selecting relevant evidence in fact extraction and verification. Instead of using language models to provide evidence only, <ref type="bibr" target="#b16">Lee et al. (2021)</ref> utilizes LLMs such as GPT-2 <ref type="bibr" target="#b24">(Radford et al., 2019)</ref> and their few-shot capability to assess the claim's factuality based on the perplexity of evidence-conditioned claim generation.</p><p>Research on utilizing the reasoning capabilities of LLMs, such as CoT-based reasoning, in the misinformation domain is still limited. Recent works <ref type="bibr" target="#b23">(Press et al., 2022;</ref><ref type="bibr" target="#b37">Yao et al., 2023;</ref><ref type="bibr" target="#b10">Jiang et al., 2023)</ref> find that combining LLM's reasoning capability with accessibility to external knowledge is helpful to many reasoning-intensive NLP tasks including HotpotQA <ref type="bibr" target="#b35">(Yang et al., 2018)</ref> and FEVER <ref type="bibr" target="#b28">(Thorne et al., 2018)</ref>. In contrast to existing works, our research is motivated by the counterintuitive observation that CoT under-performs the standard prompting in news claim verification, and explores how to better elicit LLMs to mitigate two salient issues of LLMs in this task. We focus on the verification of real-world news claims, which could be more temporally dynamic and sensitive than FEVER type of claims, necessitating the model to access up-to-date knowledge.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Our HiSS Prompting Method</head><p>In this section, we address the two main issues of LLMs observed in the news claim verification task, i.e., 1) Omission of necessary thoughts and 2) Fact hallucination. We will first raise our specific research questions, and then present our HiSS prompting method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Research Questions</head><p>For the omission of necessary thoughts, the basic research question we need to address would be:</p><p>• How to instruct LLMs not to overlook any crucial points of a claim in its CoT?</p><p>The context of real-world claims could be complex and deep. For example, the seemingly easy claim Donald Trump has said he loves war, "including with nukes" is actually quite intricate, as it not only explicitly states Trump's declaration of love for both regular and nuclear wars, but also implies that in order to verify the statement is factual or not, one has to examine whether and in what circumstances he has expressed such passion on both types of wars. Therefore, we propose to prompt LLMs to thoroughly generate all explicit and implicit points that are check-worthy given a claim.</p><p>Hallucination is an intrinsic and fundamental problem of LLMs <ref type="bibr" target="#b9">(Ji et al., 2023;</ref><ref type="bibr" target="#b2">Bang et al., 2023)</ref>. We address it by providing relevant and up-to-date contextual information to LLM as external knowledge, assuming that hallucinations most likely result from the lack of knowledge on the necessary context <ref type="bibr" target="#b2">(Bang et al., 2023)</ref>. Our specific research question would be:</p><p>• How can we determine when external knowledge is needed during the verification and assist LLM in acquiring the necessary knowledge to mitigate fact hallucination?</p><p>While the decomposition can prompt LLM to raise fine-grained questions, the model may make up responses when background information is lacking.</p><p>For instance, if the model is unaware of the specific contexts of Trump's wording on "war" 5 and "nukes" 6 , it can lead to factually inaccurate answer, such as "During his term as the 45th President of the US, Donald Trump gave speeches proclaiming his love for war".</p><p>In the following subsections, we will describe our Hierarchical Step-by-Step (HiSS) prompting 5 The comment regarding Trump's "love" of war comes from his speech in Iowa on Nov. 12, 2015. In the speech, Trump theorized that former Iraqi leader Saddam Hussein feigned having weapons of mass destruction to scare Iran, before briefly sidetracking into his feelings on war generally: "This is the Trump theory on war," he said. "But I'm good at war. I've had a lot of wars of my own. I'm really good at war. I love war in a certain way. But only when we win."</p><p>6 Trump made his comments about "nukes" in an April 3 interview with Fox News Sunday's Chris Wallace. Wallace was asking Trump about his suggestion that Japan might be better off with nuclear weapons. Trump suggested that Japan might need to acquire nuclear weapons to defend against neighboring North Korea. It's worth noting that the comment wasn't about the United States using nuclear weapons, but about his belief that Japan might be better off if it had nuclear weapons.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>999</head><p>[K-shot Demonstration Examples are omitted here for space. ] Claim: Donald Trump has said he loves war, "including with nukes."</p><p>A fact checker will decompose the claim into 2 subclaims that are easier to verify:</p><p>1. Donald Trump has expressed a love for war. 2. Donald Trump has expressed a love for nuclear wars.</p><p>To verify subclaim 1, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer: We start by providing a few-shot demonstration, followed by appending the claim to be checked (underlined). HiSS prompts the LLM to (1) decompose the claim into subclaims; (2) verify each subclaim step-by-step via raising and answering a series of questions. For each question, we prompt LLM to assess if it is confident to answer it or not, and if not, we input the question to a web search engine. The search results are then inserted back into the ongoing prompt to continue the verification process; (3) generate the final prediction. The detailed demonstrations are omitted in this illustration for space which can be found in Table <ref type="table">8 (a)</ref> and<ref type="table">Table 8 (</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Claim Decomposition</head><p>At the first level of HiSS, we focus on instructing the model to capture all the explicit points in the original claim and decompose them into subclaims. This level aligns with previous studies <ref type="bibr" target="#b21">(Ousidhoum et al., 2022;</ref><ref type="bibr" target="#b5">Fan et al., 2020)</ref>  The demonstration examples vary in their complexity, with some simple claims not undergoing deep decomposition and more complex claims being decomposed into a few more subclaims. The LLM presumably follows the demonstrated decomposition approach in accordance with the complexity of the input claim c i . Therefore, N i is determined by LLM automatically. Figure <ref type="figure" target="#fig_1">2</ref> illustrates that LLM decomposes the test claim into two subclaims.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Subclaim-level Step-by-Step Verification</head><p>In the second level, LLM individually verifies each subclaim obtained from Level 1. Underlying the explicit points conveyed in each subclaim can be a few implicit points that are not expressed but need further scrutinization in one way or the other. For example, "Did Trump really say he loves war?", "What is his exact wording?", "In what context did he express it?", etc. for the first subsclaim "Donald Trump has expressed a love for war". Specifically, we leverage the reasoning capability of LLM to delve deeper into the underlying information needed to validate each subclaim s ij by generating a series of probing questions {q m ij }, each q m ij corresponding to an implicit point. Similarly, the number of probing questions of each subclaim is determined by LLM automatically with reference to the demonstration example. We adopt a progressive approach to generate the questions. This allows us to adjust the subsequent question generation based on the answers to previous questions and the acquired context information on the chain. As a result, the generated questions become more targeted and in-depth, facilitating a comprehensive analysis of the subclaims.</p><p>Once a question q m ij is generated, the next step is to elicit the corresponding answer a m ij from LLM. Recent works have found that providing LLMs with access to external knowledge can lead to notable improvements <ref type="bibr" target="#b37">(Yao et al., 2023;</ref><ref type="bibr" target="#b10">Jiang et al., 2023)</ref>. An important consideration is how to prompt LLM to automatically decide when it needs to consult with an external knowledge source (e.g., web search engine), to mitigate fact hallucination. It is hypothesized that LLM can be prompted to assess its own confidence in answering a question, so that we can acquire relevant external information to aid it when it lacks confidence. We resort to Google Search as an external source.</p><p>Specifically, LLM follows the specific format of demonstration examples to generate questions: it starts with the prefix "Question:" and presents the generated question q m ij , followed by "Tell me if you are confident ...". We control the model to pause at the end of q m ij by setting the phrase "Tell me if you are confident" as the stop sequence 7 . This aims to facilitate 1) extracting 7 The "stop sequence" mechanism is a setting provided by the OpenAI API (https://help.openai.com/en/ articles/5072263-how-do-i-use-stop-sequences). When a specific word or phrase is set as a "stop sequence", the model will halt its generation upon encountering that word the text of q m ij , and 2) probing the LLM to assess its confidence in answering the question without additional information. During its pause, we append the following instruction: Tell me if you are confident to answer the question or not. Answer with "yes" or "no":, and set the stop sequence to 'no'. This means that if the LLM responds with 'no', the model will cease to further generate an answer for q m ij , but wait for us to input q m ij into Google Search API<ref type="foot" target="#foot_4">8</ref> to obtain top search results<ref type="foot" target="#foot_5">9</ref> , so that we can feed them into the LLM for it to generate the answer a m ij . However, if the LLM responds with "yes", the LLM does not halt and proceeds to generate the answer a m ij to the question. Following the specific format of the demonstration example, after a prior question is addressed, the LLM continues to generate the subsequent question until it ceases to produce any more questions, transitioning then to the final prediction phase.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Final Prediction</head><p>Once all the subclaims have been verified, the LLM can make a final prediction. At this point, it outputs "Among [label set], the claim is classified as" before providing the final answer, where [label set] is substituted with the actual label set for a specific dataset. This facilitates the parsing of the final prediction, as the predicted class label will appear after the word "as" in the last output line.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments and Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>We conducted experiments on two standard English fake news datasets: 1) RAWFC <ref type="bibr" target="#b36">(Yang et al., 2022)</ref> contains gold labels based on Snopes factcheck articles and follows a three-class classification scheme (True/False/Half); 2) LIAR <ref type="bibr" target="#b30">(Wang, 2017)</ref>   <ref type="formula">2022</ref>), we use macroaverage precision (P ), recall (R), and F 1 (F 1 = 2RP R+P ) scores as the metrics for evaluation.</p><p>Supervised baselines. We compare with seven strong supervised models in claim verification: 1) CNN <ref type="bibr" target="#b30">(Wang, 2017)</ref> uses a convolutional neural model to integrate claim information and available metadata features (e.g. subject, speaker, and party) to get the prediction; 2) <ref type="bibr">RNN (Rashkin et al., 2017)</ref> uses recurrent neural networks to learn representation from word sequences of the claim. 3) DeClarE <ref type="bibr" target="#b22">(Popat et al., 2018)</ref> considers word embedding from both the claim and searched external information as evidence. 4) SentHAN <ref type="bibr" target="#b20">(Ma et al., 2019)</ref> proposes a hierarchical attention network to represent external evidence as well as their semantic relatedness with the claim. 5) SBERT-FC <ref type="bibr" target="#b13">(Kotonya and Toni, 2020)</ref> uses Sentence-BERT to encode both claim and evidence for classification. 6) GenFE <ref type="bibr" target="#b1">(Atanasova et al., 2020)</ref> predicts fact-check results and generates explanations in the multi-task setup. 7) CofCED <ref type="bibr" target="#b36">(Yang et al., 2022)</ref> uses a hierarchical encoder for text representation and two coarse-to-fine cascaded selectors to extract key evidence for news claim verification.</p><p>Few-shot baselines. We employ the following few-shot baselines for comparison:</p><p>1) Standard Prompting <ref type="bibr" target="#b3">(Brown et al., 2020)</ref> directly asks the LLM to determine the class label of the claim. 2) Vanilla CoT Prompting <ref type="bibr" target="#b32">(Wei et al., 2022)</ref> asks the LLM to output a thought chain before outputting the class label of the claim. The demonstration examples for both standard prompting and vanilla CoT are shown in Table <ref type="table" target="#tab_6">6</ref> and<ref type="table" target="#tab_7">7</ref>, respectively (see Appendix B). 3) Search-Augmented CoT Prompting: To compare with the baselines that can access extra knowledge, we augment vanilla CoT with search engine by using the claim as query to retrieve the background information, and then let the LLM output thought chain and class label based on the information retrieved. 4) ReAct Prompting <ref type="bibr" target="#b37">(Yao et al., 2023</ref>) is a variant of CoT that explores the use of LLMs to generate both reasoning traces and task-specific actions (e.g., search) in an interleaved manner. For a fair comparison, we employ the same demonstration examples and search engine across the different systems.</p><p>Implementation Details To ensure reproducibility, we generate outputs using greedy decoding by setting the temperature to 0. We also freeze the search results for the same queries involved in the experiments for fair comparison, as search engine results can potentially change over time across different runs. We utilize the GPT-3.5 series API text-davinci-003<ref type="foot" target="#foot_6">10</ref> as a backbone LLM. Following <ref type="bibr" target="#b32">Wei et al. (2022)</ref>, we tune the hyperparameter of the shot number within {1, 2, 4, 6, 8} on the validation set, and find that the model achieved the best results with 4 demonstration examples. Therefore, we set K = 4 throughout the experimentation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results of Claim Veracity Classification</head><p>Table <ref type="table" target="#tab_2">2</ref> summarizes the performance of verification, and we have the following findings:</p><p>• HiSS with LLM is comparable with or even better than the fully supervised SoTA. As shown in  <ref type="bibr" target="#b36">(Yang et al., 2022)</ref>.</p><p>ables evidence acquisition via web search when necessary, mitigating the risk of hallucination.</p><p>• The performance of few-shot ICL methods varies. Despite utilizing the same backbone, HiSS surpasses standard prompting, vanilla CoT, and ReAct by 7.95%, 11.65%, and 5.3% in F1 on average, respectively. This observation highlights the importance of specific methods prompting LLM for news claim verification. After conducting an in-depth error analysis on 40 randomly selected samples for vanilla CoT, ReAct, and HiSS 11 , as shown in Table <ref type="table" target="#tab_4">3</ref>, we classify the errors observed in the verification traces into two categories: (1) fact hallucination and (2) omission of necessary thoughts. We find that vanilla CoT exhibits substantial issues of both hallucination and thought omission. Although the Search-Augmented CoT improves its performance, it still falls short of meeting the standard prompting method. This suggests that using the original claim as a search query may end up with insufficiently detailed and informative search results, which explains its subpar performance. In contrast, ReAct, with its ability to autonomously generate search queries and access external knowledge, effectively mitigates failures 11 We omit standard prompting as it directly outputs the final prediction without providing intermediate or reasoning steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Error Types</head><p>CoT ReAct HiSS Fact Hallucination 43% 28% 5% Thoughts Omission 60% 53% 13% caused by hallucinations. However, it encounters challenges of thought omission as it may ignore noteworthy points of a claim due to the lack of claim decomposition and a fine-grained step-bystep process. Our HiSS prompting method instead effectively addresses both issues, thanks to its ability to cover both explicit and implicit points of the claim to get checked and the ability to seek necessary external knowledge supported by the search engine.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Ablation Study</head><p>To analyze the impact of different configurations of HiSS, we conducted an ablation analysis on RAWFC as shown in Figure <ref type="figure" target="#fig_3">3</ref>.</p><p>Effect of claim decomposition: Firstly, we consider HiSS without claim decomposition, where we directly pose probing questions based on the original claim, bypassing the claim decomposition step while keeping the step-by-step process. In this setting, the performance of HiSS decreases by 1.5%. This result demonstrates that claim decomposition, which separates the claim based on explicit points, is helpful in improving the final predictions.</p><p>Effect of subclaim step-by-step verification: Next, we conduct an ablation study on the step-bystep verification process for each subclaim. Instead of generating probing questions, we let LLM directly verify subclaims by searching for relevant background information. Subsequently, the LLM made predictions based on the subclaims and the retrieved information. Notably, this modification resulted in a 2.9% performance drop, underscoring the importance of employing the subclaim step-bystep verification approach to address the implicit points associated with each subclaim.</p><p>Effect of strategy using search: We compared three approaches to explore the effect of different strategies on using the search function or not and how it is used: 1) HiSS w/o search, which relies solely on the internal knowledge from LLM, 2) HiSS always search, which always queries the search engine to access the external knowledge, and 3) HiSS, which lets LLM self-decide whether to use the search results in each step based on its own confidence (see Section 3.3).</p><p>As expected, the performance of HiSS w/o search is poor which achieves only an F1 of 49.8%, indicating that reliance solely on LLM's internal knowledge is unreliable and insufficient. An interesting finding is that HiSS prompted to decide whether to leverage search results or not based on the self-confidence of LLM achieves an F1 of 54.4%, which is just slightly worse than the HiSS always search by 1.0%. Our further inspection reveals that out of the 200 test claims on RAWFC, a total of 934 questions are generated, and LLM flags 690 of them as being confident to answer. This indicates that in cases where the model is confident, external knowledge from the search engine can only marginally improve its performance, as the model is capable of providing accurate answers. In contrast, for the cases where the model lacks confidence, leveraging search results can enhance its performance much more greatly. Assuming that we can basically trust the factuality of search results from the web, this suggests that the model demonstrates a reasonably good estimation of its own confidence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Human Evaluation</head><p>We conduct a human evaluation to study the explanation quality of three different types of explanations: Gold justification given by human journalists, explanations generated by the strongest supervised explainable model CofCED, and the reasoning trajectory generated from the HiSS method. We ask three English-speaking judges to rate these explanations with scores of 1, 2, and 3 (higher is better) according to the following criteria:</p><p>• Coverage. The explanation and reasoning does not miss any important points that contribute to the check.</p><p>• Non-redundancy. The explanation and reasoning provided only includes relevant information that is necessary for understanding the claim and fact-checking it, without any redundant or repeated information.</p><p>• Readability. The explanation and reasoning is straightforward and simple to read.</p><p>• Overall. The overall quality of the generated explanation and reasoning.</p><p>We randomly sample 34 claims from the LIAR test set. Three annotators rate them independently. We compute Krippendorff's α inter-annotator agreement (IAA) (Hayes and Krippendorff, 2007) and get 0.36 for coverage, 0.42 for non-redundancy, 0.30 for readability and 0.38 for overall. Table <ref type="table" target="#tab_5">4</ref> shows the averaged scores of human evaluation. We find that the gold explanations are slightly better than HiSS-based explanations, while the state-of-the-art automatic explainable claim verification model CofCED is the worst. In particular, for the coverage criteria, HiSS can elicit explanations that are on par with the human-written ones. This explains that our HiSS elicits GPT-3.5 to generate more fine-grained checking points and steps. In addition, the non-redundancy score is relatively lower, since GPT-3.5 may generate repeated subclaims. We conjecture that this may be due to the intrinsic problem of greedy sampling of language models <ref type="bibr" target="#b8">(Holtzman et al., 2019)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion and Future Work</head><p>In this paper, we study different prompting methods for using LLMs in news claim verification. We introduce a hierarchical step-by-step (HiSS) method that prompts LLM to perform the verification in fine-grained steps, aiming to mitigate the omission of thoughts and fact hallucination. Validated on two public datasets, HiSS prompting improves the performance of LLMs on the task over fullysupervised SoTA models and its strong few-shot ICL-based counterparts. HiSS prompted explanations show superior explainability in their coverage and readability.</p><p>In the future, we will build a conversational factchecking model based on LLMs which can be userfriendly and incorporate human fact-checkers in the loop.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Limitations</head><p>Despite the promising performance of LLMs based on few-shot ICL, fact verification is a challenging research problem given the fact that performance scores are still quite low in general. There are a few limitations. Firstly, in this work, we highlight that all the baselines and our proposed method solely rely on textual information. We focus on an unimodal approach utilizing language models and do not consider the potential assistance from other modalities, such as images and videos, for this task. Although the exploration of multimodal approaches has gradually drawn some research attention <ref type="bibr" target="#b31">(Wang et al., 2018;</ref><ref type="bibr" target="#b26">Silva et al., 2021;</ref><ref type="bibr" target="#b4">Bu et al., 2023)</ref>, it falls outside the scope of our current work.</p><p>Meanwhile, the scope of this study is limited to the verification of news claims, which represents only a subset of the broader issue of misinformation. Misinformation encompasses a wide range of false or misleading information, including rumors, fake news articles, and spams <ref type="bibr" target="#b33">(Wu et al., 2019)</ref>. While our focus was specifically on news claims, future research could explore the detection and mitigation of misinformation in other formats.</p><p>Further, our proposed prompting method heavily relies on the capabilities of backbone LLMs, which can come with substantial computational costs. Our method leverages the advancements in multi-step reasoning exhibited by these LLMs, necessitating high-performance expectations. However, it is worth noting that most state-of-the-art LLMs are currently not open-source and only available as services. For instance, GPT-3.5 can only be accessed via API. The reliance on such LLMs makes deep model control infeasible, and the need for API access poses challenges in terms of cost.</p><p>Finally, while our approach leverages search engines to mitigate the fact hallucination issue in LLMs, it operates under the assumption that pertinent information is readily accessible through web search. However, not all information is indexed or available in search engines. For instance, if someone claims to have witnessed a rare meteorological phenomenon in a small town, such event might not be reported on major news websites or databases. Such firsthand, non-digitized accounts might be retrieved or fact-checked. This underscores the limitation in relying solely on search engines as a primary source of external knowledge for factchecking with LLMs. Another limitation of our method lies in the claims that are beyond established world knowledge when necessary relevant knowledge is not complete or even not available. This necessitates the model's ability to infer novel knowledge by formulating and subsequently validating appropriate hypotheses, a task that remains beyond the capabilities of existing technologies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Case Study</head><p>Table <ref type="table">5</ref> shows the example from LIAR where CoT 1) generates sentences containing fact hallucination, with inaccurate percentages (i.e., 57 and 1 percent), and 2) omits necessary verification of the given percentage. While its final prediction is correct, it still encounters the issue of omitting necessary thoughts by not verifying the authenticity of the "1 percentage to food and agriculture" claim before making a judgment on the entire claim's correctness. In contrast, our HiSS method examines each component of the claim, along with leveraging search engine to gather comprehensive information. However, it is worth noting that even though HiSS can generate a more detailed reasoning process, it still faces challenges related to repeated generations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Demonstration Examples</head><p>We show the demonstration examples used in the LIAR dataset. Table <ref type="table" target="#tab_6">6</ref> and 7 present the prompts we used for standard prompting and vanilla CoT, respectively. Table <ref type="table">8</ref> (a) and 8 (b) present the prompts used for HiSS.</p><p>Ground-truth: False. Claim: Says 57 percent of federal spending goes to the military and just 1 percent goes to food and agriculture, including food stamps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Standard Prompting</head><p>True.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Vanilla CoT</head><p>According to the Congressional Budget Office, the federal government spent $4.1 trillion. Of that, 57 percent went to the military and 1 percent went to food and agriculture, including food stamps. Thus the claim is classified as true.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ReAct</head><p>Thought 1: I need to search for information about federal spending to verify the claim that 57 percent goes to the military and 1 percent goes to food and agriculture, including food stamps. Action 1: Search[federal spending breakdown] Observation 1: This means federal spending was equal to 25% of the total gross domestic product (GDP), or economic ..." Thought 2: The observation contradicts the claim that 57 percent goes to the military and 1 percent to food and agriculture, including food stamps. The claim appears to be false. Action 2: Finish[False] HiSS A fact checker will decompose the claim into 2 subclaims that are easier to verify:</p><p>1. 57 percent of federal spending goes to the military. 2. Just 1 percent of federal spending goes to food and agriculture, including food stamps. To verify subclaim 1, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: What percentage of federal spending goes to the military? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": Yes. Answer: About one-sixth of federal spending goes to national defense. CBO estimates the budgetary effects of legislation related to national security and assesses the cost-effectiveness of current and proposed defense programs. CBO also analyzes federal programs and issues related to veterans. To verify subclaim 2, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: What percentage of federal spending goes to food and agriculture, including food stamps? Question: What percentage of federal spending goes to food and agriculture, including food stamps? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": No. Answer: Federal spending on USDA's food and nutrition assistance programs totaled $182.5 billion, 49 percent more than the ... USDA's food and nutrition assistance programs accounted for about 5 percent of total federal outlays. Based on the answers to these questions, it is clear that among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim can be classified as false. Based on the answers to these questions, it is clear that among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim can be classified as false.</p><p>Table <ref type="table">5</ref>: Case study. Labels and predictions from different methods are in pink, generated sentences containing fact hallucination are in purple, and repeated sentences are in yellow.</p><p>Q: Among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim "Emerson Moser, who was Crayola's top crayon molder for almost 40 years, was colorblind." is classified as A: mostly-true.</p><p>Q: Among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim "Bernie Sanders said 85 million Americans have no health insurance." is classified as A: half-true.</p><p>Q: Among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim "JAG charges Nancy Pelosi with treason and seditious conspiracy." is classified as A: pants-fire.</p><p>Q: Among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim "Cheri Beasley "backs tax hikeseven on families making under $75,000." is classified as A:barely-true. Q: Choose a label from pants-fire, false, barely-true, half-true, mostly-true, and true for the following claim. Claim: "Emerson Moser, who was Crayola's top crayon molder for almost 40 years, was colorblind." A: Moser did have a type of colorblindness. However he said he only had blue-green colorblindness, So only some colors were confusing to him. Thus the claim is classified as mostly-true.</p><p>Q: Choose a label from pants-fire, false, barely-true, half-true, mostly-true, and true for the following claim. Claim: "Bernie Sanders said 85 million Americans have no health insurance." A: Sanders accurately cited the Commonwealth Fund report in an October op-ed. His statement on CNN was partially accurate but left out important details and context. Sanders omitted that his figure included people who either have no health insurance or are underinsured. Thus the claim is classified as half-true.</p><p>Q: Choose a label from pants-fire, false, barely-true, half-true, mostly-true, and true for the following claim. Claim: "JAG charges Nancy Pelosi with treason and seditious conspiracy." A: A spokesperson for the U.S. Navy Judge Advocate General's Corps told PolitiFact it isn't true that Pelosi has been charged. The original claim appeared on a website that posts fantastical, false stories and has a disclaimer that the site contains "humor, parody, and satire." Thus the claim is classified as pants-fire.</p><p>Q: Choose a label from pants-fire, false, barely-true, half-true, mostly-true, and true for the following claim. Claim: "Cheri Beasley "backs tax hikes -even on families making under $75,000." A: Beasley does support the Inflation Reduction Act but the claim is wrong to suggest it includes a change in tax rates for that income bracket. Expert analyses show that any effect on those earners would be on the scale of $350 and, by one estimate, delayed for several years. Thus the claim is classified as barely-true. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An example of claim verification based on vanilla CoT prompting. The claim (underlined) and CoT (in green) are given as a demonstration. The generated CoT (in italics) leads to an incorrect judgment due to (1) omission of necessary thoughts regarding "nukes", and (2) fact hallucination about the war-loving speeches without specific evidence in the generated CoT (in blue).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: Overview of the proposed HiSS model: Original human inputs are in red background, LLM directly generated text is in white, and answers generated based on search results are in green. We start by providing a few-shot demonstration, followed by appending the claim to be checked (underlined). HiSS prompts the LLM to (1) decompose the claim into subclaims; (2) verify each subclaim step-by-step via raising and answering a series of questions. For each question, we prompt LLM to assess if it is confident to answer it or not, and if not, we input the question to a web search engine. The search results are then inserted back into the ongoing prompt to continue the verification process; (3) generate the final prediction. The detailed demonstrations are omitted in this illustration for space which can be found in Table8 (a) and Table 8 (b) in Appendix B .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Figure2: Overview of the proposed HiSS model: Original human inputs are in red background, LLM directly generated text is in white, and answers generated based on search results are in green. We start by providing a few-shot demonstration, followed by appending the claim to be checked (underlined). HiSS prompts the LLM to (1) decompose the claim into subclaims; (2) verify each subclaim step-by-step via raising and answering a series of questions. For each question, we prompt LLM to assess if it is confident to answer it or not, and if not, we input the question to a web search engine. The search results are then inserted back into the ongoing prompt to continue the verification process; (3) generate the final prediction. The detailed demonstrations are omitted in this illustration for space which can be found in Table8 (a) and Table 8 (b) in Appendix B .</figDesc><graphic coords="4,129.98,78.81,342.59,318.24" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>F1Figure 3 :</head><label>3</label><figDesc>Figure 3: Ablation results on RAWFC dataset.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>contains gold labels based on PolitiFact articles with six classes (True/Mostly-true/Halftrue/Barely-true/False/Pants-fire). Different from or phrase, allowing users to control the length or content of the generated output. Datasets statistics.FEVER<ref type="bibr" target="#b28">(Thorne et al., 2018)</ref> which uses manually synthesized claims from Wikipedia articles, the claims in these two datasets are based on realworld news. Table1displays the statistics of datasets. We use the provided valid-test split of both datasets. The few-shot demonstration examples are randomly selected from the training set.FollowingYang et al. (</figDesc><table><row><cell></cell><cell cols="2">RAWFC</cell><cell cols="2">LIAR</cell></row><row><cell></cell><cell cols="3">Val. Test Val.</cell><cell>Test</cell></row><row><cell>Claim</cell><cell cols="4">200 200 1274 1,251</cell></row><row><cell># true</cell><cell>67</cell><cell>67</cell><cell>169</cell><cell>205</cell></row><row><cell># mostly-true</cell><cell>-</cell><cell>-</cell><cell>251</cell><cell>238</cell></row><row><cell># half-true</cell><cell>66</cell><cell>66</cell><cell>244</cell><cell>263</cell></row><row><cell># barely-true</cell><cell>-</cell><cell>-</cell><cell>236</cell><cell>210</cell></row><row><cell># false</cell><cell>67</cell><cell>67</cell><cell>259</cell><cell>249</cell></row><row><cell># pants-fire</cell><cell>-</cell><cell>-</cell><cell>115</cell><cell>86</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2</head><label>2</label><figDesc></figDesc><table><row><cell>, HiSS outperforms previous</cell></row><row><cell>SoTA (i.e., CofCED) by 1.9% and 8% in F1 on</cell></row><row><cell>RAWFC and LIAR, respectively. This indicates</cell></row><row><cell>that few-shot ICL is promising for news claim</cell></row><row><cell>verification, owing to the capabilities of LLM</cell></row><row><cell>that benefit from its parameterized knowledge</cell></row><row><cell>with a tremendous amount of facts. In addition,</cell></row><row><cell>HiSS is specially designed to better elicit LLM</cell></row><row><cell>and guide it through a step-by-step examination</cell></row><row><cell>of the claim, covering both explicit and implicit</cell></row><row><cell>aspects and allowing for more comprehensive</cell></row><row><cell>and thorough verification. Moreover, HiSS en-</cell></row></table><note><p>* 53.9 * 46.8 * 31.3 * 37.5 *</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Experimental results of claim verification. Bold denotes the best performance.</figDesc><table /><note><p>* means significantly better than the previous SoTA (CofCED) with p &lt; 0.01. † uses external information obtained via search engines. ♢ uses gold evidence from fact-check reports. Results of fully supervised models are quoted from</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Distribution of errors based on 40 examples from RAWFC, where Vanilla CoT, ReAct, and HiSS give incorrect verification results.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Average human ratings on explanations of verification for the claims in the RAWFC dataset. Gold, CofCED, and HiSS correspond to the explanations produced by human journalists, CofCED and HiSS, respectively. A higher score means a better explanation. The highest score is in bold, and the second is underlined.</figDesc><table><row><cell></cell><cell></cell><cell>RAWFC</cell><cell></cell></row><row><cell></cell><cell cols="3">Gold CofCED HiSS</cell></row><row><cell>Readability</cell><cell>2.75</cell><cell>1.63</cell><cell>2.44</cell></row><row><cell>Coverage</cell><cell>2.65</cell><cell>1.99</cell><cell>2.63</cell></row><row><cell cols="2">Non-redundancy 2.72</cell><cell>1.28</cell><cell>2.25</cell></row><row><cell>Overall</cell><cell>2.69</cell><cell>1.74</cell><cell>2.54</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>Demonstration examples of standard prompting.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 7 :</head><label>7</label><figDesc>Demonstration examples of vanilla CoT prompting. The CoT process is highlighted in green.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://www.politifact.com/.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://www.snopes.com/.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>This type of hallucination is also referred to as the extrinsic hallucination<ref type="bibr" target="#b2">(Bang et al., 2023)</ref> that cannot be verified with the given source, and the fact-conflicting hallucination<ref type="bibr" target="#b38">(Zhang et al., 2023)</ref> that, more broadly, are not faithful to established world knowledge.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>Code and prompts data is available at https://github. com/jadeCurl/HiSS.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_4"><p>https://serpapi.com.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_5"><p>Search results from fact-checking websites are filtered to avoid ground-truth leakage. Specifically, we remove the search results with URLs containing keywords such as "fact check", and "fact-checking" since the URL of fact-checking websites and fact-check articles on mainstream media, e.g., NY Times (https://www.nytimes.com/ spotlight/fact-checks.), typically contain such keywords. After filtering, we choose the top-one snippet from the search result to feed into the LLM.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="10" xml:id="foot_6"><p>https://platform.openai.com/docs/models/ gpt-3-5.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgement</head><p>We thank the anonymous reviewers for their helpful comments during the review of this paper.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Q: Claim: "Emerson Moser, who was Crayola's top crayon molder for almost 40 years, was colorblind." A: A fact checker will decompose the claim into 4 subclaims that are easier to verify:</p><p>1. Emerson Moser was a crayon molder at Crayola. 2. Moser worked at Crayola for almost 40 years.</p><p>3. Moser was Crayola's top crayon molder. 4. Moser was colorblind. To verify subclaim 1, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Is there any official record or documentation indicating that Emerson Moser worked as a crayon molder at Crayola? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": Yes. Answer: Yes. To verify subclaim 2, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Are there any official records or documentation confirming Emerson Moser's length of employment at Crayola? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": No. Answer: Emerson Moser, who is retiring next week after 35 years, isn't colorblind in the sense that he can't see color at all. It's just that some ... To verify subclaim 3, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Are there credible sources or publications that mention Emerson Moser as Crayola's top crayon molder? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": Yes. Answer: Yes. To verify subclaim 4, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Are there any credible sources or records indicating that Emerson Moser was colorblind? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": Yes. Answer: Yes. Question: Was Emerson Moser's colorblindness only confusing for certain colors? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": No. Answer: Moser has had tritanomaly, a type of colorblindness that makes it difficult to distinguish between blue and green and between yellow and red. Based on the answers to these questions, it is clear that among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim can be classified as mostly-true.</p><p>Q: Claim: "Bernie Sanders said 85 million Americans have no health insurance." A: A fact checker will not split the claim since the original claim is easier to verify. To verify the claim, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: How many Americans did Bernie Sanders claim had no health insurance?  Q: Claim: "JAG charges Nancy Pelosi with treason and seditious conspiracy." A: A fact checker will decompose the claim into 2 subclaims that are easier to verify:</p><p>1. JAG has made a claim or accusation against Nancy Pelosi. 2. The specific charges or allegations made against Nancy Pelosi are treason and seditious conspiracy. To verify subclaim 1, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Is it true that JAG has made a claim or accusation against Nancy Pelosi? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": No. Answer: There is no evidence to support this claim and a spokesperson for the U.S. Navy Judge Advocate General's Corps has stated that it is not true. To verify subclaim 2, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Is it true that the specific charges or allegations made against Nancy Pelosi are treason and seditious conspiracy?</p><p>Tell me if you are confident to answer the question or not. Answer with "yes" or "no": No. Answer: There is no evidence to support this claim. Question: Where is the source of the claim? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": No. Answer: Real Raw News, a disclaimer stating that it contains "humor, parody and satire" and has a history of publishing fictitious stories. Based on the answers to these questions, it is clear that among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim is classified as pants-fire.</p><p>Q: Claim: "Cheri Beasley "backs tax hikes -even on families making under $75,000." A: A fact checker will decompose the claim into 2 subclaims that are easier to verify:</p><p>1. Cheri Beasley supports tax increases. 2. Cheri Beasley supports tax increases for families with an income under $75,000. To verify subclaim 1, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Does Cheri Beasley supports tax increases? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": Yes. Answer: Beasley supports student loan bailouts for the wealthy. To verify subclaim 2, a fact-checker will go through a step-by-step process to ask and answer a series of questions relevant to its factuality. Here are the specific steps he/she raise each question and look for an answer:</p><p>Question: Does the ad accurately link Beasley's position on student loan debt forgiveness with her stance on tax hikes for families making under $75,000 per year? Tell me if you are confident to answer the question or not. Answer with "yes" or "no": No. Answer: The ad makes a misleading connection between the two issues and does not accurately represent Beasley's position on tax hikes for families making under $75,000 per year. Answer: No. Based on the answers to these questions, it is clear that among pants-fire, false, barely-true, half-true, mostly-true, and true, the claim is classified as barely-true. </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Rohan</forename><surname>Anil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melvin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Lepikhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Passos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siamak</forename><surname>Shakeri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emanuel</forename><surname>Taropa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paige</forename><surname>Bailey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><forename type="middle">H</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><forename type="middle">El</forename><surname>Shafey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanping</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathy</forename><surname>Meier-Hellstern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaurav</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erica</forename><surname>Moreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Omernick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Robinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kefan</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhong</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gustavo</forename><surname>Hernandez Abrego</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junwhan</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Barham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Botha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhartha</forename><surname>Brahma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Brooks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Catasta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Cherry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">A</forename><surname>Choquette-Choo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aakanksha</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Crepy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shachi</forename><surname>Dave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunipa</forename><surname>Dev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Díaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vlad</forename><surname>Feinberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangxiaoyu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vlad</forename><surname>Fienber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Gur-Ari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Hand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hadi</forename><surname>Hashemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Howland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeremy</forename><surname>Hurwitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Isard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abe</forename><surname>Ittycheriah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Jagielski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Kenealy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxim</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sneha</forename><surname>Kudugunta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Music</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaguang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyeontaek</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanzhao</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongtao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frederick</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcello</forename><surname>Maggioni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aroma</forename><surname>Mahendru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Maynez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vedant</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maysam</forename><surname>Moussalem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Nado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Nham</surname></persName>
+		</author>
+		<editor>Eric Ni, Andrew Nystrom, Alicia Parrish, Marie Pellat, Martin Polacek, Alex Polozov, Reiner Pope, Siyuan Qiao, Emily Reif, Bryan Richter, Parker Riley, Alex Castro Ros, Aurko Roy, Brennan Saeta, Rajkumar Samuel, Renee Shelby, Ambrose Slone, Daniel Smilkov, David R. So, Daniel Sohn, Simon Tokumine, Dasha Valter, Vijay Vasudevan, Kiran Vodrahalli, Xuezhi Wang, Pidong Wang, Zirui Wang, Tao Wang, John Wieting, Yuhuai Wu, Kelvin Xu</editor>
+		<imprint/>
+	</monogr>
+	<note>Yunhan Xu, Linting Xue, Pengcheng Yin, Jiahui Yu, Qiao Zhang, Steven Zheng, Ce Zheng, Weikang Zhou, Denny Zhou, Slav Petrov, and Yonghui Wu. 2023. Palm 2 technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Generating fact checking explanations</title>
+		<author>
+			<persName><forename type="first">Pepa</forename><surname>Atanasova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><forename type="middle">Grue</forename><surname>Simonsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Lioma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7352" to="7364" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Bang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Cahyawijaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nayeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenliang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Wilie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Holy</forename><surname>Lovenia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziwei</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiezheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Willy</forename><surname>Chung</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.04023</idno>
+		<title level="m">A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPs</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yuyan</forename><surname>Bu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiang</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danding</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jintao</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.03242</idno>
+		<title level="m">Online misinformation video detection: a survey</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Generating fact checking briefs</title>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marzieh</forename><surname>Saeidi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7147" to="7161" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Exfakt: A framework for explaining facts over knowledge graphs and text</title>
+		<author>
+			<persName><forename type="first">Mohamed</forename><forename type="middle">H</forename><surname>Gad-Elrab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daria</forename><surname>Stepanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacopo</forename><surname>Urbani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">WSDM</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="87" to="95" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Answering the call for a standard reliability measure for coding data</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Krippendorff</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Communication methods and measures</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="77" to="89" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">The curious case of neural text degeneration</title>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Survey of hallucination in natural language generation</title>
+		<author>
+			<persName><forename type="first">Ziwei</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nayeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rita</forename><surname>Frieske</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiezheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Etsuko</forename><surname>Ishii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Bang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Computing Surveys</title>
+		<imprint>
+			<biblScope unit="volume">55</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="1" to="38" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhengbao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><forename type="middle">F</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiqing</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qian</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamie</forename><surname>Callan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.06983</idno>
+		<title level="m">Active retrieval augmented generation</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Towards fine-grained reasoning for fake news detection</title>
+		<author>
+			<persName><forename type="first">Yiqiao</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiting</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruichao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhou</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Liao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Xie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="5746" to="5754" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lee</forename><surname>Kristina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Toutanova</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Explainable automated fact-checking for public health claims</title>
+		<author>
+			<persName><forename type="first">Neema</forename><surname>Kotonya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesca</forename><surname>Toni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7740" to="7754" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A multi-level attention model for evidencebased fact checking</title>
+		<author>
+			<persName><forename type="first">Canasai</forename><surname>Kruengkrai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junichi</forename><surname>Yamagishi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2447" to="2460" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">The science of fake news</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">A</forename><surname>David Mj Lazer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yochai</forename><surname>Baum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><forename type="middle">J</forename><surname>Benkler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelly</forename><forename type="middle">M</forename><surname>Berinsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Filippo</forename><surname>Greenhill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miriam</forename><forename type="middle">J</forename><surname>Menczer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brendan</forename><surname>Metzger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gordon</forename><surname>Nyhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Pennycook</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rothschild</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science</title>
+		<imprint>
+			<biblScope unit="volume">359</biblScope>
+			<biblScope unit="issue">6380</biblScope>
+			<biblScope unit="page" from="1094" to="1096" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Towards few-shot fact-checking via perplexity</title>
+		<author>
+			<persName><forename type="first">Nayeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Bang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1971" to="1981" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Language models as fact checkers?</title>
+		<author>
+			<persName><forename type="first">Nayeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Belinda</forename><forename type="middle">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sinong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Madian</forename><surname>Khabsa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">FEVER Workshop</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="36" to="41" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Retrieval-augmented generation for knowledge-intensive nlp tasks</title>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heinrich</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="9459" to="9474" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Gcan: Graph-aware co-attention networks for explainable fake news detection on social media</title>
+		<author>
+			<persName><forename type="first">Yi-Ju</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng-Te</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="505" to="514" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Sentence-level evidence embedding for claim verification with hierarchical attention networks</title>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shafiq</forename><surname>Joty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kam-Fai</forename><surname>Wong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Varifocal question generation for factchecking</title>
+		<author>
+			<persName><forename type="first">Nedjma</forename><surname>Ousidhoum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangdie</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.12400</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Declare: Debunking fake news and false claims using evidence-aware deep learning</title>
+		<author>
+			<persName><forename type="first">Kashyap</forename><surname>Popat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhabrata</forename><surname>Mukherjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Yates</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="22" to="32" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muru</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03350</idno>
+		<title level="m">Measuring and narrowing the compositionality gap in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI blog</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Truth of varying shades: Analyzing language in fake news and political fact-checking</title>
+		<author>
+			<persName><forename type="first">Eunsol</forename><surname>Hannah Rashkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename><forename type="middle">Yea</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Svitlana</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Volkova</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="2931" to="2937" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Embracing domain differences in fake news: Cross-domain fake news detection using multi-modal data</title>
+		<author>
+			<persName><forename type="first">Amila</forename><surname>Silva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ling</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shanika</forename><surname>Karunasekera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Leckie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="557" to="565" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Bert for evidence retrieval and claim verification</title>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Soleimani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christof</forename><surname>Monz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcel</forename><surname>Worring</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ECIR</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="359" to="366" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Fever: a large-scale dataset for fact extraction and verification</title>
+		<author>
+			<persName><forename type="first">James</forename><surname>Thorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="809" to="819" />
+		</imprint>
+	</monogr>
+	<note>Christos Christodoulopoulos, and Arpit Mittal</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Planand-solve prompting: Improving zero-shot chain-ofthought reasoning by large language models</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanyu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yihuai</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiqiang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunshi</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roy</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ka-Wei</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ee-Peng</forename><surname>Lim</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.04091</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">liar, liar pants on fire&quot;: A new benchmark dataset for fake news detection</title>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL (short)</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="422" to="426" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Eann: Event adversarial neural networks for multi-modal fake news detection</title>
+		<author>
+			<persName><forename type="first">Yaqing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fenglong</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guangxu</forename><surname>Xun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kishlay</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th acm sigkdd international conference on knowledge discovery &amp; data mining</title>
+		<meeting>the 24th acm sigkdd international conference on knowledge discovery &amp; data mining</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="849" to="857" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2201.11903</idno>
+		<title level="m">Chain of thought prompting elicits reasoning in large language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Misinformation in social media: definition, manipulation, and detection</title>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fred</forename><surname>Morstatter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><forename type="middle">M</forename><surname>Carley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SIGKDD</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="page" from="80" to="90" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Xfake: Explainable fake news detector with visualizations</title>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Shiva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sina</forename><surname>Pentyala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengnan</forename><surname>Mohseni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rhema</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">D</forename><surname>Linder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuiwang</forename><surname>Ragan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xia</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<publisher>WWW</publisher>
+			<biblScope unit="page" from="3600" to="3604" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Hotpotqa: A dataset for diverse, explainable multi-hop question answering</title>
+		<author>
+			<persName><forename type="first">Zhilin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saizheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2369" to="2380" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">A coarse-to-fine cascaded evidence-distillation neural network for explainable fake news detection</title>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hechang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongzhan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2608" to="2621" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Siren&apos;s song in the ai ocean: A survey on hallucination in large language models</title>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yafu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leyang</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deng</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lemao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tingchen</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinting</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enbo</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulong</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.01219</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Least-to-most prompting enables complex reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Schärli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Scales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bousquet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.10625</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

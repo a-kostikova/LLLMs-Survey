@@ -1,0 +1,1528 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">What Learned Representations and Influence Functions Can Tell Us About Adversarial Examples</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Shakila</forename><forename type="middle">Mahjabin</forename><surname>Tonni</surname></persName>
+							<email>shakila.tonni@mq.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing</orgName>
+								<orgName type="institution">Macquarie University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><surname>Dras</surname></persName>
+							<email>mark.dras@mq.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing</orgName>
+								<orgName type="institution">Macquarie University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">What Learned Representations and Influence Functions Can Tell Us About Adversarial Examples</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">F8EB02F8B6F734CA5D0A0F5A8F2983BD</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:01+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Adversarial examples, deliberately crafted using small perturbations to fool deep neural networks, were first studied in image processing and more recently in NLP. While approaches to detecting adversarial examples in NLP have largely relied on search over input perturbations, image processing has seen a range of techniques that aim to characterise adversarial subspaces over the learned representations.</p><p>In this paper, we adapt two such approaches to NLP, one based on nearest neighbors and influence functions and one on Mahalanobis distances. The former in particular produces a state-of-the-art detector when compared against several strong baselines; moreover, the novel use of influence functions provides insight into how the nature of adversarial example subspaces in NLP relate to those in image processing, and also how they differ depending on the kind of NLP task.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The high sensitivity of deep neural networks (DNNs) to slight modifications of inputs is widely recognised and makes DNNs a convenient target for adversarial attacks <ref type="bibr" target="#b42">(Szegedy et al., 2014)</ref>. Creating malicious inputs or adversarial examples by adding small perturbations to the model's inputs can cause the model to misclassify the inputs that would be predicted correctly otherwise. Such adversarial attacks are highly successful in both image and Natural Language Processing (NLP) domains.</p><p>In the image domain, due to the straightforwardness of creating adversarial images by calibrating noise to the original records, researchers have explored many high-performing adversarial attacks <ref type="bibr">(Papernot et al., 2016b;</ref><ref type="bibr" target="#b31">Moosavi-Dezfooli et al., 2016;</ref><ref type="bibr">Carlini and Wagner, 2017, for example)</ref>. The perturbations of the input images degrade the model's performance with a high success rate and are generally imperceptible to a human.</p><p>Work in the NLP space has followed that in image processing. Here, in addition to the goal of impacting the model's prediction, adversarial text examples need to be syntactically and semantically sound to the reader. Consequently, adversarial attack techniques on text use semantics-preserving textual changes at the character level, word level and phrase level or sentence level <ref type="bibr" target="#b39">(Pruthi et al., 2019;</ref><ref type="bibr" target="#b1">Alzantot et al., 2018;</ref><ref type="bibr">Li et al., 2020, for example)</ref>. Table <ref type="table" target="#tab_0">1</ref> illustrates two examples, showing different types of attack formulation in NLP.</p><p>In the image domain, defence against adversarial attack can be 'proactive' or 'reactive' <ref type="bibr" target="#b5">(Cohen et al., 2020)</ref>, where proactive defence refers to improving the model's robustness <ref type="bibr" target="#b29">(Madry et al., 2018;</ref><ref type="bibr" target="#b12">Gopinath et al., 2018;</ref><ref type="bibr" target="#b6">Cohen et al., 2019)</ref> and reactive defence focuses on detecting real adversarial examples before they are passed to neural networks <ref type="bibr" target="#b8">(Feinman et al., 2017;</ref><ref type="bibr" target="#b27">Ma et al., 2018;</ref><ref type="bibr" target="#b21">Lee et al., 2018;</ref><ref type="bibr" target="#b36">Papernot and McDaniel, 2018)</ref>. Broadly speaking, for reactive methods, the detection of adversarial examples involves taking a conceptualisation of the space of learned representations and the adversarial subspaces within them <ref type="bibr">(Tanay and Griffin, 2016;</ref><ref type="bibr" target="#b43">Tramèr et al., 2017)</ref>, and then characterising the differences in some function of the learned representations between the actual and the adversarial inputs produced by the DNN; for example, <ref type="bibr" target="#b27">Ma et al. (2018)</ref> applied a local intrinsic dimensionality (LID) measure to the learned representations and used that to successfully distinguish normal and adversarial images.</p><p>In the NLP space, relatively fewer adversarial defence techniques have been proposed. Among them, many focus on enhancing the models' robustness proactively through adversarial training <ref type="bibr" target="#b17">(Jia et al., 2019;</ref><ref type="bibr" target="#b39">Pruthi et al., 2019;</ref><ref type="bibr" target="#b18">Jin et al., 2020)</ref>; generating textual samples for proactive adversarial training is computationally expensive because of necessary search and constraints based on sentence encoding <ref type="bibr" target="#b48">(Yoo and Qi, 2021)</ref>. Reactive adversarial text detection techniques have mostly been different from their image counterparts, in that they typically modify the input by e.g. repeatedly checking word substitutions <ref type="bibr" target="#b33">(Mozes et al., 2021;</ref><ref type="bibr" target="#b45">Wang et al., 2022;</ref><ref type="bibr" target="#b49">Zhou et al., 2019)</ref> rather than trying to characterise the learned representations; consequently, they focus on detecting synonym-substitution adversarial examples. An exception is the work of <ref type="bibr" target="#b26">Liu et al. (2022)</ref>, which both adapts LID to the text space and proposes the new MultiDistance Representation Ensemble (MDRE) method; their state-of-the-art results suggest that the detection methods based on learned representations drawn from the image processing domain are a promising source of ideas for NLP.</p><p>The particular focus of the present paper is the use of influence functions in adversarial detection methods, proposed for image processing by <ref type="bibr" target="#b5">Cohen et al. (2020)</ref>. They propose that distances to nearest neighbors (used by previous methods) and influence functions, which measure the impact of every training sample on validation or test set data, can be used complementarily to detect adversarial examples: they argue, with support from the strong results from their method, that adversarial examples locate in different regions of the learned representation space of their neighbors with respect to influence functions, compared to original datapoints (Fig <ref type="figure" target="#fig_0">1</ref>). Specifically, in the image space, for original datapoints, nearest neighbors and influence function training points overlap, but for adversarial examples, they do not. Influence functions have only relatively recently begun to be explored in NLP, with <ref type="bibr" target="#b15">Han et al. (2020)</ref> finding that, with the variety of classification tasks in NLP, the information provided by influence functions differs from image processing and is task-dependent. In this paper, noting significant differences between inputs in NLP and image processing (continuous versus discrete) and attack types, we explore whether and how they can help in NLP in detecting adversarial examples using learned representations, and what this can tell us about the nature of adversarial subspaces.</p><p>We also adapt a second method from the image processing literature, by <ref type="bibr" target="#b21">Lee et al. (2018)</ref>, which uses a Mahalanobis-based confidence score; this was a strong baseline for <ref type="bibr" target="#b5">Cohen et al. (2020)</ref>, giving an additional perspective on the nature of adversarial subspaces in NLP.</p><p>The contributions of this paper are as follows: • An adaptation of two adversarial detection techniques from the image processing literature, MA-HAL confidence <ref type="bibr" target="#b21">(Lee et al., 2018)</ref> and Nearest Neighbor Influence Functions (NNIF) <ref type="bibr" target="#b5">(Cohen et al., 2020)</ref>, into the text domain; we show that we can achieve SOTA results relative to several strong, recent baselines. • An analysis of how influence functions work in this context, contributes to understanding both the nature of adversarial subspaces in the text space and what information influence functions can provide.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Adversarial Defences for Image An intuitive adversarial defence is to train a deep neural network to be robust against adversarial input samples by e.g. mixing adversarial samples with the training data <ref type="bibr" target="#b11">(Goodfellow et al., 2015;</ref><ref type="bibr" target="#b29">Madry et al., 2018;</ref><ref type="bibr" target="#b47">Xie et al., 2019)</ref>; popular platforms like Cleverhans <ref type="bibr">(Papernot et al., 2016a)</ref> are available to support robust training. However, such defences, termed as 'proactive', are expensive and vulnerable to optimisation attacks <ref type="bibr" target="#b5">(Cohen et al., 2020)</ref>.</p><p>In contrast, others have proposed 'reactive' defences that identify the variations in the representations learned by the DNN on the original input images to separate the adversarial samples; typically, these posit that adversarial examples can be characterised as belonging to particular subspaces <ref type="bibr" target="#b43">(Tramèr et al., 2017)</ref>, and the different approaches aim to capture the nature of these subspaces in different ways, with detectors such as logistic regression classifiers built over the learned representations. <ref type="bibr" target="#b8">Feinman et al. (2017)</ref> built detectors us-Original Text at last, a movie that handles the probability of alien visits with the appropriate depth and loving warmth. Positive Char-level <ref type="bibr" target="#b39">(Pruthi et al., 2019)</ref> at last, a movie that handles the probability of alien visits with the appr0priate depth and loving warDmth Negative Word-level <ref type="bibr" target="#b1">(Alzantot et al., 2018)</ref> at last, a movie that handles the probability of alien trips with the adequate depth and loving warmth Negative  <ref type="bibr" target="#b24">(Li et al., 2016</ref><ref type="bibr" target="#b25">(Li et al., , 2017;;</ref><ref type="bibr" target="#b41">Ribeiro et al., 2018;</ref><ref type="bibr" target="#b19">Jones et al., 2020)</ref>.</p><p>In NLP, however, there have been fewer reactive methods.  <ref type="bibr" target="#b10">(Fidel et al., 2020)</ref>.</p><p>In NLP, only <ref type="bibr" target="#b26">Liu et al. (2022)</ref> has used the idea of constructing detectors over learned representations as in the image domain, which explored the idea of adapting the LID <ref type="bibr" target="#b27">(Ma et al., 2018)</ref> method above. In addition, they proposed the MultiDistance Representation Ensemble Method (MDRE) algorithm that puts together learned representations from multiple DNN models to detect adversarial texts. Unlike other approaches, the same detector could apply to different types of attacks <ref type="bibr">(characterbased, word-based, syntax-based)</ref> and MDRE in particular improved over baseline methods across the range of attacks. This motivates our adaptation of more recent techniques from the image domain. Influence Functions The influence function (IF) is a statistical method that captures the dependence of an estimator on any one of the sample (training) points. <ref type="bibr" target="#b20">Koh and Liang (2017)</ref> were the first to adapt IFs to image DNNs as a method for interpreting the model's decision: the IF finds the most influential training samples, both helpful and harmful, contributing to each prediction. The essence of the approach is to consider a point z from the training set and compute the change to parameters θ if z were upweighted by a small ϵ; they then defined closed-form expressions I(z, z test ) to identify the most influential points z on a test point z test .</p><p>IFs were first applied to NLP deep architectures by <ref type="bibr" target="#b15">Han et al. (2020)</ref>, and compared with established gradient-based saliency maps as a way of interpreting input feature importance, using sentiment classification and natural language inference (NLI) as testbeds. Their first finding was that IFs are reliable for deep NLP architectures. Their second interesting finding was that while IFs and saliency measures were consistent for sentiment classification, they differed for NLI: they concluded that for more complex understanding tasks like NLI, IFs captured more useful interpretive information. They also found IFs to be useful for identifying and quantifying the effect of data artifacts on model prediction. A few other works have continued investigating the usefulness of IFs in NLP, such as <ref type="bibr" target="#b14">Guo et al. (2021)</ref>, who proposed a faster method for IF computation by restricting candidates to top-k nearest neighbors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methods</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">NNIF Detector</head><p>We follow <ref type="bibr" target="#b5">Cohen et al. (2020)</ref>'s Nearest Neighbor Influence Function (NNIF) method and apply it to NLP architectures. The essence of it is, for some point z that may be regular or adversarial, to identify the training points that are most influential and those that are nearest neighbors to z, and to build a classifier based on those that will predict whether z is regular or adversarial based on differences in relative distributions (Fig <ref type="figure" target="#fig_0">1</ref>).</p><p>We take a DNN classifier and dataset for some particular task (e.g. sentiment classification); we refer to this DNN as the TARGET MODEL. For each test sample z test , we compute the influence scores I(z, z test ) for all training points z, given the target model, and select the top M most helpful and M most harmful (details App B). We then construct a DKNN classifier in the style of <ref type="bibr" target="#b36">Papernot and McDaniel (2018)</ref> </p><formula xml:id="formula_0">(R M ↑ , D M ↑ , R M ↓ , D M ↓ ) to detect whether an input is adversarial or not.</formula><p>Where the target model of <ref type="bibr">Cohen et al. (</ref> <ref type="formula">2020</ref>) is a ResNet model, ours is a large language model (LLM) base with additional layers that are finetuned for the chosen tasks ( §4.3). The hidden layers we use for NNIF are then the pre-final additional layers on top of the DNN ( §4.5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">MAHAL Detector</head><p>Here we follow <ref type="bibr" target="#b21">Lee et al. (2018)</ref>, who build a detector that captures the variation in the probability density of the class-conditional Gaussian distribution of the learned representation by the model. Motivated, like <ref type="bibr" target="#b36">Papernot and McDaniel (2018)</ref>, by the problem that DNNs are poorly calibrated <ref type="bibr" target="#b13">(Guo et al., 2017)</ref>, they replace the final softmax layer with a Gaussian Discriminant Analysis (GDA) softmax classifier.</p><p>For a set of training points {(x 1 , y 1 ), ..., (x n , y n )} with the label y ∈ {1, 2, . . . , C}, the class mean μc and covariance ˆ are computed for each class c to approximate the generative classifier's parameters from the pre-trained target DNN f (x). Next, from the obtained class-conditional Gaussian distribution, the Mahalanobis distance between a test sample x and its closest distribution is measured to find the confidence score</p><formula xml:id="formula_1">M (x) = max c -(f (x) -μc ) T -1 (f (x) -μc ).</formula><p>Finally, we label the Mahalanobis scores for the test samples as positive and adversarial samples as negative and input this feature set to an LR detector. <ref type="bibr" target="#b21">Lee et al. (2018)</ref> propose two calibration techniques to improve the detection accuracy and make regular and out-of-distribution samples more separable: (1) input pre-processing, where they add a small noise in a controllable manner to the test samples; and (2) feature ensemble, which combines the confidence scores from all the hidden layers of the DNN including the final features. Both together substantially improve the performance of the base approach; each individually reaches almost the combination of the two. As for our NNIF detector in §3.1, our target DNN will have several hidden layers, and we explore models both with final layer-only representations and feature ensembles over all hidden layers. The input preprocessing of ( <ref type="formula">1</ref>) is appropriate to the continuous space of images, but not in an obvious way to text, so we do not use that.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Setup</head><p>We broadly follow the setup of <ref type="bibr" target="#b26">Liu et al. (2022)</ref>, as the prior NLP work that has used learned representations to detect adversarial examples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Tasks and Datasets</head><p>We work on the sentiment analysis and the natural language inference tasks, two widely tasks used in the adversarial example generation <ref type="bibr" target="#b39">(Pruthi et al., 2019;</ref><ref type="bibr" target="#b1">Alzantot et al., 2018;</ref><ref type="bibr" target="#b41">Ribeiro et al., 2018;</ref><ref type="bibr" target="#b40">Ren et al., 2019;</ref><ref type="bibr" target="#b16">Iyyer et al., 2018;</ref><ref type="bibr" target="#b48">Yoo and Qi, 2021;</ref><ref type="bibr" target="#b23">Li et al., 2020</ref><ref type="bibr" target="#b22">Li et al., , 2021;;</ref><ref type="bibr" target="#b18">Jin et al., 2020)</ref>. In addition, these are the two tasks that were used for the investigation of the use of influence functions in NLP <ref type="bibr" target="#b15">(Han et al., 2020)</ref>.</p><p>Sentiment Analysis For the sentiment analysis, we use the IMDB dataset <ref type="bibr" target="#b28">(Maas et al., 2011)</ref> that has 50,000 movie reviews, split into 25,000 training and 25,000 test examples with binary labels indicating positive or negative sentiment. IMDB dataset has 262 words per review on average. In all experiments, we use 512 maximum sequence lengths for the language models on IMDB.</p><p>Natural Language Inference The Multi-Genre NLI (MULTINLI) dataset <ref type="bibr" target="#b46">(Williams et al., 2018)</ref>, used for the natural language inference (NLI) task, contains pairs of sentences annotated with textual entailment information. The test examples are mismatched with train examples and are collected from different sources. The dataset has 392,702 training and 9,832 testing examples labelled as three classes: entailment, neutral, and contradiction. Each text of the dataset has 34 words on average. On this dataset, we set the maximum sequence length to 256.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Attack Methods</head><p>We use the implementations from <ref type="bibr" target="#b26">Liu et al. (2022)</ref> of two widely used attack methods that apply character-level and word-level perturbations to construct adversarial examples. We take a BERT BASE model ( §4.3) as the target model. An adversarial attack is successful when the adversaries have different predictions than the target mode's original predictions. Our two methods are (more details in §A.1): • CHARATT <ref type="bibr" target="#b39">(Pruthi et al., 2019)</ref>. This is a character-level attack that tweaks the original texts by randomly swapping, dropping and adding characters or adding a keyboard mistake. • WORDATT <ref type="bibr" target="#b1">(Alzantot et al., 2018)</ref>. This is a word-level attack that allows the attacker to alter practically every word from the sentence if required with the context-preserving synonymous words. This implementation follows <ref type="bibr" target="#b17">Jia et al. (2019)</ref> in speeding up the synonym search.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Target Model</head><p>Following <ref type="bibr" target="#b26">(Liu et al., 2022)</ref>  <ref type="table" target="#tab_11">6</ref>; we note that in all the cases, CHARATT degrades the classifier's performance comparatively more than WORDATT. Sizes for IMDB and MULTINLI datasets and number of generated adversarial texts from them are in Table <ref type="table" target="#tab_10">5</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Detectors</head><p>For data to train the adversarial example detectors on, we follow standard practice in image processing <ref type="bibr" target="#b27">(Ma et al., 2018;</ref><ref type="bibr" target="#b5">Cohen et al., 2020)</ref>  Due to the computational intensity of estimating the influential training records for the NNIF method, we limit our detectors to having 10k records (5k tests and 5k adversarial texts) and follow a similar data size for all the other detection methods for comparability. We split the detection dataset 80-20 train-test, and construct and evaluate logistic regression classifiers as detectors over this detection dataset split for our proposed methods ( §4.5) and baselines ( §4.6).  <ref type="formula">2020</ref>) sample 10K neighbors from 49K training points). We choose M = 500 for our main results, which is at the top end of the range of values of M selected by <ref type="bibr" target="#b5">Cohen et al. (2020)</ref>; we show in §5.2 that, unlike the image processing domain, results in our experiments are broadly monotonically increasing as M increases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">NNIF and Mahalanobis</head><p>Note that we don't use the faster variant of IF computation of <ref type="bibr" target="#b14">Guo et al. (2021)</ref>, as NNIF requires separate perspectives from IFs and kNNs, and FAS-TIF restricts IF search to subsets of kNNs. MAHAL As per §3.2, we compute the mean and covariance for each class and calculate the Mahalanobis distance score for each normal instance and its adversarial counterpart. Like <ref type="bibr" target="#b27">Ma et al. (2018)</ref>, we consider both using only the final layer of the model and stacking scores from each layer of the model (feature ensembling). Feature ensembling is always better, so we only include those in the main results, but do separately analyse the contribution of the feature ensembling. Code For both of these, our code uses the implementation of <ref type="bibr" target="#b5">Cohen et al. (2020)</ref> as a starting point and adapts as above.<ref type="foot" target="#foot_1">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Baseline Detection Methods</head><p>We evaluate six adversarial text detection methods as our baseline detectors. The first four are from <ref type="bibr" target="#b26">Liu et al. (2022)</ref> (we omit the language model, as it operates essentially at the chance), while the other two are also recent high-performing systems. <ref type="foot" target="#foot_2">3</ref> We give more details on the methods in §A.2. DISP <ref type="bibr" target="#b49">(Zhou et al., 2019)</ref>. This is a system that aims to correct any adversarial perturbations before an example is passed to a classifier. <ref type="bibr" target="#b26">Liu et al. (2022)</ref> adapt this to detecting the adversarial examples. FGWS <ref type="bibr" target="#b33">(Mozes et al., 2021)</ref>. This algorithm uses a word frequency threshold and calibrated replacement approach to detect adversarial examples. It is only designed to work against word-level attacks. LID <ref type="bibr" target="#b26">(Liu et al., 2022)</ref>. From among image processing detection methods, <ref type="bibr" target="#b26">Liu et al. (2022)</ref> adapted the Local Intrinsic Dimensionality (LID) approach of <ref type="bibr" target="#b27">Ma et al. (2018)</ref>. This technique creates a distribution over local distances for a test record concerning its neighbors from the training set; it then applies these to the outputs of each layer from the target model to create a detection classifier. MDRE <ref type="bibr" target="#b26">(Liu et al., 2022)</ref>. This has similarities to LID above but uses Euclidean distance rather than the LID measure, and creates an ensemble using different Transformer models (like <ref type="bibr" target="#b26">Liu et al. (2022)</ref>, we use BERT BASE , RoBERTa BASE , XLNet BASE , BART BASE ). RSV <ref type="bibr" target="#b45">(Wang et al., 2022)</ref>. In this Randomized Substitution and Vote approach, the assumption is that a word-level attacker aims to find an optimal synonym substitution that mutually influences other words in the sentence. Hence, <ref type="bibr" target="#b45">Wang et al. (2022)</ref> randomly replaces words from the text with synonyms in order to destroy the mutual interaction between words and eliminate adversarial perturbation. Like FGWS, this is only designed to work against word-level attacks. SHAP <ref type="bibr" target="#b32">(Mosca et al., 2022)</ref>. In this approach, an adversarial detector is trained using the SHapley Additive exPlanations (SHAP) values of the training data for each test data item using the SHAP explainer <ref type="bibr" target="#b10">(Fidel et al., 2020)</ref>. They experiment on multiple classifiers as the detectors: logistic regression, random forest, support vector and neural network. In our main results, we report the best classifier for each dataset and attack.  8% better than the second) and 90% on WORDATT (more than 1% better than the second, RSV, which is tailored to word-level attacks). For MULTINLI WORDATT, it is around 4% better than the second best. The only one where it is not best, CHARATT, is only very slightly below the best performer DISP. (We note that for DISP we report the accuracy values from <ref type="bibr" target="#b26">Liu et al. (2022)</ref>. This means that the DISP detector used more data in its training set, and so has an advantage in this respect.) MAHAL also performs quite strongly, either better or similar to the baseline detectors, although not as strongly as NNIF; this mirrors the findings in image processing. MDRE results are lower than in <ref type="bibr" target="#b26">Liu et al. (2022)</ref> as a consequence of using less data for training all detection classifiers, as discussed in §4.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Main Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Results on the detector baselines are in</head><p>In terms of aggregate task performance, in all our experiments, the detection accuracy on the natural language inference task is lower than the sentiment analysis task in general. As the MULTINLI dataset is a three-class problem and additionally uses mismatched test sentences, the detection is innately harder.    generally much more clearly separable and so IF points contribute especially strongly to the method, except for MULTINLI against WORDATT, where they are essentially the same and the method relies on the two-view aspect of NNIF. This observation about the relative importance of the IF contribution was not made by <ref type="bibr" target="#b5">Cohen et al. (2020)</ref>, and so may be specific to NLP tasks, although this would require more investigation to verify. We also note that our results align with observations of <ref type="bibr" target="#b15">Han et al. (2020)</ref>, that in the harder task of MULTINLI ( §5.1, Table <ref type="table" target="#tab_7">4</ref>), IFs provide a different perspective to characterising the datapoint of interest. We give some text examples in App E.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Analyses Regions around adversarial examples</head><p>To look further into the more challenging combination of MULTINLI and CHARATT (as the one case in Table <ref type="table" target="#tab_4">2</ref> where NNIF was not the highest scoring, albeit by a small margin), we consider a successful and an unsuccessful detection case by NNIF, with the actual examples given in the appen-   <ref type="table">3</ref> shows the accuracies of MAHAL using only the final layer or the feature ensemble. As with <ref type="bibr" target="#b21">Lee et al. (2018)</ref>, the feature ensemble produces much better results. The im- provement is larger for IMDB, but still important for MULTINLI, as without the ensemble, detection is essentially at the chance. Noting that the target model of <ref type="bibr" target="#b21">Lee et al. (2018)</ref> had many more hidden layers in the ensemble, it is an open question as to whether introducing additional dense layers into our LLM-based model might improve detection while still preserving target model performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Future Work</head><p>We have adapted from image processing two methods, NNIF <ref type="bibr" target="#b5">(Cohen et al., 2020)</ref> and MAHAL <ref type="bibr" target="#b21">(Lee et al., 2018)</ref>, that detect adversarial examples using learned representations. Both perform strongly, with NNIF the best on three of four task/attack combinations, and a close second on the fourth, against several strong baselines.</p><p>Our analysis shows that influence function points make a particularly important contribution to the NNIF method. The MULTINLI task is more challenging for all methods; here it is the complementary nature of information from influence functions and nearest neighbors, supporting observations by <ref type="bibr" target="#b15">Han et al. (2020)</ref> about the different perspective of influence functions in this more complex NLP task.</p><p>The NNIF method is computationally expensive, so future work will look at ways to make it more efficient. Additionally, to gain a fuller understanding of what information influence functions can provide in NLP tasks, future work will look at a wider range of tasks and attacks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitations</head><p>The major limitation is the computationally expensive calculation of influence functions in our NNIF method. For this, following <ref type="bibr" target="#b5">Cohen et al. (2020)</ref> we restrict the data size to 10k (5k test, 5k adversarial) for NNIF and follow a similar approach for other methods for comparability. This helps faster explanation generation in SHAP as well. We use a small architecture as recommended in <ref type="bibr" target="#b15">Han et al. (2020)</ref> for the BERT BASE model for NNIF and other detectors. As noted in the paper, we recognise that there is the FASTIF method of <ref type="bibr" target="#b14">Guo et al. (2021)</ref> for speeding up influence function calculation, but because of the restriction of influence function points to nearest neighbors, it is not suitable for our application.</p><p>We use only two datasets/tasks and two attack methods, partly because of the computational expense of NNIF. While they are commonly used in the adversarial example literature as well as the analysis of influence functions in NLP by <ref type="bibr" target="#b15">Han et al. (2020)</ref> and represent different levels of task complexity and attack type, a wider range of datasets/tasks and attack methods is needed for a full characterisation of influence functions and the nature of adversarial subspaces.</p><p>For all experiments, we restrict the maximum sequence length following <ref type="bibr" target="#b26">Liu et al. (2022)</ref>, which may influence the detectors' performance, especially for the NLI task, that requires the model to learn from a hypothesis and premise text pairs. For the detector baselines, we used the most available methods. There are two recent contemporaneous methods by <ref type="bibr" target="#b45">Wang et al. (2022)</ref> and <ref type="bibr" target="#b2">(Bao et al., 2021)</ref> that explore the idea that adversarial perturbations are typically rare-frequency words, and create augmented training sets by replacing those words in each sentence with synonyms. For the detection, <ref type="bibr" target="#b45">Wang et al. (2022)</ref> matches the voted prediction with the obtained prediction and <ref type="bibr" target="#b2">(Bao et al., 2021)</ref> trains the model on a separate auxiliary learning objective. Between these two works, we choose the RSV from <ref type="bibr" target="#b45">Wang et al. (2022)</ref> in our work. For RSV, we follow the similar setting from <ref type="bibr" target="#b45">Wang et al. (2022)</ref> in choosing the vote number, word substitution rate and stop word selection for both IMDB and MULTINLI. A different setting for MULTINLI may improve the result.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Experimental Setup Details</head><p>The size of the datasets and the number of adversarial samples generated by each of the attack methods are given in Tab. 5. Obtained accuracies of the BERT BASE model are in Tab. 6 and the other models used in MDRE are in Tab. 7</p><p>A.1 Attack Methods CHARATT. We implement CHARATT as proposed by <ref type="bibr" target="#b39">Pruthi et al. (2019)</ref>. It tweaks the original texts by randomly swapping, dropping and adding characters or adding a keyboard mistake. Swapping refers to exchanging places of two adjacent internal characters. Dropping removes a character and Adding inserts a new character at a randomly selected position. Keyboard mistakes is for substituting a character with one of its adjacent characters in keyboards.</p><p>In our experiments, we allow a maximum of half the words from the original text to be perturbed, so the maximum number of possible attacks on the IMDB and MULTINLI datasets is 256 and 128 per sentence, respectively.</p><p>WORDATT. <ref type="bibr" target="#b1">Alzantot et al. (2018)</ref> proposed an effective and widely used adversarial attack that we incorporate in our work as WORDATT.</p><p>This method allows the attacker to alter practically every word from the sentence if required with the context-preserving synonymous words. The synonym search is done over a large search space that includes the GloVe word vectors <ref type="bibr" target="#b38">(Pennington et al., 2014)</ref>, counter-fitting word vectors <ref type="bibr" target="#b34">(Mrkšić et al., 2016)</ref>, and the Google 1 billion words language model <ref type="bibr" target="#b4">(Chelba et al., 2014)</ref>. Then, following the natural selection methods, crossover and mutation techniques from the population-based genetic algorithm are applied to generate the next set of adversarial sentences. On each iteration, several adversarial texts that are unsuccessful in changing the model's prediction are removed from the pool.</p><p>However, <ref type="bibr" target="#b17">Jia et al. (2019)</ref> found that the algorithm is computationally expensive and recommended using a faster language model and stopping the semantic drift of the algorithm that refers to applying the language model on the synonyms picked from previous iterations as well to choose words from their neighboring word-space.</p><p>We incorporate the above recommendations by utilising a faster Transformer-XL architecture <ref type="bibr" target="#b7">(Dai et al., 2019)</ref> that is pretrained on the WikiText-103 dataset <ref type="bibr" target="#b30">(Merity et al., 2017)</ref> and prohibiting the semantic drift by finding all test examples words' neighbors only before attacks. We also restrict the minimum number of perturbations to one-fifth of the maximum sequence length which is 102 and 51 for the IMDB and MULTINLI, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Baseline Detection Methods</head><p>The first four are from <ref type="bibr" target="#b26">Liu et al. (2022)</ref> (we omit the language model, as it operates essentially at the chance), and we use the implementations from there. <ref type="foot" target="#foot_3">4</ref>Learning to Discriminate Perturbations (DISP) <ref type="bibr" target="#b49">(Zhou et al., 2019)</ref>. DISP is one of the commonly used baselines for adversarial text detection that identifies a set of character-level of word-level perturbed tokens and then applies an embedding estimator that predicts embeddings for each perturbed token and maps them to the actual word to repair the perturbations.</p><p>If the model's prediction on an adversarial text restored by DISP remains the same class as the prediction on its original version, we consider it a successful detection of an adversarial example.</p><p>Frequency-guided word substitutions (FGWS) <ref type="bibr" target="#b33">(Mozes et al., 2021)</ref>. <ref type="bibr" target="#b33">Mozes et al. (2021)</ref> verifies that in the case of word-level attacks, the synonym replacements normally occur in low frequency. They use this concept in a model-agnostic rule-based adversarial text detection algorithm Frequency-Guided Word Substitutions (FGWS).</p><p>Firstly, the algorithm sets a word frequency threshold to identify infrequent words that have frequencies lower than this value. Then the algorithm replaces those words with their high-frequency synonyms and selects the replaced sentences as adversarial samples if the model's prediction confidence scores for the replacements change over a threshold. They use WordNet <ref type="bibr" target="#b9">(Fellbaum, 2005)</ref> and GloVe vectors <ref type="bibr" target="#b38">(Pennington et al., 2014)</ref> to find the synonyms. They experiment by taking {0 -th, 10 -th, • • • , 100 -th} percentile of word frequencies in the training set as the word-frequency threshold. Finally, on these selected alternative sentences, if the prediction confidence differs from their corresponding original sentence's prediction confidence by more than a certain amount, the original sentences are determined as adversarial examples.</p><p>Local Intrinsic Dimensionality (LID) <ref type="bibr" target="#b26">(Liu et al., 2022)</ref>. From the image processing detection methods, <ref type="bibr" target="#b26">Liu et al. (2022)</ref>   MultiDistance Representation Ensemble Method (MDRE) <ref type="bibr" target="#b26">(Liu et al., 2022)</ref>. Motivated by the notion that adversarial examples are out-of-distribution samples as recognized in <ref type="bibr" target="#b21">Lee et al. (2018)</ref> and <ref type="bibr" target="#b8">Feinman et al. (2017)</ref>, <ref type="bibr" target="#b26">Liu et al. (2022)</ref> assume that texts with the same prediction label lie on similar data submanifold and adversarial perturbation on these texts put them to another data submanifold, thus altering the model's prediction on them.</p><p>They measure the Euclidean distance between each reference datapoint and the nearest neighbors from the training datapoints with similar predicted labels and establish that this distance will be greater for the adversarial reference point than the normal one. They further use ensemble learning to combine distances between representations learned from multiple DNNs and build a binary logistic regression model to detect adversarial examples.</p><p>Following <ref type="bibr" target="#b26">(Liu et al., 2022)</ref>, we also use four learning models: [BERT BASE , RoBERTa BASE , XLNet BASE , BART BASE ] in our experiments. Table 7 reports the clean accuracies of the other target classifiers used in feature ensembling in MDRE.</p><p>Randomized Substitution and Vote (RSV) <ref type="bibr" target="#b45">(Wang et al., 2022)</ref>. A word-level attacker's target is to find an optimal synonym substitution that mutually influences other words in the sentence. Taking this optimization target of the adversary, <ref type="bibr" target="#b45">Wang et al. (2022)</ref> resort to randomly substituting words from the text with their synonyms and argue that this random word substitution destroys the mutual interaction between words and eliminates adversarial perturbation.</p><p>At first, they generate a set of perturbed samples by randomly replacing some words from a text with their arbitrary synonyms. Then the model's output logits for the processed samples are accumulated and voted to determine a prediction label for the text samples. If the original text's prediction doesn't match the voted prediction label it is considered as an adversarial example.</p><p>We use their code.<ref type="foot" target="#foot_4">5</ref> SHapley Additive exPlanations (SHAP) <ref type="bibr" target="#b32">(Mosca et al., 2022)</ref>. In this work, <ref type="bibr" target="#b32">Mosca et al. (2022)</ref> adopt an adversarial image detection method for word-level attacks on text. They train an adversarial detector with the SHapley Additive exPlanations (SHAP) values of the training data for each of the test data using the SHAP explainer proposed and implemented by <ref type="bibr" target="#b10">Fidel et al. (2020)</ref>.</p><p>They experiment on multiple classifiers as the detectors such as logistic regression, random-forest classifier, support vector classifier and a neural network. They also show that the detector doesn't require a large number of training samples for it to be successful. In our work, we follow the same and report the best accuracy obtained among the four detectors.</p><p>We use their code. <ref type="foot" target="#foot_5">6</ref> Accuracies of all the detectors are in Table <ref type="table" target="#tab_13">8</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Computing Influence Function</head><p>For a datapoint z i = (x i , y i ) from the training set {(x 1 , y 1 ), . . . , (x i , y i ) ∈ (X, Y )} and model parameters θ ∈ Θ, the loss of the model be L(z, θ) and the optimized parameters are:</p><formula xml:id="formula_2">θ ′ = arg min θ∈Θ 1 n n i=1 L(z i , θ)</formula><p>The influence score is then calculated by observing the impact of a modification in the weight of a train datapoint on the decision of the prediction for the test datapoint. Assume we upweigh the training datapoint z by a small ϵ amount, which produces below θ ′ :</p><formula xml:id="formula_3">θ ′ ϵ,z = arg min θ∈Θ 1 n n i=1</formula><p>L(z i , θ) + ϵL(z, θ)</p><p>Then, according to Koh and Liang (2017), the influence of the boosted z on the parameters θ ′ can be defined by:</p><formula xml:id="formula_4">dθ ′ ϵ,z dϵ | ϵ=0 = -H -1 θ ′ ∇ θ L(z, θ ′ ) (1)</formula><p>where</p><formula xml:id="formula_5">H ′ θ = 1 n n i=1 ∇ 2 θ L(z i , θ ′</formula><p>) is the Hessian of the model.</p><p>Applying the chain rule to the Eq. 1 can be derived to the below form that measures the influence I up,loss of z on the loss of a test point z test :</p><formula xml:id="formula_6">I up,loss (z, z test ) = -∇ θ L(z test , θ ′ )H -1 θ ∇ θ L(z, θ ′ ) (2)</formula><p>The NNIF method uses the I up,loss score.     ful training instances for the detection of the adversarial attack. We also show the DKNN rankings of the top training instances filtered by the IF scores in the table.</p><p>As DISP performs better in one of the experimental settings in <ref type="bibr" target="#b26">Liu et al. (2022)</ref>, we further pick one example sentence from the paper that DISP detects correctly and observe NNIF's performance on it. NNIF is also able to detect the sentence correctly. In Table <ref type="table" target="#tab_0">13</ref> we show the influential instances for this prediction as well.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Adversarial examples characterised by divergence in learned representations between nearest neighbors and training points selected by influence functions, unlike original examples (from (Cohen et al., 2020)).</figDesc><graphic coords="2,306.14,70.87,204.09,152.43" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>, using the hidden layers of the target model and the training points. For each z test we find the ranks R and distances D using this DKNN for the training examples identified by the IFs; we denote by R M ↑ , D M ↑ , R M ↓ , D M ↓ the ranks and distances of the 2M most helpful and harmful training examples, respectively. We finally construct a logistic regression classifier with features</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>MethodsNNIF We adapt the standard NNIF implementation of<ref type="bibr" target="#b5">Cohen et al. (2020)</ref>. For influence score calculation,<ref type="bibr" target="#b5">Cohen et al. (2020)</ref> uses the Darkon module for the image; we instead incorporate the influence function calculation from<ref type="bibr" target="#b15">Han et al. (2020)</ref> 1 which uses Linear time Stochastic Second-Order Algorithm<ref type="bibr" target="#b0">(Agarwal et al., 2017)</ref> for faster convergence, and makes several adaptations to NLP. We build the DkNN containing one layer with l 2 distance and brute-force search.Because IF calculations are expensive, like<ref type="bibr" target="#b5">Cohen et al. (2020)</ref> and<ref type="bibr" target="#b15">Han et al. (2020)</ref> we only sample from among all neighbors: we compute the IF on 6K training datapoints uniformly randomly sampled(Cohen et al. (</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The correspondence between the helpful training records based on IFs in the embedding space of a DNN trained on the IMDB dataset. We present (using t-SNE) the embedding space of a DNN for an actual example (black star) with its adversarial version (purple cross) along with their 25 nearest neighbors (blue) and most helpful samples based on the IF (red).</figDesc><graphic coords="7,77.95,70.87,204.10,194.75" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>We produce an analogous figure in Fig 2 for a randomly selected IMDB test point and its adversarial counterpart generated by WORDATT. We plot 25 nearest neighbors and 25 most helpful IF points using t-SNE (van der Maaten and Hinton, 2008). Ideally, normal neighbors and influence points (blue) should be more tightly grouped and closer to the test point (star); Cohen et al. (2020) expect that for the adversarial point (cross), the neighbors (orange down triangle) should often be separated from the influence points (red up triangle). We see this to some extent in Fig 2 with many adversarial neighbors near the normal point but adversarial influence points near the adversarial point. This is more difficult to see than in the idealised schematic of Fig 1, so for one view of differences in this pair of points we separate IFs and NNs in Fig 3 with recalculated t-SNE for each. It is apparent that the IFs by themselves do a good job of separating normal from adversarial examples here, while the NNs are more mixed. We give representative examples for the other datasets and attacks in App C. The same pattern is true for the IMDB example on WORDATT. For both MULTINLI, however, the IFs are less clearly separating the points, so the NNIF method relies on combining the two (NN, IF) views in the detector. To verify whether this is more generally true than just visually for Fig 3, we aim to measure how separable the samples of these plots are. As a measure of separability, we train 2000 SVC binary classifiers, one for each of our 1000 sampled test and adversarial point pairs, for both IFs and NNs. Each classifier is trained using GridsearchCV on the top 100 points in t-SNE space (either IFs or NNs), so each classifier corresponds to a plot like those in Fig 3 (App D). Accuracies averaged across the 1000 classifiers are in</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Normal and adversarial train subspace observed on the IMDB record used in Fig 2 under WOR-DATT by influence function (top) and DKNN (bottom)</figDesc><graphic coords="8,89.29,334.34,181.42,130.59" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Normal and adversarial subspace of the MULTINLI CHARATT text inTable 10 by IF (top) and DKNN (bottom)</figDesc><graphic coords="8,324.57,198.49,181.41,207.19" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Normal and adversarial subspace by IF (top) and DKNN (bottom) on the unsuccessful detection by NNIF of the MULTINLI CHARATT text in Table 12</figDesc><graphic coords="9,89.29,70.87,181.42,212.81" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>Looking at the training samples that influence the prediction of a test datapoint, gives us an illustration of the decision subspace of the DNN on it. To illustrate the subspace, we measure the top 25 influential (IF) and nearest neighbor (NN) training embeddings for a test record and its adversarial counterpart for each attack and plot them along with the test and adversarial points. All embeddings are reduced to two dimensions by using t-SNE. Figures7 and 8show an example each for the IMDB and MULTINLI datasets, respectively. On each figure, the top row depicts the IF-based training points and the bottom row shows the NNbased training points.D Separability of Points: IF vs NNWe build SVC classifiers on the neighboring train embeddings to evaluate how well the influence function is describing the learned subspace of the DNN than the DKNN. The best SVC classifiers over NNs and IF points for each of the 1000 test and adversarial example pairs are estimated through GridSearch over the parameters as depicted in Table 9.E Experimental Results ExamplesNNIF combines the DKNN ranking on top of the influence scores to select the best training instances for a test datapoint. In Tables 10, 11 and 12 we illustrate examples for WORDATT and CHARATT respectively, showing the top three helpful and harm-</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Embedding subspace (applied t-SNE) of a test sample from the IMDB dataset (black-square) and its adversarial version (purple-cross) generated by three types of attacks. The top set of images shows the 25 most influential training samples and the bottom set shows the top 25 nearest neighbors (KNN).</figDesc><graphic coords="16,89.73,140.79,204.09,208.39" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Embedding subspace (applied t-SNE) of a test sample from the MULTINLI dataset (black-square) and its adversarial version (purple-cross) generated by three types of attacks. The top set of images shows the 25 most influential training samples and the bottom set shows the top 25 nearest neighbors (KNN).</figDesc><graphic coords="16,89.73,497.06,204.09,202.34" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Examples of textual adversarial instances on IMDB and the prediction of BERTBASE on them</figDesc><table><row><cell>ing kernel density estimation on the last hidden</cell></row><row><cell>layer of a DNN. Ma et al. (2018) characterised the</cell></row><row><cell>dimensional properties of adversarial subspaces</cell></row><row><cell>using Local Intrinsic Dimensionality (LID), ap-</cell></row><row><cell>plied to the distribution of distances to neighbors</cell></row><row><cell>in the region around a sample. Papernot and Mc-</cell></row><row><cell>Daniel (2018), noting that DNNs are poorly cali-</cell></row><row><cell>brated (Guo et al., 2017), proposed Deep k-Nearest</cell></row><row><cell>Neighbors (DKNN), a KNN classifier constructed</cell></row><row><cell>over the hidden layers of a DNN classifier; such</cell></row><row><cell>a DKNN classifier could match the performance</cell></row><row><cell>of the DNN while also providing better confidence</cell></row><row><cell>estimates of prediction, and these confidence esti-</cell></row><row><cell>mates are used in identifying adversarial examples.</cell></row><row><cell>Lee et al. (2018) constructed Mahalanobis distance-</cell></row><row><cell>based confidence scores from DNNs, using these</cell></row><row><cell>scores to construct a detection classifier. Cohen</cell></row><row><cell>et al. (2020) investigated the use of influence func-</cell></row><row><cell>tions in adversarial image detection that explain</cell></row><row><cell>the decisions of a model by identifying influential</cell></row><row><cell>training examples, and comparing these points to</cell></row><row><cell>those found in a DKNN approach, using the differ-</cell></row><row><cell>ences in distributions between real examples and</cell></row><row><cell>adversarial ones to construct classifiers that outper-</cell></row><row><cell>formed the approaches above. In this paper, we</cell></row><row><cell>focus on the last two and adapt them to NLP.</cell></row><row><cell>Adversarial Defences for Text Improving adver-</cell></row><row><cell>sarial robustness remains a widely used mecha-</cell></row><row><cell>nism in defending textual adversaries</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>of 768 nodes, a layer of 50% dropout, and another dense layer of 768 nodes. The dataset split is 80-20 train-test. We train the model for 3 epochs with 5e -5 learning rate and AdamW optimization without freezing any layer of the backbone model. This BERT BASE model achieves 92.90% and 82.01% test accuracies on the IMDB and MULTINLI datasets respectively. The accuracies of the clean model and the model under attack are given in Table</figDesc><table /><note><p>, we use a pre-trained BERT-base-cased model, adding a fully connected dense layer</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2 :</head><label>2</label><figDesc>Accuracy of detection classifiers (best, second). DISP results reported from<ref type="bibr" target="#b26">Liu et al. (2022)</ref>.</figDesc><table><row><cell cols="2">Dataset Detector</cell><cell>CHAR ATTACK</cell><cell>WORD ATTACK</cell></row><row><cell></cell><cell cols="3">DISP * 0.8936 0.7714</cell></row><row><cell></cell><cell>FGWS</cell><cell>-</cell><cell>0.7546</cell></row><row><cell></cell><cell>LID</cell><cell>0.814</cell><cell>0.675</cell></row><row><cell></cell><cell>MDRE</cell><cell cols="2">0.846 0.7025</cell></row><row><cell>IMDB</cell><cell>RSV</cell><cell>-</cell><cell>0.8876</cell></row><row><cell></cell><cell>SHAP</cell><cell>0.812</cell><cell>0.764</cell></row><row><cell></cell><cell>NNIF</cell><cell>1.0</cell><cell>0.899</cell></row><row><cell></cell><cell cols="3">MAHAL 0.9167 0.8147</cell></row><row><cell></cell><cell cols="3">DISP * 0.7496 0.6137</cell></row><row><cell></cell><cell>FGWS</cell><cell>-</cell><cell>0.6112</cell></row><row><cell></cell><cell>LID</cell><cell cols="2">0.7035 0.5838</cell></row><row><cell></cell><cell>MDRE</cell><cell cols="2">0.687 0.6231</cell></row><row><cell>MULTINLI</cell><cell>RSV</cell><cell>-</cell><cell>0.6054</cell></row><row><cell></cell><cell>SHAP</cell><cell>0.614</cell><cell>0.697</cell></row><row><cell></cell><cell>NNIF</cell><cell cols="2">0.745 0.7351</cell></row><row><cell></cell><cell cols="3">MAHAL 0.6972 0.6211</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 2 .</head><label>2</label><figDesc>(All SHAP detector classifiers in  Table 8.) Overall, NNIF is the best, performing with 100% accuracy on CHARATT for sentiment analysis (more than</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head></head><label></label><figDesc>The assumption underpinning the Cohen et al. (2020) method is that influential training samples and nearest neighbors should overlap for normal examples, but less so for adversarial examples: having two views on 'nearby' points is key, illustrated in Fig 1.</figDesc><table><row><cell>Dataset</cell><cell>Attack</cell><cell>Penultimate layer</cell><cell>Feature Ensemble</cell></row><row><cell>IMDB</cell><cell>CHARATT WORDATT</cell><cell>0.5967 0.536</cell><cell>0.9167 0.8147</cell></row><row><cell>MULTINLI</cell><cell>CHARATT WORDATT</cell><cell>0.5172 0.4983</cell><cell>0.6972 0.6212</cell></row><row><cell cols="4">Table 3: Detection accuracy of Mahalanobis detector</cell></row><row><cell cols="4">in two settings: penultimate layer (no calibration) and</cell></row><row><cell cols="2">feature ensemble.</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 4</head><label>4</label><figDesc></figDesc><table /><note><p><p>, with p-values for a one-tailed test of proportions (positing alternative hypothesis H 1 that the IF classifier is more accurate).</p>Table 4 indicates that the IF points are</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 4 :</head><label>4</label><figDesc>SVC accuracy of linearly separating the 2D-t-SNE embedding subspace of neighboring train samples of 1000 test records and their adversarial versions</figDesc><table><row><cell>Attack</cell><cell>Avg Acc NNIF</cell><cell>Avg Acc KNN</cell><cell>p-value</cell></row><row><cell>IMDB CHARATT</cell><cell cols="3">0.6875 0.5626 &lt; .00001</cell></row><row><cell>IMDB WORDATT</cell><cell cols="3">0.7812 0.5644 &lt; .00001</cell></row><row><cell cols="4">MULTINLICHARATT 0.6399 0.5625 &lt; .00001</cell></row><row><cell cols="3">MULTINLIWORDATT 0.5603 0.5632</cell><cell>0.448</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head></head><label></label><figDesc>adapt the Local Intrinsic</figDesc><table><row><cell cols="4">Dataset Training. Validation. Testing.</cell><cell>Correctly Predicted Test Examples</cell><cell cols="2">Adversarial/Original Examples character-level word-level</cell></row><row><cell>IMDB</cell><cell>20,000</cell><cell>5,000</cell><cell>25,000</cell><cell>23,226</cell><cell>12,299</cell><cell>9,627</cell></row><row><cell cols="2">MULTINLI 314,162</cell><cell>78,540</cell><cell>9,832</cell><cell>8,062</cell><cell>7,028</cell><cell>3,240</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 5 :</head><label>5</label><figDesc>The number of examples used in experiments</figDesc><table><row><cell>Dataset</cell><cell>Clean Accuracy ATTACK ATTACK CHAR WORD</cell></row><row><cell>IMDB</cell><cell>0.9290 0.3656 0.6999</cell></row><row><cell cols="2">MULTINLI 0.8201 0.4848 0.6864</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 6 :</head><label>6</label><figDesc>BERT BASE classifier accuracy on the clean and adversarial examplesDimensionality (LID) approach of<ref type="bibr" target="#b27">Ma et al. (2018)</ref>. This technique creates a local distance distribution for a test record to its neighbors from the training set. They apply this to transformer models by taking the outputs of each layer from the target model to represent the training records.Following<ref type="bibr" target="#b26">Liu et al. (2022)</ref>, we use the BERT BASE model and implement a logistic regression classifier as the detector, and tune the size of the neighbors k through a grid search over 100, 1000, and the range [10, 42) with a step size 2.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 7 :</head><label>7</label><figDesc>Different classifier accuracies on both clean and adversarial dataset for MDRE.</figDesc><table><row><cell></cell><cell></cell><cell>Dataset</cell><cell cols="4">Attack Method BERTBASE RoBERTaBASE XLNetBASE BARTBASE</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">Clean</cell><cell>0.9290</cell><cell>0.9532</cell><cell>0.9336</cell><cell>0.9429</cell></row><row><cell></cell><cell></cell><cell>IMDB</cell><cell cols="2">CHARATT</cell><cell>0.3656</cell><cell>0.8613</cell><cell>0.5770</cell><cell>0.8286</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">WORDATT</cell><cell>0.6999</cell><cell>0.8714</cell><cell>0.7918</cell><cell>0.8425</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">Clean</cell><cell>0.8201</cell><cell>0.8671</cell><cell>0.8630</cell><cell>0.8455</cell></row><row><cell></cell><cell></cell><cell>MULTINLI</cell><cell cols="2">CHARATT</cell><cell>0.4848</cell><cell>0.7104</cell><cell>0.6670</cell><cell>0.6457</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">WORDATT</cell><cell>0.6864</cell><cell>0.7068</cell><cell>0.6870</cell><cell>0.6296</cell></row><row><cell>Dataset</cell><cell>Attack</cell><cell cols="2">Logistic Regression</cell><cell>Random Forest</cell><cell>SVC DNN</cell></row><row><cell>IMDB</cell><cell cols="2">CHARATT WORDATT 0.605 0.740</cell><cell></cell><cell cols="2">0.804 0.803 0.812 0.764 0.684 0.75</cell></row><row><cell>MULTINLI</cell><cell cols="2">CHARATT WORDATT 0.528 0.588</cell><cell></cell><cell cols="2">0.614 0.613 0.61 0.697 0.633 0.621</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 8 :</head><label>8</label><figDesc>Detection accuracy obtained from four detector classifiers used in SHAP.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 9 :</head><label>9</label><figDesc>Gridsearch parameters for building SVC.</figDesc><table><row><cell>C Illustrations of Regions Around Test</cell></row><row><cell>and Adversarial Points</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/xhan77/ influence-function-analysis</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Code: https://github.com/SJabin/NNIF.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>We do not include ADFAR<ref type="bibr" target="#b2">(Bao et al., 2021)</ref>, as it works and performs similarly to (and was proposed concurrently with) RSV, but has a more complex code implementation.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://github.com/NaLiuAnna/MDRE</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>https://github.com/JHL-HUST/RSV</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>https://github.com/huberl/adversarial_ shap_detect_Repl4NLP</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original text -label Entailment -prediction Entailment</head><p>Premise: Address your remarks to the chair illustrates metonymy a figure of speech in which something is called by the name of something else associated with it. Hypothesis: Using one word to refer to something that is associated with it is a figure of speech.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>WORDATT-prediction Contradiction</head><p>Premise: Address your remarks to the chair draws metonymy a digit of speech in which something is called by the name of something else associated with it . Hypothesis: Using one word to refer to something that is associated with it is a digit of speech Premise: Although a seemingly mundane, tactical aspect of business, a firm's inventory strategy reflects its approach to managing risk. Hypothesis: It is possible to determine a firm's risk management philosophy by examining their inventory strategy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>CHARATT-prediction Neutral</head><p>Premise: Although a seemingly mundane , tactcial aspect of business , a firm 's itnventory strategxy reflects its approach to managing risk. Hypothesis: It is possible to determine a firm 's risk management philkosophy by examining their inventory strategxy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Top Helpful NNIF Rank</head><p>1 Premise: Online investment guru Tokyo Joe was sued by the SEC in a civil fraud case. Hypothesis: Tokyo Joe has been sued before. 5091</p><p>2 Premise: Wesray's purchase of Avis was trendy in three ways. Hypothesis: There are three reasons why Wesray's purchase of Avis is trendy. 266</p><p>3 Premise: yeah i don't mind that um my husband never cared for fast food so we didn' Premise: And, instead of providing an open-ended guarantee on prices to its distributors, the company would guarantee the price for only two weeks after purchase by the distributor, refusing to take back computers unless they malfunctioned.</p><p>Hypothesis: The distributor could potentially lose out due to this method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>CHARATT-prediction Contradiction</head><p>Premise: And , instead of providing an openedned guaantee on pices to its disrtibutors , the comapny wuld guaantee the price for only two weeks after purchase by the distributor, refusing to take badk computers ulness they malfunctioned .</p><p>Hypothesis: Tehe distributor could poteIntially lose out de to this mehgod .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Top Helpful NNIF Rank</head><p>1 Premise: No it was gas because you washed your legs all over because you did it in shorts.</p><p>Hypothesis: Your legs were washed all over due to having done it in shorts. 2373</p><p>2 Premise: Leaving the British official who twice searched his luggage none the wiser, he managed by meticulous observation to memorize the principal features of the power loom well enough to produce his own version of it on his return to Boston. Hypothesis: He failed at retaining the information in his head but managed to build a rough prototype of the power loom anyway.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>4706</head><p>3 Premise: Bin Ladin shares Qutb's stark view, permitting him and his followers to rationalize even unprovoked mass murder as righteous defense of an embattled faith.</p><p>Hypothesis: Bin Ladin views his actions as a defense of his faith.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>925</head><p>Top Harmful NNIF Rank</p><p>1 Premise: As graduates of the class of 1990, we would like to leave behind something tangible, in appreciation for the support and encouragement we have received from other students in the School of Engineering and Technology. Hypothesis: We want leave a concrete symbol of our appreciation to the school. 1336 2 Premise: Fortunately, not all reports are as disturbing as Hochschild's. Hypothesis: Thankfully, not all reports are as terrifying as Hochschild's. 4817</p><p>3 Premise: Of the two, the W geographical listings seem more W lists Aylesbury, which, through some grievous, egregious fault, is not in the geographical section of the L but does appear in the A-Z section (because of the ducks).</p><p>Hypothesis: For some reason, the ducks put the topic in the A-Z section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>268</head><p>Table <ref type="table">12</ref>: MULTINLI CHARATT adversarial text that the NNIF fails to detect; showing top three helpful and harmful train instances based on IF score and further ranking of them by DKNN</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original text -label Entailment prediction Entailment</head><p>Premise: Finally, it might be worth mentioning that the program has the capacity to store in a temporary memory buffer about 100 words (proper names, for instance) that it has identified as not stored in its dictionary. Hypothesis: It's possible to store words in a temporary dictionary, if they don't appear in a regular dictionary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>WORDATT-prediction Neutral</head><p>Premise: Finally, it might be worth mentioning that the program has the capacity to store in a temporary memory buffer about 100 words (proper names, for instance) that it has identified as not stored in its dictionary. Hypothesis: It's possible to shopping words in a temporary dictionary, if they don't appear in a regular dictionary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Repaired text by DISP</head><p>Premise: Finally, it might be worth that that the program has the capacity to store in a temporary memory buffer about 100 words (proper names, for instance) that it has identified as not stored in its dictionary. Hypothesis: It's possible to do words in a temporary dictionary, if they don't appear in a regular dictionary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Repaired text by FGWS</head><p>Premise: Finally, it might be worth name that the program has the capacity to store in a temporary memory pilot about 100 words (proper names, for instance) that it has identified as not stored in its dictionary. Hypothesis: It's possible to shopping words in a temporary dictionary, if they don't appear in a regular dictionary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Top Helpful NNIF Rank</head><p>1 Premise: yeah i mean they're they're throwing more money at it now than ever before and things are getting worse.</p><p>Hypothesis: The money is going to the wrong things, so it's not fixing the problem. 1295 2 Premise: the uniformed services, recognize that promotional material received by a uniformed service member traveling on official business at government expense belongs to the government and must be relinquished in accordance with service regulations Hypothesis: TThe material belongs to the government even after the hand out. 2835 3 Premise: According to NIST, accreditation is the formal authorization by the management official for system operation and an explicit acceptance of risk. Hypothesis: Accreditation is the formal authorization by the management official for system operation and an explicit acceptance of risk, according to NIST.</p><p>2908 </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Second-order stochastic optimization for machine learning in linear time</title>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Bullins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page">40</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Generating natural language adversarial examples</title>
+		<author>
+			<persName><forename type="first">Moustafa</forename><surname>Alzantot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yash</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Elgohary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo-Jhang</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mani</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1316</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2890" to="2896" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Defending pre-trained language models from adversarial word substitutions without performance sacrifice</title>
+		<author>
+			<persName><forename type="first">Rongzhou</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hai</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno>CoRR, abs/2105.14553</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Towards evaluating the robustness of neural networks</title>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Carlini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">A</forename><surname>Wagner</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/SP.2017.49</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2017 IEEE Symposium on Security and Privacy</title>
+		<meeting><address><addrLine>San Jose, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2017-05-22">2017. May 22-26, 2017</date>
+			<biblScope unit="volume">2017</biblScope>
+			<biblScope unit="page" from="39" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">One billion word benchmark for measuring progress in statistical language modeling</title>
+		<author>
+			<persName><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomás</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thorsten</forename><surname>Brants</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tony</forename><surname>Robinson</surname></persName>
+		</author>
+		<idno type="DOI">10.21437/Interspeech.2014-564</idno>
+	</analytic>
+	<monogr>
+		<title level="m">INTER-SPEECH 2014, 15th Annual Conference of the International Speech Communication Association, Singapore</title>
+		<imprint>
+			<date type="published" when="2014-09-14">2014. September 14-18, 2014</date>
+			<biblScope unit="page" from="2635" to="2639" />
+		</imprint>
+		<respStmt>
+			<orgName>ISCA</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Detecting adversarial samples using influence functions and nearest neighbors</title>
+		<author>
+			<persName><forename type="first">Gilad</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillermo</forename><surname>Sapiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raja</forename><surname>Giryes</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR42600.2020.01446</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2020</title>
+		<meeting><address><addrLine>Seattle, WA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Computer Vision Foundation / IEEE</publisher>
+			<date type="published" when="2020-06-13">2020. June 13-19, 2020</date>
+			<biblScope unit="page" from="14441" to="14450" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Certified adversarial robustness via randomized smoothing</title>
+		<author>
+			<persName><forename type="first">Jeremy</forename><forename type="middle">M</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elan</forename><surname>Rosenfeld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Zico</forename><surname>Kolter</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th International Conference on Machine Learning, ICML</title>
+		<meeting>the 36th International Conference on Machine Learning, ICML<address><addrLine>Long Beach, California, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019-06">2019. 2019, 9-15 June 2019</date>
+			<biblScope unit="volume">97</biblScope>
+			<biblScope unit="page" from="1310" to="1320" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of Machine Learning Research</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Transformer-XL: Attentive language models beyond a fixed-length context</title>
+		<author>
+			<persName><forename type="first">Zihang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhilin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaime</forename><surname>Carbonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1285</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2978" to="2988" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Detecting adversarial samples from artifacts</title>
+		<author>
+			<persName><forename type="first">Reuben</forename><surname>Feinman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">R</forename><surname>Curtin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Shintre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">B</forename><surname>Gardner</surname></persName>
+		</author>
+		<idno>CoRR, abs/1703.00410</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Wordnet and wordnets</title>
+		<author>
+			<persName><forename type="first">Christiane</forename><surname>Fellbaum</surname></persName>
+		</author>
+		<editor>Alex Barber</editor>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<publisher>Elsevier</publisher>
+			<biblScope unit="page" from="2" to="665" />
+			<pubPlace>ELL</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">When explainability meets adversarial learning: Detecting adversarial examples using SHAP signatures</title>
+		<author>
+			<persName><forename type="first">Gil</forename><surname>Fidel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ron</forename><surname>Bitton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asaf</forename><surname>Shabtai</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/IJCNN48605.2020.9207637</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2020 International Joint Conference on Neural Networks, IJCNN 2020</title>
+		<meeting><address><addrLine>Glasgow, United Kingdom</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2020-07-19">2020. July 19-24, 2020</date>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Explaining and harnessing adversarial examples</title>
+		<author>
+			<persName><forename type="first">Ian</forename><forename type="middle">J</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathon</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">3rd International Conference on Learning Representations, ICLR 2015</title>
+		<title level="s">Conference Track Proceedings</title>
+		<meeting><address><addrLine>San Diego, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-05-07">2015. May 7-9, 2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Deepsafe: A data-driven approach for assessing robustness of neural networks</title>
+		<author>
+			<persName><forename type="first">Divya</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Katz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Corina</forename><forename type="middle">S</forename><surname>Pasareanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clark</forename><forename type="middle">W</forename><surname>Barrett</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-030-01090-4_1</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Automated Technology for Verification and Analysis -16th International Symposium</title>
+		<title level="s">Lecture Notes in Computer Science</title>
+		<meeting><address><addrLine>Los Angeles, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2018-10-07">2018. October 7-10, 2018</date>
+			<biblScope unit="volume">2018</biblScope>
+			<biblScope unit="page" from="3" to="19" />
+		</imprint>
+	</monogr>
+	<note>ATVA</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">On calibration of modern neural networks</title>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoff</forename><surname>Pleiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning, ICML 2017</title>
+		<meeting>the 34th International Conference on Machine Learning, ICML 2017<address><addrLine>Sydney, NSW, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-06-11">2017. 6-11 August 2017</date>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="page" from="1321" to="1330" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">FastIF: Scalable influence functions for efficient model interpretation and debugging</title>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nazneen</forename><surname>Rajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Hase</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.808</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="10333" to="10350" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Explaining black box predictions and unveiling data artifacts through influence functions</title>
+		<author>
+			<persName><forename type="first">Xiaochuang</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Byron</forename><forename type="middle">C</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulia</forename><surname>Tsvetkov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.492</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5553" to="5563" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Adversarial example generation with syntactically controlled paraphrase networks</title>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Wieting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1170</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>New Orleans</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1875" to="1885" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Certified robustness to adversarial word substitutions</title>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditi</forename><surname>Raghunathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kerem</forename><surname>Göksel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4129" to="4142" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Is BERT really robust? A strong baseline for natural language attack on text classification and entailment</title>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijing</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joey</forename><forename type="middle">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Szolovits</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Robust encodings: A framework for combating adversarial typos</title>
+		<author>
+			<persName><forename type="first">Erik</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditi</forename><surname>Raghunathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.245</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Compu-tational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Compu-tational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2752" to="2765" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Understanding black-box predictions via influence functions</title>
+		<author>
+			<persName><forename type="first">Pang</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koh</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning, ICML 2017</title>
+		<meeting>the 34th International Conference on Machine Learning, ICML 2017<address><addrLine>Sydney, NSW</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-08-11">2017. Australia, 6-11 August 2017</date>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="page" from="1885" to="1894" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A simple unified framework for detecting outof-distribution samples and adversarial attacks</title>
+		<author>
+			<persName><forename type="first">Kimin</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kibok</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglak</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinwoo</forename><surname>Shin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 31: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS; Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018-12-03">2018. 2018. 2018. December 3-8, 2018</date>
+			<biblScope unit="page" from="7167" to="7177" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Contextualized perturbation for textual adversarial attack</title>
+		<author>
+			<persName><forename type="first">Dianqi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liqun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Ting</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Dolan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.400</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5053" to="5069" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">BERT-ATTACK: Adversarial attack against BERT using BERT</title>
+		<author>
+			<persName><forename type="first">Linyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruotian</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qipeng</forename><surname>Guo</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.500</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6193" to="6202" />
+		</imprint>
+	</monogr>
+	<note>Xiangyang Xue, and Xipeng Qiu</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Learning robust representations of text</title>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D16-1207</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1979" to="1985" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Robust training under linguistic adversity</title>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics<address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="21" to="27" />
+		</imprint>
+	</monogr>
+	<note>Short Papers. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Detecting textual adversarial examples based on distributional characteristics of data representations</title>
+		<author>
+			<persName><forename type="first">Na</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Dras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><forename type="middle">Emma</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.repl4nlp-1.9</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th Workshop on Representation Learning for NLP</title>
+		<meeting>the 7th Workshop on Representation Learning for NLP<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="78" to="90" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Characterizing adversarial subspaces using local intrinsic dimensionality</title>
+		<author>
+			<persName><forename type="first">Xingjun</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yisen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><forename type="middle">M</forename><surname>Erfani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">R</forename><surname>Sudanthi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Grant</forename><surname>Wijewickrema</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Schoenebeck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">E</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Houle</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bailey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">6th International Conference on Learning Representations, ICLR 2018</title>
+		<meeting><address><addrLine>Vancouver, BC, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018-04-30">2018. April 30 -May 3, 2018</date>
+		</imprint>
+	</monogr>
+	<note>Conference Track Proceedings. OpenReview.net</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Learning word vectors for sentiment analysis</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">L</forename><surname>Maas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raymond</forename><forename type="middle">E</forename><surname>Daly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">T</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="142" to="150" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Towards deep learning models resistant to adversarial attacks</title>
+		<author>
+			<persName><forename type="first">Aleksander</forename><surname>Madry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandar</forename><surname>Makelov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitris</forename><surname>Tsipras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrian</forename><surname>Vladu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">6th International Conference on Learning Representations, ICLR 2018</title>
+		<title level="s">Conference Track Proceedings. OpenReview.net</title>
+		<meeting><address><addrLine>Vancouver, BC, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018-04-30">2018. April 30 -May 3, 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Pointer sentinel mixture models</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Merity</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Deepfool: A simple and accurate method to fool deep neural networks</title>
+		<author>
+			<persName><forename type="first">Seyed-Mohsen</forename><surname>Moosavi-Dezfooli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alhussein</forename><surname>Fawzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascal</forename><surname>Frossard</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2016.282</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2016 IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Las Vegas, NV, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2016-06-27">2016. 2016. June 27-30, 2016</date>
+			<biblScope unit="page" from="2574" to="2582" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Detecting word-level adversarial text attacks via shapley additive explanations</title>
+		<author>
+			<persName><forename type="first">Edoardo</forename><surname>Mosca</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukas</forename><surname>Huber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Alexander Kühn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georg</forename><surname>Groh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.repl4nlp-1.16</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th Workshop on Representation Learning for NLP, RepL4NLP@ACL 2022</title>
+		<meeting>the 7th Workshop on Representation Learning for NLP, RepL4NLP@ACL 2022<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022-05-26">2022. May 26, 2022</date>
+			<biblScope unit="page" from="156" to="166" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Frequency-guided word substitutions for detecting textual adversarial examples</title>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Mozes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pontus</forename><surname>Stenetorp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bennett</forename><surname>Kleinberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lewis</forename><surname>Griffin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.13</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="171" to="186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Counter-fitting word vectors to linguistic constraints</title>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Mrkšić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ó</forename><surname>Diarmuid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blaise</forename><surname>Séaghdha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milica</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lina</forename><forename type="middle">M</forename><surname>Gašić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei-Hao</forename><surname>Rojas-Barahona</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tsung-Hsien</forename><surname>Vandyke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steve</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Young</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N16-1018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="142" to="148" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Papernot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fartash</forename><surname>Faghri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Carlini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reuben</forename><surname>Feinman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Kurakin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cihang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yash</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurko</forename><surname>Roy</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1610.00768</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>et al. 2016a. Technical report on the cleverhans v2. 1.0 adversarial examples library</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Deep k-nearest neighbors: Towards confident, interpretable and robust deep learning</title>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Papernot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><forename type="middle">D</forename><surname>Mcdaniel</surname></persName>
+		</author>
+		<idno>CoRR, abs/1803.04765</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">The limitations of deep learning in adversarial settings</title>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Papernot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><forename type="middle">D</forename><surname>Mcdaniel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Somesh</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Fredrikson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><forename type="middle">Berkay</forename><surname>Celik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ananthram</forename><surname>Swami</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/EuroSP.2016.36</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE European Symposium on Security and Privacy</title>
+		<meeting><address><addrLine>Saarbrücken, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2016-03-21">2016. 2016. March 21-24, 2016</date>
+			<biblScope unit="page" from="372" to="387" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">GloVe: Global vectors for word representation</title>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/D14-1162</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Combating adversarial misspellings with robust word recognition</title>
+		<author>
+			<persName><forename type="first">Danish</forename><surname>Pruthi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhuwan</forename><surname>Dhingra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><forename type="middle">C</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1561</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5582" to="5591" />
+		</imprint>
+	</monogr>
+	<note>Lipton</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Generating natural language adversarial examples through probability weighted word saliency</title>
+		<author>
+			<persName><forename type="first">Yihe</forename><surname>Shuhuai Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanxiang</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Che</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1103</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1085" to="1097" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Semantically equivalent adversarial rules for debugging NLP models</title>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Tulio Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1079</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="856" to="865" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Intriguing properties of neural networks</title>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joan</forename><surname>Bruna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dumitru</forename><surname>Erhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><forename type="middle">J</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rob</forename><surname>Fergus</surname></persName>
+		</author>
+		<idno>CoRR, abs/1608.07690</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2nd International Conference on Learning Representations</title>
+		<meeting><address><addrLine>Banff, AB, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-04-14">2014. 2014. April 14-16, 2014</date>
+		</imprint>
+	</monogr>
+	<note>Conference Track Proceedings. Thomas Tanay. and Lewis D. Griffin. 2016. A boundary tilting persepective on the phenomenon of adversarial examples</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">The space of transferable adversarial examples</title>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Tramèr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Papernot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><forename type="middle">J</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Boneh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><forename type="middle">D</forename><surname>Mcdaniel</surname></persName>
+		</author>
+		<idno>CoRR, abs/1704.03453</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Visualizing data using t-sne</title>
+		<author>
+			<persName><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">86</biblScope>
+			<biblScope unit="page" from="2579" to="2605" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Detecting textual adversarial examples through randomized substitution and vote</title>
+		<author>
+			<persName><forename type="first">Xiaosen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifeng</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>He</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-Eighth Conference on Uncertainty in Artificial Intelligence, UAI 2022</title>
+		<meeting>the Thirty-Eighth Conference on Uncertainty in Artificial Intelligence, UAI 2022<address><addrLine>Eindhoven, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-01-05">2022. 1-5 August 2022</date>
+			<biblScope unit="volume">180</biblScope>
+			<biblScope unit="page" from="2056" to="2065" />
+		</imprint>
+	</monogr>
+	<note>Uncertainty in Artificial Intelligence</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1101</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1112" to="1122" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Feature denoising for improving adversarial robustness</title>
+		<author>
+			<persName><forename type="first">Cihang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><forename type="middle">L</forename><surname>Yuille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2019.00059</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2019</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Computer Vision Foundation / IEEE</publisher>
+			<date type="published" when="2019-06-16">2019. June 16-20, 2019</date>
+			<biblScope unit="page" from="501" to="509" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Towards improving adversarial training of NLP models</title>
+		<author>
+			<persName><forename type="first">Jin</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Yoo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanjun</forename><surname>Qi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-emnlp.81</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2021</title>
+		<meeting><address><addrLine>Punta Cana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="945" to="956" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Learning to discriminate perturbations for blocking adversarial attacks in text classification</title>
+		<author>
+			<persName><forename type="first">Yichao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jyun-Yu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1496</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4904" to="4913" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

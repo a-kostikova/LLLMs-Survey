@@ -1,0 +1,1445 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Semi-supervised News Discourse Profiling with Contrastive Learning</title>
+				<funder>
+					<orgName type="full">Texas A&amp;M High-Performance Research Computing</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">National Science Foundation</orgName>
+					<orgName type="abbreviated">NSF</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+							<email>liming@tamu.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+							<email>huangrh@cse.tamu.edu</email>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Texas A&amp;M University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">Texas A&amp;M University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff2">
+								<orgName type="department">https://github.com/MingLiiii/ICLD</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Semi-supervised News Discourse Profiling with Contrastive Learning</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">3FB7E197D7B0E5F276A132B3AB47364D</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:59+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>News Discourse Profiling seeks to scrutinize the event-related role of each sentence in a news article and has been proven useful across various downstream applications. Specifically, within the context of a given news discourse, each sentence is assigned to a pre-defined category contingent upon its depiction of the news event structure. However, existing approaches suffer from an inadequacy of available human-annotated data, due to the laborious and time-intensive nature of generating discourselevel annotations. In this paper, we present a novel approach, denoted as Intra-document Contrastive Learning with Distillation (ICLD), for addressing the news discourse profiling task, capitalizing on its unique structural characteristics. Notably, we are the first to apply a semi-supervised methodology within this task paradigm, and evaluation demonstrates the effectiveness of the presented approach. Codes, models, and data will be available. 1  </p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>News discourse profiling <ref type="bibr" target="#b8">(Choubey et al., 2020</ref>) is a specialized task aimed at comprehensively analyzing the structural aspects of news articles and effectively categorizing each sentence based on its contextual depiction of news events. Therefore, this is a document-level task with sentence-level predictions <ref type="bibr">(Li et al., 2022a)</ref>, which has been proven useful in several downstream tasks, including text simplification <ref type="bibr">(Zhang et al., 2022a)</ref>, media bias analysis <ref type="bibr" target="#b20">(Lei et al., 2022)</ref>, event coreference resolution <ref type="bibr" target="#b8">(Choubey et al., 2020)</ref>, RST-style Discourse Parsing <ref type="bibr" target="#b22">(Li and Huang, 2023)</ref> and temporal dependency graph building (Choubey and <ref type="bibr">Huang, 2022)</ref>.</p><p>Nevertheless, as a discourse-level task, the process of creating annotations entails a substantial investment of time and labor. The absence of humanannotated data poses a significant obstacle to the Figure <ref type="figure">1</ref>: An example of news articles in the humanannotated data. H represents the headline of the news and S i represents the ith sentence in the news. In parenthesis (blue) are news discourse profiling labels assigned to the respective sentences. On the left and right sides (green), we provide the cosine similarity values derived from the sentence embeddings generated by Google's Universal Sentence Encoder. In this example, S 1 and S 11 are semantically similar (0.725) but have different labels. However, S 10 and S 11 are in the same category even though they are not semantically similar (0.124).</p><p>practical implementation of news discourse profiling, despite the relatively straightforward acquisition of unlabeled news articles. Building upon the aforementioned rationale, our impetus resides in introducing more unlabeled data for training purposes and formulating a semi-supervised methodology tailored to this particular task structure.</p><p>Contrastive learning <ref type="bibr">(Zhang et al., 2022b;</ref><ref type="bibr" target="#b19">Le-Khac et al., 2020;</ref><ref type="bibr" target="#b0">Albelwi, 2022)</ref> can effectively make use of unlabeled data and has been developed greatly recently which aims to learn effective representations of words, sentences, or discourses by pulling semantically close samples together and pushing away others <ref type="bibr" target="#b12">(Gao et al., 2021)</ref>. A fundamental premise underlying contrastive learning is that the features acquired by encoders, via self-identification, encompass crucial information capable of not only distinguishing individual in-stances but also discerning disparities across different classes <ref type="bibr" target="#b35">(van den Oord et al., 2019)</ref>. However, in news discourse profiling, the classification of each sentence is more profoundly influenced by the collective discourse structure and its interrelationships with other sentences, rather than relying solely on the inherent semantic meanings of individual sentences, which poses difficulties in designing a contrastive learning methodology for this task.</p><p>As depicted in Figure <ref type="figure">1</ref>, we present an illustrative instance selected from human-annotated datasets. H denotes the news headline, while S i represents the i-th sentence within the news<ref type="foot" target="#foot_0">2</ref> . In parenthesis (blue) are news discourse profiling labels assigned to the respective sentences. On the left and right sides (green), we provide the cosine similarity values derived from the sentence embeddings generated by Google's Universal Sentence Encoder <ref type="bibr" target="#b41">(Yang et al., 2020)</ref>.</p><p>Although S 10 and S 11 serve similar functions by elucidating the terrorists' workplace and specifying the precise detonation site of the bomb, their similarity score is a mere 0.124. Conversely, S 1 and S 11 exhibit a higher similarity score of 0.725, despite their distinct narrative roles in conveying this news account. Consequently, it is evident that a substantial discrepancy exists between the assigned sentence categories and their underlying semantic significance, underscoring a pronounced misalignment. In such a scenario, conventional sentencelevel contrastive learning approaches prove inadequate for enhancing news discourse profiling, primarily due to their emphasis on capturing sentencelevel semantic meanings. Furthermore, standalone sentences devoid of contextual information lack the capacity to effectively represent the intricate high-level event structures characterizing the entire discourse.</p><p>Building upon the aforementioned discussions, our objective is to establish an embedding space that not only captures semantic similarities but also incorporates the underlying event structure. Diverging from conventional contrastive learning methods that construct instance pairs through self-supervision, our approach operates in a semisupervised manner. Thus we present a novel semisupervised approach for news discourse profiling, termed Intra-document Contrastive Learning with Distillation (ICLD), specifically designed for this discourse-level task. In our proposed method, we employ a teacher model to predict silver labels for unlabeled news articles that have not been previously seen. These predicted labels act as guiding signals for the construction of positive and negative sentence pairs within each document, facilitating the contrastive learning process. Furthermore, our method incorporates intra-document contrastive learning along with an additional knowledge distillation component. This serves two purposes: firstly, to ensure the interaction between the target sentence and its contextual surroundings, and secondly, to further prevent the collapse of the contrastive aspect into simply learning the semantics similarities of individual sentences.</p><p>Extensive experimental evaluations have been conducted, confirming the efficacy of our proposed method. By incorporating a larger volume of readily accessible unlabeled news articles, we achieve a significant improvement in news discourse profiling performance. Notably, to the best of our knowledge, we are the first to address this particular task structure and propose a semi-supervised methodology to tackle it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Contrastive Learning</head><p>Recently the technique contrastive learning has been widely used in unsupervised and selfsupervised learning, which greatly improved the performance of both visual and language representation (Ting <ref type="bibr" target="#b34">Chen and Hinton, 2020;</ref><ref type="bibr" target="#b17">Kaiming He et al., 2020;</ref><ref type="bibr">Tianyu Gao, 2021;</ref><ref type="bibr">Wu et al., 2020;</ref><ref type="bibr" target="#b44">Zhang et al., 2021;</ref><ref type="bibr" target="#b16">Janson et al., 2021)</ref>. It learns the data representation by pushing away negative samples and pulling close the positive samples where InfoNCE (van den <ref type="bibr" target="#b35">Oord et al., 2019)</ref> objective is mostly used. Ideally, this would update the encoder to carry enough information for both sample identification and downstream classification.</p><p>After achieving great success in computer vision tasks (Ting <ref type="bibr" target="#b34">Chen and Hinton, 2020;</ref><ref type="bibr" target="#b17">Kaiming He et al., 2020)</ref>, contrastive learning methods are then applied to the Natural language processing (NLP) area for sentence representation learning <ref type="bibr">(Tianyu Gao, 2021;</ref><ref type="bibr">Wu et al., 2020;</ref><ref type="bibr" target="#b44">Zhang et al., 2021;</ref><ref type="bibr" target="#b16">Janson et al., 2021)</ref>. One of the main methodological differences among these works is the method of data augmentation to generate positive pairs. CLEAR <ref type="bibr">(Wu et al., 2020)</ref> utilizes word deletion, span deletion, reordering, and substitution for data augmentation. It calculates objectives on both the token level and the sentence level. De-CLUTR <ref type="bibr" target="#b13">(Giorgi et al., 2020)</ref> treats sentences from the same documents as positive pairs, while sentences from different documents as negative pairs. SimSCE (Tianyu Gao, 2021) utilizes the dropout in the pretrained word encoder and is proven to be an efficient way of augmentation. Leveraging the foundational concepts of SimCSE, a plethora of subsequent research endeavors have sought to enhance this framework through the incorporation of advanced auxiliary training objectives <ref type="bibr" target="#b9">(Chuang et al., 2022;</ref><ref type="bibr" target="#b26">Nishikawa et al., 2022;</ref><ref type="bibr" target="#b46">Zhou et al., 2023;</ref><ref type="bibr" target="#b39">Wu et al., 2022)</ref>, and <ref type="bibr" target="#b4">(Chanchani and Huang, 2023)</ref> recently proposes maximizing alignment between texts and composition of their phrasal constituents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Knowledge Distillation</head><p>Knowledge distillation is first proposed by <ref type="bibr" target="#b14">(Hinton et al., 2015)</ref> for model compression by minimizing the KL divergence between the output distributions of the teacher model and the student model.</p><p>In NLP tasks, large pretrained language models have achieved remarkable performance <ref type="bibr" target="#b10">(Devlin et al., 2019;</ref><ref type="bibr" target="#b29">Qiu et al., 2020;</ref><ref type="bibr" target="#b1">AlKhamissi et al., 2022)</ref>. Knowledge distillation is one way to retain comparable performance as large models with relatively compact models. <ref type="bibr" target="#b42">(Yimeng Wu et al., 2021)</ref> effectively compresses models like BERT-base to <ref type="bibr">BERT-4. (Dongha Choi and Lee, 2022)</ref> comes up with a framework for finetuning a domain-specific pretrained large language model as a teacher, then uses activation boundary distillation to teach domain knowledge to another language model. <ref type="bibr" target="#b24">(Liu et al., 2022)</ref> compares the effect of knowledge in three different levels: token level, span level, and sample level among which the sample level maintains most of the knowledge. <ref type="bibr" target="#b15">(Huang et al., 2022)</ref> pretrains and finetunes a teacher model without pruning, then progressively replaces layers of the teacher model with the student model learned by knowledge distillation, which mitigates the overfitting in finetuning pretrained language models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">The Semi-supervised Method</head><p>Our semi-supervised approach consists of two learning phases, the first phase of Intra-document Contrastive Learning with Distillation (ICLD) exclusively utilizes unlabeled news articles and the Figure <ref type="figure">2</ref>: A brief illustration of our model structure following <ref type="bibr">Li et al. (2022b)</ref>. SA represents the self-attention module. Upon receiving an input discourse, initial word embeddings are generated using a language model. Subsequently, two self-attention modules are employed to obtain both local and global sentence embeddings. The mixed sentence embeddings are derived by adding the local and global sentence embeddings, followed by the integration of a fully connected layer. Finally, a classification layer is applied to yield the final prediction. The intra-document contrastive learning phase will be implemented upon mixed sentence embeddings.</p><p>second phase brings back human annotations to better calibrate the model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model Structure</head><p>Within the context of the semi-supervised framework, the teacher model encounters a substantial volume of unlabeled news articles that may exhibit diverse distributions distinct from the humanannotated training set. Consequently, to offer more reliable guidance, the teacher model must possess strong generalization capabilities, ensuring the accuracy of the generated labels for unseen data instances. In light of these considerations, we opt for LiMNet <ref type="bibr">(Li et al., 2022b)</ref>, incorporating the robust T5 large language model <ref type="bibr" target="#b30">(Raffel et al., 2020)</ref>, as our selected teacher model due to its commendable performance and generalization abilities.</p><p>Our student models adopt the same structural framework as LiMNet, leveraging small language models such as Longformer <ref type="bibr" target="#b3">(Beltagy et al., 2020)</ref> as the default choice. During training, the weights of these student models are iteratively updated. It is worth noting that the teacher model is solely trained using the original annotated data, adhering to the identical configuration outlined in its original paper. Subsequently, the automatically collected unlabeled news articles are fed into this welltrained teacher model, enabling the derivation of probability distributions across different sentence categories.</p><p>Figure <ref type="figure">2</ref> illustrates the simplified model architecture of LiMNet, where two self-attention modules <ref type="bibr" target="#b2">(Bahdanau et al., 2014;</ref><ref type="bibr" target="#b5">Chorowski et al., 2015)</ref> are utilized. The first self-attention module focuses on capturing interactions among word embeddings within the given sentence, thereby producing a localized representation as the local sentence embedding. The second self-attention module leverages the interaction between the specific sentence embedding and the contextual word embeddings to derive a comprehensive global sentence embedding. Finally, a fully connected layer is employed for the purpose of final classification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Phase One: Intra-document Contrastive</head><p>Learning with Distillation (ICLD)</p><p>During the ICLD phase, exclusively unlabeled news articles are utilized, figure <ref type="figure" target="#fig_0">3</ref> illustrates the workflow of intra-document contrastive Learning with distillation (ICLD).</p><p>Random Sentence Filtering Due to the potential distribution shift between the human-annotated data and the newly acquired unlabeled data, strictly adhering to the generated silver labels may lead to suboptimal outcomes. Moreover, the imperfections of the teacher model could be transmitted to the student models through the inclusion of noisy silver labels. To address this challenge, we propose a solution involving the random filtering of sentences exhibiting relatively lower confidence.</p><p>Considering the variability in confidence distributions across different categories, it is impractical to manually establish a specific static threshold for each category. Instead, we utilize a more flexible approach that leverages the intrinsic characteristics of the teacher models and the newly collected articles. Specifically, we adopt the k-th percentile approach for determining flexible thresholds, based on the silver label confidences estimated by the teacher model. These thresholds are dynamically adjusted as the teacher model or unseen data undergo modifications. Consequently, sentences with confidences lower than their respective thresholds are subjected to filtering with a probability of 0.5 during each epoch. This stochastic filtering approach is employed due to the inherent uncertainty associated with low-confidence sentences, as their definitive correctness cannot be ascertained in the absence of golden labels. By employing adaptable thresholds, we mitigate the reliance on predefined confidence thresholds for individual categories, allowing for a more tailored and nuanced filtering process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Intra-document Contrastive Learning (ICL)</head><p>The generation of positive pairs for contrastive learning follows a specific procedure: under the supervision of silver labels, unfiltered sentence pairs of the same category within each document are randomly sampled without replacement until no sentences remain belonging to the same category. Then, negative pairs are randomly sampled without replacement, from the remaining sentences where no sentence pair shares the same silver label until no additional pairs can be generated. Specifically, once the silver labels are procured, for each label with more than two associated sentences, we randomly select two sentences. This process continues until just one or no sentence remains for that label, constituting our positive samples. For the remaining sentences, we repeat a similar sampling of two sentences at a time to form negative pairs until only one sentence or none remains in the document. This sampling process guarantees diverse positive and negative pairs, facilitating effective contrastive learning within the intra-document context.</p><p>Following the establishment of positive and negative pairs, the contrastive learning constraint is imposed on the mixed sentence embeddings derived from the input discourse. Notably, the mixed sentence embeddings encompass crucial contextual information essential for comprehending the news event content, distinguishing them from lower-level sentence embeddings. Thus, the contrastive learning process focuses on leveraging contextual embeddings to enhance the discriminative ability and semantic understanding of the news event representations. Cosine similarity is used as the measurement of similarity between two embeddings, and the contrastive learning constraint is formulated as:</p><formula xml:id="formula_0">L 1 = -log m • n i=1 e cos(g i ,g - i ) /τ n • m j=1 e cos(g j ,g + j ) /τ + β (1)</formula><p>where g i and g - i represent global sentence embeddings in negative pair, g j and g + j represent sentence embeddings in positive pair. n is the number of positive pairs and m is the number of negative pairs in this discourse. τ represents the temperature rate which is in the range of 0 to 1. β represents a small value to avoid a division by zero and is set to 1e -6 by default.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Knowledge Distillation</head><p>In contrast to tasks that primarily emphasize the semantic meanings of individual sentences, news discourse profiling directs its attention toward the collective representation of sentences in describing news events. To avoid the potential collapse of task-specific intra-document contrastive learning towards standard contrastive learning, which prioritizes the meanings of individual sentences, the incorporation of explicit guidance and simultaneous distillation becomes imperative.</p><p>To address this challenge, silver labels simultaneously serve as direct training guidance for the student model. This facilitates a more explicit and informed learning process. Concurrently, flexible threshold-based random filtering is applied to eliminate low-confidence sentences, ensuring the optimization of the student model with reliable and informative training instances. By leveraging these measures, this task-specific intra-document contrastive learning remains focused on capturing the interdependencies and contextual cues within the news discourse, promoting a more accurate and contextually rich news discourse profiling.</p><p>Different from training with human-annotated data where cross-entropy is used, we choose to minimize the mean square error (MSE) of probability distribution between the silver labels and the student model, which can be formulated as:</p><formula xml:id="formula_1">L 2 = 1 l l i=1 (y i -ŷi ) 2 (2)</formula><p>where ŷi represents the probability distribution from the student model, and y i represents the silver labels generated by the teacher model. l is the number of unfiltered sentences. Contrastive learning projects sentence embeddings to the desired space while knowledge distilla-tion aims to build mappings between sentence representations and discourse role classes, therefore, balancing these two objectives can slow down classifier formation. Empirically, we found that it facilitates training to enable both contrastive learning and knowledge distillation for the first few training epochs and then continues to train for more epochs with knowledge distillation as the only learning objective. When both intra-document contrastive Learning and knowledge distillation are enabled, the overall learning objective is the summation of L 1 and L 2 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Phase Two: Final Finetuning</head><p>After training on unlabeled data in the ICLD phase, the human-annotated golden data are utilized to better calibrate the model. The final model finetuning will use cross-entropy loss as the objective:</p><formula xml:id="formula_2">L 3 = - C c=1 y c log(ŷ c )<label>(3)</label></formula><p>where ŷ represents the probability distribution from the student model, and y represents the humanannotated gold labels. C represents the number of classes. Overall, L 1 and L 2 are utilized upon unlabeled data, and L 3 is utilized upon humanannotated data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Labeled data</head><p>The NewsDiscourse dataset (Choubey et al., 2020) we use is designed for the task of News Discourse Profiling, which consists of 802 news articles (18, 155 sentences). These news discourses are sampled from three news sources including NYT, Xinhua and Reuters and they are in four domains including business, crime, disaster, and politics. Each sentence in this corpus is labeled with one of eight content types 3 representing what role it plays in reporting a news story or the "None" class, following the news content schemata proposed by <ref type="bibr" target="#b36">Van Dijk (Van Dijk, 1985</ref><ref type="bibr" target="#b37">, 1988)</ref>. Following Choubey and Huang (2021), we use 502 documents for training, 100 documents for validation, and 200 documents for testing. All the models are evaluated by calculating the micro F1 and macro Precision, Recall, and F1 scores are implemented form the scikit-learn library <ref type="bibr">(Pedregosa et al., 2011)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Unlabeled data</head><p>To simulate the real-world application scenario where the data distribution can largely vary from the existing human-annotated data, we deliberately avoid following the same source and domains from the existing data. Unlabeled news articles are collected from CNN with a variety of domains including business, entertainment, health, politics, sports, style, travel, and world. These unlabeled data contain 10, 337 news articles with 135, 057 sentences and all of these data will be used in our method. The improvement made by our method using these data proves that our method is effective even when the unlabeled data have different distributions than the original data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Implementation Details</head><p>All experiments are implemented in the PyTorch platform <ref type="bibr" target="#b27">(Paszke et al., 2019)</ref> with one NVIDIA A100 graphic card.</p><p>All pre-trained language models used in this paper are implemented from huggingface <ref type="bibr" target="#b38">(Wolf et al., 2019)</ref>. Our teacher model utilizes large version of T5 as the pretrained language model, while all our student models use the base version of pretrained language models with the output dimension of 768. The parameters of the language model in the teacher model are fixed all the time including its training phase, and the parameters of the language model in the student models are not fixed and are updated during training.</p><p>Our models are trained using Adam optimizer (Kingma and Ba, 2014) with the hyper-parameters betas=[0.9, 0.999], eps=1e-8 and the learning rate is set to 5e -6 for 25 epochs. The dropout rate <ref type="bibr" target="#b32">(Srivastava et al., 2014)</ref> is set to 0.5. Intra-document contrastive learning with distillation (ICLD) is applied in the first 3 epochs, where both L 1 and L 2 egories: Historical Event which represents events that precede the main event in months or years, Anecdotal Event which represents unverified events of a person or situation, Evaluation which represents opinionated contents including reactions from immediate participants, experts, known personalities, as well as journalists or news sources and Expectation represents speculations and projected consequences. are utilized. Knowledge distillation from unlabeled data will continue for another 12 epochs with only L 2 as the learning objective. In the first 15 epochs, only unlabeled data with silver labels are utilized. Then, we will continue to train for 10 epochs using only the original well-labeled data and the learning objective of L 3 . We use the 50 percentile as the threshold and filter sentences with the probability of 0.5 by default. τ in contrastive learning constraint is set to 1 by default. To evaluate the individual contributions of different components in our proposed Intra-document Contrastive Learning with Distillation approach, an ablation study is conducted, and the results are presented in Table <ref type="table" target="#tab_0">1</ref>. The model labeled as Without ICL refers to the variant where intra-document contrastive learning is not incorporated. In this configuration, the model is trained solely with silver and real labels using the same configuration as our final ICLD model, which essentially functions as a standard knowledge distillation method. Comparing the performance of this variant with the complete ICLD model, we observe improvements across all metrics, demonstrating the efficacy of our intra-document contrastive learning component.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Ablation Study</head><p>On the other hand, the model denoted as Without Distillation represents the variant where no distillation process is executed concurrently with intra-document contrastive learning. Notably, this configuration exhibits a significant decline in performance. The absence of the distillation component leads to the collapse of intra-document contrastive learning into standard contrastive learning, where the classification of instance pairs primar- Table <ref type="table">2</ref>: Extensive experiments with respect to the effects of random filtering. The probability value determines the likelihood of filtering sentences based on their confidence scores. When the probability is set to 0, no filtering is applied, while a probability of 1.0 indicates that every sentence with a confidence score below the threshold will be filtered.</p><p>ily relies on their semantic meanings rather than task-specific discourse structure information. This comparative analysis underscores the indispensable nature of the additional distillation process, which furnishes the necessary guidance for the model to acquire task-specific structural information. Overall, the ablation study highlights the importance of both intra-document contrastive learning and distillation in our approach, as they collectively contribute to the enhanced performance in capturing the intricate structure and nuances of news discourse profiling.</p><p>In addition, we present experimental results with respect to the sentence pair selection strategy. Sample Positive and Sample Negative represent experiments where only positive or negative pairs are sampled and calculated in the contrastive constraint. Comparing the performance of these variants, we find that using only positive pairs yields inferior results compared to using only negative pairs. This observation is reasonable as relying solely on positive pairs fails to establish a clear decision boundary and the negative samples play the dominant role in this contrastive learning phase.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Effects of Random Filtering</head><p>In this section, we conducted experiments to investigate the effect of different random filtering probabilities ranging from 0 to 1.0, as presented in Table <ref type="table">2</ref>. The default filtering threshold for these models was set to the 50th percentile<ref type="foot" target="#foot_2">4</ref> . When the filtering probability is set to 0, no sentences are filtered out. However, since there are no golden labels available for the newly collected news articles, the accuracy of the generated silver labels cannot be guaranteed. Without random filtering, the model might learn from potential noise in the silver labels, resulting in the lowest performance observed in the Probability of 0 experiment. On the other hand, when the filtering probability is set to 1.0, sentences with confidence scores lower than the threshold are entirely filtered out. However, filtering with a high probability is not optimal as it cannot be asserted that the low-confidence instances are definitively incorrect. Filtering out all of these low-confidence samples directly eliminates the possibility for the model to learn from them. Therefore, we chose a filtering probability of 0.5 as the default setting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Comparison with Baselines</head><p>In this section, we compare our ICLD model with baselines using only original human-annotated data. Longformer (baseline) and Longformer (ICLD) utilize pretrained Longformer <ref type="bibr" target="#b3">(Beltagy et al., 2020)</ref> (base version) implemented from huggingface <ref type="bibr" target="#b38">(Wolf et al., 2019)</ref>. Compared with the baseline model where only human-annotated data is utilized, our ICLD model improves the macro F1 score by 4.9 percent and micro F1 score by 2.3 percent. RoBERTa (baseline) and RoBERTa (ICLD) utilize pretrained RoBERTa <ref type="bibr" target="#b25">(Liu et al., 2019)</ref> (base version) implemented from huggingface <ref type="bibr" target="#b38">(Wolf et al., 2019)</ref>. Compared with the baseline model where only human-annotated data is utilized, our ICLD model improves the macro F1 score by 4.2 percent and micro F1 score by 1.8 percent. These comparisons verify the effectiveness of our proposed method, which improves news discourse profiling by a large margin. Furthermore, it is observed that models utilizing Longformer demonstrate superior performance compared to those utilizing RoBERTa. RoBERTa is specifically designed to handle inputs within a token limit of 512, whereas news articles often exceed this limit. Consequently, we partition lengthy articles into multiple segments before feeding them into RoBERTa. In this process, sentences belonging to different segments are unable to interact with each other, resulting in the absence of comprehen- sive global contextual information within their corresponding sentence embeddings. Consequently, the performance is adversely affected. On the contrary, Longformer is explicitly designed to handle long inputs, thereby circumventing this potential segmentation issue. All sentences within a discourse can be collectively modeled, resulting in enhanced performance.</p><p>Notably, the performance of these two baseline models is relatively comparable since the standard training process does not fully exploit contextual information. For instance, when predicting the category of the first sentence, it is likely that knowledge of the last sentence is unexploited. Consequently, document splitting has minimal impact on performance. However, in our proposed contrastivebased method, the first and last sentences may be randomly selected in one positive or negative pair. In such cases, the sentence embeddings of these two sentences need to be compared and updated directly. With Longformer, all sentences share a similar contextual environment and possess a holistic view of the entire document, thereby justifying the comparison and update process. However, if the document is split when employing RoBERTa, these two sentences might belong to distinct semantic environments, making the comparison unjustifiable.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Comparison with Previous Methods</head><p>Table <ref type="table">4</ref> shows the performances of previous methods. In contrast to previous approaches, our semisupervised method leverages newly introduced unlabeled data, resulting in a substantial improvement in news discourse profiling performance. Choubey and Huang (2021) utilizes sub-topic information to guide the embedding extraction in an actor-critic manner. <ref type="bibr" target="#b31">Spangher et al. (2021)</ref> improves news discourse profiling performance by utilizing the multitask training from several discourse datasets. 5 Li et al. (2022b) mainly focuses on alleviating overfitting for discourse-level tasks and the performance in the table is based on T5 language model <ref type="bibr" target="#b30">(Raffel et al., 2020)</ref>, which serves as our teacher model. It is worth noting that our ICLD model with the base versions of Longformer or RoBERTa surpasses the performance of <ref type="bibr">Li et al. (2022b)</ref> where the large version of T5 language model is utilized. Considering the huge discrepancy in model sizes and the training corpus utilized for these language models, we assert that our proposed method exhibits a significant capability for this task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this work, we introduce the Intra-document Contrastive Learning with Distillation (ICLD) method for news discourse profiling, which leverages unlabeled data to enhance performance. News discourse profiling is a discourse-level task where the prediction of each sentence is intricately linked to the overall event structure of the entire discourse, rather than solely relying on the semantic meaning of individual sentences. To the best of our knowledge, we are the first to address this unique task structure and propose a semi-supervised approach to tackle it effectively. The dataset we collected emulates real-world scenarios, encompassing potential domain shifts, and our method demonstrates robust performance in such settings, affirming the efficacy of our proposed approach.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>In this task, it is observed that sentences with similar semantic meanings can be assigned to different categories. Therefore, our objective is to establish an embedding space that not only captures semantic similarities but also incorporates the underlying event structure. To achieve this, we designed a contrastive learning based approach. However, it is important to note that our contrastive learning method is not necessarily the optimal solution when compared to other possible semi-supervised methods. The primary motivation of this paper is to address the unique task structure and propose a semisupervised method that is specifically designed for this task. We do not claim that our method is comprehensive or superior but only serves as an initial exploration of a semi-supervised approach tailored to this intriguing task structure.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Effects of Filtering Threshold</head><p>In order to investigate the effects of the filtering threshold on the performance of our method, we analyze the results using different thresholds in Table 5. The default filtering probability for these models is set to 0.5. From the table, it can be observed that this hyperparameter has a negligible effect on the model performance. However, when In this section, we investigate the impact of the amount of unlabeled data on the performance of our method. The datasets used in these experiments are randomly sampled from a total of 10, 337 unlabeled news articles that we have collected, ensuring that they have the same data distribution. 10,000 mentioned in Table <ref type="table" target="#tab_5">6</ref> represents the usage of 10, 337 news articles. Compared to our baseline approach where no unlabeled data is utilized, the model trained with an additional 500 unlabeled news articles does not exhibit improved performance. Since there are only 500 human-annotated articles available for training, the inclusion of 500 unlabeled articles with potential noise has a detrimental effect on the model. However, as the amount of unlabeled data increases, the model's performance gradually improves. The performances of models using 8, 000 and 10, 000 articles are similar, suggesting that the performance is approaching saturation.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: An overview of our proposed method. For a given unlabeled discourse, the teacher model is first utilized to tag the sentences of the discourse to obtain the silver labels, where different colors denote different classes. Then dynamic filtering is implemented to filter those sentences with relatively low confidence, the gray color means the sentences are neglected. Then, sentences in the same category are randomly sampled as positive samples while sentences with different categories are randomly sampled as negative ones, on which is the contrastive training objective L 1 calculated. In the meantime, an extra distillation phase L 2 is implemented on unfiltered sentences to avoid the collapse solution.</figDesc><graphic coords="4,71.15,70.87,217.70,57.71" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Ablation experiments of our ICLD method.</figDesc><table><row><cell></cell><cell></cell><cell>Macro</cell><cell></cell><cell>Micro</cell></row><row><cell></cell><cell cols="2">Precision Recall</cell><cell>F1</cell><cell>F1</cell></row><row><cell>The full model</cell><cell>67.9</cell><cell cols="3">68.8 68.3 71.0</cell></row><row><cell>w/o ICL</cell><cell>66.9</cell><cell>68.3</cell><cell>67.5</cell><cell>70.1</cell></row><row><cell>w/o Distillation</cell><cell>63.2</cell><cell>65.0</cell><cell>63.6</cell><cell>66.5</cell></row><row><cell>Positive Only</cell><cell>67.0</cell><cell>68.0</cell><cell>67.4</cell><cell>70.5</cell></row><row><cell>Negative Only</cell><cell>67.6</cell><cell cols="2">69.2 68.3</cell><cell>70.8</cell></row></table><note><p>w/o ICL represents the model where intra-document contrastive learning is not utilized, which becomes a standard knowledge distillation method. w/o Distillation represents the model where no extra distillation is utilized simultaneously with intra-document contrastive learning. Positive Only and Negative Only represent experiments where only positive or negative pairs are sampled and calculated in the contrastive constraint.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Comparisons with baseline models. Baseline models are trained with human-annotated data only.</figDesc><table><row><cell></cell><cell></cell><cell>Macro</cell><cell></cell><cell>Micro</cell></row><row><cell></cell><cell cols="2">Precision Recall</cell><cell>F1</cell><cell>F1</cell></row><row><cell>Longformer (baseline)</cell><cell>66.2</cell><cell>62.3</cell><cell>63.4</cell><cell>68.7</cell></row><row><cell>Longformer (ICLD)</cell><cell>67.9</cell><cell cols="3">68.8 68.3 71.0</cell></row><row><cell>RoBERTa (baseline)</cell><cell>66.6</cell><cell>61.5</cell><cell>62.9</cell><cell>69.0</cell></row><row><cell>RoBERTa (ICLD)</cell><cell>67.2</cell><cell>67.1</cell><cell>67.1</cell><cell>70.8</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 5 :</head><label>5</label><figDesc>Ablation experiments with respect to the filtering threshold. the filtering threshold is set to the 90th percentile, indicating that 90% of sentences will be randomly filtered, a significant decrease in performance is observed. This outcome is expected as a high percentile threshold results in a substantial reduction in the amount of available unlabeled data, which affects the model's learning capabilities.</figDesc><table><row><cell></cell><cell></cell><cell>Macro</cell><cell></cell><cell></cell><cell>Micro</cell></row><row><cell></cell><cell cols="3">Precision Recall</cell><cell>F1</cell><cell>F1</cell></row><row><cell>10-Percentile</cell><cell>67.6</cell><cell>67.6</cell><cell cols="2">67.5</cell><cell>70.5</cell></row><row><cell>30-Percentile</cell><cell>67.6</cell><cell>68.2</cell><cell cols="2">67.8</cell><cell>70.6</cell></row><row><cell>50-Percentile</cell><cell>67.9</cell><cell cols="4">68.8 68.3 71.0</cell></row><row><cell>70-Percentile</cell><cell>67.9</cell><cell>68.2</cell><cell cols="2">68.0</cell><cell>70.7</cell></row><row><cell>90-Percentile</cell><cell>66.0</cell><cell>67.9</cell><cell cols="2">66.8</cell><cell>70.1</cell></row><row><cell cols="6">B Effects of Amount of Extra Data</cell></row><row><cell></cell><cell cols="2">Macro</cell><cell></cell><cell cols="2">Micro</cell></row><row><cell cols="3">Precision Recall</cell><cell>F1</cell><cell></cell><cell>F1</cell></row><row><cell>0</cell><cell>66.2</cell><cell>62.3</cell><cell cols="2">63.4</cell><cell>68.7</cell></row><row><cell>500</cell><cell>64.2</cell><cell>63.4</cell><cell cols="2">63.6</cell><cell>67.9</cell></row><row><cell>1,000</cell><cell>66.3</cell><cell>64.7</cell><cell cols="2">65.3</cell><cell>69.9</cell></row><row><cell>2,000</cell><cell>68.0</cell><cell>64.7</cell><cell cols="2">65.5</cell><cell>69.8</cell></row><row><cell>3,000</cell><cell>67.5</cell><cell>65.2</cell><cell cols="2">66.0</cell><cell>70.0</cell></row><row><cell>5,000</cell><cell>67.8</cell><cell>66.7</cell><cell cols="2">66.9</cell><cell>70.2</cell></row><row><cell>8,000</cell><cell>67.2</cell><cell>68.6</cell><cell cols="2">67.8</cell><cell>70.7</cell></row><row><cell>10,000</cell><cell>67.9</cell><cell cols="4">68.8 68.3 71.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 6 :</head><label>6</label><figDesc>Ablation experiments with respect to the amount of unlabeled data.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>The ordering of sentences is important in analyzing the event structure of news articles.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>The eight content types are grouped into three categories: Main Content, Context-informing Content, and Additional Supportive Content. In Main Content, there are two finegrained categories: Main Event which introduces the most important event relating to the major subjects of news discourse, and Consequence which represents content that is triggered by the main news event. In Context-informing Content, there are two fine-grained categories: Previous Event which precedes the the main event and now acts as possible causes or preconditions for the main event, and Current Context which covers all the context informing the main event. In Additional Supportive Content, there are four fine-grained cat-</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>The impact of using different confidence thresholds is discussed in Appendix A.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>For the detailed description of datasets, please see the Appendix in<ref type="bibr" target="#b31">Spangher et al. (2021)</ref>.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We thank the anonymous reviewers for their valuable feedback and input. We gratefully acknowledge support from the <rs type="funder">National Science Foundation (NSF)</rs> via the awards IIS-1942918 and IIS-2127746. Portions of this research were conducted with the advanced computing resources provided by <rs type="funder">Texas A&amp;M High-Performance Research Computing</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Survey on self-supervised learning: Auxiliary pretext tasks and contrastive learning methods in imaging</title>
+		<author>
+			<persName><forename type="first">Albelwi</forename><surname>Saleh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Entropy</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page">551</biblScope>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Badr</forename><surname>Alkhamissi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Millicent</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asli</forename><surname>Celikyilmaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Diab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2204.06031</idno>
+		<title level="m">A review on language models as knowledge bases</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Longformer: The long-document transformer</title>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arman</forename><surname>Cohan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.05150</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Composition-contrastive learning for sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Sachin</forename><surname>Chanchani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.882</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="15836" to="15848" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Attention-based models for speech recognition</title>
+		<author>
+			<persName><forename type="first">Jan</forename><forename type="middle">K</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitriy</forename><surname>Serdyuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">28</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Profiling news discourse structure using explicit subtopic structures guided critics</title>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Choubey</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-emnlp.137</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2021</title>
+		<meeting><address><addrLine>Punta Cana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1594" to="1605" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Modeling document-level temporal structures for building temporal dependency graphs</title>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Choubey</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="357" to="365" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Online only. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Discourse as a function of event: Profiling discourse structure in news articles around the main event</title>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kumar Choubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.478</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5374" to="5386" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">DiffCSE: Difference-based contrastive learning for sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Yung-Sung</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rumen</forename><surname>Dangovski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyin</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyu</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marin</forename><surname>Soljacic</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shang-Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoon</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Glass</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.311</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4207" to="4218" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Domain knowledge transferring for pre-trained language model via calibrated activation boundary distillation</title>
+		<author>
+			<persName><forename type="first">Hongseok</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongha</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyunju</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">SimCSE: Simple contrastive learning of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingcheng</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.552</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6894" to="6910" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">John</forename><surname>Giorgi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Osvald</forename><surname>Nitski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gary</forename><surname>Bader</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2006.03659</idno>
+		<title level="m">Declutr: Deep contrastive learning for unsupervised textual representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1503.02531</idno>
+		<title level="m">Distilling the knowledge in a neural network</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Sparse progressive distillation: Resolving overfitting under pretrain-and-finetune paradigm</title>
+		<author>
+			<persName><forename type="first">Shaoyi</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongkuan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Yen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijue</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sung-En</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingbing</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mimi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanguthevar</forename><surname>Rajasekaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiwen</forename><surname>Ding</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.16</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="190" to="200" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Amaru Cuba Gyllensten, and Magnus Sahlgren. 2021. Semantic re-tuning with contrastive tension</title>
+		<author>
+			<persName><forename type="first">Evangelina</forename><surname>Sverker Janson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erik</forename><surname>Gogoulou</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ylipää</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Momentum contrast for unsupervised visual representation learning</title>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoqi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saining</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ross</forename><surname>Girshick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Contrastive representation learning: A framework and review</title>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Phuc H Le-Khac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><forename type="middle">F</forename><surname>Healy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Smeaton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="193907" to="193934" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Sentence-level media bias analysis informed by discourse structures</title>
+		<author>
+			<persName><forename type="first">Yuanyuan</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Beauchamp</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="10040" to="10050" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">2022a. A survey of discourse parsing</title>
+		<author>
+			<persName><forename type="first">Jiaqi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers of Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="1" to="12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Rst-style discourse parsing guided by document-level content structures</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.04141</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sijing</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.09537</idno>
+		<title level="m">Less is more: Simplifying feature extractors prevents overfitting for neural discourse parsing models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Multi-granularity structural knowledge distillation for language model compression</title>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chongyang</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiazhan</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongyan</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.71</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1001" to="1011" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Roberta: A robustly optimized bert pretraining approach</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1907.11692</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">EASE: Entity-aware contrastive learning of sentence embedding</title>
+		<author>
+			<persName><forename type="first">Sosuke</forename><surname>Nishikawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryokan</forename><surname>Ri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ikuya</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isao</forename><surname>Echizen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.284</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="3870" to="3885" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Pytorch: An imperative style, high-performance deep learning library</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Massa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Lerer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregory</forename><surname>Chanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Killeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeming</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Natalia</forename><surname>Gimelshein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Antiga</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Vincent Dubourg, et al. 2011. Scikit-learn: Machine learning in python</title>
+		<author>
+			<persName><forename type="first">Fabian</forename><surname>Pedregosa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaël</forename><surname>Varoquaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Gramfort</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bertrand</forename><surname>Thirion</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Grisel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mathieu</forename><surname>Blondel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Prettenhofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ron</forename><surname>Weiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine Learning research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2825" to="2830" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Pre-trained models for natural language processing: A survey</title>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianxiang</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yige</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science China Technological Sciences</title>
+		<imprint>
+			<biblScope unit="volume">63</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="1872" to="1897" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">140</biblScope>
+			<biblScope unit="page" from="1" to="67" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Multitask semi-supervised learning for class-imbalanced discourse classification</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Spangher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sz-Rung</forename><surname>Shiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingjia</forename><surname>Deng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.40</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="498" to="517" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Dropout: A simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">56</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Simcse: Simple contrastive learning of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingcheng</forename><surname>Yao</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<publisher>EMNLP</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">A simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yazhe</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1807.03748</idno>
+		<title level="m">Representation learning with contrastive predictive coding</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Structures of news in the press. Discourse and communication: New approaches to the analysis of mass media discourse and communication</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Teun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Van Dijk</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1985">1985</date>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page">69</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Teun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Van Dijk</surname></persName>
+		</author>
+		<title level="m">News analysis. Case Studies of International and National News in the Press</title>
+		<meeting><address><addrLine>New Jersey</addrLine></address></meeting>
+		<imprint>
+			<publisher>Lawrence</publisher>
+			<date type="published" when="1988">1988</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Huggingface&apos;s transformers: State-ofthe-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.03771</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">InfoCSE: Information-aggregated contrastive learning of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaochen</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijia</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jizhong</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongyuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songlin</forename><surname>Hu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-emnlp.223</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2022</title>
+		<meeting><address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="3060" to="3070" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhuofeng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sinong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Madian</forename><surname>Khabsa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ma</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2012.15466</idno>
+		<title level="m">Contrastive learning for sentence representation</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Multilingual universal sentence encoder for semantic retrieval</title>
+		<author>
+			<persName><forename type="first">Yinfei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amin</forename><surname>Ahmad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandy</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jax</forename><surname>Law</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gustavo</forename><surname>Hernandez Abrego</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steve</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Tar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun-Hsuan</forename><surname>Sung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Strope</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ray</forename><surname>Kurzweil</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-demos.12</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics: System Demonstrations</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="87" to="94" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Universalkd: Attention-based output-grounded intermediate layer knowledge distillation</title>
+		<author>
+			<persName><forename type="first">Abbas</forename><surname>Ghaddar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yimeng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehdi</forename><surname>Rezagholizadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Md</forename><surname>Akmal Haidar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Ghodsi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">2022a. Predicting sentence deletions for text simplification using a functional discourse structure</title>
+		<author>
+			<persName><forename type="first">Bohan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kumar Choubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-short.28</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="255" to="261" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<author>
+			<persName><forename type="first">Dejiao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaokai</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shangwen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henghui</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Arnold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.12953</idno>
+		<title level="m">Supporting clustering with contrastive learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">2022b. Contrastive data and learning for natural language processing</title>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangfeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rebecca</forename><forename type="middle">J</forename><surname>Passonneau</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-tutorials.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies: Tutorial Abstracts</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies: Tutorial Abstracts</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="39" to="47" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Learning to perturb for contrastive learning of unsupervised sentence representations</title>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanhang</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Wen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

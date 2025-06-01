@@ -1,0 +1,1282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">On the Challenges of Fully Incremental Neural Dependency Parsing</title>
+				<funder ref="#_qngjWPT">
+					<orgName type="full">Xunta de Galicia</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Centro de Investigación de Galicia &quot;CITIC&quot;</orgName>
+				</funder>
+				<funder ref="#_hVAwAuH">
+					<orgName type="full">ERDF/MICINN-AEI (SCANNER-UDC</orgName>
+				</funder>
+				<funder ref="#_cqaxTVe">
+					<orgName type="full">European Research Council</orgName>
+					<orgName type="abbreviated">ERC</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Formación Profesional e Universidades</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Ana</forename><surname>Ezquerro</surname></persName>
+							<email>ana.ezquerro@udc.es</email>
+						</author>
+						<author>
+							<persName><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+							<email>carlos.gomez@udc.es</email>
+						</author>
+						<author>
+							<persName><forename type="first">David</forename><surname>Vilares</surname></persName>
+							<email>david.vilares@udc.es</email>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Universidade da Coruña</orgName>
+								<address>
+									<country>CITIC</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="department">Departamento de Ciencias de la Computación y Tecnologías de la Información</orgName>
+								<address>
+									<addrLine>Campus de Elviña s/n</addrLine>
+									<postCode>15071 A</postCode>
+									<settlement>Coruña</settlement>
+									<country key="ES">Spain</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">On the Challenges of Fully Incremental Neural Dependency Parsing</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C8F0350FEC690182637339F665C89A3F</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:56+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Since the popularization of BiLSTMs and Transformer-based bidirectional encoders, state-of-the-art syntactic parsers have lacked incrementality, requiring access to the whole sentence and deviating from human language processing. This paper explores whether fully incremental dependency parsing with modern architectures can be competitive. We build parsers combining strictly left-to-right neural encoders with fully incremental sequencelabeling and transition-based decoders. The results show that fully incremental parsing with modern architectures considerably lags behind bidirectional parsing, noting the challenges of psycholinguistically plausible parsing.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Human understanding of natural language is widely agreed to be incremental: humans do not need to read a complete sentence to start understanding it. Instead, we update partial interpretations as we receive more input <ref type="bibr" target="#b25">(Marslen-Wilson, 1985)</ref>.</p><p>While the exact way in which this incrementality works is still unclear <ref type="bibr" target="#b21">(Kitaev et al., 2022)</ref>, its presence implies that some form of incrementality is an obvious necessary condition for a parser to be psycholinguistically plausible as a model of human processing <ref type="bibr" target="#b26">(Miller and Schuler, 2010)</ref>. Since human processing is the gold standard for automatic parsing, we know that it should be possible to achieve accurate parsing with incremental systems. Yet, in recent years, none of the competitive syntactic parsers that have been proposed for either of the main syntactic formalisms can be said to be incremental, even under the loosest possible definitions of the term. This poses challenges in the intersection between syntax and computational psycholinguistics, e.g., use cases both for modeling of human parsing and for real-time settings where one wants partial results before waiting for a sentence to end. Currently, most parsers use bidirectional encoders, such as BiLSTMs <ref type="bibr" target="#b20">(Kiperwasser and Goldberg, 2016;</ref><ref type="bibr" target="#b9">Dozat and Manning, 2017)</ref> or Transformers <ref type="bibr" target="#b44">(Zhou and Zhao, 2019;</ref><ref type="bibr" target="#b27">Mrini et al., 2020;</ref><ref type="bibr" target="#b42">Yang and Deng, 2020)</ref>, so the whole sentence is being used before even processing the first word. An exception is the constituent parser by <ref type="bibr" target="#b21">Kitaev et al. (2022)</ref>, who use a fully incremental encoder, but the rest of the model is bidirectional, as it uses Transformer layers and a CYK-like, non-left-toright span-based decoder <ref type="bibr" target="#b37">(Stern et al., 2017)</ref>.</p><p>This paper explores the viability of fully incremental dependency parsing, i.e., parsers where all the components (from the encoder to the decoder) work strictly from left to right. To our knowledge, this is the first attempt to build fully incremental dependency parsers with modern deep learning architectures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Incrementality in Parsing</head><p>In transition-based parsing Transition-based parsing has traditionally been linked to incrementality <ref type="bibr" target="#b29">(Nivre, 2008)</ref>, as it works from left to right and builds partial outputs. Some authors consider that transition-based parsers as a whole are incremental, as they have internal states with partial outputs <ref type="bibr" target="#b10">(Eisape et al., 2022)</ref>. We will call this criterion weak incrementality. Others exclude algorithms like the arc-standard dependency parser, where dependencies are not built in left-to-right order and input arbitrarily far in the future might be needed to build right-branching dependencies <ref type="bibr" target="#b4">(Christiansen and Chater, 2016)</ref>. We will call this stricter view strong incrementality, and formalize it as follows: given a monotonic parser (i.e., one where each partial parse is a superset of the previous), we say that it is strongly incremental with delay k if every possible partial parse for a prefix w 1 . . . w i-k can be built upon reading the prefix w 1 . . . w i , without the parser having accessed the rest of the input. <ref type="foot" target="#foot_0">1</ref> Analo-gous considerations about the limitations with rightbranching in weak incrementality, and parsers that try to avoid it to various extents, have been studied in the CCG literature <ref type="bibr" target="#b0">(Ambati et al., 2015;</ref><ref type="bibr">Stanojević and</ref><ref type="bibr">Steedman, 2019, 2020;</ref><ref type="bibr" target="#b34">Stanojević et al., 2021)</ref>. Contrary to arc-standard, other transitionbased dependency parsers are strongly incremental: the arc-eager <ref type="bibr" target="#b28">(Nivre, 2003)</ref>, <ref type="bibr" target="#b7">Covington (Covington, 2001)</ref> or multiplanar <ref type="bibr" target="#b16">(Gómez-Rodríguez and Nivre, 2013</ref>) parsers all fit our definition above.</p><p>Classic implementations of strongly incremental parsers typically have positive delay <ref type="bibr" target="#b3">(Beuck et al., 2011)</ref> between input and output due to lookahead. Some approaches have considered zero delay, albeit with weaker performance <ref type="bibr" target="#b22">(Köhn and Menzel, 2013)</ref>. Solutions are also available for speculativity in incremental parsing <ref type="bibr" target="#b21">(Kitaev et al., 2022)</ref>, by introducing non-monotonicity <ref type="bibr" target="#b19">(Honnibal et al., 2013;</ref><ref type="bibr" target="#b13">Fernández-González and Gómez-Rodríguez, 2017)</ref>.</p><p>Thus, the paradigm supports incrementality and many implementations of these parsers from the pre-deep-learning era, which did not use contextualized encoders, were strongly incremental, leading to the observation by <ref type="bibr" target="#b15">Gómez-Rodríguez (2016)</ref> that at that point, some state-of-the-art parsing models were converging with psycholiguistically plausible models. However, in recent years bidirectional encoders have become ubiquitous, ruling out even weak incrementality from recent implementations of transition-based parsers, be them for dependency or other grammatical formalisms <ref type="bibr" target="#b20">(Kiperwasser and Goldberg, 2016;</ref><ref type="bibr" target="#b35">Stanojević and Steedman, 2019;</ref><ref type="bibr" target="#b12">Fernandez Astudillo et al., 2020;</ref><ref type="bibr" target="#b14">Fernández-González and Gómez-Rodríguez, 2023)</ref>. In this respect, it is worth mentioning that the approach by <ref type="bibr" target="#b42">Yang and Deng (2020)</ref> is described as "strongly incremental constituency parsing" but this refers to the decoder, as they use a bidirectional encoder. The only recent proposal we are aware of that aims for incrementality in the whole system is the CCG parser by <ref type="bibr" target="#b36">Stanojević and Steedman (2020)</ref>, also a constituency parser, but its labelled Fscore is over 7 points lower than a non-incremental baseline in an English-only evaluation.</p><p>In label-based parsing Other parsing paradigms that yield themselves to incrementality, as they in w1 . . . w i-k . Some authors require connectedness <ref type="bibr" target="#b3">(Beuck et al., 2011)</ref>. However, since the path between two words in w1 . . . w i-k in the final parse may involve words outside the prefix, we do not believe this requirement is necessary. could work from left to right, are seq2seq parsing <ref type="bibr" target="#b40">(Vinyals et al., 2015)</ref> and sequence-labeling parsing <ref type="bibr" target="#b17">(Gómez-Rodríguez and Vilares, 2018;</ref><ref type="bibr" target="#b38">Strzyz et al., 2019)</ref>. However, for the former, we are not aware of any implementation without bidirectional encoders. For the latter, while there are strongly incremental sequence-labeling decoders for both constituency <ref type="bibr" target="#b17">(Gómez-Rodríguez and Vilares, 2018)</ref> and dependency <ref type="bibr" target="#b39">(Strzyz et al., 2020)</ref>, most implementations use bidirectional encoders as well. The exception are some experiments with feed-forward encoders in <ref type="bibr" target="#b17">Gómez-Rodríguez and Vilares (2018)</ref>, using a sliding window to model near future context (and thus, with delay). Yet, their F-score is 14 points below their non-incremental counterparts in the same paper, and almost 20 below the overall state of the art.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Incremental models</head><p>The research question arises whether it is possible to have competitive incremental dependency parsers in the neural era. We take the first step and test how mainstream approaches would work in a setting of strong incrementality. In our work, we will focus on models with strictly zero delay, but we also evaluate less strict setups, in particular with delays 1 and 2. To do so, we will rely on modern encoder-decoder models. All source code is available on GitHub (https://github.com/ anaezquerro/incpar).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Incremental encoders</head><p>Let w = [w 1 , w 2 , ...w |w| ] (with w i ∈ V) be an input sentence. An encoder can be seen as a parameterized function Ω θ,|w| :V |w| → H |w| , where V is the input vocabulary space, and H ∈ R N is the hidden representational space in where each w i is projected. In this work we are particularly interested in incremental encoders, i.e., those where given a token w i , the computation of its projected representation h i only needs the sub-sequence w [1:i] . We consider different encoders for this purpose: (i) 4 stacked left-to-right LSTMs <ref type="bibr" target="#b18">(Hochreiter and Schmidhuber, 1997)</ref>, where input is a concatenation of a word and PoS tag vector (random init) and a char-level unidirectional LSTM; (ii) BLOOM <ref type="bibr" target="#b32">(Scao et al., 2022)</ref> (due to resource constraints, we run the smallest version with 560M parameters); and (iii) mGPT <ref type="bibr" target="#b33">(Shliazhko et al., 2022)</ref>. As control encoders (upper bound baselines), we use non-incremental encoders: (i) bidirectional LSTMs (same setup as for left-to-right LSTMs), and (ii) XLM-RoBERTa <ref type="bibr" target="#b6">(Conneau et al., 2020)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Incremental decoders</head><p>We consider incremental (i) sequence labeling parsing, and (ii) transition-based parsing decoders.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Sequence labeling decoders</head><p>A sequence labeling decoder is a parametrized function Φ θ,|w| : H |w| → L |w| , which maps each hidden vector (h i ∈ H) outputted by a generic encoder into an output label l i ∈ L that represents a part of the output parse. As the decoder, we use a 1layered feed-forward network and a softmax. As for label encodings, we select representatives from two encoding families <ref type="bibr" target="#b38">(Strzyz et al., 2019</ref><ref type="bibr" target="#b39">(Strzyz et al., , 2020))</ref>:</p><p>Head-based We study three variants, all of them supporting non-projective trees. First, the absoluteindexing encoding (abs-idx), where the token labels are the index of their head. Second, the relativeindexing encoding (rel-idx), where the label is the difference between the head and dependent indexes. Third, the PoS-tag-based encoding <ref type="bibr">(PoSidx)</ref>, where each label is encoded as an offset that indicates that the nth word to its left/right with a given PoS tag is the head.<ref type="foot" target="#foot_1">2</ref> </p><p>Strings of brackets First, we consider the 1-planar bracketing encoding (1p), where the label for each token is represented using a string of brackets, with each arc represented by a bracket pair. This encoding can only model crossing arcs in opposite directions. To tackle this, there is a 2-planar variant (2p), analogous, but defining a second plane of brackets.</p><p>In the context of full incrementality, we will say that an encoding is forward-looking if a label for a token w i can refer to some token to the right of w i . The abs-idx, rel-idx and PoS-idx encodings are forward-looking (e.g., with abs-idx, the word w 2 could have 4 as its label, meaning that its head is w 4 , which has not been read yet); while the bracketing encodings are not forward-looking. Forwardlookingness does not break incrementality: all the considered encodings are still strongly incremental with delay 0 (all dependencies involving w 1 . . . w i can be retrieved from the labels l 1 . . . l i ). However, one could expect forward-looking encodings to suffer more from using incremental encoders, due to needing to make decisions involving future words that the system cannot yet access.</p><p>In our implementation, for models with delay zero, the ith label is predicted directly from h i . For models with delay k &gt; 0, labels are predicted from a concatenated representation h</p><formula xml:id="formula_0">i • ... • h i+k-1 • h i+k .</formula><p>It is also worth noting that the obtention of the tree encoded by a sequence labeling encoding can require simple postprocessing heuristics (e.g. to remove cycles in head-selection encodings). This does not break incrementality, as these heuristics are applicable to partial outputs as well.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Transition-based decoders</head><p>A transition-based decoder is defined as a tuple (C, T , c s , C t ), where C is a set of configurations (or parsing states) with associated partial parses, T a set of transitions between states, and c s and C t are the initial state and set of valid final states, respectively. In the case of the arc-eager parser <ref type="bibr" target="#b29">(Nivre, 2008)</ref>, states are triplets of the form (σ,β,A) where σ is a stack of partially processed words, β a buffer of remaining words<ref type="foot" target="#foot_2">3</ref> which always takes the form β i = w i . . . w |w| for some i, and A is the partial parse at that state. This parser is strongly incremental, as the way in which the algorithm constructs dependencies (in a strictly left-to-right manner) means that a configuration with buffer β i can hold every possible partial parse for the prefix w 1 . . . w i . The parser's delay depends on the number of buffer words used as lookahead features in the implementation. In our case, this is only one (we only use the first stack word and the first buffer word) so we can obtain partial parses for w 1 . . . w i accessing only w 1 . . . w i , hence the delay is 0. Equivalently to sequence-labeling decoders, for models with delay k &gt; 0, we access a concatenated vector of the form</p><formula xml:id="formula_1">w i • ... • w i+k-1 • w i+k .</formula><p>For prediction of transitions, we again use a 1-layered feed-forward network.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We choose 12 diverse treebanks from UD 2.11 <ref type="bibr" target="#b30">(Nivre et al., 2020)</ref>, supported by the tested LLMs. We test all possible combinations of encoders and decoders. As a well-known baseline, we use the biaffine (DM; <ref type="bibr" target="#b9">Dozat and Manning, 2017)</ref> parser in supar. We use unlabelled attachment score (UAS) for evaluation. Labelled (LAS) results and individual treebank results are in Appendix A.</p><p>Table <ref type="table">1</ref> shows an aggregated summary of the results with strict delay zero. It shows that fully incremental models considerably lag behind their counterparts with bidirectional (control) encoders: the best fully incremental model for each language is 11.2 UAS points behind on average (sd: 5.0) with respect to the corresponding best control model. There is large inter-linguistic variability, Telugu (te MTG ) being especially amenable to incremental processing, 5.3 UAS points behind, and the opposite for Chinese (zh GSD ), 23.1 points behind. Our incremental-decoder-only models with LLMs as encoders are competitive against the BiLSTM-based version of the baseline (BiLSTM encoder, biaffine decoder), surpassing it on 7 out of 12 languages. However, they are a few points behind with respect to a version of the biaffine parser using RoBERTa encodings (which can be taken as a state-of-the-art system), consistent with existing comparisons of sequence-labeling parsers and biaffine parsers (Anderson and <ref type="bibr" target="#b1">Gómez-Rodríguez, 2021)</ref>. Put together, this seems to suggest that the challenge of incrementality falls mostly on the encoding side. If we focus on comparing different strongly incremental models we see that, as expected, forwardlooking encodings suffer greatly from incremental encoders.</p><p>Table <ref type="table" target="#tab_0">2</ref> compares the results from Table <ref type="table">1</ref> against the corresponding models using delays 1 and 2. Improvements are consistent across the board. Interestingly, moving from delay 0 to 1 already shows a clear and large increase in robustness, especially for forward-looking encodings: the average gap between these and non-forward-looking encodings goes from over 10 points with delay 0 to nonexistent with delay 1, although considerable gaps remain in some languages like Chinese (zh GSD ) or English (en EWT ).</p><p>Finally, Figure <ref type="figure" target="#fig_0">1</ref> complements Table <ref type="table" target="#tab_0">2</ref> with an analysis of the F-score with respect to dependency displacement (signed distance) for English and Chinese, chosen because they yielded the largest improvements when using positive delay. In particular, the figure shows that the lower performance of delay zero models is mainly due to poor performance of forward-looking encodings on leftward dependencies (right half of figure), and that a small positive delay already translates into clear improve- ments, even for long-distance dependencies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We evaluated modern neural NLP architectures for incremental dependency parsing across multiple languages, using various encoders and decoders.</p><p>We have found that said architectures are not adequate to model incrementality, at least in the absence of specific adaptations. Strongly incremental models with no delay yield accuracies about 10 points below competitive non-incremental baselines. While this gap narrows when adding a 2-  <ref type="table">1</ref> with delay zero (solid lines) and two (dashed lines). Different symbols and colors denote forward-looking (␣), non-forward looking (○␣) and transition-based (⋆) decoders. DM ǵ performance is included with gray dotted lines.</p><p>word lookahead, it is still about 5 points, contrasting with the situation in pre-deep-learning times, when incremental parsers were competitive (cf. <ref type="bibr" target="#b43">(Zhang and Nivre, 2011)</ref>). The results suggest that much of the accuracy improvements in parsing obtained in recent years hinge on bidirectionality, deviating from human processing.</p><p>Accurate incremental parsing should in theory be possible (as the human example shows). Incremental processing is useful both for practical applications <ref type="bibr" target="#b23">(Köhn, 2019)</ref>, specially those involving real-time speech <ref type="bibr" target="#b5">(Coman et al., 2019;</ref><ref type="bibr" target="#b11">Ekstedt and Skantze, 2021)</ref>; as well as for cognitive modeling <ref type="bibr" target="#b8">(Demberg and Keller, 2019;</ref><ref type="bibr" target="#b34">Stanojević et al., 2021)</ref>. Thus, we believe that designing architectures that work well in a strongly incremental setting is an important open challenge in NLP. In this respect, techniques like using tentative predictions of future words made by autoregressive language models as a substitute for delay <ref type="bibr" target="#b24">(Madureira and Schlangen, 2020</ref>) might be helpful. It is also conceivable that accuracy losses might not be solvable by better unidirectional scoring systems, and thus alternatives such as better search or methods that revise earlier decisions are also worth exploring.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Limited physical resources We have no access to large computing infrastructures or a budget to scale services in the cloud. We had access to a few internal servers, for a total of 6 NVIDIA GeForce RTX 3090 (24GB each), and temporally we also obtained access to a NVIDIA A100 GPU (80GB), as well as a workstation for quick debugging. This restricts the number and size of models that we can try. In particular, we could train in reasonable amounts of time the smallest BLOOM language model (560M parameters). It was possible for us to fit up to the 3B version on the A100 GPU with a minimal batch size, but the amount of time that it took to train a model made it unfeasible to carry out a multilingual study like the one proposed in this work. Still, preliminary results showed that these larger BLOOM models were not contributing to significantly improve the performance. In this respect, we know that scaling a lot can play an important role, and that the standard BLOOM model is the 176B version. However, a model of that size is completely out of our economic and computing resources. Yet, we feel our study with smaller models is equally, or even more relevant, since it represents effectively the resources at hand for most companies and academic institutions.</p><p>Delay parameter Incremental parsers have a delay parameter that models how far beyond word i the parser can access to generate a partial parse for w 1 . . . w i . For our main experiment we set the delay to 0, although we also provide results with delay 1 and 2. If we aim for psycholinguistic plausibility, there cannot be a single one-size-fits-all value for the delay, as the time taken by humans to parse linguistic input can be influenced by various factors like language, word length, reading/speaking speed, language proficiency, etc.; so any choice of delay is necessarily a simplification. However, evidence seems to point to human parsing generally being very fast, with latencies in the range of 100-250 ms (see for example <ref type="bibr" target="#b31">Pulvermüller et al. (2009)</ref>; <ref type="bibr" target="#b2">Bemis and Pylkkänen (2011)</ref>). Hence our choice of delay 0 as the safest option, and we also present experiments with 1 and 2 to show what happens when a small lag between the input and the parse is accounted for.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Scope of definition</head><p>Our definition of strong incrementality only applies to monotonic parsers. This is a deliberate choice: if we allowed non-monotonicity (i.e., removing or modifying dependencies from previous partial parses), then the definition would allow for a hypothetical parser that removes all partial output upon reading the last word and replaces it with a brand new parse generated with access to the whole sentence, which would be incremental in name only and render any comparison between incremental and non-incremental parsers moot.</p><p>While there might be alternative ways to restrict the definition to avoid this problem (e.g. restrict each step to be O(1)), these would come with their own limitations (e.g., excluding neural architectures where obtaining each word's vector representation is O(n), or transition-based parsers with quadratic complexities). Thus, we believe that our definition is a good compromise for our purposes, as it is simple, unambiguous and implementationindependent within the realm of monotonic parsing.</p><p>Comparing non-monotonic parsers is a different undertaking as it not only would require a different definition of incrementality, but also evaluation metrics focused on partial parse accuracy rather than final LAS/UAS. But that is orthogonal to comparing incremental to non-incremental parsers (as partial parse accuracy is not even well-defined for some non-incremental parsers that do not have intermediate states) and lies outside the scope of this paper.</p><p>Differences in incremental processing between humans and machines Currently, despite research efforts, a comprehensive understanding of why humans excel at incremental processing compared to machines remains elusive. This issue also constrains our options for analysis. In this regard, the proficiency of humans at incremental language processing likely stems from adaptation in the context of cognitive constraints, having to understand real-time input with limited working memory which forces eager processing (see e.g. Christiansen and Chater 2016). From a different perspective, <ref type="bibr" target="#b41">Wilcox et al. (2021)</ref> showed that both humans and models exhibit increased processing difficulty in ungrammatical sentences. However, language models consistently underestimate the magnitude of this difficulty compared to humans, particularly in predicting longer reaction times for syntactic violations.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Training hyperparameters and model configuration</head><p>Table <ref type="table" target="#tab_15">17</ref> shows the hyperparameters selected in the training process of each encoder. For LSTMs and BiLSTMs, words and PoS tags were mapped to a 300-dimensional and 100-dimensional vector representation, respectively. Word information at the character level was represented with the last hidden state of dimension 100 from a charLSTM. These three representations were concatenated and projected to the encoder hidden size. For pretrained encoders (BLOOM, mGPT and XLM-RoBERTa), we get their last layer representations. Then, they are linearly projected to a smaller dimensionality of size 100.</p><p>Table <ref type="table" target="#tab_16">18</ref> shows the training configuration per architecture: LSTM and BiLSTM weights were fitted with Adam optimizer (β 0 = 0.9, β 1 = 0.9, ε = 1e-12) and pretrained encoders with AdamW (β 0 = 0.9, β 1 = 0.9, ε = 1e -12). Batch size was adapted by the number of parameters of the encoders and the size of the treebank: in small en- coders (LSTMs and BiLSTMs) data was distributed in batches of size 600, while pretrained encoders were trained with batches of size 2000.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Other statistics about the treebanks</head><p>Table <ref type="table" target="#tab_17">19</ref> shows treebank language abbreviations and the percentage of arcs that point to the left and to the right in each treebank.   </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure1: Displacement performance (English above, Chinese below) for the (fully incremental) models specified in Table1with delay zero (solid lines) and two (dashed lines). Different symbols and colors denote forward-looking (␣), non-forward looking (○␣) and transition-based (⋆) decoders. DM ǵ performance is included with gray dotted lines.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 2 :</head><label>2</label><figDesc>UAS scores with delay 1 and 2. Notation as in Table1. Subscripts denote performance boost over zero-delay fully incremental results from Table1.</figDesc><table><row><cell></cell><cell cols="4">Fully incremental</cell><cell cols="3">Incremental decoder</cell><cell>DM</cell></row><row><cell></cell><cell>fl</cell><cell cols="2">non-fl</cell><cell>tb</cell><cell>fl</cell><cell>non-fl</cell><cell>tb</cell><cell>↔</cell><cell>ǵ</cell></row><row><cell cols="2">arPADT 75.7 → R</cell><cell cols="2">76.8 Ą 1P</cell><cell cols="2">79.6  84.6 ǵ R</cell><cell>88.0 ǵ 2P</cell><cell cols="2">86.9 ǵ 86.9 91.0</cell></row><row><cell cols="2">euBDT 62.0 Ą P</cell><cell cols="2">73.0 Ą 1P</cell><cell cols="2">71.0 Ą 87.0 ↔ R</cell><cell>87.6 ǵ 2P</cell><cell cols="2">86.6 ǵ 88.2 88.6</cell></row><row><cell cols="2">zhGSD 51.1 → R</cell><cell cols="2">64.4  2P</cell><cell cols="2">64.1 Ą 83.4 ǵ R</cell><cell>87.5 ǵ 1P</cell><cell cols="2">85.3 ǵ 86.7 90.7</cell></row><row><cell cols="2">enEWT 61.5 → P</cell><cell cols="2">74.7 Ą 2P</cell><cell cols="2">72.9 Ą 90.1 ǵ R</cell><cell>91.6 ǵ 1P</cell><cell cols="2">89.5 ǵ 90.2 92.7</cell></row><row><cell cols="2">frGSD 70.9 → R</cell><cell cols="2">84.4 Ą 1P</cell><cell cols="2">84.7 → 92.3 ǵ A</cell><cell>94.7 ǵ 2P</cell><cell cols="2">91.6 ǵ 93.5 95.0</cell></row><row><cell cols="2">hiHDTB 67.1 → P</cell><cell cols="2">83.5 Ą 1P</cell><cell cols="2">83.2 → 94.3 ǵ A</cell><cell>95.3 ǵ 2P</cell><cell cols="2">93.8 ǵ 95.5 95.7</cell></row><row><cell cols="2">idGSD 73.0 → R</cell><cell cols="2">77.9 → 1P</cell><cell cols="2">78.6 → 84.5 ↔ R</cell><cell>86.3 ǵ 2P</cell><cell cols="2">85.1 ǵ 88.5 89.6</cell></row><row><cell cols="2">mrUFAL 64.1 → P</cell><cell cols="2">69.7 → 2P</cell><cell cols="2">65.8 → 75.7 ↔ R</cell><cell>75.2 ↔ 1P</cell><cell cols="2">76.0 ↔ 79.2 81.7</cell></row><row><cell cols="2">esANC 67.9 → R</cell><cell cols="2">83.2 Ą 2P</cell><cell cols="2">82.9 Ą 92.0 ǵ A</cell><cell>93.4 ǵ 1P</cell><cell cols="2">91.2 ǵ 93.1 94.3</cell></row><row><cell cols="2">taTTB 59.1 → P</cell><cell cols="2">67.3 → 1P</cell><cell cols="2">69.7 → 71.4 ↔ R</cell><cell>75.8 ǵ 1P</cell><cell cols="2">78.6 ǵ 77.2 80.0</cell></row><row><cell cols="2">teMTG 73.8 → P</cell><cell cols="2">85.0 → 2P</cell><cell cols="2">80.4 → 89.9 ↔ R</cell><cell>90.3 ↔ 2P</cell><cell cols="2">89.0 ↔ 89.2 94.5</cell></row><row><cell cols="2">viVTB 57.3 → R</cell><cell cols="2">64.5 → 2P</cell><cell cols="2">64.5 → 72.7 ↔ R</cell><cell>74.1 ǵ 1P</cell><cell cols="2">76.0 ǵ 77.0 80.2</cell></row><row><cell>µ</cell><cell>65.3</cell><cell>75.4</cell><cell></cell><cell cols="2">74.8 84.8</cell><cell>84.6</cell><cell cols="2">85.8 87.1 89.5</cell></row><row><cell cols="9">Table 1: UAS scores paired with best forward looking</cell></row><row><cell cols="9">(fl) and non-forward looking (non-fl) encodings, and</cell></row><row><cell cols="9">transition-based (tb) decoder. Superscripts denote the</cell></row><row><cell cols="9">encoder-decoder pair: LSTM (→), BLOOM-560m (),</cell></row><row><cell></cell><cell cols="5">Fully incremental delay 1</cell><cell cols="3">Fully incremental delay 2</cell></row><row><cell></cell><cell>fl</cell><cell></cell><cell cols="2">non-fl</cell><cell>tb</cell><cell>fl</cell><cell>non-fl</cell><cell>tb</cell></row><row><cell>arPADT</cell><cell cols="2">84.2 ĄP +8.5</cell><cell cols="2">80.2 Ą2P +3.4</cell><cell>79.9 Ą +0.3</cell><cell>83.9 P +8.2</cell><cell>82.9 Ą1P +6.1</cell><cell>80.0 Ą +0.4</cell></row><row><cell>euBDT</cell><cell cols="4">78.4 ĄP +16.4 76.9 Ą1P +3.9</cell><cell>75.7 Ą +4.7</cell><cell cols="2">80.0 ĄP +18.0 80.1 Ą1P +7.1</cell><cell>76.9 Ą +5.9</cell></row><row><cell>zhGSD</cell><cell cols="4">64.3 ĄP +13.2 73.5 Ą2P +9.1</cell><cell>72.8 Ą +8.7</cell><cell cols="3">68.4 P +17.3 74.8 Ą2P +10.4</cell><cell>75.6 Ą +11.5</cell></row><row><cell>enEWT</cell><cell cols="4">81.9 ĄP +20.4 88.1 Ą1P +13.4</cell><cell cols="4">83.3 Ą +10.4 85.6 ĄP +24.1 88.7 Ą1P +14.0</cell><cell>85.2 Ą +12.3</cell></row><row><cell>frGSD</cell><cell cols="4">84.4 ĄP +13.5 86.2 Ą2P +1.8</cell><cell>87.5 Ą +2.8</cell><cell cols="2">87.6 ĄP +16.7 89.2 Ą1P +4.8</cell><cell>86.7  +2.0</cell></row><row><cell>hiHDTB</cell><cell cols="4">82.5 ĄP +15.4 86.2 Ą1P +2.7</cell><cell>88.7 Ą +5.5</cell><cell cols="2">85.8 ĄP +18.7 90.1 Ą1P +6.6</cell><cell>88.9 → +5.7</cell></row><row><cell>idGSD</cell><cell cols="2">80.8 ĄP +7.8</cell><cell cols="2">80.4 Ą1P +2.5</cell><cell>79.2 → +0.6</cell><cell>81.9 ĄP +8.9</cell><cell>82.1 Ą2P +4.2</cell><cell>79.6 Ą +1.0</cell></row><row><cell>mrUFAL</cell><cell cols="2">73.5 P +9.4</cell><cell cols="2">65.8 Ą1P -3.9</cell><cell>72.7 Ą +6.9</cell><cell>72.3 P +8.2</cell><cell>64.9 2P -4.8</cell><cell>71.1 → +5.3</cell></row><row><cell>esANC</cell><cell cols="4">84.9 ĄP +17.0 85.4 Ą1P +2.2</cell><cell>85.2 Ą +2.3</cell><cell cols="2">88.4 ĄP +20.5 87.6 Ą1P +4.4</cell><cell>85.6 Ą +2.7</cell></row><row><cell>taTTB</cell><cell cols="2">68.5 P +9.4</cell><cell cols="2">62.4 1P -4.9</cell><cell>67.0 Ą -2.7</cell><cell cols="2">69.9 ĄP +10.8 64.9 1P -2.4</cell><cell>71.9  +2.2</cell></row><row><cell>teMTG</cell><cell cols="4">85.0 ĄP +11.2 85.0 Ą2P 0.0</cell><cell>87.4 Ą +7.0</cell><cell cols="2">86.7 ĄP +12.9 89.6 Ą1P +4.6</cell><cell>90.0 → +9.6</cell></row><row><cell>viVTB</cell><cell cols="2">66.6 ĄP +9.3</cell><cell cols="2">63.8 Ą2P -0.7</cell><cell>64.0  -0.5</cell><cell cols="2">68.3 ĄP +11.0 65.1 Ą2P +0.6</cell><cell>65.2 Ą +0.7</cell></row><row><cell>µ</cell><cell cols="4">77.9+12.6 77.8+2.4</cell><cell cols="3">78.6+3.8 79.9+14.6 80.0+4.6</cell><cell>79.7+4.9</cell></row></table><note><p><p><p>mGPT (Ą), BiLSTM (↔), XLM-RoBERTa (ǵ). Subscripts denote the best performing encoding: absolute (A), relative (R), PoS-tag-based (P), 1-planar (1P) and 2-planar (2P). Macro-average (µ) and baseline performance (DM, for Dozat and Manning) with different encoders (↔, ǵ) are included. Language abbreviations come from ISO 639-1 (Table</p>19</p>in the Appendix).</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 3 :</head><label>3</label><figDesc>LAS scores. Notation comes from Table1.</figDesc><table><row><cell>1</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 4 :</head><label>4</label><figDesc>LAS scores with delay one and two. Notation comes from Table2.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 6 :</head><label>6</label><figDesc>UAS and LAS for the Basque BDT treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>59.4</cell><cell>61.7</cell><cell>61.9</cell><cell cols="2">72.0 71.7 69.7</cell><cell>LSTM</cell><cell>43.7</cell><cell>51.1</cell><cell>45.0</cell><cell>62.9 61.9 60.1</cell></row><row><cell></cell><cell>69.0</cell><cell>70.8</cell><cell>74.0</cell><cell cols="2">70.8 0.0 73.6</cell><cell></cell><cell>51.7</cell><cell>59.8</cell><cell>61.3</cell><cell>62.0 60.7 69.6</cell></row><row><cell></cell><cell>68.5</cell><cell>73.9</cell><cell>75.7</cell><cell cols="2">72.9 74.1 75.5</cell><cell></cell><cell>54.6</cell><cell>64.3</cell><cell>64.0</cell><cell>65.3 64.6 70.9</cell></row><row><cell>mGPT</cell><cell>42.0</cell><cell>55.0</cell><cell>62.0</cell><cell cols="2">73.0 72.9 71.0</cell><cell>mGPT</cell><cell>33.8</cell><cell>47.6</cell><cell>44.7</cell><cell>63.4 63.6 64.1</cell></row><row><cell></cell><cell>58.5</cell><cell>67.7</cell><cell>78.4</cell><cell cols="2">76.9 76.0 75.7</cell><cell></cell><cell>43.3</cell><cell>57.4</cell><cell>64.3</cell><cell>72.6 73.5 72.8</cell></row><row><cell></cell><cell>59.6</cell><cell>72.3</cell><cell>80.0</cell><cell cols="2">80.1 79.5 76.9</cell><cell></cell><cell>40.5</cell><cell>63.0</cell><cell>67.4</cell><cell>73.6 74.8 75.6</cell></row><row><cell>BLOOM</cell><cell>34.6</cell><cell>50.7</cell><cell>58.1</cell><cell cols="2">64.3 65.2 63.4</cell><cell>BLOOM</cell><cell>23.7</cell><cell>45.0</cell><cell>44.4</cell><cell>63.8 64.4 60.4</cell></row><row><cell>UAS</cell><cell>48.9 52.6</cell><cell>60.8 67.8</cell><cell>73.8 75.9</cell><cell cols="2">68.8 68.2 72.1 74.7 72.2 74.6</cell><cell>UAS</cell><cell>32.5 37.9</cell><cell>57.3 62.8</cell><cell>64.2 68.4</cell><cell>71.5 71.9 71.4 72.9 71.7 73.2</cell></row><row><cell>BiLSTM</cell><cell>81.5</cell><cell>87.0</cell><cell>73.3</cell><cell cols="2">83.6 83.7 83.3</cell><cell>BiLSTM</cell><cell>69.1</cell><cell>81.6</cell><cell>63.9</cell><cell>79.8 79.8 77.7</cell></row><row><cell></cell><cell>72.6</cell><cell>78.5</cell><cell>78.0</cell><cell cols="2">71.3 71.0 77.5</cell><cell></cell><cell>62.5</cell><cell>72.8</cell><cell>71.7</cell><cell>69.1 67.9 72.5</cell></row><row><cell></cell><cell>70.7</cell><cell>79.6</cell><cell>77.3</cell><cell cols="2">71.8 70.6 76.7</cell><cell></cell><cell>59.8</cell><cell>73.1</cell><cell>72.5</cell><cell>68.9 67.8 71.0</cell></row><row><cell>XLM</cell><cell>80.9</cell><cell>83.6</cell><cell>73.7</cell><cell cols="2">87.6 87.6 86.6</cell><cell>XLM</cell><cell>81.6</cell><cell>83.4</cell><cell>65.3</cell><cell>87.5 87.3 85.3</cell></row><row><cell></cell><cell>84.8</cell><cell>86.4</cell><cell>86.2</cell><cell cols="2">86.4 85.8 84.4</cell><cell></cell><cell>85.2</cell><cell>83.6</cell><cell>85.5</cell><cell>86.7 87.1 83.5</cell></row><row><cell></cell><cell>84.9</cell><cell>85.5</cell><cell>85.2</cell><cell cols="2">86.0 85.6 85.4</cell><cell></cell><cell>85.3</cell><cell>85.4</cell><cell>83.4</cell><cell>86.6 85.8 81.8</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>84.8</cell><cell></cell><cell></cell><cell>DM</cell><cell></cell><cell></cell><cell>85.3</cell></row><row><cell>LSTM</cell><cell>53.5</cell><cell>55.7</cell><cell>55.3</cell><cell cols="2">60.7 60.1 52.0</cell><cell>LSTM</cell><cell>37.5</cell><cell>43.9</cell><cell>42.0</cell><cell>50.5 49.4 50.2</cell></row><row><cell></cell><cell>61.6</cell><cell>63.7</cell><cell>67.3</cell><cell cols="2">63.5 0.0 52.8</cell><cell></cell><cell>46.7</cell><cell>54.0</cell><cell>56.0</cell><cell>56.5 54.7 49.8</cell></row><row><cell></cell><cell>61.6</cell><cell>66.7</cell><cell>69.3</cell><cell cols="2">66.0 67.3 55.2</cell><cell></cell><cell>49.5</cell><cell>58.3</cell><cell>58.6</cell><cell>59.3 58.5 52.9</cell></row><row><cell>mGPT</cell><cell>38.4</cell><cell>49.6</cell><cell>56.4</cell><cell cols="2">63.0 62.7 60.4</cell><cell>mGPT</cell><cell>29.7</cell><cell>40.6</cell><cell>41.5</cell><cell>51.1 51.4 54.6</cell></row><row><cell></cell><cell>54.4</cell><cell>63.2</cell><cell>73.5</cell><cell cols="2">71.2 70.4 59.4</cell><cell></cell><cell>40.2</cell><cell>53.5</cell><cell>60.0</cell><cell>67.5 68.3 61.0</cell></row><row><cell></cell><cell>55.5</cell><cell>67.8</cell><cell>75.2</cell><cell cols="2">75.2 74.4 63.6</cell><cell></cell><cell>37.8</cell><cell>59.3</cell><cell>63.6</cell><cell>68.9 69.7 75.6</cell></row><row><cell>BLOOM</cell><cell>30.8</cell><cell>44.2</cell><cell>51.4</cell><cell cols="2">53.3 54.2 50.1</cell><cell>BLOOM</cell><cell>19.7</cell><cell>37.2</cell><cell>40.5</cell><cell>50.6 51.3 47.9</cell></row><row><cell>LAS</cell><cell>43.8 47.5</cell><cell>54.8 62.2</cell><cell>66.9 69.7</cell><cell cols="2">61.9 60.9 55.5 68.6 65.8 58.7</cell><cell>LAS</cell><cell>29.9 35.0</cell><cell>53.5 58.7</cell><cell>60.4 64.6</cell><cell>66.0 66.4 61.3 68.0 66.3 63.9</cell></row><row><cell>BiLSTM</cell><cell>76.5</cell><cell>82.1</cell><cell>69.6</cell><cell cols="2">78.4 78.6 67.8</cell><cell>BiLSTM</cell><cell>66.3</cell><cell>78.5</cell><cell>61.8</cell><cell>76.7 76.6 71.4</cell></row><row><cell></cell><cell>65.1</cell><cell>70.0</cell><cell>70.5</cell><cell cols="2">63.8 63.9 54.6</cell><cell></cell><cell>56.4</cell><cell>66.2</cell><cell>66.4</cell><cell>64.1 61.9 55.1</cell></row><row><cell></cell><cell>62.8</cell><cell>71.8</cell><cell>69.6</cell><cell cols="2">64.8 63.0 53.7</cell><cell></cell><cell>54.1</cell><cell>66.6</cell><cell>67.1</cell><cell>63.4 62.0 55.4</cell></row><row><cell>XLM</cell><cell>78.2</cell><cell>80.4</cell><cell>71.3</cell><cell cols="2">84.3 84.4 76.0</cell><cell>XLM</cell><cell>78.8</cell><cell>80.5</cell><cell>63.6</cell><cell>84.1 84.1 77.5</cell></row><row><cell></cell><cell>81.2</cell><cell>82.7</cell><cell>82.6</cell><cell cols="2">82.4 81.8 77.0</cell><cell></cell><cell>82.3</cell><cell>80.6</cell><cell>82.8</cell><cell>83.7 84.3 74.2</cell></row><row><cell></cell><cell>81.1</cell><cell>81.6</cell><cell>81.5</cell><cell cols="2">82.3 81.5 77.7</cell><cell></cell><cell>82.2</cell><cell>82.2</cell><cell>81.0</cell><cell>83.3 82.2 72.4</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>77.3</cell><cell></cell><cell></cell><cell>DM</cell><cell></cell><cell></cell><cell>82.4</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 7 :</head><label>7</label><figDesc>UAS and LAS for the Chinese GSD treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>58.8</cell><cell>60.5</cell><cell>61.5</cell><cell cols="2">74.4 73.3 70.4</cell></row><row><cell></cell><cell>75.5</cell><cell>78.3</cell><cell>77.4</cell><cell cols="2">82.5 81.7 79.0</cell></row><row><cell></cell><cell>80.1</cell><cell>82.6</cell><cell>80.3</cell><cell cols="2">83.9 82.6 78.6</cell></row><row><cell>mGPT</cell><cell>49.5</cell><cell>56.4</cell><cell>59.0</cell><cell cols="2">74.0 74.7 72.9</cell></row><row><cell></cell><cell>73.9</cell><cell>78.2</cell><cell>81.9</cell><cell cols="2">88.1 87.4 83.3</cell></row><row><cell></cell><cell>78.6</cell><cell>83.4</cell><cell>85.6</cell><cell cols="2">88.7 88.6 85.2</cell></row><row><cell>BLOOM</cell><cell>44.4</cell><cell>54.8</cell><cell>59.0</cell><cell cols="2">73.2 72.8 69.0</cell></row><row><cell>UAS</cell><cell>68.7 74.0</cell><cell>76.3 80.8</cell><cell>80.4 82.2</cell><cell cols="2">85.3 84.6 81.7 85.7 86.4 81.3</cell></row><row><cell>BiLSTM</cell><cell>82.4</cell><cell>88.9</cell><cell>77.4</cell><cell cols="2">87.1 86.0 83.5</cell></row><row><cell></cell><cell>84.6</cell><cell>87.3</cell><cell>84.8</cell><cell cols="2">84.6 83.7 80.5</cell></row><row><cell></cell><cell>84.7</cell><cell>86.8</cell><cell>85.1</cell><cell cols="2">84.7 84.0 79.1</cell></row><row><cell>XLM</cell><cell>88.6</cell><cell>90.1</cell><cell>78.3</cell><cell cols="2">91.6 91.0 89.5</cell></row><row><cell></cell><cell>89.9</cell><cell>92.9</cell><cell>90.7</cell><cell cols="2">92.6 91.2 89.4</cell></row><row><cell></cell><cell>92.2</cell><cell>92.5</cell><cell>92.6</cell><cell cols="2">93.1 92.8 86.4</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>90.6</cell><cell></cell></row><row><cell>LSTM</cell><cell>55.0</cell><cell>56.8</cell><cell>59.0</cell><cell cols="2">67.5 66.3 60.5</cell></row><row><cell></cell><cell>71.3</cell><cell>73.8</cell><cell>73.9</cell><cell cols="2">77.7 77.1 62.9</cell></row><row><cell></cell><cell>76.0</cell><cell>78.5</cell><cell>76.6</cell><cell cols="2">79.4 78.6 64.6</cell></row><row><cell>mGPT</cell><cell>46.0</cell><cell>52.3</cell><cell>55.7</cell><cell cols="2">65.7 66.2 65.4</cell></row><row><cell></cell><cell>70.9</cell><cell>74.9</cell><cell>79.1</cell><cell cols="2">84.2 83.5 83.3</cell></row><row><cell></cell><cell>75.4</cell><cell>80.2</cell><cell>83.0</cell><cell cols="2">85.0 84.8 85.2</cell></row><row><cell>BLOOM</cell><cell>41.0</cell><cell>50.2</cell><cell>55.1</cell><cell cols="2">64.0 63.9 58.3</cell></row><row><cell>LAS</cell><cell>64.1 70.4</cell><cell>72.4 76.3</cell><cell>76.2 78.6</cell><cell cols="2">80.7 79.4 68.4 81.4 81.9 70.6</cell></row><row><cell>BiLSTM</cell><cell>80.1</cell><cell>86.6</cell><cell>75.7</cell><cell cols="2">84.9 83.6 76.2</cell></row><row><cell></cell><cell>80.7</cell><cell>83.6</cell><cell>81.3</cell><cell cols="2">80.5 79.7 66.8</cell></row><row><cell></cell><cell>80.7</cell><cell>82.9</cell><cell>81.7</cell><cell cols="2">81.0 80.1 65.4</cell></row><row><cell>XLM</cell><cell>86.5</cell><cell>87.9</cell><cell>76.4</cell><cell cols="2">89.1 88.5 84.5</cell></row><row><cell></cell><cell>86.8</cell><cell>90.5</cell><cell>88.7</cell><cell cols="2">90.2 88.6 74.4</cell></row><row><cell></cell><cell>89.9</cell><cell>90.1</cell><cell>90.4</cell><cell cols="2">90.9 90.5 74.2</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>88.5</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 8 :</head><label>8</label><figDesc>UAS and LAS for the English EWT treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>69.2</cell><cell>70.9</cell><cell>67.0</cell><cell cols="2">82.2 81.6 84.7</cell></row><row><cell></cell><cell>77.5</cell><cell>79.4</cell><cell>80.3</cell><cell cols="2">80.9 81.6 84.4</cell></row><row><cell></cell><cell>81.0</cell><cell>83.3</cell><cell>83.1</cell><cell cols="2">84.5 84.5 84.3</cell></row><row><cell>mGPT</cell><cell>57.9</cell><cell>68.3</cell><cell>67.4</cell><cell cols="2">84.4 84.2 84.1</cell></row><row><cell></cell><cell>73.8</cell><cell>79.8</cell><cell>84.4</cell><cell cols="2">85.8 86.2 87.5</cell></row><row><cell></cell><cell>78.0</cell><cell>83.6</cell><cell>87.6</cell><cell cols="2">89.2 88.8 86.3</cell></row><row><cell>BLOOM</cell><cell>54.1</cell><cell>68.0</cell><cell>66.1</cell><cell cols="2">82.8 82.2 83.8</cell></row><row><cell>UAS</cell><cell>69.2 72.0</cell><cell>78.5 82.8</cell><cell>82.3 86.7</cell><cell cols="2">85.0 84.7 85.8 87.0 86.8 86.7</cell></row><row><cell>BiLSTM</cell><cell>85.3</cell><cell>91.4</cell><cell>80.1</cell><cell cols="2">89.8 89.0 88.8</cell></row><row><cell></cell><cell>84.7</cell><cell>88.4</cell><cell>87.6</cell><cell cols="2">87.6 86.7 84.6</cell></row><row><cell></cell><cell>85.0</cell><cell>87.8</cell><cell>87.6</cell><cell cols="2">87.2 86.8 85.5</cell></row><row><cell>XLM</cell><cell>92.3</cell><cell>92.2</cell><cell>80.7</cell><cell cols="2">94.5 94.7 91.6</cell></row><row><cell></cell><cell>93.0</cell><cell>93.4</cell><cell>93.5</cell><cell cols="2">93.8 94.4 90.2</cell></row><row><cell></cell><cell>94.4</cell><cell>93.8</cell><cell>92.4</cell><cell cols="2">93.5 93.9 89.7</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>93.3</cell><cell></cell></row><row><cell>LSTM</cell><cell>65.4</cell><cell>67.1</cell><cell>63.4</cell><cell cols="2">75.8 75.3 76.0</cell></row><row><cell></cell><cell>72.1</cell><cell>74.3</cell><cell>75.1</cell><cell cols="2">75.1 75.5 66.6</cell></row><row><cell></cell><cell>75.5</cell><cell>78.2</cell><cell>78.3</cell><cell cols="2">79.0 79.0 68.6</cell></row><row><cell>mGPT</cell><cell>54.9</cell><cell>64.7</cell><cell>63.8</cell><cell cols="2">78.2 78.2 78.1</cell></row><row><cell></cell><cell>70.6</cell><cell>76.4</cell><cell>80.9</cell><cell cols="2">81.4 81.9 76.0</cell></row><row><cell></cell><cell>74.9</cell><cell>80.6</cell><cell>84.2</cell><cell cols="2">85.4 85.3 75.9</cell></row><row><cell>BLOOM</cell><cell>50.6</cell><cell>63.9</cell><cell>62.5</cell><cell cols="2">76.4 75.6 73.6</cell></row><row><cell>LAS</cell><cell>65.7 68.5</cell><cell>74.4 78.8</cell><cell>78.7 83.2</cell><cell cols="2">79.8 79.7 73.3 82.0 82.0 74.4</cell></row><row><cell>BiLSTM</cell><cell>82.0</cell><cell>87.7</cell><cell>77.2</cell><cell cols="2">86.2 85.5 82.0</cell></row><row><cell></cell><cell>79.4</cell><cell>83.2</cell><cell>82.5</cell><cell cols="2">82.4 81.6 71.1</cell></row><row><cell></cell><cell>79.7</cell><cell>82.2</cell><cell>82.5</cell><cell cols="2">82.1 81.5 71.9</cell></row><row><cell>XLM</cell><cell>90.0</cell><cell>89.9</cell><cell>79.1</cell><cell cols="2">92.0 92.4 87.0</cell></row><row><cell></cell><cell>90.2</cell><cell>90.7</cell><cell>90.7</cell><cell cols="2">91.1 91.7 79.8</cell></row><row><cell></cell><cell>91.6</cell><cell>91.0</cell><cell>89.8</cell><cell cols="2">90.9 90.9 78.4</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>89.6</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 9 :</head><label>9</label><figDesc>UAS and LAS for the French GSD treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>66.0</cell><cell>66.1</cell><cell>67.1</cell><cell cols="2">82.8 82.7 83.2</cell></row><row><cell></cell><cell>73.0</cell><cell>74.5</cell><cell>81.4</cell><cell cols="2">81.1 80.8 87.6</cell></row><row><cell></cell><cell>76.8</cell><cell>78.7</cell><cell>84.1</cell><cell cols="2">86.0 86.1 88.9</cell></row><row><cell>mGPT</cell><cell>46.2</cell><cell>62.4</cell><cell>66.1</cell><cell cols="2">83.5 83.4 82.3</cell></row><row><cell></cell><cell>67.7</cell><cell>72.4</cell><cell>82.5</cell><cell cols="2">86.2 85.8 88.7</cell></row><row><cell></cell><cell>73.0</cell><cell>77.6</cell><cell>85.8</cell><cell cols="2">90.1 89.6 88.1</cell></row><row><cell>BLOOM</cell><cell>48.0</cell><cell>61.6</cell><cell>64.9</cell><cell cols="2">80.8 81.2 81.7</cell></row><row><cell>UAS</cell><cell>61.9 64.7</cell><cell>70.3 75.1</cell><cell>81.9 85.1</cell><cell cols="2">84.2 83.9 88.3 88.2 88.0 88.8</cell></row><row><cell>BiLSTM</cell><cell>91.5</cell><cell>94.2</cell><cell>78.2</cell><cell cols="2">93.3 93.3 92.8</cell></row><row><cell></cell><cell>87.8</cell><cell>91.2</cell><cell>90.4</cell><cell cols="2">88.2 87.8 90.7</cell></row><row><cell></cell><cell>88.1</cell><cell>91.4</cell><cell>91.1</cell><cell cols="2">87.5 87.0 89.6</cell></row><row><cell>XLM</cell><cell>94.3</cell><cell>93.5</cell><cell>78.0</cell><cell cols="2">94.7 95.3 93.8</cell></row><row><cell></cell><cell>94.6</cell><cell>94.1</cell><cell>92.7</cell><cell cols="2">93.7 94.2 94.1</cell></row><row><cell></cell><cell>95.0</cell><cell>94.2</cell><cell>92.6</cell><cell cols="2">94.0 94.2 93.8</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>95.5</cell><cell></cell></row><row><cell>LSTM</cell><cell>60.0</cell><cell>60.4</cell><cell>60.7</cell><cell cols="2">67.8 67.8 71.3</cell></row><row><cell></cell><cell>67.8</cell><cell>69.4</cell><cell>76.3</cell><cell cols="2">74.1 73.8 72.0</cell></row><row><cell></cell><cell>72.4</cell><cell>74.2</cell><cell>79.4</cell><cell cols="2">80.3 80.4 74.4</cell></row><row><cell>mGPT</cell><cell>41.5</cell><cell>57.0</cell><cell>60.5</cell><cell cols="2">69.2 69.6 73.1</cell></row><row><cell></cell><cell>64.0</cell><cell>68.5</cell><cell>78.1</cell><cell cols="2">79.6 79.1 77.4</cell></row><row><cell></cell><cell>69.2</cell><cell>73.8</cell><cell>82.0</cell><cell cols="2">84.9 84.1 77.4</cell></row><row><cell>BLOOM</cell><cell>43.4</cell><cell>55.0</cell><cell>57.5</cell><cell cols="2">65.4 66.0 69.2</cell></row><row><cell>LAS</cell><cell>57.6 61.0</cell><cell>66.1 71.0</cell><cell>77.6 80.7</cell><cell cols="2">77.1 77.1 74.5 82.7 82.2 74.1</cell></row><row><cell>BiLSTM</cell><cell>88.5</cell><cell>91.2</cell><cell>75.6</cell><cell cols="2">90.4 90.3 83.8</cell></row><row><cell></cell><cell>83.0</cell><cell>86.4</cell><cell>85.9</cell><cell cols="2">83.7 83.2 75.5</cell></row><row><cell></cell><cell>83.4</cell><cell>86.6</cell><cell>86.7</cell><cell cols="2">82.8 82.2 75.2</cell></row><row><cell>XLM</cell><cell>91.3</cell><cell>90.5</cell><cell>75.7</cell><cell cols="2">91.8 92.3 86.0</cell></row><row><cell></cell><cell>91.3</cell><cell>90.9</cell><cell>89.8</cell><cell cols="2">90.3 90.8 85.8</cell></row><row><cell></cell><cell>91.8</cell><cell>90.8</cell><cell>89.7</cell><cell cols="2">90.5 90.8 88.2</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>92.7</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 10 :</head><label>10</label><figDesc>UAS and LAS for the Hindi HDTB treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>70.4</cell><cell>73.0</cell><cell>57.5</cell><cell cols="2">77.9 77.3 78.6</cell></row><row><cell></cell><cell>78.3</cell><cell>79.2</cell><cell>80.6</cell><cell cols="2">77.6 76.4 79.2</cell></row><row><cell></cell><cell>75.9</cell><cell>80.2</cell><cell>81.4</cell><cell cols="2">79.7 80.0 79.5</cell></row><row><cell>mGPT</cell><cell>46.0</cell><cell>67.5</cell><cell>56.0</cell><cell cols="2">77.2 77.0 76.0</cell></row><row><cell></cell><cell>60.6</cell><cell>75.5</cell><cell>80.8</cell><cell cols="2">80.4 80.2 78.8</cell></row><row><cell></cell><cell>62.0</cell><cell>77.7</cell><cell>81.9</cell><cell cols="2">82.0 82.1 79.6</cell></row><row><cell>BLOOM</cell><cell>40.4</cell><cell>66.2</cell><cell>55.9</cell><cell cols="2">75.9 75.9 78.4</cell></row><row><cell>UAS</cell><cell>55.8 56.0</cell><cell>73.6 76.2</cell><cell>80.6 80.5</cell><cell cols="2">78.0 77.6 77.2 80.1 80.4 77.9</cell></row><row><cell>BiLSTM</cell><cell>73.9</cell><cell>84.5</cell><cell>67.6</cell><cell cols="2">81.5 83.8 84.7</cell></row><row><cell></cell><cell>79.0</cell><cell>83.6</cell><cell>82.4</cell><cell cols="2">82.2 79.9 78.3</cell></row><row><cell></cell><cell>76.5</cell><cell>82.5</cell><cell>82.7</cell><cell cols="2">80.9 80.8 80.1</cell></row><row><cell>XLM</cell><cell>75.5</cell><cell>82.9</cell><cell>65.4</cell><cell cols="2">86.2 86.3 85.1</cell></row><row><cell></cell><cell>83.7</cell><cell>86.0</cell><cell>87.2</cell><cell cols="2">87.5 87.1 83.0</cell></row><row><cell></cell><cell>83.4</cell><cell>85.6</cell><cell>84.6</cell><cell cols="2">87.6 87.2 83.2</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>88.6</cell><cell></cell></row><row><cell>LSTM</cell><cell>65.7</cell><cell>68.2</cell><cell>53.8</cell><cell cols="2">72.1 71.6 67.7</cell></row><row><cell></cell><cell>69.9</cell><cell>70.8</cell><cell>72.3</cell><cell cols="2">69.2 68.8 59.4</cell></row><row><cell></cell><cell>68.6</cell><cell>72.4</cell><cell>73.4</cell><cell cols="2">72.0 71.9 59.7</cell></row><row><cell>mGPT</cell><cell>40.9</cell><cell>60.1</cell><cell>50.6</cell><cell cols="2">67.3 67.6 64.9</cell></row><row><cell></cell><cell>54.8</cell><cell>68.5</cell><cell>73.6</cell><cell cols="2">72.3 71.8 66.9</cell></row><row><cell></cell><cell>56.5</cell><cell>70.7</cell><cell>75.2</cell><cell cols="2">74.2 74.6 68.3</cell></row><row><cell>BLOOM</cell><cell>35.8</cell><cell>58.6</cell><cell>49.7</cell><cell cols="2">66.2 66.1 63.3</cell></row><row><cell>LAS</cell><cell>50.0 50.4</cell><cell>66.1 68.5</cell><cell>73.2 73.4</cell><cell cols="2">69.3 68.9 64.3 72.0 71.8 65.8</cell></row><row><cell>BiLSTM</cell><cell>69.7</cell><cell>79.5</cell><cell>64.8</cell><cell cols="2">73.4 78.8 73.5</cell></row><row><cell></cell><cell>71.0</cell><cell>75.3</cell><cell>74.1</cell><cell cols="2">73.3 71.7 61.9</cell></row><row><cell></cell><cell>68.7</cell><cell>74.1</cell><cell>75.0</cell><cell cols="2">72.4 72.6 62.4</cell></row><row><cell>XLM</cell><cell>69.5</cell><cell>76.1</cell><cell>61.5</cell><cell cols="2">78.8 79.2 71.7</cell></row><row><cell></cell><cell>77.3</cell><cell>78.8</cell><cell>80.6</cell><cell cols="2">80.3 79.7 71.1</cell></row><row><cell></cell><cell>76.9</cell><cell>78.8</cell><cell>79.0</cell><cell cols="2">80.8 80.3 70.7</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>83.6</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 11 :</head><label>11</label><figDesc>UAS and LAS for the Indonesian GSD treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>42.7</cell><cell>55.3</cell><cell>64.1</cell><cell cols="2">65.0 69.7 65.8</cell></row><row><cell></cell><cell>54.7</cell><cell>63.0</cell><cell>65.2</cell><cell cols="2">58.4 62.8 69.9</cell></row><row><cell></cell><cell>60.8</cell><cell>64.2</cell><cell>60.6</cell><cell cols="2">63.1 60.1 71.1</cell></row><row><cell>mGPT</cell><cell>27.2</cell><cell>45.2</cell><cell>59.2</cell><cell cols="2">63.1 61.2 60.7</cell></row><row><cell></cell><cell>39.2</cell><cell>58.2</cell><cell>66.8</cell><cell cols="2">65.8 61.5 72.7</cell></row><row><cell></cell><cell>37.4</cell><cell>58.1</cell><cell>68.9</cell><cell cols="2">63.1 64.4 66.8</cell></row><row><cell>BLOOM</cell><cell>28.9</cell><cell>45.6</cell><cell>59.0</cell><cell cols="2">59.7 58.2 60.0</cell></row><row><cell>UAS</cell><cell>46.7 43.3</cell><cell>55.1 58.7</cell><cell>73.5 72.3</cell><cell cols="2">62.3 64.9 69.2 61.0 64.9 69.0</cell></row><row><cell>BiLSTM</cell><cell>60.4</cell><cell>75.7</cell><cell>69.7</cell><cell cols="2">75.2 73.8 76.0</cell></row><row><cell></cell><cell>60.2</cell><cell>69.3</cell><cell>67.8</cell><cell cols="2">63.9 61.6 66.6</cell></row><row><cell></cell><cell>58.8</cell><cell>66.3</cell><cell>65.8</cell><cell cols="2">55.5 65.1 67.4</cell></row><row><cell>XLM</cell><cell>33.7</cell><cell>63.4</cell><cell>70.4</cell><cell cols="2">71.4 71.8 73.5</cell></row><row><cell></cell><cell>54.5</cell><cell>69.7</cell><cell>78.6</cell><cell cols="2">72.1 73.6 79.7</cell></row><row><cell></cell><cell>52.8</cell><cell>74.7</cell><cell>79.4</cell><cell cols="2">80.0 68.0 80.2</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>82.4</cell><cell></cell></row><row><cell>LSTM</cell><cell>34.0</cell><cell>43.9</cell><cell>47.8</cell><cell cols="2">44.2 45.9 29.8</cell></row><row><cell></cell><cell>39.8</cell><cell>48.8</cell><cell>50.2</cell><cell cols="2">44.0 48.4 38.3</cell></row><row><cell></cell><cell>43.9</cell><cell>50.3</cell><cell>46.6</cell><cell cols="2">43.8 44.7 40.2</cell></row><row><cell>mGPT</cell><cell>21.8</cell><cell>34.2</cell><cell>48.3</cell><cell cols="2">45.9 45.6 36.4</cell></row><row><cell></cell><cell>31.5</cell><cell>45.3</cell><cell>50.9</cell><cell cols="2">53.0 48.0 72.7</cell></row><row><cell></cell><cell>27.4</cell><cell>45.5</cell><cell>55.4</cell><cell cols="2">49.9 51.2 66.8</cell></row><row><cell>BLOOM</cell><cell>23.8</cell><cell>34.5</cell><cell>48.3</cell><cell cols="2">44.4 41.5 28.2</cell></row><row><cell>LAS</cell><cell>36.8 33.7</cell><cell>44.7 46.6</cell><cell>58.2 57.4</cell><cell cols="2">49.8 54.4 42.4 49.9 49.2 42.8</cell></row><row><cell>BiLSTM</cell><cell>47.6</cell><cell>60.0</cell><cell>57.3</cell><cell cols="2">59.0 59.2 49.3</cell></row><row><cell></cell><cell>44.0</cell><cell>51.8</cell><cell>44.8</cell><cell cols="2">44.9 44.3 42.6</cell></row><row><cell></cell><cell>42.4</cell><cell>49.8</cell><cell>47.3</cell><cell cols="2">42.4 45.3 30.8</cell></row><row><cell>XLM</cell><cell>30.6</cell><cell>55.3</cell><cell>64.6</cell><cell cols="2">62.6 62.4 61.6</cell></row><row><cell></cell><cell>49.1</cell><cell>58.0</cell><cell>66.5</cell><cell cols="2">61.2 60.8 64.4</cell></row><row><cell></cell><cell>45.9</cell><cell>64.2</cell><cell>65.4</cell><cell cols="2">69.8 55.2 55.6</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>62.5</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 12 :</head><label>12</label><figDesc>UAS and LAS for the Marathi UFAL treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>67.4</cell><cell>67.9</cell><cell>64.7</cell><cell cols="2">80.4 79.9 82.3</cell></row><row><cell></cell><cell>75.9</cell><cell>78.6</cell><cell>80.6</cell><cell cols="2">79.2 78.3 82.8</cell></row><row><cell></cell><cell>77.7</cell><cell>82.0</cell><cell>84.0</cell><cell cols="2">82.1 82.0 83.5</cell></row><row><cell>mGPT</cell><cell>62.0</cell><cell>66.4</cell><cell>65.4</cell><cell cols="2">82.4 83.2 82.9</cell></row><row><cell></cell><cell>73.0</cell><cell>79.8</cell><cell>84.9</cell><cell cols="2">85.4 84.8 85.2</cell></row><row><cell></cell><cell>76.2</cell><cell>83.5</cell><cell>88.4</cell><cell cols="2">87.6 87.2 85.6</cell></row><row><cell>BLOOM</cell><cell>53.1</cell><cell>66.7</cell><cell>65.1</cell><cell cols="2">81.0 81.4 81.7</cell></row><row><cell>UAS</cell><cell>67.7 70.3</cell><cell>78.4 82.3</cell><cell>83.9 87.1</cell><cell cols="2">83.7 83.6 84.2 85.7 85.8 85.2</cell></row><row><cell>BiLSTM</cell><cell>88.4</cell><cell>89.6</cell><cell>79.1</cell><cell cols="2">88.5 87.4 88.0</cell></row><row><cell></cell><cell>84.8</cell><cell>87.4</cell><cell>88.2</cell><cell cols="2">86.3 85.9 84.5</cell></row><row><cell></cell><cell>87.8</cell><cell>87.1</cell><cell>87.6</cell><cell cols="2">85.8 85.8 83.8</cell></row><row><cell>XLM</cell><cell>92.0</cell><cell>91.5</cell><cell>80.5</cell><cell cols="2">93.4 93.4 91.2</cell></row><row><cell></cell><cell>93.8</cell><cell>93.0</cell><cell>94.2</cell><cell cols="2">93.6 93.4 88.7</cell></row><row><cell></cell><cell>93.9</cell><cell>93.0</cell><cell>92.7</cell><cell cols="2">93.6 93.6 88.6</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>93.1</cell><cell></cell></row><row><cell>LSTM</cell><cell>63.7</cell><cell>63.8</cell><cell>61.6</cell><cell cols="2">75.3 74.6 73.5</cell></row><row><cell></cell><cell>71.2</cell><cell>74.0</cell><cell>76.1</cell><cell cols="2">74.4 73.8 67.0</cell></row><row><cell></cell><cell>73.1</cell><cell>77.3</cell><cell>79.8</cell><cell cols="2">77.8 77.6 68.5</cell></row><row><cell>mGPT</cell><cell>59.3</cell><cell>63.1</cell><cell>62.9</cell><cell cols="2">78.0 78.9 76.3</cell></row><row><cell></cell><cell>70.5</cell><cell>77.2</cell><cell>82.4</cell><cell cols="2">82.7 82.0 85.2</cell></row><row><cell></cell><cell>73.6</cell><cell>80.9</cell><cell>86.2</cell><cell cols="2">85.0 84.5 85.6</cell></row><row><cell>BLOOM</cell><cell>50.3</cell><cell>63.2</cell><cell>62.2</cell><cell cols="2">76.0 76.2 74.5</cell></row><row><cell>LAS</cell><cell>65.1 67.5</cell><cell>75.3 79.2</cell><cell>81.0 84.6</cell><cell cols="2">80.4 80.3 72.3 82.5 82.2 74.2</cell></row><row><cell>BiLSTM</cell><cell>84.9</cell><cell>86.2</cell><cell>76.3</cell><cell cols="2">85.3 84.0 80.9</cell></row><row><cell></cell><cell>80.4</cell><cell>83.1</cell><cell>84.1</cell><cell cols="2">82.1 81.7 71.3</cell></row><row><cell></cell><cell>82.9</cell><cell>82.7</cell><cell>83.4</cell><cell cols="2">81.7 81.5 71.2</cell></row><row><cell>XLM</cell><cell>90.0</cell><cell>89.7</cell><cell>79.2</cell><cell cols="2">91.4 91.6 85.5</cell></row><row><cell></cell><cell>91.6</cell><cell>91.0</cell><cell>92.3</cell><cell cols="2">91.6 91.4 78.2</cell></row><row><cell></cell><cell>91.7</cell><cell>90.8</cell><cell>90.9</cell><cell cols="2">91.6 91.5 76.4</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>82.4</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 13 :</head><label>13</label><figDesc>UAS and LAS for the Spanish ANCORA treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>39.4</cell><cell>55.7</cell><cell>59.1</cell><cell cols="2">67.3 66.0 69.7</cell></row><row><cell></cell><cell>42.5</cell><cell>50.7</cell><cell>54.3</cell><cell cols="2">54.4 43.5 61.7</cell></row><row><cell></cell><cell>46.5</cell><cell>57.1</cell><cell>56.0</cell><cell cols="2">53.7 50.8 61.2</cell></row><row><cell>mGPT</cell><cell>20.3</cell><cell>48.7</cell><cell>55.8</cell><cell cols="2">64.1 62.8 65.2</cell></row><row><cell></cell><cell>32.1</cell><cell>57.7</cell><cell>68.3</cell><cell cols="2">62.0 60.3 67.0</cell></row><row><cell></cell><cell>28.7</cell><cell>60.9</cell><cell>69.9</cell><cell cols="2">54.1 55.1 66.9</cell></row><row><cell>BLOOM</cell><cell>19.4</cell><cell>49.4</cell><cell>54.0</cell><cell cols="2">55.8 63.1 65.7</cell></row><row><cell>UAS</cell><cell>28.6 31.6</cell><cell>56.0 60.0</cell><cell>68.5 64.9</cell><cell cols="2">62.4 58.8 66.7 64.9 63.6 71.9</cell></row><row><cell>BiLSTM</cell><cell>51.2</cell><cell>71.4</cell><cell>61.7</cell><cell cols="2">74.3 74.7 73.7</cell></row><row><cell></cell><cell>51.8</cell><cell>57.0</cell><cell>63.3</cell><cell cols="2">57.6 57.8 64.0</cell></row><row><cell></cell><cell>45.1</cell><cell>57.3</cell><cell>64.2</cell><cell cols="2">58.2 56.4 65.6</cell></row><row><cell>XLM</cell><cell>28.9</cell><cell>65.9</cell><cell>62.4</cell><cell cols="2">75.8 74.6 78.6</cell></row><row><cell></cell><cell>41.0</cell><cell>69.6</cell><cell>72.2</cell><cell cols="2">71.8 72.4 74.4</cell></row><row><cell></cell><cell>39.7</cell><cell>68.3</cell><cell>75.5</cell><cell cols="2">74.3 71.2 75.6</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>75.8</cell><cell></cell></row><row><cell>LSTM</cell><cell>33.2</cell><cell>44.8</cell><cell>50.6</cell><cell cols="2">52.6 51.3 41.0</cell></row><row><cell></cell><cell>28.3</cell><cell>35.6</cell><cell>40.3</cell><cell cols="2">38.6 22.5 32.4</cell></row><row><cell></cell><cell>30.7</cell><cell>40.1</cell><cell>42.4</cell><cell cols="2">38.3 36.7 29.6</cell></row><row><cell>mGPT</cell><cell>15.7</cell><cell>37.6</cell><cell>44.6</cell><cell cols="2">47.5 46.5 42.7</cell></row><row><cell></cell><cell>25.8</cell><cell>47.4</cell><cell>56.4</cell><cell cols="2">50.3 48.4 67.0</cell></row><row><cell></cell><cell>22.8</cell><cell>49.5</cell><cell>58.2</cell><cell cols="2">41.6 43.1 44.7</cell></row><row><cell>BLOOM</cell><cell>15.4</cell><cell>37.2</cell><cell>42.9</cell><cell cols="2">38.6 46.8 40.3</cell></row><row><cell>LAS</cell><cell>22.7 25.9</cell><cell>45.0 48.5</cell><cell>56.2 52.1</cell><cell cols="2">50.1 47.2 45.2 53.8 50.3 51.8</cell></row><row><cell>BiLSTM</cell><cell>44.9</cell><cell>62.3</cell><cell>47.0</cell><cell cols="2">65.7 66.3 57.5</cell></row><row><cell></cell><cell>38.0</cell><cell>40.9</cell><cell>45.6</cell><cell cols="2">41.1 42.9 32.5</cell></row><row><cell></cell><cell>31.5</cell><cell>39.5</cell><cell>47.8</cell><cell cols="2">41.1 41.4 35.4</cell></row><row><cell>XLM</cell><cell>24.9</cell><cell>56.8</cell><cell>55.0</cell><cell cols="2">65.6 64.7 64.8</cell></row><row><cell></cell><cell>34.7</cell><cell>59.4</cell><cell>61.7</cell><cell cols="2">60.8 61.7 53.2</cell></row><row><cell></cell><cell>33.2</cell><cell>58.0</cell><cell>65.2</cell><cell cols="2">63.7 61.2 55.7</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>65.5</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 14 :</head><label>14</label><figDesc>UAS and LAS for the Tamil TTB treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>64.6</cell><cell>67.6</cell><cell>73.8</cell><cell cols="2">84.7 85.0 80.4</cell></row><row><cell></cell><cell>78.6</cell><cell>78.3</cell><cell>78.4</cell><cell cols="2">82.2 83.5 87.3</cell></row><row><cell></cell><cell>78.3</cell><cell>83.1</cell><cell>82.5</cell><cell cols="2">83.9 85.0 90.0</cell></row><row><cell>mGPT</cell><cell>55.5</cell><cell>59.1</cell><cell>71.8</cell><cell cols="2">82.0 81.6 75.6</cell></row><row><cell></cell><cell>73.7</cell><cell>75.0</cell><cell>85.0</cell><cell cols="2">84.5 85.0 87.4</cell></row><row><cell></cell><cell>80.2</cell><cell>82.7</cell><cell>86.7</cell><cell cols="2">89.6 84.2 80.8</cell></row><row><cell>BLOOM</cell><cell>51.7</cell><cell>54.8</cell><cell>70.0</cell><cell cols="2">79.1 79.2 74.1</cell></row><row><cell>UAS</cell><cell>72.4 78.7</cell><cell>73.6 78.2</cell><cell>84.3 85.7</cell><cell cols="2">84.5 82.9 87.2 84.0 84.0 87.8</cell></row><row><cell>BiLSTM</cell><cell>86.3</cell><cell>89.9</cell><cell>85.3</cell><cell cols="2">90.2 90.3 89.0</cell></row><row><cell></cell><cell>71.8</cell><cell>88.1</cell><cell>86.7</cell><cell cols="2">80.0 84.5 81.0</cell></row><row><cell></cell><cell>71.3</cell><cell>88.1</cell><cell>85.0</cell><cell cols="2">83.2 76.2 82.4</cell></row><row><cell>XLM</cell><cell>77.8</cell><cell>87.4</cell><cell>84.9</cell><cell cols="2">89.6 89.2 88.9</cell></row><row><cell></cell><cell>83.6</cell><cell>88.2</cell><cell>89.9</cell><cell cols="2">86.7 87.0 84.2</cell></row><row><cell></cell><cell>68.6</cell><cell>90.7</cell><cell>91.5</cell><cell cols="2">89.0 88.3 91.7</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>89.7</cell><cell></cell></row><row><cell>LSTM</cell><cell>57.8</cell><cell>59.9</cell><cell>64.8</cell><cell cols="2">66.6 67.0 53.5</cell></row><row><cell></cell><cell>68.6</cell><cell>67.0</cell><cell>67.0</cell><cell cols="2">62.9 63.2 52.3</cell></row><row><cell></cell><cell>47.7</cell><cell>70.6</cell><cell>69.7</cell><cell cols="2">60.8 67.6 48.0</cell></row><row><cell>mGPT</cell><cell>49.4</cell><cell>51.6</cell><cell>65.6</cell><cell cols="2">67.3 67.1 50.5</cell></row><row><cell></cell><cell>65.6</cell><cell>67.1</cell><cell>76.5</cell><cell cols="2">74.1 71.3 87.4</cell></row><row><cell></cell><cell>71.7</cell><cell>74.1</cell><cell>76.8</cell><cell cols="2">79.4 74.8 25.4</cell></row><row><cell>BLOOM</cell><cell>46.5</cell><cell>45.4</cell><cell>62.1</cell><cell cols="2">63.8 63.4 43.4</cell></row><row><cell>LAS</cell><cell>66.0 71.8</cell><cell>64.8 68.7</cell><cell>74.2 74.3</cell><cell cols="2">72.2 71.7 54.3 74.2 67.4 47.9</cell></row><row><cell>BiLSTM</cell><cell>74.9</cell><cell>77.7</cell><cell>76.7</cell><cell cols="2">79.6 79.6 64.6</cell></row><row><cell></cell><cell>52.2</cell><cell>70.4</cell><cell>70.5</cell><cell cols="2">60.2 64.9 47.1</cell></row><row><cell></cell><cell>52.5</cell><cell>73.9</cell><cell>64.9</cell><cell cols="2">60.8 55.0 56.5</cell></row><row><cell>XLM</cell><cell>72.3</cell><cell>79.8</cell><cell>79.5</cell><cell cols="2">81.7 81.1 61.3</cell></row><row><cell></cell><cell>75.5</cell><cell>79.2</cell><cell>80.4</cell><cell cols="2">71.2 67.5 35.7</cell></row><row><cell></cell><cell>51.9</cell><cell>82.2</cell><cell>83.6</cell><cell cols="2">77.2 78.9 55.9</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>61.8</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 15 :</head><label>15</label><figDesc>UAS and LAS for the Telugu MTG treebank. Notation comes from Table5.</figDesc><table><row><cell>Metric Encoder</cell><cell cols="4">fl abs-idx rel-idx PoS-idx 1p non-fl 2p</cell><cell>TB</cell></row><row><cell>LSTM</cell><cell>52.8</cell><cell>57.3</cell><cell>53.9</cell><cell cols="2">63.2 64.5 64.5</cell></row><row><cell></cell><cell>49.2</cell><cell>57.8</cell><cell>58.2</cell><cell cols="2">57.2 56.7 60.9</cell></row><row><cell></cell><cell>50.2</cell><cell>59.8</cell><cell>60.0</cell><cell cols="2">59.6 57.4 61.9</cell></row><row><cell>mGPT</cell><cell>29.3</cell><cell>49.6</cell><cell>51.6</cell><cell cols="2">61.8 61.3 59.7</cell></row><row><cell></cell><cell>34.8</cell><cell>56.9</cell><cell>66.6</cell><cell cols="2">62.9 63.8 63.2</cell></row><row><cell></cell><cell>34.3</cell><cell>60.1</cell><cell>68.3</cell><cell cols="2">63.7 65.1 65.2</cell></row><row><cell>BLOOM</cell><cell>31.7</cell><cell>51.0</cell><cell>51.1</cell><cell cols="2">62.1 60.7 61.0</cell></row><row><cell>UAS</cell><cell>38.5 38.8</cell><cell>57.3 61.6</cell><cell>63.4 64.6</cell><cell cols="2">60.5 60.9 64.0 59.4 62.0 60.0</cell></row><row><cell>BiLSTM</cell><cell>66.8</cell><cell>72.7</cell><cell>64.0</cell><cell cols="2">70.1 70.5 71.0</cell></row><row><cell></cell><cell>57.5</cell><cell>64.6</cell><cell>62.9</cell><cell cols="2">60.0 61.1 61.8</cell></row><row><cell></cell><cell>56.2</cell><cell>64.3</cell><cell>62.5</cell><cell cols="2">60.2 60.0 60.9</cell></row><row><cell>XLM</cell><cell>48.1</cell><cell>68.8</cell><cell>64.4</cell><cell cols="2">74.1 73.8 76.0</cell></row><row><cell></cell><cell>58.1</cell><cell>68.6</cell><cell>73.2</cell><cell cols="2">73.4 71.4 75.3</cell></row><row><cell></cell><cell>58.2</cell><cell>68.1</cell><cell>72.6</cell><cell cols="2">70.8 69.8 75.0</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>76.6</cell><cell></cell></row><row><cell>LSTM</cell><cell>41.6</cell><cell>45.5</cell><cell>44.5</cell><cell cols="2">49.8 50.8 43.8</cell></row><row><cell></cell><cell>36.8</cell><cell>42.5</cell><cell>43.2</cell><cell cols="2">42.2 42.1 36.3</cell></row><row><cell></cell><cell>37.5</cell><cell>44.0</cell><cell>44.8</cell><cell cols="2">44.4 41.8 35.6</cell></row><row><cell>mGPT</cell><cell>23.3</cell><cell>36.7</cell><cell>41.2</cell><cell cols="2">47.4 46.7 39.8</cell></row><row><cell></cell><cell>28.1</cell><cell>44.3</cell><cell>53.6</cell><cell cols="2">49.4 50.2 63.2</cell></row><row><cell></cell><cell>26.8</cell><cell>47.0</cell><cell>54.4</cell><cell cols="2">49.9 51.2 45.9</cell></row><row><cell>BLOOM</cell><cell>24.9</cell><cell>38.2</cell><cell>40.5</cell><cell cols="2">46.7 45.9 39.8</cell></row><row><cell>LAS</cell><cell>30.2 30.7</cell><cell>44.3 48.1</cell><cell>50.6 51.0</cell><cell cols="2">46.4 47.5 44.3 45.8 48.6 37.4</cell></row><row><cell>BiLSTM</cell><cell>55.4</cell><cell>60.3</cell><cell>54.6</cell><cell cols="2">58.2 58.3 51.2</cell></row><row><cell></cell><cell>44.2</cell><cell>49.3</cell><cell>48.6</cell><cell cols="2">45.4 45.8 38.6</cell></row><row><cell></cell><cell>42.4</cell><cell>48.6</cell><cell>47.5</cell><cell cols="2">45.0 45.3 38.1</cell></row><row><cell>XLM</cell><cell>40.4</cell><cell>56.8</cell><cell>54.8</cell><cell cols="2">61.4 61.5 56.8</cell></row><row><cell></cell><cell>48.8</cell><cell>56.6</cell><cell>60.6</cell><cell cols="2">60.6 58.1 58.7</cell></row><row><cell></cell><cell>48.8</cell><cell>55.8</cell><cell>60.0</cell><cell cols="2">57.1 56.6 57.8</cell></row><row><cell>DM</cell><cell></cell><cell></cell><cell>61.9</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head>Table 16 :</head><label>16</label><figDesc>UAS and LAS for the Vietnamese MTG treebank. Notation comes from Table5.</figDesc><table><row><cell>Hyperparameter</cell><cell cols="3">Fully incremental</cell><cell cols="2">Non incremental</cell></row><row><cell></cell><cell cols="5">LSTM BLOOM mGPT BiLSTM XLM</cell></row><row><cell>Word emb size</cell><cell>300</cell><cell>1</cell><cell>1</cell><cell>300</cell><cell>1</cell></row><row><cell>PoS-feats emb size</cell><cell>100</cell><cell>x</cell><cell>x</cell><cell>100</cell><cell>x</cell></row><row><cell>Character emb size</cell><cell>50</cell><cell>x</cell><cell>x</cell><cell>50</cell><cell>x</cell></row><row><cell>CharLSTM hidden</cell><cell>100</cell><cell>x</cell><cell>x</cell><cell>100</cell><cell>x</cell></row><row><cell>Num. layers</cell><cell>4</cell><cell>1</cell><cell>1</cell><cell>4</cell><cell>1</cell></row><row><cell>Encoder hidden</cell><cell>400</cell><cell>100</cell><cell>100</cell><cell>400</cell><cell>100</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 17 :</head><label>17</label><figDesc>Architecture design choices for different encoders</figDesc><table><row><cell>Hyperparameter</cell><cell cols="2">Fully incremental</cell><cell></cell><cell cols="2">Non incremental</cell></row><row><cell></cell><cell>LSTM</cell><cell cols="2">BLOOM mGPT</cell><cell>BiLSTM</cell><cell>XLM</cell></row><row><cell>lr</cell><cell>1e-3</cell><cell>5e-5</cell><cell>5e-5</cell><cell>1e-3</cell><cell>5e-5</cell></row><row><cell>optimizer</cell><cell>Adam</cell><cell cols="2">AdamW AdamW</cell><cell>Adam</cell><cell>AdamW</cell></row><row><cell>decay type</cell><cell>Exponential</cell><cell>Linear</cell><cell cols="3">Linear Exponential Linear</cell></row><row><cell>decay value</cell><cell>0.1</cell><cell>0.5</cell><cell>0.1</cell><cell>0.1</cell><cell>0.5</cell></row><row><cell>epochs</cell><cell>200</cell><cell>30</cell><cell>30</cell><cell>200</cell><cell>30</cell></row><row><cell>batch size</cell><cell>~6000</cell><cell>~2000</cell><cell>~500</cell><cell>~6000</cell><cell>~2000</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_16"><head>Table 18 :</head><label>18</label><figDesc>Training hyper-parameters for different encodersISO code Language % left-arcs % right-arcs</figDesc><table><row><cell>arPADT</cell><cell>Arabic</cell><cell>30.46%</cell><cell>69.54%</cell></row><row><cell>euBDT</cell><cell>Basque</cell><cell>49.22%</cell><cell>50.78%</cell></row><row><cell>zhGSD</cell><cell>Chinese</cell><cell>63.67%</cell><cell>36.33%</cell></row><row><cell>enEWT</cell><cell>English</cell><cell>57.18%</cell><cell>42.82%</cell></row><row><cell>frGSD</cell><cell>French</cell><cell>54.72%</cell><cell>45.28%</cell></row><row><cell>hiHDTB</cell><cell>Hindi</cell><cell>55.6%</cell><cell>44.4%</cell></row><row><cell>inGSD</cell><cell>Indonesian</cell><cell>37.75%</cell><cell>62.25%</cell></row><row><cell>mrUFAL</cell><cell>Marathi</cell><cell>51.34%</cell><cell>48.66%</cell></row><row><cell>esANC</cell><cell>Spanish</cell><cell>54.43%</cell><cell>45.57%</cell></row><row><cell>taTTB</cell><cell>Tamil</cell><cell>68.56%</cell><cell>31.44%</cell></row><row><cell>teMTG</cell><cell>Telugu</cell><cell>54.28%</cell><cell>45.72%</cell></row><row><cell>viVTB</cell><cell>Vietnamese</cell><cell>40.99%</cell><cell>59.01%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_17"><head>Table 19 :</head><label>19</label><figDesc>Statistics of treebanks retrieved in our multilingual benchmark.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>The definition of a partial parse for the prefix w1 . . . w i-k depends on the grammatical formalism. For dependency parsing, we mean the subgraph of a full parse induced by the nodes</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>The PoS-tag based encoding needs PoS tags for decoding the sequence of labels to a tree. Instead of introducing PoStag information in those models, our PoS-tag-based decoders predict in multitask learning both the syntactic label and PoS tag associated to each word, in order to remove bias with respect to other encodings.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>Buffer words are often described as "unread" words when describing the algorithm, but for incrementality purposes we need to count them as "accessed" if they are used as features, as the parser implementation is using them for prediction.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>We acknowledge the <rs type="funder">European Research Council (ERC)</rs>, which has funded this research under the <rs type="programName">Horizon Europe research and innovation programme (SALSA</rs>, grant agreement No <rs type="grantNumber">101100615</rs>), <rs type="funder">ERDF/MICINN-AEI (SCANNER-UDC</rs>, <rs type="grantNumber">PID2020-113230RB-C21</rs>), <rs type="funder">Xunta de Galicia</rs> (<rs type="grantNumber">ED431C 2020/11</rs>), <rs type="person">Cátedra CICAS</rs> (<rs type="affiliation">Sngular, University of A Coruña</rs>), and <rs type="funder">Centro de Investigación de Galicia "CITIC"</rs>, funded by the <rs type="funder">Xunta de Galicia</rs> through the collaboration agreement between the <rs type="institution">Consellería de Cultura, Educación</rs>, <rs type="funder">Formación Profesional e Universidades</rs> and the <rs type="institution">Galician universities</rs> for the reinforcement of the research centres of the Galician University System (CIGUS).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_cqaxTVe">
+					<idno type="grant-number">101100615</idno>
+					<orgName type="program" subtype="full">Horizon Europe research and innovation programme (SALSA</orgName>
+				</org>
+				<org type="funding" xml:id="_hVAwAuH">
+					<idno type="grant-number">PID2020-113230RB-C21</idno>
+				</org>
+				<org type="funding" xml:id="_qngjWPT">
+					<idno type="grant-number">ED431C 2020/11</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Additional results</head><p>Tables <ref type="table">3</ref> and<ref type="table">4</ref> show the aggregate results according to LAS. Tables 5 to 16 illustrate the performance of every individual encoder-decoder pair in each treebank test set.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">An incremental algorithm for transition-based CCG parsing</title>
+		<author>
+			<persName><forename type="first">Ram</forename><surname>Bharat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tejaswini</forename><surname>Ambati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Deoskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/N15-1006</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Denver, Colorado</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="53" to="63" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A modest Pareto optimisation analysis of dependency parsers in 2021</title>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.iwpt-1.12</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th International Conference on Parsing Technologies and the IWPT 2021 Shared Task on Parsing into Enhanced Universal Dependencies (IWPT 2021)</title>
+		<meeting>the 17th International Conference on Parsing Technologies and the IWPT 2021 Shared Task on Parsing into Enhanced Universal Dependencies (IWPT 2021)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="119" to="130" />
+		</imprint>
+	</monogr>
+	<note>Online. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Simple composition: A magnetoencephalography investigation into the comprehension of minimal linguistic phrases</title>
+		<author>
+			<persName><forename type="first">Douglas</forename><forename type="middle">K</forename><surname>Bemis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liina</forename><surname>Pylkkänen</surname></persName>
+		</author>
+		<idno type="DOI">10.1523/JNEUROSCI.5003-10.2011</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Neuroscience</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="2801" to="2814" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+	<note>Cited by: 169; All Open Access, Green Open Access, Hybrid Gold Open Access</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Incremental parsing and the evaluation of partial dependency analyses</title>
+		<author>
+			<persName><forename type="first">Niels</forename><surname>Beuck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arne</forename><surname>Köhn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolfgang</forename><surname>Menzel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st International Conference on Dependency Linguistics. Depling</title>
+		<meeting>the 1st International Conference on Dependency Linguistics. Depling</meeting>
+		<imprint>
+			<date type="published" when="2011">2011. 2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">The now-or-never bottleneck: A fundamental constraint on language</title>
+		<author>
+			<persName><forename type="first">Morten</forename><forename type="middle">H</forename><surname>Christiansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Chater</surname></persName>
+		</author>
+		<idno type="DOI">10.1017/S0140525X1500031X</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Behavioral and Brain Sciences</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="page">62</biblScope>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">An incremental turn-taking model for task-oriented dialog systems</title>
+		<author>
+			<persName><forename type="first">Andrei</forename><forename type="middle">C</forename><surname>Coman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koichiro</forename><surname>Yoshino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satoshi</forename><surname>Nakamura Yukitoshi Murase</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><surname>Riccardi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of INTERSPEECH 2019</title>
+		<meeting>INTERSPEECH 2019</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Unsupervised cross-lingual representation learning at scale</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartikay</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.747</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8440" to="8451" />
+		</imprint>
+	</monogr>
+	<note>Online. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">A fundamental algorithm for dependency parsing</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Covington</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 39th Annual ACM Southeast Conference</title>
+		<meeting>the 39th Annual ACM Southeast Conference</meeting>
+		<imprint>
+			<date type="published" when="2001">2001</date>
+			<biblScope unit="page" from="95" to="102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Cognitive models of syntax and sentence processing</title>
+		<author>
+			<persName><forename type="first">Vera</forename><surname>Demberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Keller</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="293" to="312" />
+		</imprint>
+	</monogr>
+	<note>Human language: From genes and brains to behavior</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Deep biaffine attention for neural dependency parsing</title>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Dozat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">5th International Conference on Learning Representations</title>
+		<title level="s">Conference Track Proceedings. Open-Review</title>
+		<meeting><address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-04-24">2017. 2017. April 24-26, 2017</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Probing for incremental parse states in autoregressive language models</title>
+		<author>
+			<persName><forename type="first">Tiwalayo</forename><surname>Eisape</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Gangireddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roger</forename><forename type="middle">P</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2211.09748</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Projection of turn completion in incremental spoken dialogue systems</title>
+		<author>
+			<persName><forename type="first">Erik</forename><surname>Ekstedt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Skantze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd Annual Meeting of the Special Interest Group on Discourse and Dialogue</title>
+		<meeting>the 22nd Annual Meeting of the Special Interest Group on Discourse and Dialogue</meeting>
+		<imprint>
+			<publisher>Singapore and Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="431" to="437" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Transition-based parsing with stack-transformers</title>
+		<author>
+			<persName><forename type="first">Ramón</forename><surname>Fernandez Astudillo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tahira</forename><surname>Naseem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Austin</forename><surname>Blodgett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.89</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1001" to="1007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">A full non-monotonic transition system for unrestricted non-projective parsing</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-González</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1027</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="288" to="298" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Dependency parsing with bottomup hierarchical pointer networks</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-González</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.inffus.2022.10.023</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">91</biblScope>
+			<biblScope unit="page" from="494" to="503" />
+		</imprint>
+	</monogr>
+	<note>Information Fusion</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Natural language processing and the Now-or-Never bottleneck</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<idno type="DOI">10.1017/S0140525X15000795</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Behavioral and Brain Sciences</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="page">74</biblScope>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Divisible transition systems and multiplanar dependency parsing</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-Rodríguez</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/COLI_a_00150</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="799" to="845" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Constituent parsing as sequence labeling</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-Rodríguez</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Vilares</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1162</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1314" to="1324" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">A non-monotonic arc-eager transition system for dependency parsing</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Honnibal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventeenth Conference on Computational Natural Language Learning</title>
+		<meeting>the Seventeenth Conference on Computational Natural Language Learning<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="163" to="172" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Simple and accurate dependency parsing using bidirectional LSTM feature representations</title>
+		<author>
+			<persName><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00101</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="313" to="327" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Learned incremental representations for parsing</title>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Kitaev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.220</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3086" to="3095" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Incremental and predictive dependency parsing under real-time conditions</title>
+		<author>
+			<persName><forename type="first">Arne</forename><surname>Köhn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wolfgang</forename><surname>Menzel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference Recent Advances in Natural Language Processing RANLP 2013</title>
+		<meeting>the International Conference Recent Advances in Natural Language Processing RANLP 2013<address><addrLine>Shoumen, BULGARIA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Hissar, Bulgaria. INCOMA Ltd</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="373" to="381" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Predictive Dependency Parsing</title>
+		<author>
+			<persName><forename type="first">Arne</forename><surname>Köhn</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+		<respStmt>
+			<orgName>Universität Hamburg</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Incremental processing in the age of non-incremental encoders: An empirical assessment of bidirectional models for incremental NLU</title>
+		<author>
+			<persName><forename type="first">Brielen</forename><surname>Madureira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Schlangen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.26</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="357" to="374" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Speech shadowing and speech comprehension</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>William</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Marslen-Wilson</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/0167-6393(85)90036-6</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Speech Communication</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="55" to="73" />
+			<date type="published" when="1985">1985</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">HHMM parsing with limited parallelism</title>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Schuler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2010 Workshop on Cognitive Modeling and Computational Linguistics</title>
+		<meeting>the 2010 Workshop on Cognitive Modeling and Computational Linguistics<address><addrLine>Uppsala, Sweden</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="27" to="35" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Rethinking self-attention: Towards interpretability in neural parsing</title>
+		<author>
+			<persName><forename type="first">Franck</forename><surname>Khalil Mrini</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Dernoncourt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hung</forename><surname>Quan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trung</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Walter</forename><surname>Bui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ndapa</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nakashole</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.65</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="731" to="742" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">An efficient algorithm for projective dependency parsing</title>
+		<author>
+			<persName><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Conference on Parsing Technologies</title>
+		<meeting>the Eighth International Conference on Parsing Technologies<address><addrLine>Nancy, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="149" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Algorithms for deterministic incremental dependency parsing</title>
+		<author>
+			<persName><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/coli.07-056-R1-07-027</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="513" to="553" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Universal Dependencies v2: An evergrowing multilingual treebank collection</title>
+		<author>
+			<persName><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Catherine</forename><surname>De Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Filip</forename><surname>Ginter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Hajič</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sampo</forename><surname>Pyysalo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francis</forename><surname>Tyers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Zeman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twelfth Language Resources and Evaluation Conference</title>
+		<meeting>the Twelfth Language Resources and Evaluation Conference<address><addrLine>Marseille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4034" to="4043" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Understanding in an instant: Neurophysiological evidence for mechanistic language circuits in the brain</title>
+		<author>
+			<persName><forename type="first">Friedemann</forename><surname>Pulvermüller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yury</forename><surname>Shtyrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olaf</forename><surname>Hauk</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.bandl.2008.12.001</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Brain and Language</title>
+		<imprint>
+			<biblScope unit="volume">110</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="81" to="94" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Teven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Akiki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suzana</forename><surname>Pavlick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ilić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roman</forename><surname>Hesslow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Castagné</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Sasha Luccioni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Yvon</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gallé</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.05100</idno>
+		<title level="m">Bloom: A 176bparameter open-access multilingual language model</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Oleh</forename><surname>Shliazhko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alena</forename><surname>Fenogenova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Tikhonova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladislav</forename><surname>Mikhailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Kozlova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatiana</forename><surname>Shavrina</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2204.07580</idno>
+		<title level="m">mgpt: Few-shot learners go multilingual</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Modeling incremental language comprehension in the brain with Combinatory Categorial Grammar</title>
+		<author>
+			<persName><forename type="first">Miloš</forename><surname>Stanojević</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shohini</forename><surname>Bhattasali</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Dunagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Campanelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Brennan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Hale</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.cmcl-1.3</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Cognitive Modeling and Computational Linguistics</title>
+		<meeting>the Workshop on Cognitive Modeling and Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="23" to="38" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">CCG parsing algorithm with incremental tree rotation</title>
+		<author>
+			<persName><forename type="first">Miloš</forename><surname>Stanojević</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1020</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Minnesota. Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="228" to="239" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Maxmargin incremental CCG parsing</title>
+		<author>
+			<persName><forename type="first">Miloš</forename><surname>Stanojević</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.378</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4111" to="4122" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">A minimal span-based neural constituency parser</title>
+		<author>
+			<persName><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1076</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="818" to="827" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Viable dependency parsing as sequence labeling</title>
+		<author>
+			<persName><forename type="first">Michalina</forename><surname>Strzyz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Vilares</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1077</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="717" to="723" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Bracketing encodings for 2-planar dependency parsing</title>
+		<author>
+			<persName><forename type="first">Michalina</forename><surname>Strzyz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Vilares</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.223</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2472" to="2484" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Terry</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slav</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="volume">28</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">A targeted assessment of incremental processing in neural language models and humans</title>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Wilcox</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranali</forename><surname>Vani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roger</forename><surname>Levy</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.76</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="939" to="952" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Strongly incremental constituency parsing with graph neural networks</title>
+		<author>
+			<persName><forename type="first">Kaiyu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jia</forename><surname>Deng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Neural Information Processing Systems, NIPS&apos;20</title>
+		<meeting>the 34th International Conference on Neural Information Processing Systems, NIPS&apos;20<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Transition-based dependency parsing with rich non-local features</title>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="188" to="193" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Head-Driven Phrase Structure Grammar parsing on Penn Treebank</title>
+		<author>
+			<persName><forename type="first">Junru</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hai</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1230</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2396" to="2408" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

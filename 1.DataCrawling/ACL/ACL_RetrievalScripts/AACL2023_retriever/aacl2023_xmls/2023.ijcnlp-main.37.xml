@@ -1,0 +1,1383 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Smoothing Entailment Graphs with Language Models</title>
+				<funder>
+					<orgName type="full">European Research Council</orgName>
+					<orgName type="abbreviated">ERC</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Google Faculty Award</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Nick</forename><forename type="middle">M</forename><surname>C Kenna</surname></persName>
+							<email>nick.mckenna@ed.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh ‡ Macquarie University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Tianyi</forename><surname>Li</surname></persName>
+							<email>tianyi.li@ed.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh ‡ Macquarie University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+							<email>mark.johnson@mq.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh ‡ Macquarie University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+							<email>steedman@inf.ed.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh ‡ Macquarie University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Smoothing Entailment Graphs with Language Models</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">DF56AB4D654866287B5E9241BEDE6003</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:40+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The diversity and Zipfian frequency distribution of natural language predicates in corpora leads to sparsity in Entailment Graphs (EGs) built by Open Relation Extraction (ORE). EGs are computationally efficient and explainable models of natural language inference, but as symbolic models, they fail if a novel premise or hypothesis vertex is missing at test-time. We present theory and methodology for overcoming such sparsity in symbolic models. First, we introduce a theory of optimal smoothing of EGs by constructing transitive chains. We then demonstrate an efficient, open-domain, and unsupervised smoothing method using an off-the-shelf Language Model to find approximations of missing premise predicates. This improves recall by 25.1 and 16.3 percentage points on two difficult directional entailment datasets, while raising average precision and maintaining model explainability. Further, in a QA task we show that EG smoothing is most useful for answering questions with lesser supporting text, where missing premise predicates are more costly. Finally, controlled experiments with WordNet confirm our theory and show that hypothesis smoothing is difficult, but possible in principle. 1  </p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>An Entailment Graph (EG) is a learned structure for making natural language inferences of the form [premise] entails [hypothesis], such as "if Arsenal defeated Man United, then Arsenal played Man United." An EG consists of a set of vertices (typed natural language predicates), and a set of directed edges constituting entailments between predicates. They are constructed in an unsupervised manner using the Distributional Inclusion Hypothesis (Geffet and Dagan, 2005): a representation is generated for each predicate based on its distribution with arguments in a training corpus, and representation 1 Code available at github.com/nighttime/EntGraph Figure <ref type="figure">1</ref>: The question cannot be answered because a predicate in the text isn't in the Entailment Graph. An LM embeds the predicate so a nearest neighbor in the EG can be found, completing the directional inference.</p><p>subsumption is used for learning directional entailments between predicates. A directional inference is stricter than paraphrase or similarity, in that it is true only in one direction, but not both, e.g. DEFEAT ⊨ PLAY but PLAY ⊭ DEFEAT (where ⊨ means "entails"). Directional inferences are difficult to learn, but crucial to language understanding. EGs are useful in tasks like Knowledge Graph link prediction <ref type="bibr" target="#b17">(Hosseini et al., 2019</ref><ref type="bibr" target="#b18">(Hosseini et al., , 2021) )</ref> and question answering from text <ref type="bibr" target="#b21">(Lewis and Steedman, 2013;</ref><ref type="bibr" target="#b28">McKenna et al., 2021)</ref>. EG learning is unsupervised: building them only requires a parser and entity linker for a new language domain <ref type="bibr">(Li et al., 2022b)</ref>. EGs are relatively very data-and computeefficient, requiring less than two days to train on 2GB of unlabeled text using a single GPU <ref type="bibr" target="#b18">(Hosseini et al., 2021)</ref>. Further, EGs are editable and also explainable, because decisions can be traced back to distinct sentences on a task.</p><p>However, EGs suffer from two kinds of sparsity. One is edge sparsity, when two predicates are not observed with co-occurring entities, so cannot be connected together. Recent work improves on EG connectivity <ref type="bibr" target="#b0">(Berant et al., 2015;</ref><ref type="bibr" target="#b15">Hosseini, 2021;</ref><ref type="bibr" target="#b5">Chen et al., 2022)</ref> but to our knowledge we are the first to acknowledge vertex sparsity, arising when a predicate is not seen at all in training. EGs are structures of symbols, so they cannot handle missing queries: in an inference task, if either the premise or hypothesis predicate is not in training, no entailment edge can be learned. In fact, many EG demonstrations achieve just 50% of task recall. Predicates occur in a Zipfian frequency distribution with an unbounded tail of rare predicates, so it's impractical to scale up the learning of predicate symbols by reading larger corpora. There will virtually always be predicates missing at test-time.</p><p>Modern Language Models combine representations of subword tokens to solve a similar issue <ref type="bibr" target="#b31">(Peters et al., 2018;</ref><ref type="bibr" target="#b6">Devlin et al., 2019)</ref>, and recent scaling of LMs has lead to breakthrough performance on many tasks <ref type="bibr" target="#b13">(Hoffmann et al., 2022;</ref><ref type="bibr" target="#b39">Wei et al., 2022)</ref>, offering relief to sparsity problems via techniques like in-context learning <ref type="bibr" target="#b2">(Brown et al., 2020)</ref>. However, as LMs scale in size and compute they bring new problems: they require ballooning GPU resources to train or run; or are costly to query via API; and centralizing models under private companies opens challenges of data privacy. We are thus motivated to research lower-compute and more data-efficient methods which run on the scale of a single GPU.</p><p>We are the first to define vertex sparsity and approach the problem by applying a small, pretrained LM to improve an existing EG using the benefits of modern embeddings. We offer four contributions:</p><p>(1) A theory for optimal smoothing of symbolic inference models such as EGs by constructing transitive chains, accounting for a distinction between premise and hypothesis.</p><p>(2) A low-compute method for unsupervised smoothing of EG vertices using LM embeddings to find approximations of missing predicates (see Figure <ref type="figure">1</ref>). Applied to premises, we improve recall by 16.3 and 25.1 percentage points on Levy/Holt and ANT entailment datasets while raising precision.</p><p>(3) On a QA task we show LM premise smoothing is most helpful when there is less supporting context and missing a predicate is more costly.</p><p>(4) Finally, in controlled experiments with Word-Net relations we confirm the behavior of the LM for premise smoothing and show that hypothesis smoothing is possible, but more difficult.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head><p>Research on unsupervised Entailment Graph induction has mainly oriented toward edges: overcoming edge sparsity using graph properties like transitivity <ref type="bibr" target="#b0">(Berant et al., 2015;</ref><ref type="bibr" target="#b16">Hosseini et al., 2018;</ref><ref type="bibr" target="#b5">Chen et al., 2022)</ref>, incorporating contextual or extralinguistic information to improve edge precision <ref type="bibr" target="#b18">(Hosseini et al., 2021;</ref><ref type="bibr" target="#b11">Guillou et al., 2020)</ref>, and research into the underlying theory of the Distributional Inclusion Hypothesis <ref type="bibr" target="#b19">(Kartsaklis and Sadrzadeh, 2016;</ref><ref type="bibr" target="#b28">McKenna et al., 2021)</ref>. However, none of these address vertex sparsity.</p><p>We leverage sub-symbolic encoding by an LM using WordPieces <ref type="bibr" target="#b6">(Devlin et al., 2019)</ref> in this work as a means of smoothing, to generalize beyond a fixed vocabulary of predicates. Our most direct comparison is with <ref type="bibr" target="#b34">Schmitt and Schütze (2021)</ref> who apply contemporary prompting techniques with the computationally tractable RoBERTa <ref type="bibr" target="#b26">(Liu et al., 2019)</ref> to learn open-domain predicate entailment. They finetune on premise-hypothesis pairs and labels from the development split of the Levy/Holt NLI dataset <ref type="bibr" target="#b14">(Holt, 2018)</ref>, used in our experiments. They use templates like "[hypothesis], because <ref type="bibr">[premise]</ref>" which are encoded by the LM, then classified true/false. They report high scores on datasets, but <ref type="bibr">Li et al. (2022a)</ref> have shown that despite excelling at paraphrase detection, rather than learning directional inference (e.g. BUY ⊨ OWN and OWN ⊭ BUY), this technique picks up dataset artifacts spuriously correlated with the labels in Levy/Holt. In contrast, our approach combines the strengths of each: open-domain encoding using a computationally tractable LM with the directional inference capability of an EG.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Theory of Smoothing</head><p>We first present a theory for optimal smoothing of a symbolic EG which overcomes the problem of vertex sparsity. We define smoothing as the approximation of missing predicates using those in the existing predicate vocabulary, in reference to earlier work in smoothing n-gram Language Models <ref type="bibr" target="#b4">(Chen and Goodman, 1996)</ref>. We next discuss the theoretical intuition behind applying an LM as an open-domain smoother.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Directionality by Transitive Chaining</head><p>We argue that it is most important when modifying EG predictions by smoothing to maintain the EG's strong directional inference capability. Our theory maintains directionality by constructing transitive chains, importantly distinguishing the role of the proposition as premise or hypothesis. We distinguish ways to P-smooth premises and H-smooth hypotheses.</p><p>We start with a query entailment relation Of course, the success of this smoothing depends on being able to find p ′ such that p ⊨ p ′ , and h ′ such that h ′ ⊨ h. However, when an additional inference is found, it is likely to be correct, aiding model precision. By definition we cannot use the EG for this, and we turn to Language Models to identify replacement predicates.</p><formula xml:id="formula_0">Q : p ⊨ h,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">LM Embeddings and Specificity</head><p>We assume that p ′ and h ′ are respectively among the nearest neighbors of p and h in the embedding space of the LM, and in this paper propose a method to leverage LM embeddings in an unsupervised way to find them. As defined later in §4, we first embed all EG predicates, then at test-time we embed the target query predicate and search for the K nearest neighbors to the target in embedding space. We predict that doing so for a premise predicate will build a transitive chain satisfying the conditions of §3.1. We identify two factors which, combined, lead to predictions that are likely more semantically general than the target, which enables P-smoothing, but not H-smoothing:</p><p>(A) The LM training objective. <ref type="bibr" target="#b22">Li et al. (2020)</ref> show that the masked language modeling objective in BERT induces a particular structure in its latent embedding space: on average, corpus-frequent words are embedded near the origin and infrequent ones further out. This is because of statistical learning, which biases LMs toward high frequency words since they are trained on a corpus to predict the most probable tokens. This objective leads LSTM-based LMs to produce a beneficially Zipfian frequency distribution of words <ref type="bibr" target="#b37">(Takahashi and Tanaka-Ishii, 2017)</ref>, and similar biases are evident in Transformers for generation like GPT-2 and XL-Net <ref type="bibr" target="#b35">(Shwartz and Choi, 2020)</ref>.</p><p>(B) The natural anti-correlation of word frequency with specificity in text. Probabilistically, the more frequent a word, the lower its "semantic content" (in other words, the less specific it is). <ref type="bibr" target="#b3">Caraballo and Charniak (1999)</ref> show this for nouns, and this assumption is even used in the "IDF" component of TF-IDF <ref type="bibr" target="#b36">(Spärck Jones, 1972)</ref>.</p><p>These factors imply that embedding a vocabulary of EG predicates using an LM will result in a space densely populated toward the origin by corpus-frequent predicates. KNN-search starting from a target predicate embedding will likely return neighbors toward this dense origin, thus selecting more corpus-frequent, semantically general words.</p><p>We illustrate further in §3.3. This effect has even been studied elsewhere: in Machine Translation, frequency bias causes a quantified semantic generalizing effect from translation input to output <ref type="bibr" target="#b38">(Vanmassenhove et al., 2021)</ref>, dubbed "Machine Translationese" due to the artificially non-specific tone.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">The Specificity Taxonomy</head><p>To help show the relation between frequency and generality and characterize the source of vertex sparsity, we illustrate a hierarchical taxonomy of predicates ordered by specificity, following from the theories of natural categories and prototype instances <ref type="bibr" target="#b32">(Rosch and Mervis, 1975;</ref><ref type="bibr" target="#b33">Rosch et al., 1976)</ref>. We place very general predicate categories at the top of this taxonomy such as "act" and "move," with concrete subcategories beneath, and highly specific ones at the bottom, like "innoculate" and "perambulate." Rosch et al define their middle "basic level categories" for nouns, containing everyday concepts like "dog" and "table," which are learned early by humans and are used most commonly among all categories, even by adults <ref type="bibr" target="#b29">(Mervis et al., 1976)</ref>. We assume an analogous basic level in a predicate taxonomy, too, in Figure <ref type="figure" target="#fig_0">2</ref>. There are few general categories at the top and many specific ones at the bottom (e.g., consider the many ways to "move," e.g. "walk," "sprint," "lunge"). However, since basic level categories are the most frequently used, moving either up or down in the taxonomy accompanies a decrease in usage frequency. Above the basic level, predicates are fewer and more abstract, and can be infelicitous in daily use (e.g. calling a cat a "mammal" in Rosch's case or predicates like "actuate" in ours). Below, predicates are highly specialized for specific contexts, so there are many more of them, and they are lower-frequency (e.g. "elongate," "defenestrate"). This is a major source of vertex sparsity.</p><p>This asymmetry encourages P-smoothing using an LM (and foreshadows its failure at Hsmoothing). A predicate z is likely to be missing from an EG if it is corpus-infrequent, thus likely specific. Randomly sampling another EG predicate z ′ neighboring z in embedding space, but sampled proportional to observed frequencies, is likely to return a predicate of higher frequency, toward the basic level, which is usually higher in the specificity taxonomy. Thus given z, a frequency-proportional sample z ′ is likely to be more general than z, usable for P-smoothing to construct a transitive chain.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Methods</head><p>In this work we consider Entailment Graphs of typed binary predicates. An EG is defined as G = (V, E), consisting of a set of vertices V of natural language predicates (with argument types in the set T ), and directed edges E indicating entailments.</p><p>Binary predicates in V have two argument slots labeled with their types. For example, the predicate TRAVEL.TO(:person, :location) ∈ V , and the types :person, :location ∈ T . An example entailment is TRAVEL.TO(:person, :location) ⊨ ARRIVE.AT(:person, :location) ∈ E.</p><p>Our smoothing method may be applied to any existing EG. In this work we show the complementary benefits of vertex-smoothing with existing methods in improving edge sparsity by comparing two related baseline models, described in §5. These EGs are learned from the same set of vertices, but are constructed differently so have different edges. The FIGER type system is used for these experiments <ref type="bibr" target="#b25">(Ling and Weld, 2012)</ref>, where |T | = 49, and these models typically have up to |T | 2 = 49 2 typed subgraphs g ∈ G. Typing disambiguates senses of the same predicate, which improves precision of inferences, an observation in NLP tracing back to <ref type="bibr" target="#b40">Yarowsky (1993)</ref>. For example, RUN(:person, :organization) which is learned in the typed subgraph g (person-organization) has a different meaning and entailments than RUN(:person, :software).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Nearest Neighbors Search</head><p>Our method assumes that existing EGs contain enough predicates already present in the graph to enable discovery of suitable replacements for an</p><p>x : (join.1,join.2)#person#organization ⇒ "person join organization"</p><p>x : (give.2,give.to.2)#medicine#person ⇒ "give medicine to person"</p><p>x : (export.1,export.to.2)#location_1#location_2 ⇒ "location_1 export to location_2" unseen target predicate, using an LM. For example, in the sports domain, the EG may be missing a rare predicate OBLITERATE but contain similar predicates BEAT and DEFEAT which can be found as close neighbors in Language Model embedding space. These nearby predicates are expected to have similar semantics (and entailments) to the unseen target predicate, and will thus be suitable replacements. See Figure <ref type="figure">1</ref> for an illustration.</p><p>We define the smoothed retrieval function S, which replaces the typical method for retrieving a target predicate vertex x from a typed subgraph</p><formula xml:id="formula_1">g (t) = (V (t) , E (t) ), with typing t ∈ {T × T }.</formula><p>Ahead of test-time, for each typed subgraph g (t) we encode the EG predicate vertices V (t) as a matrix V (t) . For each predicate v</p><formula xml:id="formula_2">(t) i ∈ V (t) , we encode v (t) i = L(v (t) i ), a row vector v (t) i ∈ V (t) .</formula><p>At test-time we encode a corresponding vector for the target predicate x, x = L(x). Then S retrieves the K-nearest neighbors of x in g (t) :</p><formula xml:id="formula_3">S(x, g (t) , K) = {v (t) i | v (t) i ∈ V (t) , if v (t) i ∈ KNN(x, V (t) , K)} L(•)</formula><p>is a function which encodes a typed natural language predicate using a pretrained LM. First, a short sentence is constructed from the predicate using the types as generic arguments, and then the sentence is encoded by the LM (see Table <ref type="table" target="#tab_1">1</ref> for examples). We extract the representations of WordPieces corresponding to the predicate, and average them into the resulting predicate vector.</p><p>In our experiments we use RoBERTa <ref type="bibr" target="#b26">(Liu et al., 2019)</ref> for encoding, a well-tested, off-the-shelf LM of tractable size for running on a single GPU, which has pretrained on 160GB of unlabeled text.</p><p>For the KNN search metric we use Euclidean Distance (L 2 norm) from the target vector x to vectors in V (t) . We precompute a BallTree using scikit-learn <ref type="bibr" target="#b30">(Pedregosa et al., 2011)</ref> which spatially "The audience applauded the comedian" ⊨ "The audience observed the comedian" "The audience observed the comedian" ⊭ "The audience applauded the comedian" "The laptop satisfied the criteria" ⊨ "The laptop was assessed against the criteria" "The laptop was assessed against the criteria" ⊭ "The laptop satisfied the criteria" organizes the EG vectors to speed up search from linear in the number of vertices |V (t) | to log |V (t) |.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Datasets</head><p>We demonstrate our smoothing method on two explicitly directional datasets, which test both directions of predicate inference, creating a 50% positive/50% negative class balance.</p><p>Levy/Holt. This dataset <ref type="bibr" target="#b14">(Holt, 2018;</ref><ref type="bibr" target="#b20">Levy and Dagan, 2016)</ref> has been explored thoroughly in previous work <ref type="bibr" target="#b15">(Hosseini, 2021;</ref><ref type="bibr" target="#b12">Guillou et al., 2021;</ref><ref type="bibr">Li et al., 2022b;</ref><ref type="bibr" target="#b5">Chen et al., 2022)</ref>. Importantly, it includes inverses for all queries, allowing systematic investigation of directionality, although it contains a high proportion of paraphrases and selection bias artifacts that can be picked up by finetuning in supervised models <ref type="bibr">(Li et al., 2022a)</ref>. We test on the 1,784 questions forming the purely directional subset, which is more challenging.</p><p>ANT. This is a new, high-quality dataset improving on Levy/Holt, which tests predicate entailment in the general domain <ref type="bibr" target="#b10">(Guillou and Bijl de Vroe, 2023)</ref>. It was created by expert annotation of entailment relations between clusters of predicate paraphrases, expanded automatically using WordNet and other dictionary resources into thousands of test questions of the format "given [premise], is [hypothesis] true?" We test on the directional subset of 2,930 questions.</p><p>See Table <ref type="table" target="#tab_2">2</ref> for dataset examples. Each comes preprocessed with argument types from CoreNLP <ref type="bibr" target="#b27">(Manning et al., 2014;</ref><ref type="bibr" target="#b8">Finkel et al., 2005)</ref>, roughly aligning with EG FIGER types. We use the MoN-TEE system (Bijl de <ref type="bibr">Vroe et al., 2021)</ref> to extract CCG-parsed and typed predicate relations (x) shown in Table <ref type="table" target="#tab_1">1</ref>, which are used as queries to Entailment Graphs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Models</head><p>We smooth two recent Entailment Graphs which previously scored highly amongst unsupervised models on the full Levy/Holt dataset. Importantly, they are constructed from the same set of predicate vertices but have different edges, so we can observe how vertex-and edge-improvements combine.</p><p>GBL. The EG of <ref type="bibr" target="#b16">Hosseini et al. (2018)</ref>, which introduces a "globalizing" graph-based method to improve the edges after "local" EG learning.</p><p>CTX. The state-of-the-art contextualized EG of Hosseini et al. ( <ref type="formula">2021</ref>), which improves over GBL edges by augmenting local learning with a contextual link-prediction objective, before globalizing.</p><p>GBL-P / GBL-H and CTX-P / CTX-H. We apply an LM separately for both P-and H-smoothing on GBL and CTX. As described earlier, we use the RoBERTa LM <ref type="bibr" target="#b26">(Liu et al., 2019)</ref> to produce embeddings for smoothing the EG.</p><p>S&amp;S. The finetuned RoBERTa model of Schmitt and Schütze (2021) (discussed in §2). We insert each premise/hypothesis pair into their 5 prompt templates, and take the maximum entailment score as the model prediction for the pair. <ref type="bibr">Li et al. (2022a)</ref> find that this model has overfit to artifacts present in Levy/Holt, so we compare with it on a different question answering task in §6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiment 1: Entailment Detection</head><p>We run two experiments on both Levy/Holt and ANT. (1) We apply our unsupervised smoothing to augment the Premise of each test entailment, generating K new target premise predicates. Separately, (2) we smooth the Hypothesis of each test entailment the same way. For both we try different values of the hyperparameter K ∈ {2, 3, 4}.</p><p>Plots (see Appendix A for all results). In Appendix B we also show P-smoothing in particular of the CTX graph vs. the GBL graph. For all models (best K selected) on both datasets we show summary statistics in Table <ref type="table" target="#tab_3">3</ref>, including normalized area under the precision-recall curve (AUC n ) and average precision (AP) across the recall range. A sample of model outputs is shown in Table <ref type="table" target="#tab_5">4</ref>. <ref type="bibr">Li et al. (2022a)</ref> introduce AUC n , a fair way to compare models which may achieve different maximum recalls. It computes only the area under the precision-recall curve above the random-guess baseline for the dataset, so it is highly discerning compared to AUC, which can inflate performance when there is a high random baseline. In our case, the high 50% random baseline means that AUC n scores are systematically much smaller than AUC.</p><p>As predicted, our method of selecting nearestneighbors of a target predicate in an EG using their LM embedding distance has different behavior for P-smoothing than H-smoothing. We observe that P-smoothing with an LM is very beneficial to both the recall and precision of both Entailment Graphs it is applied to, with a slight advantage in AUC n to higher values of K. When applied to the SOTA model CTX on the ANT dataset, our smoothing method increases maximum recall by 25.1 absolute percentage points (pp) to 74.3% while increasing average precision from 65.66% to 67.47%. On Levy/Holt we increase maximum recall by 16.3 absolute pp to 62.7% while slightly raising average precision. However, H-smoothing with the LM is highly detrimental: despite improving recall, average precision on ANT is cut to 58.52%, and the lowest confidence predictions are at random chance (50% precision).</p><p>We also note that P-smoothing greatly improves recall and precision when applied to both GBL  6 Experiment 2: Question Answering</p><p>We now experiment with LM smoothing in application on an applied task. We test on the Boolean Open QA task, BoOQA <ref type="bibr">(Li et al., 2022a)</ref>, in which models answer true/false questions about entities mentioned in news articles from multiple sources. BoOQA questions are chosen to be adversarial to simple similarity baselines, and EGs have proven useful by using directional reasoning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Boolean Open-Domain QA</head><p>BoOQA is a task over open domain news articles, with questions formed by extracting triples of (entity, relation, entity), in the format "is it true that &lt;triple&gt;?" Context statements are other triples sourced from the articles concerning the same question entities, and the task is to compare each context statement with the question itself. If any context statement entails the question by means of its relation, the question can be labeled "true," otherwise "false." BoOQA also contains false questions derived from true ones, so models must decide carefully what is supported by evidence and what isn't.</p><p>We address vertex sparsity in a natural setting, so we relax the original entity restriction of <ref type="bibr">Li et al. (2022a)</ref>: instead of sampling questions about frequently-mentioned entities (which always have many context statements to decide from), we increase the challenge by sampling from the natural distribution of entities, regardless of popularity. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Results Across Context Sizes</head><p>Results corroborate the earlier tests: P-smoothing improves AUC n from 21.26% to 21.74% over all questions, while H-smoothing worsens to 20.64% (as in §4, AUC n is systematically lower than AUC). We also outperform Schmitt and Schütze (2021), our most direct competition which uses a tractablesize LM. Despite facility to encode any predicate, it lacks directional precision useful for this task.</p><p>To demonstrate when smoothing an EG is helpful, we further analyze the effect on different context size bands. For each question, we count the number of context sentences available to answer it; questions are bucketed into bands of [2, 5), [5, 10), [10, 15), 15+. From the overall dataset we sample approximately 55,000 questions per context size band (see Appendix C for exact counts). On each band we compare an unsmoothed model with Psmoothing and H-smoothing, and we report results in Table <ref type="table">5</ref>.</p><p>The benefit of P-smoothing is greatest in the lowest band f &lt; 5, and diminishes in higher bands. This is because in the lower bands there are fewer context statements which may be used to answer the question, increasing difficulty. Here the EGs are more prone to sparsity, because missing even a few context predicates devastates its chance to answer the question. In fact, the proportion of questions for which all context relations are missing from the EG is 1.5% for f &gt; 15, but 32.7% for f &lt; 5.</p><p>7 Experiment 3: P and H with WordNet LM P-smoothing works well, but not H-smoothing. We now show controlled experiments using Word-Net relations <ref type="bibr" target="#b7">(Fellbaum, 1998)</ref> to confirm this is due to semantic generalization (in line with our theory in §3.1). We show by constructing a transitive chain using WordNet hyponyms that Hypothesis smoothing is possible in principle, without claiming that it provides a practical alternative to an LM. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.1">Controlled Search with WordNet</head><p>We re-run the §4 experiment by smoothing the CTX model on the ANT dataset (GBL in Appendix B). However, the target premise or hypothesis is now approximated without the LM. Instead, we generate replacements using two WordNet relations. <ref type="foot" target="#foot_0">2</ref>In this test, we choose specific WordNet lexical relations as instances of entailment, then generate smoothing predictions from the WN database. The hyponymy relation is used for specialization and hypernymy for generalization, and these are compared for both P-and H-smoothing.</p><p>To illustrate, if smoothing by specializing, given a predicate "receive from," we retrieve WN hypernyms like "inherit from." We do this by querying WN for relations of the predicate head word. We use results from the first word sense to replace the query word. E.g., from (receive.2,receive.from.2) the WN query hyponym("receive") ⇒ "inherit" generates (inherit.2,inherit.from.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2">Results</head><p>Results are shown in Figure <ref type="figure" target="#fig_2">4</ref>. Importantly, from these plots a switch in performance is observed between the application of hypernyms and hyponyms when used for P-and H-smoothing on CTX (similar results for GBL, see Appendix B). It is clear that generalizing the premise using hypernyms is highly effective in terms of recall and precision, but specializing with hyponyms is extremely damaging to precision. For the hypothesis, the reverse is true: generalizing with hypernyms worsens performance, but specializing with hyponyms can lead to some performance gains (when used with P-smoothing, see discussion below). We also tested Levy/Holt and see a similar trend.</p><p>These results nearly replicate the behavior of the LM-smoother in §4, verifying that nearest neighbor search in LM embedding space has a semantically generalizing effect suitable for P-smoothing. Table <ref type="table" target="#tab_5">4</ref> shows examples of generalized predictions.</p><p>Finally, we note P-smoothing with WordNet performs similarly to the LM in this "laboratory" setting (see Appendix D), but an LM smoother is still preferable due to being fully automatic and opendomain, handling new words, misspellings, etc.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.3">Discussion</head><p>We note two phenomena of interest. (1) For both CTX and GBL, performance is boosted in the lowrecall/high-precision range when using both optimal smoothers (P hyper + H hypo ), higher than using either smoother individually. (2) Additionally, H hypo is the better H smoother tested, though it appears unreliable on its own without P smoothing: H hypo is not useful for smoothing CTX, but it does improve the weaker GBL, see Appendix B.</p><p>Both of these phenomena are likely related to data frequency. Generalized hypernyms such as BEAT and USE are quite common in training data, and therefore have more learned edges in the EG with high quality edge weights. However, specialized hyponyms like ELONGATE can be extremely sparse in training data, leading to poorer learned representations and fewer edges. Phenomenon (1) shows that using a frequently-occurring smoothed premise of high quality yields better odds of finding an edge to a smoothed hypothesis, leading to some performance gains over either smoother individually. Phenomenon (2) suggests that H-smoothing may be naturally more difficult than P-smoothing, and less stable due to sparsity of hyponyms (spe-cializations) in corpora. If a hypothesis h is missing from the EG (meaning it wasn't seen in training) then deriving a candidate for replacement h ′ specialized from h will also be unlikely to occur in training, thus even if found in the EG it may have few or poorly learned edges. Though it can be beneficial to precision, natural data sparsity makes H-smoothing fundamentally harder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>We introduce a theory for optimal smoothing of a symbolic model of language inference like an Entailment Graph, which solves the problem of vertex sparsity in EGs by constructing transitive inference chains. Further, we show an unsupervised, open-domain method of P-smoothing by approximating premises missing from an EG using Language Model embeddings, which improves both recall and precision on two difficult directional entailment datasets. We also test the method on a QA task, where we show the most benefit in difficult scenarios where limited context information is available. Our method is low-compute, combining an existing EG with a pretrained LM of tractable size for a single GPU, and it improves over two lowcompute baselines: a SOTA EG and a finetuned RoBERTa-based prompting model.</p><p>We also demonstrate our theory of optimal smoothing by directing the search for predictions using WordNet relations, without an LM. Our experiments replicate the behavior of the LM-based smoother, offering an explanation for why LM embeddings are useful for P-smoothing, but not Hsmoothing, in terms of the semantic generalizing effect when searching a neighborhood in embedding space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>In this work we present a simple "graph smoothing" method which leverages the natural structure in LM embedding space to find approximations of predicates missing from the EG, a major source of error. Nearest neighbors search within LM embedding space is biased toward returning predicates that are more semantically general, which is helpful for P-smoothing.</p><p>However, generalizing is detrimental to Hsmoothing, which requires specialization. While we show a proof of specialization and empirical evidence using WordNet, solving H-smoothing in an open domain using an unsupervised model such as a Language Model is left open in this work. It is likely that H-smoothing is a more difficult task than P-smoothing due to natural data sparsity as discussed in the paper. If a hypothesis is missing from the EG, it is likely to be a corpus-infrequent predicate, and specializing it will yield other predicates of low frequency, yielding poor odds of recovery.</p><p>Further, using a sub-symbolic LM encoder theoretically enables inference using any premise predicate, but we are still restricted to choosing approximations from the predicate vocabulary of the EG. If the vocabulary is not suitable e.g. for a new target genre/domain, <ref type="bibr" target="#b18">Hosseini et al. (2021)</ref> show that EG learning may be scaled up easily, which may provide a sufficiently scoped vocabulary for any application, but exploration is left to future work.</p><p>Finally, our work is demonstrated only on the English language. However, we expect this method should succeed with arbitrary natural languages. <ref type="bibr">Li et al. (2022b)</ref> demonstrate that learning Entailment Graphs in Chinese can be done using the same process as English, and our technique leverages a simple fundamental property of Language Models stemming from the natural Zipfian distribution of predicates in corpora, across languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethical Considerations</head><p>This work is designed to extend the capabilities of Entailment Graphs, which are general-purpose structures of meaning postulates. These can be applied most readily to question answering applications, but they can also be used for other NLU or NLI tasks. As an unsupervised, corpus-based learning algorithm, we believe that EGs could be susceptible to learning biases in human beliefs present in corpora, but this algorithm is most sensitive to widely repeated statements, which may be easier to detect in data cleaning than uncommon statements. We believe there is no immediate risk in basic question answering when using EGs that are trained on published news articles, as shown in this work, because the training data is professionally edited to a standard. However, models for general language understanding like an EG may be used for many purposes beyond this.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Hyperparameter Search</head><p>In §5 we test three values for hyperparameters K prem and K hyp , each from choices {2, 3, 4}. Figure <ref type="figure" target="#fig_3">5</ref> shows all smoothing combinations. We select K prem = 4 and K hyp = 2 in the main experiments due to having the highest AUC n values for P-and H-smoothing, respectively. We highlight a few trends. (1) higher K prem appears better (most notably, K prem = 4 yields slightly better recall than K prem = 2), though it has diminishing returns.</p><p>(2) lower K hyp is better, because H-smoothing using an LM is actively harmful (K hyp = 0, an unsmoothed EG, would "perform" better in practice!). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B The GBL Entailment Graph</head><p>We test the older GBL graph <ref type="bibr" target="#b16">(Hosseini et al., 2018)</ref> on the ANT dataset. Results confirm findings on the newer CTX <ref type="bibr" target="#b18">(Hosseini et al., 2021)</ref>. Figure <ref type="figure" target="#fig_4">6</ref> shows results for the experiment in §4 but comparing P-smoothing with LM predictions for the CTX and GBL graphs. We note that base CTX performs much better than GBL, and that P-smoothing with an LM improves both GBL and CTX.</p><p>Figure <ref type="figure" target="#fig_6">7</ref> shows results for the experiment in §7 of smoothing an EG using WordNet relations, but we now show smoothing the older GBL graph. We observe similar results as with CTX: there is noticeable improvement over the base EG when smoothing either premises with hypernyms, hypotheses with hyponyms (stronger than when applied to CTX), or both combined. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C BoOQA Context Size Bands</head><p>In the QA task a model must try to draw an inference from any context statement (premises) to infer the validity of the question (hypothesis). Any model is less likely to find an entailment when there are few premises, but symbolic EGs are especially prone because missing premises means even fewer chances to find an entailment. From the original dataset, we sample approximately 55,000 questions for each context size band, including 55,000 questions from the natural distribution, with no context limitation ("All Questions"). Sample sizes are shown in Table <ref type="table" target="#tab_7">6</ref>.   D P-Smoothing: LM vs. WordNet</p><p>In Figure <ref type="figure" target="#fig_7">8</ref> we show a comparison of P-smoothing between the LM (CTX-P LM AUC n = 25.86) and WordNet (CTX-P hyper AUC n = 27.39) on the ANT dataset. We note that although WordNet performs within about 1.5% of the LM smoother in this "laboratory" experiment, we believe the LMsmoother is preferable in use, because it is fully automatic to learn and apply, and because it encodes an open domain of predicates, which may include new words, misspellings, etc. that WordNet cannot handle. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The specificity taxonomy. The basic level contains "everyday" predicates. Above becomes more general, and below becomes more concrete and specific. Usage frequency decreases away from the basic level.</figDesc><graphic coords="4,74.96,437.23,207.35,137.27" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Experiment 1: Smoothing the CTX EG with an LM on the ANT dataset. P-smoothing improves recall and precision, whereas H-smoothing is detrimental. We try different K ∈ {2, 3, 4} and show the best K prem = 4 and K hyp = 2.</figDesc><graphic coords="6,70.87,56.69,218.27,146.10" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Experiment 3: Comparing WordNet relations used in smoothing P(remise), H(ypothesis), and P+H, with CTX graphs on the ANT dataset. Hypernyms are useful for P-smoothing, and hyponyms less so for H-smoothing.</figDesc><graphic coords="8,70.87,70.87,453.55,158.74" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Experiment 1: LM smoothing on the ANT dataset. Comparison of P-and H-smoothing CTX with different K prem and K hyp from choices {2, 3, 4}. Higher values of K are shown more darkly.</figDesc><graphic coords="12,70.87,485.87,218.27,151.11" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Experiment 1: LM smoothing on the ANT dataset. Comparison of P-smoothing GBL and CTX with optimal K=4.</figDesc><graphic coords="12,306.14,271.06,218.27,146.10" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Experiment 3: WordNet relations used to smooth P(remise), H(ypothesis), and P+H, with the Entailment Graph GBL on the ANT dataset. Hypernyms are useful for P-smoothing, and hyponyms for H-smoothing.</figDesc><graphic coords="13,70.87,70.87,453.55,181.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Comparison of P-smoothing methods on ANT: LM-based smoother performs similarly to WordNet hypernym relations on the Entailment Graph CTX.</figDesc><graphic coords="13,70.87,470.71,218.27,146.10" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="1,309.42,212.60,211.71,311.75" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>A typed predicate x is converted to a sentence (shown) and encoded with an LM by L(x). The final output is the average over predicate WordPiece vectors.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Example queries, ANT (dev) directional subset.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>for model performances are shown in Figure 3, in which we compare P-smoothing vs. Hsmoothing of the CTX graph using K prem = 4 and K hyp = 2, chosen for producing the best AUC n</figDesc><table><row><cell></cell><cell>ANT</cell><cell></cell><cell cols="2">Levy/Holt</cell></row><row><cell>Model</cell><cell>AUCn</cell><cell>AP</cell><cell>AUCn</cell><cell>AP</cell></row><row><cell>GBL</cell><cell cols="2">3.79 58.36</cell><cell cols="2">3.01 55.82</cell></row><row><cell>GBL-PK=4</cell><cell cols="2">13.91 64.71</cell><cell cols="2">9.95 60.70</cell></row><row><cell>GBL-HK=2</cell><cell cols="2">1.41 52.57</cell><cell cols="2">1.09 52.05</cell></row><row><cell>CTX</cell><cell cols="2">15.44 65.66</cell><cell cols="2">9.40 60.19</cell></row><row><cell>CTX-PK=4</cell><cell cols="2">25.86 67.47</cell><cell cols="2">13.45 60.80</cell></row><row><cell>CTX-HK=2</cell><cell cols="2">9.94 58.52</cell><cell cols="2">8.33 57.97</cell></row></table><note><p>Experiment 1: P-and H-smoothing, compared to unsmoothed models. P-Smoothing with an LM improves AUC norm (AUC n ) and Average Precision (AP) in both CTX and GBL models.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Experiment 1: Sample of CTX outputs on ANT.</figDesc><table><row><cell>A target PREDICATE(type1, type2) that is missing from</cell></row><row><cell>CTX is closest in LM embedding space to K=2 CTX</cell></row><row><cell>predicates, which are more semantically general.</cell></row><row><cell>and CTX graphs. This shows the complementary</cell></row><row><cell>nature of improving vertex sparsity with improving</cell></row><row><cell>edge sparsity in EGs: these techniques improve</cell></row><row><cell>different aspects, which can be applied together.</cell></row><row><cell>Since effects are similar for both EGs, from now on</cell></row><row><cell>we show results only for CTX, and report additional</cell></row><row><cell>results for the weaker GBL in Appendix B.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>Experiment 2: Sample sizes for context bands on the QA task.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>WN was partly used in ANT's construction, so this result explains the LM effect, rather than offering a practical model.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This research was supported by <rs type="funder">ERC</rs> Advanced Fellowship GA 742137 SEMANTAX, the <rs type="institution">University of Edinburgh Huawei Laboratory</rs>, and a <rs type="funder">Google Faculty Award</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Efficient global learning of entailment graphs</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noga</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Goldberger</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/COLI_a_00220</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">41</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="221" to="263" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Modality and negation in event extraction</title>
+		<author>
+			<persName><forename type="first">Sander</forename><surname>Bijl De Vroe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Guillou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miloš</forename><surname>Stanojević</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Mckenna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.case-1.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 4th Workshop on Challenges and Applications of Automated Extraction of Socio-political Events from Text (CASE 2021)</title>
+		<meeting>the 4th Workshop on Challenges and Applications of Automated Extraction of Socio-political Events from Text (CASE 2021)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="31" to="42" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Alec Radford, Ilya Sutskever, and Dario Amodei</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+	<note>Language models are few-shot learners</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Determining the specificity of nouns from text</title>
+		<author>
+			<persName><forename type="first">Sharon</forename><forename type="middle">A</forename><surname>Caraballo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">1999 Joint SIGDAT Conference on Empirical Methods in Natural Language Processing and Very Large Corpora</title>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">An empirical study of smoothing techniques for language modeling</title>
+		<author>
+			<persName><forename type="first">Stanley</forename><forename type="middle">F</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Goodman</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/981863.981904</idno>
+	</analytic>
+	<monogr>
+		<title level="m">34th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Santa Cruz, California, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1996">1996</date>
+			<biblScope unit="page" from="310" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Entailment graph learning with textual entailment and soft transitivity</title>
+		<author>
+			<persName><forename type="first">Zhibin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yansong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongyan</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.406</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5899" to="5910" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">WordNet: An Electronic Lexical Database</title>
+		<author>
+			<persName><forename type="first">Christiane</forename><surname>Fellbaum</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1998">1998</date>
+			<publisher>Bradford Books</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Incorporating non-local information into information extraction systems by gibbs sampling</title>
+		<author>
+			<persName><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trond</forename><surname>Grenager</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1219840.1219885</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting on Association for Computational Linguistics, ACL &apos;05</title>
+		<meeting>the 43rd Annual Meeting on Association for Computational Linguistics, ACL &apos;05</meeting>
+		<imprint>
+			<publisher>USA. Association for Computational Linguistics</publisher>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="363" to="370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The distributional inclusion hypotheses and lexical entailment</title>
+		<author>
+			<persName><forename type="first">Maayan</forename><surname>Geffet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1219840.1219854</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)</title>
+		<meeting>the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="107" to="114" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Guillou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sander Bijl De</forename><surname>Vroe</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Ant dataset</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Incorporating temporal information in entailment graph mining</title>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Guillou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sander</forename><surname>Bijl De Vroe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><forename type="middle">Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.textgraphs-1.7</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Graphbased Methods for Natural Language Processing (TextGraphs)</title>
+		<meeting>the Graphbased Methods for Natural Language Processing (TextGraphs)<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="60" to="71" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Blindness to modality helps entailment graph mining</title>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Guillou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sander</forename><surname>Bijl De Vroe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.insights-1.16</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Second Workshop on Insights from Negative Results in NLP</title>
+		<meeting>the Second Workshop on Insights from Negative Results in NLP</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="110" to="116" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">An empirical analysis of compute-optimal large language model training</title>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Hoffmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Mensch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Buchatskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eliza</forename><surname>Rutherford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>De Las</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lisa</forename><forename type="middle">Anne</forename><surname>Casas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Hendricks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><surname>Welbl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hennigan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Noland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Millican</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bogdan</forename><surname>Van Den Driessche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurelia</forename><surname>Damoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Guy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karén</forename><surname>Osindero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erich</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Rae</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sifre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="30016" to="30030" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Probabilistic models of relational implication. Master&apos;s thesis</title>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Holt</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+		<respStmt>
+			<orgName>Macquarie University</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Unsupervised Learning of Relational Entailment Graphs from Text</title>
+		<author>
+			<persName><forename type="first">Mohammad Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+		<respStmt>
+			<orgName>University of Edinburgh</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Learning typed entailment graphs with global soft constraints</title>
+		<author>
+			<persName><forename type="first">Mohammad Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Chambers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><forename type="middle">R</forename><surname>Holt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00250</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="703" to="717" />
+		</imprint>
+	</monogr>
+	<note>Transactions of the Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Duality of link prediction and entailment graph induction</title>
+		<author>
+			<persName><forename type="first">Mohammad Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1468</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4736" to="4746" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Open-domain contextual link prediction and its complementarity with entailment graphs</title>
+		<author>
+			<persName><forename type="first">Mohammad Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-emnlp.238</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2021</title>
+		<meeting><address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2790" to="2802" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Distributional inclusion hypothesis for tensor-based composition</title>
+		<author>
+			<persName><forename type="first">Dimitri</forename><surname>Kartsaklis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehrnoosh</forename><surname>Sadrzadeh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of COLING 2016, the 26th International Conference on Computational Linguistics: Technical Papers</title>
+		<meeting>COLING 2016, the 26th International Conference on Computational Linguistics: Technical Papers<address><addrLine>Osaka, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2849" to="2860" />
+		</imprint>
+	</monogr>
+	<note>The COLING 2016 Organizing Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Annotating relation inference in context via question answering</title>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P16-2041</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="249" to="255" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Combined distributional and logical semantics</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00219</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="179" to="192" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">On the sentence embeddings from pre-trained language models</title>
+		<author>
+			<persName><forename type="first">Bohan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.733</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9119" to="9130" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">2022a. Language models are poor learners of directional inference</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><forename type="middle">Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sabine</forename><surname>Weber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-emnlp.64</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2022</title>
+		<meeting><address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="903" to="921" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">2022b. Crosslingual inference with a Chinese entailment graph</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sabine</forename><surname>Weber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><forename type="middle">Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Guillou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.96</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="1214" to="1233" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Fine-grained entity recognition</title>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Sixth AAAI Conference on Artificial Intelligence, AAAI&apos;12</title>
+		<meeting>the Twenty-Sixth AAAI Conference on Artificial Intelligence, AAAI&apos;12</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="94" to="100" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>Roberta: A robustly optimized bert pretraining approach</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">The Stanford CoreNLP natural language processing toolkit</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihai</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jenny</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><forename type="middle">J</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mc-Closky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL) System Demonstrations</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Multivalent entailment graphs for question answering</title>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Mckenna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Guillou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><forename type="middle">Javad</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sander</forename><surname>Bijl De Vroe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.840</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="10758" to="10768" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Relationships among goodness-of-example, category norms, and word frequency</title>
+		<author>
+			<persName><forename type="first">Carolyn</forename><forename type="middle">B</forename><surname>Mervis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Catlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eleanor</forename><surname>Rosch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Bulletin of the psychonomic society</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="283" to="284" />
+			<date type="published" when="1976">1976</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Scikit-learn: Machine learning in Python</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pedregosa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Varoquaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gramfort</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Thirion</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Grisel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Blondel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Prettenhofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Dubourg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Vanderplas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Passos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cournapeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Brucher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Perrot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Duchesnay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2825" to="2830" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Deep contextualized word representations</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Neumann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1202</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long Papers</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2227" to="2237" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Family resemblances: Studies in the internal structure of categories</title>
+		<author>
+			<persName><forename type="first">Eleanor</forename><surname>Rosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carolyn</forename><forename type="middle">B</forename><surname>Mervis</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/0010-0285(75)90024-9</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive Psychology</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="573" to="605" />
+			<date type="published" when="1975">1975</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Basic objects in natural categories</title>
+		<author>
+			<persName><forename type="first">Eleanor</forename><surname>Rosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carolyn</forename><forename type="middle">B</forename><surname>Mervis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wayne</forename><forename type="middle">D</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">M</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Penny</forename><surname>Boyes-Braem</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/0010-0285(76)90013-X</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive Psychology</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="382" to="439" />
+			<date type="published" when="1976">1976</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Language models for lexical inference in context</title>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Schmitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.108</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1267" to="1280" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Do neural language models overcome reporting bias?</title>
+		<author>
+			<persName><forename type="first">Vered</forename><surname>Shwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.605</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6863" to="6870" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">A statistical interpretation of term specificity and its application in retrieval</title>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Spärck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jones</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of documentation</title>
+		<imprint>
+			<date type="published" when="1972">1972</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Do neural nets learn statistical laws behind natural language?</title>
+		<author>
+			<persName><forename type="first">Shuntaro</forename><surname>Takahashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kumiko</forename><surname>Tanaka-Ishii</surname></persName>
+		</author>
+		<idno type="DOI">10.1371/journal.pone.0189326</idno>
+	</analytic>
+	<monogr>
+		<title level="j">PLOS ONE</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="1" to="17" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Machine translationese: Effects of algorithmic bias on linguistic complexity in machine translation</title>
+		<author>
+			<persName><forename type="first">Eva</forename><surname>Vanmassenhove</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitar</forename><surname>Shterionov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Gwilliam</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.188</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2203" to="2213" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Emergent abilities of large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishi</forename><surname>Bommasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Fedus</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>Survey Certification</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">One sense per collocation</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Yarowsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technology: Proceedings of a Workshop</title>
+		<meeting><address><addrLine>Plainsboro, New Jersey</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1993-03-21">1993. March 21-24, 1993</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

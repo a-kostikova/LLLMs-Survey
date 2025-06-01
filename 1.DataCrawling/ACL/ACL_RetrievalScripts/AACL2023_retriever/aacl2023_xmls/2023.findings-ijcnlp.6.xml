@@ -1,0 +1,1213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Learning to Diversify Neural Text Generation via Degenerative Model</title>
+				<funder ref="#_9KuFaAE">
+					<orgName type="full">Korea government (MSIT)</orgName>
+				</funder>
+				<funder ref="#_KP5Fzks">
+					<orgName type="full">Korea government(MSIT)</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Artificial Intelligence Graduate School Program (KAIST)</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jimin</forename><surname>Hong</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">KAIST AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Chaehun</forename><surname>Park</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">KAIST AI</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Jaegul</forename><surname>Choo</surname></persName>
+							<email>jchoo@kaist.ac.kr</email>
+							<affiliation key="aff0">
+								<orgName type="institution">KAIST AI</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Learning to Diversify Neural Text Generation via Degenerative Model</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">0C965AA2C5536A97528672E96C0D0E60</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:39+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Neural language models often fail to generate diverse and informative texts, limiting their applicability in real-world problems. While previous approaches have proposed to address these issues by identifying and penalizing undesirable behaviors (e.g., repetition, overuse of frequent words) from language models, we propose an alternative approach based on an observation: models primarily learn attributes within examples that are likely to cause degeneration problems. Based on this observation, we propose a new approach to prevent degeneration problems by training two models. Specifically, we first train a model that is designed to amplify undesirable patterns. We then enhance the diversity of the second model by focusing on patterns that the first model fails to learn. Extensive experiments on two tasks, namely language modeling and dialogue generation, demonstrate the effectiveness of our approach.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural text generation is a fundamental task including open-ended applications such as language modeling or dialogue generation <ref type="bibr" target="#b2">(Chen et al., 2017)</ref>. Despite considerable advances in the task, generation models often result in degeneration <ref type="bibr" target="#b20">(Li et al., 2016;</ref><ref type="bibr" target="#b7">Dinan et al., 2019;</ref><ref type="bibr" target="#b16">Holtzman et al., 2019)</ref> such as repetition or the overproduction of dull and generic texts with lack of diversity.</p><p>Previous studies have proposed to overcome these issues as follows: <ref type="bibr" target="#b37">Welleck et al. (2020)</ref> suggests to explicitly penalize repetition using unlikelihood objective. <ref type="bibr" target="#b21">Li et al. (2020)</ref> applies unlikelihood training <ref type="bibr" target="#b37">(Welleck et al., 2020)</ref> to dialogue domain by penalizing overuse of common words in generated responses. <ref type="bibr" target="#b17">Jiang et al. (2019)</ref> and <ref type="bibr" target="#b3">Choi et al. (2020)</ref> refine the Maximum Likelihood Estimation (MLE) objective by considering the frequency distribution of words. In other words, prior * Equal contribution works focus on explicitly defining undesirable behaviors and penalizing them in a training phase. Although these studies have shown promising results, we argue that identifying such negative behaviors of models can be laborious and task-dependent.</p><p>Instead, we propose a novel approach that does not require explicitly specifying the negative behaviors of generation models. Our approach is based on a fundamental observation ( §3): Models are misguided by attributes within training examples that may be harmful to reflecting human diversity. Based on the observation, we propose LFD: Learning from Degeneration, a novel approach to remedy degeneration problems in openended applications. Specifically, we first train a model which is designed to Degenerate by amplifying undesirable patterns in examples ( §4.2). We then train the second model to enhance its diversity by leveraging the predictions of the first model ( §4.3). Experimental results on two representative open-ended generation tasks demonstrate the effectiveness of our approach.</p><p>In summary, our contributions include:</p><p>• We analyze how the learning dynamics of training examples are affected based on the degree of their diversity on open-ended text generation tasks.</p><p>• We propose a novel approach that enhances the overall generation quality, especially diversity.</p><p>• LFD can be easily applied regardless of tasks in open-ended applications.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Recent studies have reported that neural generation models often make various forms of degeneration problems <ref type="bibr" target="#b20">(Li et al., 2016;</ref><ref type="bibr" target="#b15">Holtzman et al., 2018;</ref><ref type="bibr" target="#b6">Dinan et al., 2020)</ref>. Several methods have suggested training objectives to remedy this problem by alleviating token distribution mismatch between hu-man and machine-written texts <ref type="bibr" target="#b17">(Jiang et al., 2019)</ref>, balancing token distribution <ref type="bibr" target="#b3">(Choi et al., 2020)</ref>, or directly penalizing negative behaviors on generated texts with auxiliary loss <ref type="bibr" target="#b37">(Welleck et al., 2020;</ref><ref type="bibr" target="#b14">He and Glass, 2020)</ref>. <ref type="bibr" target="#b36">Wang et al. (2021)</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Preliminary Study</head><p>Previous studies have reported that the generation quality is likely to be degraded due to inherent attributes within the training examples, such as token repetition <ref type="bibr" target="#b37">(Welleck et al., 2020;</ref><ref type="bibr" target="#b10">Fu et al., 2021)</ref>, a skewed frequency distribution of words (Fagan and Gençay, 2011), and genericness in responses <ref type="bibr" target="#b5">(Csáky et al., 2020)</ref>. We refer to such attributes as degenerative attributes in the paper.</p><p>In this section, we analyze how such degenerative attributes affect the learning dynamics of training examples. We conduct experiments on two openended text generation tasks: language modeling and dialogue generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Setup</head><p>Dataset For language modeling, we use WikiText-103 <ref type="bibr" target="#b25">(Merity et al., 2016)</ref>, a collection of English documents extracted from verified Wikipedia. For dialogue generation, we use Daily-Dialog <ref type="bibr" target="#b22">(Li et al., 2017)</ref> consisting of open-domain dialogues that reflect daily conversations. Metrics We use the following metrics to measure the degenerative attributes in each example. For language modeling, we use Average Frequency to evaluate the lexical diversity of each example by averaging the frequency of tokens in an example. We also leverage Repetition <ref type="bibr" target="#b37">(Welleck et al., 2020)</ref> that measures how often each token already appears in the previous part of an example.</p><p>For dialogue generation, we regard Source Entropy <ref type="bibr" target="#b5">(Csáky et al., 2020)</ref> as the measurement of how trivial response is. A response with higher entropy indicates to correspond with more dialogue histories. We also use Context Overlap <ref type="bibr" target="#b21">(Li et al., 2020)</ref> that calculates the bi-gram overlap between dialogue histories and responses. We describe further details of each metric in Appendix A.1.  Model We train 6-layer transformer <ref type="bibr" target="#b35">(Vaswani et al., 2017)</ref> decoder and 6-layer transformer encoder-decoder models from scratch for language modeling and dialogue generation tasks, respectively. To analyze the training dynamics of models on each task, we first train models and save their checkpoints at each epoch. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">LFD: Learning from Degeneration</head><p>Based on the analysis ( §3), we argue that the model should be prevented from overfitting to degenera-tive attributes. Inspired by previous studies <ref type="bibr" target="#b27">(Nam et al., 2020;</ref><ref type="bibr" target="#b32">Sanh et al., 2021)</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Background</head><p>Generative language model f θ is usually trained to maximize conditional probability distribution of p(y|x, θ), where x = (x 1 , . . . , x |x| ) and y = (y 1 , . . . , y |y| ) are input and target sequences. A typical approach to train the model is optimizing θ by minimizing the following negative log-likelihood:</p><formula xml:id="formula_0">L MLE (θ, x, y) = - |y| t=1 log p(y t |y &lt;t , x, θ) (1) 4.2 Training Degenerative Model f θ D</formula><p>From the analysis ( §3), we observe that the difference between the two groups of examples is significant, especially in the early training phase. We enforce Degenerative model f θ D to overfit degeneration attributes captured in a small number of iteration. In particular, we leverage the truncated cross entropy loss <ref type="bibr" target="#b13">(Han et al., 2018)</ref>   <ref type="bibr" target="#b9">(Fan et al., 2018)</ref> is selected as decoding algorithm with k=20. We attach † to baselines that explicitly penalize negative behavior (e.g. repetition or frequency).</p><p>The best and the second best results are highlighted in bold and underline, respectively. The results close to human gold standard are regarded as better performance.</p><p>For PPL and KLD, the lowest scores are best performances.</p><p>we only optimize the parameters of f θ M while keeping the parameter of f θ D as frozen.</p><formula xml:id="formula_1">L PoE (θ M , x, y) = - |y| t=1 log softmax(σ poe (θ D , θ M , x, y, t))<label>(3)</label></formula><p>The final loss is combined as L MLE + λL PoE . In test time, we generate sequences using f θ M only.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Task</head><p>We evaluate LFD on language modeling, dialogue generation, and abstractive summarization tasks with datasets described in Section 3.1: WikiText-103 <ref type="bibr" target="#b25">(Merity et al., 2016)</ref>, DailyDialog <ref type="bibr" target="#b22">(Li et al., 2017)</ref>, and CNN/DailyMail <ref type="bibr" target="#b26">(Nallapati et al., 2016)</ref>. Further details of each dataset are in Appendix B.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Setup</head><p>Baselines For language modeling task, we compare LFD with the following baseline models: MLE: uses the standard cross entropy in Eq. 1 for training. Focal <ref type="bibr" target="#b24">(Lin et al., 2017)</ref> downweights the loss of correctly-predicted tokens to deal with imbalance classification. UL <ref type="bibr" target="#b37">(Welleck et al., 2020)</ref> penalizes the repetitive generation.</p><p>For dialogue generation task, in addition to MLE and Focal, following baselines are compared: CP <ref type="bibr" target="#b30">(Pereyra et al., 2017)</ref> regularizes the entropy of the model to alleviate over-confident predictions. FACE <ref type="bibr" target="#b17">(Jiang et al., 2019)</ref>   <ref type="bibr">(2019)</ref>. The indicators are the same as Table <ref type="table" target="#tab_4">1</ref>. For BLEU, we regard the highest scores as the best performances.</p><p>token by considering their frequency in a training corpus. Dialogue-UL <ref type="bibr" target="#b21">(Li et al., 2020)</ref> penalizes the overuse of frequently generated tokens using unlikelihood training. The implementation details of baseline models are described in Appendix B.2.</p><p>Evaluation Metrics For language modeling, we evaluate with the following metrics: Perplexity to quantify the prediction difficulty of sequences by a model. Zipf Coefficient (ZipC) <ref type="bibr" target="#b16">(Holtzman et al., 2019)</ref> to measure the rank-frequency distribution of words in generated sequence. Repetition (Rep.) <ref type="bibr" target="#b16">(Holtzman et al., 2019)</ref> to examine whether a sequence is stuck in repetitive loops. Unique (Uniq.) <ref type="bibr" target="#b37">(Welleck et al., 2020)</ref> to quantify the number of unique tokens in generated sequences. KL-Divergence (KLD) <ref type="bibr" target="#b5">(Csáky et al., 2020)</ref> to measure the divergence of unigram distributions between the generated texts and reference.</p><p>For dialogue generation, we use the following metrics: BLEU <ref type="bibr" target="#b29">(Papineni et al., 2002)</ref> to measure the n-gram overlap between reference and generated sequences. Distinct <ref type="bibr" target="#b20">(Li et al., 2016)</ref> to calculate the ratio of unique N-grams among the generated sequences. self-BLEU <ref type="bibr" target="#b38">(Zhu et al., 2018)</ref> to calculate the BLEU score of each sequence with other generated sequences. Previously mentioned metrics (KLD, Context Overlap, and Source Entropy) are also used. More details of each metric are available in Appendix A.2.</p><p>In abstractive summarization, we calculate the ratio of n-grams in a summary that do not appear in a source article (Novel-n) <ref type="bibr" target="#b33">(See et al., 2017;</ref><ref type="bibr" target="#b28">Narayan et al., 2018)</ref>. We also measure the quality of generated summary with Rouge (Banerjee and Lavie, 2005).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Main Results</head><p>Language Modeling As shown in Table <ref type="table" target="#tab_4">1</ref>, our model shows similar token distribution with humanwritten texts in the corpus (KLD) and competitive performance with other models in PPL. LFD significantly improves both Uniq. and ZipC, having minor gaps with the human texts. Surprisingly, LFD has a competitive result on Rep. with UL even in the lack of a penalty on repetition. <ref type="table" target="#tab_5">2</ref> show that LFD achieves the best scores in all metrics except for self-BLEU. Interestingly, LFD shows the best BLEU scores, indicating that our approach can also contribute to increasing the similarity of generated responses with answer responses. Although FACE shows better self-BLEU scores than LFD, its lower BLEU score may indicate that it fails to generate accurate response.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dialogue Generation Results in Table</head><p>Abstractive Summarization We assume that the diversity of a summary is proportional to its abstractiveness. To measure the abstractiveness of summaries, we calculate the ratio of n-grams in a summary that do not appear in a source article <ref type="bibr" target="#b33">(See et al., 2017;</ref><ref type="bibr" target="#b28">Narayan et al., 2018)</ref>. We also measure the quality of generated summary with ROUGE <ref type="bibr" target="#b0">(Banerjee and Lavie, 2005)</ref>.</p><p>As shown in Table <ref type="table" target="#tab_6">3</ref>, the summaries generated by MLE contain fewer novel n-grams (i.e. low abstractivess) than human summaries. LFD enhance the abstractiveness of generated summaries (+10.7%, +64.1%, and +68.5% in Novel-1, Novel-2, and Novel-3 metrics, respectively), although the scores in ROUGE are slightly decreased (e.g., -2.1 points in Rouge-1). Based on these results, we con- </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Case Study</head><p>We present generation examples for dialogue generation task in Table <ref type="table" target="#tab_8">4</ref>. As we can observe, our method usually increases the diversity of generated responses. For instance, given a dialogue context in the first example ("Peter, how often do you exercise?"), both MLE and Dialogue-UL models generate the responses with a generic phrase ("I'm not sure."). The FACE generation looks diverse at first glance, but it creates repeated n-gram (e.g., "after school every day", "day after school class"). Finally, LFD creates a diverse and natural response by asking a question to the partner ("How about you?").</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>In this work, we mainly investigate the relationship between the training of the generative model and the easiness of undesired behavior that leads to degeneration. For future work, we will extend our analysis of training dynamics into other degeneration problems such as hallucination or inconsistency, which are likely to be undesirable behaviors in other tasks. Another limitation of LfD is that we focus on analyzing the learning dynamics of training examples in terms of the diversity. Since the easily trained examples may consist of complex attributes more than low diversity, diminishing their impact on models may lead to an unintended generation. In future work, we plan to conduct an in-depth analysis for easily trained examples to understand their characteristics.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Comparisons between two groups with high and low degenerative attributes on language modeling (top) and dialogue generation (bottom) tasks.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Even though the perplexity of examples in low degenerative attribute monotonically decreases as training progresses, it does not imply that the model generates diverse sequences in test time since examples with high attributes are still more likely to be produced than others.</figDesc><table /><note><p><p><p><p><p>We then divide training examples into two groups based on the attribute score 1 , and compute log-perplexity at each stage during training. 2</p>3.2 Analysis</p>Figure</p>1</p>shows log-perplexity of examples with low and high degenerative attributes according to training progress. Specifically, the group with high degenerative attribute usually have lower perplexity than the other group.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>, we propose a new training approach consisting of two steps: (a) intentionally train a model f θ D to amplify degenerative attributes in examples, and (b) train a diversityenhanced model f θ M by leveraging f θ D .</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 1 :</head><label>1</label><figDesc>Now we explain how to encourage the diversity of the main model f θ M by exploiting the predictions of f θ D . Inspired by Utama et al. (2020), we introduce Product-of-Expert (PoE) to prevent f θ M from learning degenerative attributes amplified in f θ D . Namely, the model f θ M is likely to concentrate on attributes that f θ D fails to learn. Specifically, the model f θ M is trained with the predictions of f θ D by combining their outputs as: Combined predictions are used to calculate the loss for model optimization. During the training, Evaluation results on WikiText-103. Top-k sampling</figDesc><table><row><cell>4.3 Enhancing Diversity via Degenerative</cell></row><row><cell>model f θ D</cell></row></table><note><p><p>to amplify attributes at token-level. The procedure is following: (a) we train f θ D by K step with standard training. (b) After K steps, only R% of tokens with small loss within a batch are used to update the model f θ D by H steps. We expect that tokens are potentially generic when f θ D predicts them with high confidence. Conversely, tokens are potentially diverse when f θ D predicts them with low confidence. σ poe (θ D , θ M , x, y, t) = log p(y t |y &lt;t , x, θ D ) + log p(y t |y &lt;t , x, θ M )</p>(2)</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 2 :</head><label>2</label><figDesc>Evaluation results on DailyDialog. Greedy decoding algorithm is used for all models, following Jiang et al.</figDesc><table><row><cell>proposes to balance each</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 3 :</head><label>3</label><figDesc>Evaluation results of abstractive summarzation task on CNN/DailyMail dataset. Novel-N indicates the ratio of novel N-gram in generated summaries.We also evaluate the following models to confirm the validity of our framework: 1) f θ D : We evaluate our Degenerative model in Section 4.2 to check whether it actually captures negative behaviors and degenerate. 2) LfD MLE : Instead of f θ D in Section 4.2, we use MLE as a Degenerative model for PoE training. Results are shown in the bottom of Table 1 and Table 2. We first observe that f θ D performs significantly worse than other models, especially in diversity metrics, which implies that Degenerative model successfully captures degenerative attributes in the dataset. While LfD MLE also obtains performance gains compared with MLE in the diversity metrics, amplifying degenerative patterns mitigates degeneration and improves diversity more.</figDesc><table><row><cell cols="7">Model Rouge-1 Rouge-2 Rouge-L Novel-1(%) Novel-2(%) Novel-3(%)</cell></row><row><cell>MLE</cell><cell>40.64</cell><cell>17.83</cell><cell>37.67</cell><cell>7.67</cell><cell>20.00</cell><cell>28.58</cell></row><row><cell>LFD</cell><cell>38.54</cell><cell>15.48</cell><cell>26.56</cell><cell>8.59</cell><cell>32.81</cell><cell>48.16</cell></row><row><cell>Human</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>20.67</cell><cell>56.46</cell><cell>72.03</cell></row><row><cell cols="4">firm that the contribution of LFD is still valid in</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">abstractive summarization which is aligned with</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">empirical findings from Goyal et al. (2022)</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">5.4 Amplifying Degenerative Attributes</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head></head><label></label><figDesc>not sure. I often go to a concert. Ours I'm pretty busy. How about you? Human Well, I swim and run every day. Room service. B: Good morning . This is room 113 . I'd like some breakfast, please. MLE Ok. How would you like to have your room? FACE Ok sir, here is some money left now and would like some drinks or coffee beans. Would you please fill out this form with us? UL Ok, sir. How would you like to pay? Ours All right, sir. What would you like to order? Human Right. Excuse me. Mrs. Jones?</figDesc><table><row><cell cols="2">Context A: Peter, how often do you exercise?</cell></row><row><cell>MLE</cell><cell>I'm not sure. but I often go to the TV.</cell></row><row><cell></cell><cell>Not bad yet. How about taking photos out</cell></row><row><cell></cell><cell>every day after work at school every day</cell></row><row><cell>FACE</cell><cell>after school? They are pretty busy at school every day after school every day after school</cell></row><row><cell></cell><cell>every day after school tomorrow evening</cell></row><row><cell></cell><cell>every day after school class day after school</cell></row><row><cell cols="2">UL I'm Context A:</cell></row></table><note><p>this paper, we discover that examples with low diversity are easy to be learned, leading models to degenerate in open-ended text generation tasks. We propose LFD, a simple training approach that can be widely used to promote diversity without re-</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 4 :</head><label>4</label><figDesc>A generation example on DailyDialog dataset. UL denotes Dialogue-UL. quiring specified negative behavior. Experimental results on two representative tasks for open-ended generation confirm the validity and effectiveness of our approach.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>We choose top and bottom of 5k examples with high and low attribute score, respectively.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>For WikiText-103, we compute the average log-perplexity at sentence-level.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://github.com/UKPLab/sentence-transformers</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We thank <rs type="person">Radhika Dua</rs> for the discussion and feedback on the paper. This work was supported by the <rs type="institution">Institute of Information &amp; communications Technology Planning &amp; Evaluation (IITP)</rs> grant funded by the <rs type="funder">Korea government (MSIT)</rs> (No.<rs type="grantNumber">2019-0-00075</rs>, <rs type="funder">Artificial Intelligence Graduate School Program (KAIST)</rs>), and the <rs type="institution">Institute of Information &amp; communications Technology Planning &amp; Evaluation (IITP)</rs> grant funded by the <rs type="funder">Korea government(MSIT)</rs> (No.<rs type="grantNumber">2021-0-02068</rs>, <rs type="projectName">Artificial Intelligence Innovation Hub</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_9KuFaAE">
+					<idno type="grant-number">2019-0-00075</idno>
+				</org>
+				<org type="funded-project" xml:id="_KP5Fzks">
+					<idno type="grant-number">2021-0-02068</idno>
+					<orgName type="project" subtype="full">Artificial Intelligence Innovation Hub</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix A Evaluation Metrics</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Metrics in Preliminary Study</head><p>We describe further details in our evaluation metrics 3.1.</p><p>Context Overlap <ref type="bibr" target="#b37">(Welleck et al., 2020)</ref>: We measure the ratio of shared bi-gram between contexts and responses as follows:</p><p>where N (u) denotes the number of n-grams in utterance(s) u, while x and y indicate a dialog context and its response, respectively. Source Entropy: We follow clustering-based method with MeanShift <ref type="bibr" target="#b4">(Comaniciu and Meer, 2002)</ref> algorithm to obtain entropy value of each response. We employ SimCSE-base <ref type="bibr" target="#b11">(Gao et al., 2021)</ref> model finetuned on STS benchmark <ref type="bibr" target="#b1">(Cer et al., 2017)</ref> to encode each text to a vector. The source entropy of a response is calculated as</p><p>(5) where C denotes the set of all clusters and p(c i |c y ) is the conditional probability of observing a dialog history from cluster c i given a response y from cluster c y .</p><p>Repetition(Rep.): We reinvent Rep. metric to compute repetitive patterns in ground-truth tokens inspired by the works <ref type="bibr" target="#b37">(Welleck et al., 2020;</ref><ref type="bibr" target="#b10">Fu et al., 2021)</ref>. The equation is as follow:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Evaluation Metrics in Main Results</head><p>Perplexity: To measure test perplexity in language modeling using decoder-only model, we regard condition x as 50 prefixes and target y as 100 of ground-truth next tokens.</p><p>B Implementation Details</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Training Details</head><p>In all experiments, we train language model on a single 3090 RTX GPU with 24GB of memory. We implemented all models with PyTorch using sentence-transformers library from UKPLab 3 .</p><p>In our experiments, we use 6-layer transformer decoder with GPT2 <ref type="bibr" target="#b31">(Radford et al., 2019)</ref> tokenizer and 6-layer transformer encoder-decoder architectures with BERT-base-uncased (Kenton and Toutanova, 2019) tokenizer for language modeling and dialogue generation tasks, respectively. We choose the best checkpoints of models by using their validation loss. We use Adam optimizer (Kingma and Ba, 2015) with linear learning rate scheduler. Learning rate is set to 1e-5 for language modeling task and 1e-4 for dialogue generation task. The value of λ that balances L MLE and L PoE is set to 0.25 and 0.5 for dialogue generation and language modeling task, respectively. We set the R as 0.7 for both tasks, and set K in Section 4.2 as the number of optimization steps for f θ during 1 and 3 epochs on WikiText-103 and DailyDialog, respectively. We set the H in Section 4.2 as the number of optimization steps during an epoch on both tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Baseline Details</head><p>We present more details of our baseline models.</p><p>We set the weight of repetition penalty in UL as 1.0. The penalty weight of Dialogue-UL is set to 1000. We set the γ in Focal as 2.0. Focal aim to alleviate the negative effects of degenerative attributes by penalizing over-confident predictions of a model during training. For CP, we set the weight of regularization term as 2.5 following the original paper. For FACE, we use Output frequency with Pre-weight configurations for training. The best checkpoint of FACE is chosen by using Distinct-1 metrics as suggested by the original paper. In dialogue generation task, we finetune CP, FACE, Dialogue-UL, and LFD starting with MLE, and evaluate their performance in every 500 steps to find the best checkpoint.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 Generation Details</head><p>For open-ended text generation, we generate sequences for the evaluation by completing sequences from prefixes. Specifically, we preprocess  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Experiments with pre-trained language models</head><p>We also conduct experiments using pre-trained language models. For dialogue generation task, we use BERT2BERT architecture with BERT-baseuncased. For language modeling task, gpt2-small is used. Experimental results are shown in Table <ref type="table">5</ref> and Table <ref type="table">6</ref> for dialogue generation and language modeling tasks, respectively. We first find that leveraging pre-trained models generally increase the overall performance of generation models. In dialogue generation task, LFD performs better than Dialogue-UL, a competitive baseline as shown in Table <ref type="table">2</ref>, except for Context Overlap scores. In language modeling task, our model usually performs better than other baselines. Based on these results, we confirm the validity of LFD even when they are applied with pre-trained language models.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">METEOR: An automatic metric for MT evaluation with improved correlation with human judgments</title>
+		<author>
+			<persName><forename type="first">Satanjeev</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization</title>
+		<meeting>the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Semeval-2017 task 1: Semantic textual similarity multilingual and crosslingual focused evaluation</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mona</forename><surname>Diab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Lopez-Gazpio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Workshop on Semantic Evaluation</title>
+		<meeting>the 11th International Workshop on Semantic Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1" to="14" />
+		</imprint>
+	</monogr>
+	<note>SemEval-2017</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A survey on dialogue systems: Recent advances and new frontiers</title>
+		<author>
+			<persName><forename type="first">Hongshen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaorui</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Acm Sigkdd Explorations Newsletter</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="25" to="35" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Fˆ2-softmax: Diversifying neural text generation via frequency factorized softmax</title>
+		<author>
+			<persName><forename type="first">Byung-Ju</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimin</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">Keetae</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sang</forename><forename type="middle">Wan</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>of the Conference on Empirical Methods in Natural Language essing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Mean shift: A robust approach toward feature space analysis</title>
+		<author>
+			<persName><forename type="first">Dorin</forename><surname>Comaniciu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Meer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on pattern analysis and machine intelligence</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="603" to="619" />
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Improving neural conversational models with entropy-based data filtering</title>
+		<author>
+			<persName><forename type="first">Richárd</forename><surname>Csáky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrik</forename><surname>Purgai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gábor</forename><surname>Recski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">The second conversational intelligence challenge (convai2)</title>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Malykh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kurt</forename><surname>Shuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Urbanek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Szlam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iulian</forename><surname>Serban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The NeurIPS&apos;18 Competition</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="187" to="208" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valentin</forename><surname>Malykh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><forename type="middle">H</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kurt</forename><surname>Shuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Urbanek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Szlam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iulian</forename><surname>Serban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<title level="m">The second conversational intelligence challenge</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">An introduction to textual econometrics. Handbook of empirical economics and finance</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Fagan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramazan</forename><surname>Gençay</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="133" to="154" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Hierarchical neural story generation</title>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Dauphin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="889" to="898" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">A theoretical analysis of the repetition problem in text generation</title>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wai</forename><surname>Lam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Man-Cho</forename><surname>So</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bei</forename><surname>Shi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="12848" to="12856" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Simcse: Simple contrastive learning of sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingcheng</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6894" to="6910" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Training dynamics for text summarization models</title>
+		<author>
+			<persName><forename type="first">Tanya</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyi</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jessy</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2061" to="2073" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Co-teaching: Robust training of deep neural networks with extremely noisy labels</title>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quanming</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingrui</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gang</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miao</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihua</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivor</forename><surname>Tsang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Masashi</forename><surname>Sugiyama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>the Advances in Neural Information essing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">31</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Negative training for neural dialogue response generation</title>
+		<author>
+			<persName><forename type="first">Tianxing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Glass</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning to write with cooperative discriminators</title>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bosselut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Golub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>of Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1638" to="1649" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">The curious case of neural text degeneration</title>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Improving neural response diversity with frequency-aware cross-entropy loss</title>
+		<author>
+			<persName><forename type="first">Shaojie</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengjie</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christof</forename><surname>Monz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>De Rijke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of World Wide Web Conference (WWW)</title>
+		<meeting>of World Wide Web Conference (WWW)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2879" to="2885" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lee</forename><surname>Kristina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Toutanova</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR (Poster)</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">A diversity-promoting objective function for neural conversation models</title>
+		<author>
+			<persName><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">B</forename><surname>Dolan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="110" to="119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Don&apos;t say that! making inconsistent dialogue unlikely with unlikelihood training</title>
+		<author>
+			<persName><forename type="first">Margaret</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Roller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilia</forename><surname>Kulikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sean</forename><surname>Welleck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y-Lan</forename><surname>Boureau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Dailydialog: A manually labelled multi-turn dialogue dataset</title>
+		<author>
+			<persName><forename type="first">Yanran</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyu</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziqiang</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuzi</forename><surname>Niu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Joint Conference on Natural Language Processing</title>
+		<meeting>the Eighth International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="986" to="995" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Diversifying neural dialogue generation via negative distillation</title>
+		<author>
+			<persName><forename type="first">Yiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaoxiong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bin</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kan</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of The Annual Conference of the North American Chapter of the Association for Computational Linguistics (NAACL)</title>
+		<meeting>of The Annual Conference of the North American Chapter of the Association for Computational Linguistics (NAACL)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Focal loss for dense object detection</title>
+		<author>
+			<persName><forename type="first">Tsung-Yi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Priya</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ross</forename><surname>Girshick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Dollár</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE international conference on computer vision</title>
+		<meeting>the IEEE international conference on computer vision</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="2980" to="2988" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Merity</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.07843</idno>
+		<title level="m">Pointer sentinel mixture models</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Abstractive text summarization using sequence-to-sequence rnns and beyond</title>
+		<author>
+			<persName><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Çaglar</forename><surname>Cicero Dos Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Gulçehre</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Xiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 20th SIGNLL Conference on Computational Natural Language Learning</title>
+		<meeting>The 20th SIGNLL Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="280" to="290" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning from failure: Debiasing classifier from biased classifier</title>
+		<author>
+			<persName><forename type="first">Junhyun</forename><surname>Nam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyuntak</forename><surname>Cha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungsoo</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaeho</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinwoo</forename><surname>Shin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>the Advances in Neural Information essing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="20673" to="20684" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Don&apos;t give me the details, just the summary! topic-aware convolutional neural networks for extreme summarization</title>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1797" to="1807" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Philadelphia, Pennsylvania, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Pereyra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.06548</idno>
+		<title level="m">Regularizing neural networks by penalizing confident output distributions</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI blog</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Learning from others&apos; mistakes: Avoiding dataset biases without modeling them</title>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Belinkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Get to the point: Summarization with pointergenerator networks</title>
+		<author>
+			<persName><forename type="first">Abigail</forename><surname>See</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1073" to="1083" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Towards debiasing nlu models from unknown biases</title>
+		<author>
+			<persName><forename type="first">Nafise</forename><surname>Prasetya Ajie Utama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Sadat Moosavi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7597" to="7610" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of Advances in neural information processing systems (NIPS)</title>
+		<meeting>of Advances in neural information processing systems (NIPS)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Diversifying dialog generation via adaptive label smoothing</title>
+		<author>
+			<persName><forename type="first">Yida</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhe</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Neural text generation with unlikelihood training</title>
+		<author>
+			<persName><forename type="first">Sean</forename><surname>Welleck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilia</forename><surname>Kulikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Roller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Texygen: A benchmarking platform for text generation models</title>
+		<author>
+			<persName><forename type="first">Yaoming</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sidi</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxian</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weinan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The 41st International ACM SIGIR Conference on Research &amp; Development in Information Retrieval</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1097" to="1100" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

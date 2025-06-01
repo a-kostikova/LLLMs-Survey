@@ -1,0 +1,1061 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">STRONG -Structure Controllable Legal Opinion Summary Generation</title>
+				<funder>
+					<orgName type="full">Amazon</orgName>
+				</funder>
+				<funder ref="#_4RRfKYX">
+					<orgName type="full">National Science Foundation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yang</forename><surname>Zhong</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pittsburgh Pittsburgh</orgName>
+								<address>
+									<region>PA</region>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Diane</forename><surname>Litman</surname></persName>
+							<email>dlitman@pitt.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Pittsburgh Pittsburgh</orgName>
+								<address>
+									<region>PA</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">STRONG -Structure Controllable Legal Opinion Summary Generation</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">3316D91D827CA863AED43DE5C73AFBE9</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:58+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We propose an approach for the structure controllable summarization of long legal opinions that considers the argument structure of the document. Our approach involves using predicted argument role information to guide the model in generating coherent summaries that follow a provided structure pattern. We demonstrate the effectiveness of our approach on a dataset of legal opinions and show that it outperforms several strong baselines with respect to ROUGE, BERTScore, and structure similarity.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Discourse structure plays an essential role in text generation in domains ranging from news <ref type="bibr" target="#b22">(Van Dijk, 2013)</ref> to peer-reviewed articles <ref type="bibr">(Shen et al., 2022b)</ref>. In the legal domain, it's equally important to draft a summary that can follow a blueprint <ref type="bibr" target="#b25">(Xu et al., 2021)</ref>. For instance, in Figure <ref type="figure" target="#fig_0">1</ref>, given a long legal opinion with thousands of words as input, a legal expert organized the summary by making the argument clear in terms of the issues the decision addressed, the decision's conclusion, and the reasoning behind the decision.</p><p>While progress has been made in controllable generation, limited research has controlled discourse structure. Recently, <ref type="bibr" target="#b21">Spangher et al. (2022)</ref> and <ref type="bibr">Shen et al. (2022a)</ref> proposed approaches to generate sentences with discourse structure labels. However, no existing controllable generation work addresses the legal domain, where the argumentative structure is pivotal. While prior work in the legal field highlighted the significance of argumentative structure from the input <ref type="bibr" target="#b3">(Elaraby and Litman, 2022)</ref>, the potential for utilizing argument structure to guide text generation remains unexplored.</p><p>Based on a corpus analysis showing that experts use common patterns to summarize legal opinions (the most frequent one is shown in Figure <ref type="figure" target="#fig_0">1</ref>), we develop a novel structure-prompting approach called STRONG (Structure conTRollable legal OpiNion summary Generation). STRONG is implemented using Longformer Encoder Decoder <ref type="bibr" target="#b0">(Beltagy et al., 2020)</ref> coupled with automatically created structure prompts. Results demonstrate that STRONG outperforms summarization models without structure control and improves inference time over models with structure control from other domains. We make our models available at https: //github.com/cs329yangzhong/STRONG.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Prior work on controllable generation <ref type="bibr" target="#b8">(Hu et al., 2017;</ref><ref type="bibr">Goyal and Durrett, 2020b;</ref><ref type="bibr" target="#b2">Dou et al., 2021;</ref><ref type="bibr" target="#b7">He et al., 2022)</ref> has focused on inner-sentence token-level attributes (e.g., syntactic structure) or full-text stylistic features (e.g., sentiment/topic). Recent research started looking at generating long texts adhering to discourse structures derived from news or article reviews <ref type="bibr" target="#b4">(Ghazvininejad et al., 2022;</ref><ref type="bibr" target="#b10">Ji and Huang, 2021;</ref><ref type="bibr" target="#b21">Spangher et al., 2022;</ref><ref type="bibr">Shen et al., 2022b)</ref>. <ref type="bibr">Shen et al. (2022a)</ref>  as a sentence-by-sentence generation, which led to a longer inference time compared to token generation baselines. We explore structure control in legal opinions, which is challenging due to long input texts and argumentative discourse structures.</p><p>In the legal domain, besides directly adopting the raw document-summary pairs into supervised training using abstractive summarization models such as BART <ref type="bibr" target="#b14">(Lewis et al., 2020)</ref> and Longformer Encoder Decoder (LED) <ref type="bibr" target="#b0">(Beltagy et al., 2020)</ref>, <ref type="bibr" target="#b3">Elaraby and Litman (2022)</ref> proposed highlighting the salient argumentative sentences in the inputs and training a model that is argument-aware. We instead focus on improving argument structure adherence by exploiting the summaries' annotated discourse structures to create structure prompts rather than by manipulating the original articles.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Dataset</head><p>We leverage the CanLII dataset of legal case opinions and human-written abstractive summaries. 12 It consists of 28,290 legal opinions and humanwritten summary pairs. For testing, we first leverage the annotated subset produced by <ref type="bibr" target="#b25">Xu et al. (2021)</ref>, including 1,049 pairs with manually annotated IRC argument labels: Issues (the legal questions addressed in the case), Conclusions (the court's decisions for the related issue), Reasons (text snippets illustrating the reasons for the court's decision) and Non_IRC (none of the above). We further split the remaining 27,241 unannotated 1 The data was obtained through an agreement with the Canadian Legal Information Institute (CanLII): https: //www.canlii.org/en/ 2 The corpus is moderately abstractive: The overlap ratios for the 1/2/3-gram between the source document and the human-authored summaries stand at 89.7%, 62.0%, and 42.1%, respectively, which suggests a moderate level of abstractiveness of the dataset compared to others such as TL;DR <ref type="bibr" target="#b22">(Völske et al., 2017)</ref>. It can thus serves as a useful testbed for abstractive summarization. pairs into 80/10/10 percent for model training, validation, and extra testing. Corpus statistics are in Table <ref type="table" target="#tab_0">1</ref>.</p><p>As introduced in §1 and Figure <ref type="figure" target="#fig_0">1</ref>, legal experts devised different strategies to construct the summaries. We thus analyze the patterns of the IRC labels in the 1,049 annotated summaries. To comprehend the high-level structures better, we remove the Non_IRC tags and collapse adjacent text segments with the same tag into one. The most common "normalized" patterns are "Issue -Conclusion -Reason" (54%) and "Issue -Conclusion -Reason -Conclusion" (9%). Pie charts of the top normalized and original patterns are in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Method</head><p>Figure <ref type="figure" target="#fig_1">2</ref> illustrates our proposed STRONG approach. We start by extending the small-scale annotations to the larger dataset. Since we only have the 1,049 test set manually annotated with oracle summary argument labels, different from <ref type="bibr" target="#b3">Elaraby and Litman (2022)</ref> who used a classifier on input sentences, we propose to train a sentence classifier on summary sentences (Stage 1) and then utilize it to predict silver labels for all unannotated summaries in Stage 2. <ref type="foot" target="#foot_0">3</ref> Our approach distinguishes itself from <ref type="bibr">Shen et al. (2022b)</ref>, which relied solely on manually annotated structure sequences, resulting in a smaller training set than our larger dataset with silver labels. In the next step of Stage 2, we introduce special marker tokens to guide the model in generating summaries following specified structure patterns. Specifically, we extract the argumentative "IRC" labels from summary sentences, concatenate them with split " | " tokens and prepend before the original input text, and connect them with a special marker "==&gt;". This operationalizes the argument mining of salient information blueprint, providing better guidance for the model in generating legal summaries. That is, Stage 2 utilizes the predicted structure labels to fine-tune the LED model. Once the model has been trained, we generate summaries using different sets of structure labels for the two test sets during Stage 3 of the inference process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Setup</head><p>We compare STRONG to two baselines. NoStructure uses the Longformer-Encoder-Decoder (LED) base model for generating summaries. The second baseline re-implements SentBS <ref type="bibr">(Shen et al., 2022a)</ref>  All experiments are evaluated using ROUGE-1 (R-1), ROUGE-2 (R-2), ROUGE-L (R-L) F1 <ref type="bibr" target="#b15">(Lin, 2004)</ref>, BERTScore (BS) <ref type="bibr" target="#b27">(Zhang et al., 2020)</ref>, and structure similarity (SS) <ref type="bibr">(Shen et al., 2022b)</ref>. More details on the structure metric are in Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results and Analysis</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Automatic Result</head><p>This section addresses two research questions: RQ1. Does STRONG improve summarization quality compared to baselines? RQ2. How do models compare in preserving structure? We then conduct analyses based on the observations and perform a small-scale human evaluation. RQ1. Using the left results section of Table <ref type="table" target="#tab_2">2</ref>, we first compare STRONG with the NoStructure baseline on traditional ROUGE and BERTScore summarization metrics. For the 1049 test set, when the maximum generation output length is limited to 256 tokens, we observe that STRONG obtains an average of 2.1, 0.7, 2.1, and 0.2 improvements across ROUGE-1, 2, L, and BERTScore (rows 3 vs. 2), which are significant based on 95% confidence intervals. STRONG also outperformed the re-implemented SentBS baseline (rows 3 vs. 1). We also explored the impact of increasing the maximum output length to 512 tokens, based on the observation that oracle summaries tended to be longer (Table <ref type="table" target="#tab_0">1</ref>). Similar trends were seen when the maximum output length is increased to 512 tokens (rows 5 vs. 4), as well as when all analyses are repeated using the 2,723 silver set (rows 6-8, 9-10). This illustrates that the target structure information helps STRONG generate higher-quality summaries. Appendices D and E present examples and analysis to demonstrate model output differences in content coverage. RQ2. In the 1049 test set, compared to the NoStructure model (row 2), the STRONG model (row 3) significantly improves the structure similarity scores by 0.03. While SentBS (row 1) outperforms both methods (rows 2/3), the tradeoff is increasing inference time (last column). In contrast, with the extended 512 generation length where we could not even run SentBS, STRONG obtained the best oracle test set performance in the table, with a margin of 0.1 compared to SentBS (rows 5 vs. 1). Albeit imperfect, on the silver test set where our IRC sentence classifier predicts the structure labels, STRONG also gains 0.1 improvements to NoStructure (rows 7 vs. 8, and 9 vs. 10), and now even surpasses SentBS (row 6 vs. 8) on structure similarity while again reducing inference time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Length Control</head><p>The second to last column of Table <ref type="table" target="#tab_2">2</ref> shows that STRONG generates the longest summaries, which may have impacted the above assessments. We thus force NoStructure and STRONG to continue generating tokens until reaching the same specified limit of {64, 128, 256, and 512} tokens. 4    shows the results for the 256 token limit, 5 and indicates that the Table <ref type="table" target="#tab_2">2</ref> performance gap (repeated in the first two rows of Table <ref type="table" target="#tab_1">3</ref>) diminishes when the length is controlled (the last two rows). This suggests that the structural benefits of STRONG become less important when output length is fixed. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Factuality</head><p>To evaluate the factuality of generated text, we picked the SUMMAC CONV score from <ref type="bibr" target="#b13">Laban et al. (2022)</ref>, which utilizes the NLI model to detect summary inconsistencies and performs well on multiple factuality benchmarks (details in the original paper) compared to other metrics such as FactCC <ref type="bibr" target="#b12">(Kryscinski et al., 2020)</ref> and DAE <ref type="bibr">(Goyal and Durrett, 2020a)</ref>. As shown in Table <ref type="table" target="#tab_4">4</ref>, our STRONG model obtains the highest scores, which means the highest consistency between document and generated summaries.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Human Evaluation</head><p>Human evaluation is under-explored for legal tasks, as it is labor-intensive due to long documents / summaries and requires evaluators with legal expertise <ref type="bibr" target="#b9">(Jain et al., 2021)</ref>. As a first step, we conducted a small-scale human evaluation using five legal decisions to assess the quality of summaries generated by all models in Table <ref type="table" target="#tab_2">2</ref>. Three legal experts were asked to evaluate the coherence of the generated texts and assess the coverage of argumentative components when compared to the oracle summaries crafted by the human CanLII experts. 6  The evaluator feedback indicated that longer summaries could potentially introduce more factual errors, and there was inconsistency in terms of fluency and readability, with mixed performance observed (one annotator reported issues in two cases).</p><p>On the other hand, the advantage of controllable structure generation was more evident when generating longer summaries. In two out of five cases, the summaries generated by STRONG were preferred in the 512-length setting, while under the 256-length setting, only one STRONG-generated summary was favored.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We proposed the STRONG approach for improving the summarization of long legal opinions by providing target-side structure information. STRONG accepts different types of prompts and generates summaries accordingly. Experiments demonstrated that the content coverage, summary length, structure adherence, and inference time are all improved with STRONG compared to prior structure-control and no-structure baselines. 6 We provide the evaluation details in Appendix F.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Our research results are constrained by our dependence on a single dataset for experimentation as well as by computing resource limitations. While prior work demonstrated that the SentBS approach could obtain negligible performance drop with regard to automatic metrics such as ROUGE and BERTScore compared to a finetuning structure prompted baseline, our current experiment is hindered by extreme demand of GPU memories given the much longer legal input and large parameter searching space. We also demonstrate that the slowness of compared work is more severe when transferring the model to our tasks. Further experiments on more extensive setups of the prior baselines can be important for future work to verify the past work's conclusions. We recognize that our methodology relies on annotated data for structure labels, particularly when adapting to novel domains. In future research, we aim to investigate zero-shot learning techniques to enable structure classification without the necessity for annotations.</p><p>While our paper uses standard summarization metrics and a similarity measure particularly related to our focus on structure controllability, we do not yet extensively investigate how STRONG impacts factuality besides the SUMMAC CONV score <ref type="bibr" target="#b13">(Laban et al., 2022)</ref>. A recent study <ref type="bibr" target="#b23">(Wan et al., 2023)</ref> demonstrates that improvements in factuality-related metrics come with the sacrifice of dropping automatic metrics such as ROUGE and BERTScore, while <ref type="bibr" target="#b18">Min et al. (2023)</ref> harness the power of LLMs to evaluate the factuality of longform text generation. Deviating from prior work <ref type="bibr" target="#b30">(Zhong and Litman, 2022</ref>) that studies the extractive summarization task, we focused on the abstractive summarization, which has shown to surpass the performance of extractive methods by a noticeable margin, while both strategies introduce unfaithfulness <ref type="bibr" target="#b26">(Zhang et al., 2023)</ref>. Another limitation is that we only exploited the IRC structure representations due to the availability of oracle summary annotations. Exploring the use of structures based on other methods such as <ref type="bibr" target="#b17">Lu et al. (2018)</ref> is a promising area for future work. Also, the automatic evaluation metrics may be deficient compared to human evaluations, thus unfaithfully representing the final quality of generated summaries compared to real legal experts. Moreover, in a real application, end users may propose and inquire about different out-puts with self-designed structure prompts 7 , which remains an open-ended challenge and may need human validation for future works.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethical Considerations</head><p>Using generated abstractive summary results from legal opinions remains a problem, as abstractive summarization models have been found to contain hallucinated artifacts that do not faithfully present the source texts <ref type="bibr" target="#b11">(Kryscinski et al., 2019;</ref><ref type="bibr" target="#b28">Zhao et al., 2020)</ref>. The generation results of our models may carry certain levels of non-factual information and need to be used with extra care. Similarly, CanLII has taken measures (i.e., blocking search indexing) to limit the disclosure of defendants' identities, while abstractive approaches may cause potential user information leakage.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A IRC Structure Patterns</head><p>We report the distribution of different structure patterns with the normalized version (we remove the neighboring duplicated labels and ignore the Non_IRCs for better structure presentation) in  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Implementation Details</head><p>All of our BART-based experiments and the sentence classification model are conducted on Quadro RTX 5000 GPUs, each with 16 GB RAM. For SentBS models, we adopted the authors' original codebase workflow<ref type="foot" target="#foot_2">8</ref> and reimplemented it on an RTX 3090Ti GPU to satisfy the minimum RAM requirements.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 NoStructure and STRONG model</head><p>All models are implemented with the Huggingface library <ref type="bibr" target="#b24">(Wolf et al., 2020)</ref> using PyTorch, initialized with the "allenai/led-base-16384" checkpoint<ref type="foot" target="#foot_3">9</ref> . We train all our models with the same learning rate of 2e-5. We train the models for 16k steps, using the gradient step of 4, batch size of 1, and save the best checkpoints at every 1,000 steps, based on the ROUGE-2 F1 score of the validation set evaluations. Each model is trained with three randomized seeds, and we report the final averaged results. For training summarization models, we set the min/maximum inference summary length to 64/256 tokens. We employed beam-search with a beam size of 4 for all experiments. We additionally experimented with 512 output lengths in the main results. We truncate the input length to 6,144 tokens for the LED-base model due to our GPU limitation, and analyze the effects of contents truncations. 10 For inference, we do a batch decoding with a batch size of 5 and report the total inference time accordingly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 IRC Classifier Training</head><p>Our argument role (IRC) classifier leverages a finetuned legalBERT <ref type="bibr" target="#b29">(Zheng et al., 2021)</ref> model due to its performance gain compared to other contextualized models such as BERT <ref type="bibr" target="#b1">(Devlin et al., 2019)</ref> and ROBERTa <ref type="bibr" target="#b16">(Liu et al., 2019)</ref> as shown in <ref type="bibr" target="#b3">Elaraby and Litman (2022)</ref> to predict sentence IRC labels as a four-way classification task. We implemented the model with the PyTorch Lightning framework 11 . We split sentences from the 1049 annotated summaries into a 80/10/10 randomized setting for train, validation, and testing. For model training, we set the learning rate of 2e-5, training for 15 epochs, and leveraged the validation loss for early stopping criteria with a patience of 5. The final prediction macro-F1 is 0.7586. The detailed sentence classifier result is shown in Table <ref type="table" target="#tab_5">5</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 SentBS Re-Implementation</head><p>The original SentBS <ref type="bibr">(Shen et al., 2022a)</ref> approach is implemented with a backbone of the BARTlarge <ref type="bibr" target="#b14">(Lewis et al., 2020)</ref> model and using a V100 Graphic Card with 32GB memory. We first replaced the BART-large backbone with our trained LED models. Due to the limitation of GPU memory, the model failed to load on our prior RTX 5000 GPUs with the basic setting of beam size of 2. We instead ran the model on a GTX 3090Ti card with 24 GB memory, inference with the SentBS's "beam search + nucleus sampling" option, generation size 10 We plot the length distribution of input documents in Figure <ref type="figure" target="#fig_5">5</ref>.</p><p>11 https://github.com/Lightning-AI/lightning of 4, beam size of 2, a top-p ratio at 0.9, and the maximum decoding length of 256 tokens. All other parameters are consistent with the original article experiment. Besides the sentence label searching, we additionally experiment with the segment-ctrl setup, where the target summary labels are deduplicated to spans with non-repeated IRC labels.</p><p>The results are shown in Table <ref type="table" target="#tab_6">6</ref>. We tested the model's performance on the original MReD dataset, which gives 34.77/9.69/30.99 regarding ROUGE scores, which is comparable to the original paper's result 34.61/9.96/30.87 with our evaluation script.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Structure Similarity Evaluations</head><p>As mentioned in §5, we adopted a metric from the human evaluation introduced in <ref type="bibr">Shen et al. (2022b)</ref> to measure the structure-similarity between a system output summary and a given oracle summary with the oracle structure prompt. In our actual implementation, the similarity score is computed by</p><formula xml:id="formula_0">1 -( minimum_edit_distance(S i , O i ) max(len(S i ), len(O i ))</formula><p>where the edit distance is computed as the Levenshtein Distance, with equal penalties for replace, insert, and delete operations. We report the average similarity score of the test sets in the table results. Given that the sentence classification model can make wrong predictions, we estimate an upper bound by making predictions of the human-written summary sentences, which resulted in 0.781 for the original similarity score. Albeit not perfect, we can still assume that a generation model performs better on the structure-controlled generation task if the computed similarity becomes higher. We compare the ROUGE scores between the NoStructure and STRONG models and visualize the results in Figure <ref type="figure" target="#fig_6">6</ref>. The findings suggest that the performance gap between the models diminishes, indicating that the structural benefits of the STRONG model for summary organization become less significant when the output length is fixed. Additionally, we observed a drop in performance for extremely long summaries (512 tokens) as they deviated from the distribution of human summarization lengths. The BERTScore performance is shown in Table <ref type="table" target="#tab_7">7</ref>, where we observe a similar trend.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D More Analysis on the Generation D.1 Controlled Length</head><p>However, controlled length can lead to the incomplete generation problem, as the model can not stop generation until it hits the desired token limit. As shown in Table <ref type="table" target="#tab_8">8</ref>, models obtain incomplete last sentences under the controlled length setting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Controlled Min Length</head><p>We set the minimum length parameter of the generation to <ref type="bibr">(64, 128, 256, and 512</ref>) and fixed the maximum length at 512. We modified the length penalty to 2.0, aiming to prompt the model to generate longer sequences. Table <ref type="table">9</ref> indicates that our approach yields summaries with higher ROUGE scores when a larger length penalty is applied. This positive impact remains consistent even when we set the minimum length to less than 256 tokens. These findings reinforce the notion that structural information plays a crucial role in guiding the model to produce summaries with the appropriate length and level of detail. Interestingly, in the extreme scenario where we set the minimum tokens to 512, both models perform similarly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3 Complete ROUGE scores</head><p>To evaluate the advantages brought by the proposed methods, alongside diagnosing the effects of augmenting the maximum generation length, we report the complete ROUGE scores of the models on the 1049 test set in Table <ref type="table" target="#tab_9">10</ref>. Initial observations highlight that the incorporation of structural information fosters enhancements in ROUGE recall scores, despite inducing a slight decrement in precision (as evidenced in row 2/3 and row 4/5). Additionally, the expansion of maximum output length significantly boosts the ROUGE recall, which can be attributed to the coverage of more n-grams. However, a corresponding decline in the precision score has been observed. This observation echoed with the preliminary human evaluation, which suggested that the longer outputs occasionally encompassed with higher error rate of contents, thus having lower quality. Model Generated Summary</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reference</head><p>The appellant was convicted of indecent assault against two young girls. He appealed on five grounds related to a substantial conflict in the evidence. Dismissing the appeal, that there was no error on the part of the trial judge in weighing the evidence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>NoStructure max</head><p>The appellant was convicted of two counts of indecent assault against two girls, aged 13 and 16. He was sentenced to nine months imprisonment, to be followed by two years probation. The appellant appealed.Dismissing the appeal, that there was no error on the part of the trial judge in conducting the trial or in weighing the evidence. After carefully reviewing the evidence, the verdict was not unreasonable or not supported by the evidence and the appeal was dismissed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>NoStructure controlled</head><p>The appellant was convicted of two counts of indecent assault against two girls, aged 13 and 17, respectively. He was sentenced to nine months imprisonment with respect to the first assault, followed by two years probation. The appellant appealed.Dismissing the appeal, that there was no error on the part of the trial judge in conducting the trial or in weighing the evidence. ...... There was a substantial conflict in the evidence as to the appellant's guilt, and he had been sentenced to 9 months imprisonment for the assault on the complainant, to</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>STRONG max</head><p>The appellant was convicted of two counts of indecent assault against two young girls. He was sentenced to nine months imprisonment with respect to the first assault, to be followed by two years probation, and one month consecutive for the second assault. The appellant appealed.Dismissing the appeal, that there was no error on the part of the trial judge in conducting the trial or in weighing the evidence.</p><p>After carefully reviewing the evidence, the court could not say that the verdict was unreasonable or not supported by the evidence and the appeal was dismissed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>STRONG controlled</head><p>The appellant was convicted of two counts of indecent assault against two girls. He was sentenced to nine months imprisonment with respect to the first count and two years probation on the second count. The appellant appealed both convictions.Dismissing the appeal, that there was no error on the part of the trial judge in conducting the trial or in weighing the evidence. ...... as the evidence did not support the appellant's contention that the assault was committed in bad faith and that the appellant had committed the second offence in good faith and in  </p><formula xml:id="formula_1">ID Model R-1 Precision R-1 Recall R-1 F1 R-2 Precision R-2 Recall R-2 F1 R-L Precision R-L Recall R-L F1</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Examples of Different System Outputs E.1 Different Prompts' Effects</head><p>In Table <ref type="table" target="#tab_10">11</ref>, we generate multiple summaries according to different prompts using the bestperforming STRONG method and set the maximum length of generation at 512 tokens. We find that the outputs follow the structure prompts to a certain degree. For instance, Variant 1 quickly jumped to the reasoning parts after the first two sentences, while Variant 2 started with multiple clear conclusion sentences on the court's decision and the main issues.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2 Sample Outputs</head><p>In Table <ref type="table" target="#tab_11">12</ref>, we show the examples for different methods under the 256 token max generation limit. We further ask three legal experts to rate the different outputs and analyze on the coverage of argumentative roles. We find that SentBS does a good job of stating an issue, but never reaches the conclusion. The NoStructure -256 model fails to give a good statement of the issues, and our STRONG -256 produces a more coherent and clear presentation. We additionally include the 512-token version of NoStructure and STRONG outputs in Table <ref type="table" target="#tab_12">13</ref>. Compared to the shorter NoStructure output that does not clearly state the issue, and it also doesn't reveal how the issue came out, the legal expert reported that the STRONG -512 version is very clear and comprehensive. He also raised some concerns about the privacy problem of leaking the decedent's full name.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Human Evaluation Details</head><p>We conducted evaluations with a total of three legal experts, all of whom hold a J.D. degree and possess a minimum of four years of experience in providing professional legal services. The experts were assigned five randomly sampled legal cases, each accompanied by the oracle reference summary, as well as the generated outputs from the following five models: (1) SentBS with a length of 256 tokens, (2) NoStructure with a length of 256 tokens, (3) STRONG with a length of 256 tokens, (4) NoStructure with a length of 512 tokens, and (5) STRONG with a length of 512 tokens. The experts were presented with the reference summary and all five system outputs in the same row of an Excel file. They were then asked to provide reflections on the faithfulness and coherence of each system output while considering the inclusion of essential argument roles components such as Issue, Reason, and Conclusion compared to the reference summary.</p><p>Given that the instruction does not specifically inquire about the ranking nor ask evaluators to provide numerical scores, the primary author instead offers an interpretation of the free-text reflections by conducting comparative analyses across various outputs and allocating a relative ranking. We release all reflections for further studies in https: //github.com/cs329yangzhong/STRONG. Table <ref type="table" target="#tab_4">14</ref> shows one example of evaluators' reflections on a case, and Table <ref type="table" target="#tab_5">15</ref> shows the author's ranking interpretation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Prompt Summary</head><p>Human Written Summary</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Issue | Conclusion | Conclusion | Reason</head><p>At issue was the interim custody of the child and child support. HELD: Interim custody was given to the petitioner with access to the respondent. The respondent was ordered to pay interim child support in the amount of $193 per month. On an interim custody application, the Court must take into account the status quo.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Generations</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Issue | Conclusion | Conclusion | Reason</head><p>At issue was the interim custody of the child and child support. The parties began cohabitating in May 1998 and separated in April 2000.HELD:</p><p>The petitioner was awarded interim custody with reasonable access including every second weekend, reasonable telephone access and reasonable access during holiday periods. Both parents were ordered to complete the Parenting After Separation course. There was an unhealthy degree of constant bickering.</p><p>Variant 1:</p><formula xml:id="formula_2">Issue | Conclusion | Rea- son | Reason | Rea- son</formula><p>The petitioner was awarded interim custody with reasonable access including every second weekend, reasonable telephone access and reasonable access during holiday periods. Both parents were ordered to complete the Parenting After Separation course. The parties raised in their material the issue of each other's lack of cooperation and communication.</p><p>While the Court was not in position to decide whether the accusations of each party were substantiated, it could say with relative certainty that there was an unhealthy degree of constant bickering. It was evident that as long as the parties work on establishing better communication, the child would benefit from contact with both parents with minimal disruption. The mother was awarded interim custody with reasonable access including every second weekend, reasonable telephone access and reasonable access during holiday periods. Interim child support was ordered in the amount of $125 per month and the father was to pay his proportionate share of childcare costs. There was an unhealthy degree of constant bickering. It was evident that as long as the parties worked on establishing better communication, the child would benefit from contact with both parents with minimal disruption. The plaintiff bank applied by notice of application for a deficiency judgment against the defendant pertaining to the non-purchase money portion of the outstanding indebtedness to the plaintiff pursuant to her mortgage and to some other costs related to the mortgage. The original mortgage executed by the plaintiff was for $191,000 of which $176,000 was advanced to purchase her condominium and $15,000, eight per cent of the total, was advanced for other purchases. The property sold for $156,000 pursuant to a judicial sale. The sale proceeds were distributed to pay outstanding property taxes, commission, and the principal and interest due under the mortgage in the amount of $141,945 and the net sale proceeds were to be distributed pro rata. As at November 1, 2017, the principal and interest owing on the non-purchase money portion of the mortgage was $21,250. The plaintiff requested judgment for the deficiency in the amount of $9,900 with interest to the date of judgment. It claimed it was entitled to solicitor-client costs and other costs accrued by it under the mortgage. The issue was whether such costs should be subject to the pro rata calculation for the nonpurchase portion of the mortgage, that is, 8 percent of the total costs incurred. HELD: The application was granted. The court found that the plaintiff was entitled to a deficiency judgment for principal and interest owed under the mortgage in the amount requested. It was also entitled to judgment against the mortgagee for eight percent of the solicitor-client costs, condominium fees and property management charges.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>SentBS</head><p>Statutes -Interpretation -Condominium Property Act, 1993, Section 63 The plaintiff bank applied by notice of application for a deficiency judgment against the defendant, Partridge, pertaining to the non-purchase money portion of the outstanding indebtedness to the plaintiff pursuant to her mortgage. Partridge had originally executed a mortgage for $191,000, of which $176,000 was advanced to purchase her condominium unit and $15,000 for other purchases. The non-Purchase money amount of the loan advanced and secured by the mortgage was 8RBC applied for solicitor-client costs and other costs accrued by RBC under the mortgage. The issue was whether the pro rata distribution applied solely to the indebtedness of principal and accrued interest, or applied to all costs of outstanding mortgage, including solicitor and client costs permitted under the mortgages. In its application, RBC had calculated the proceeds from the judicial sale that must be distributed pro ratus between the purchase money and non-paid balances owing, resulting in the deficiency of principal. For the deficiency amount to be set at the rate of 2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>NoStructure -256</head><p>The petitioner was awarded interim custody with reasonable access including every second weekend, reasonable telephone access and reasonable access during holiday periods. Both parents were ordered to complete the Parenting After Separation course. The parties raised in their material the issue of each other's lack of cooperation and communication.</p><p>While the Court was not in position to decide whether the accusations of each party were substantiated, it could say with relative certainty that there was an unhealthy degree of constant bickering. It was evident that as long as the parties work on establishing better communication, the child would benefit from contact with both parents with minimal disruption.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>STRONG -256</head><p>Mortgage -Foreclosure -Determination of InterestThe plaintiff bank applied by notice of application for a deficiency judgment against the defendant, Partridge, pertaining to the non-purchase money portion of the outstanding indebtedness to it pursuant to her mortgage. The plaintiff also applied to have its lawyers' costs assessed on solicitor-client basis. Partridge had originally executed a mortgage for $191,000, of which $176,000 was advanced to purchase her condominium unit and $15,000 for other purchases. Thus, the mortgage was 8 percent of the total mortgage.HELD: The plaintiff's application was granted and the plaintiff was granted judgment against Partridge in the amount of $9,901.23 with interest from November 1, 2017, to the date of judgment at the rate of 2.79 per cent per annum. It was entitled to solicitor and other costs accrued by the plaintiff under its mortgage. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>NoStructure -512</head><p>Mortgages -Foreclosure -DischargeThe plaintiff applied by notice of application for a deficiency judgment against the defendant pertaining to the non-purchase money portion of the outstanding indebtedness to the plaintiff pursuant to her mortgage. The plaintiff also applied to have its lawyers' costs assessed on solicitor-client basis.HELD: The plaintiff was granted judgment in the amount of $9,901.23 with interest from November 1, 2017 to the date of judgment at the rate of 2.79 per cent per annum for the deficiency of principal and interest owed under the mortgage.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>STRONG -512</head><p>Mortgage -Foreclosure -Pro RataDebtor and Creditor -Mortgage -Non-purchase MoneyThe plaintiff, Royal Bank of Canada, applied by notice of application for a deficiency judgment against the defendant, Doreen Pearl Partridge, pertaining to the non-payment of outstanding indebtedness to the plaintiff pursuant to her mortgage. The property sold pursuant to an Order Nisi for Sale by Real Estate Listing for $156,000 was distributed to pay outstanding property taxes, real estate commission and the principal and interest due under the mortgage in the sum of $141,945.36. At issue was whether the pro rata distribution applied solely to the indebtedness of principal and accrued interest, or applied to all costs of the outstanding mortgage, including solicitor-client costs permitted under it. Partridge had originally executed a mortgage for $191,000 of which $176,000 advanced to purchase her condominium unit and $15,000 for other purchases. Thus, the mortgage was 8 percent of the total mortgage.HELD: The plaintiff was granted judgment against Partridge in the amount of $9,901.23 with interest from November 1, 2017 to the date of judgment at the rate of 2.79 per cent per annum. It was entitled to solicitor and client costs and other costs accrued by the plaintiff under its mortgage, that is, 8 per cent of its total outstanding mortgage costs incurred. Section 63 of The Condominium Property Act, 1993 allows the condominium corporation to register a lien against the title of the unit for unpaid contributions to the common expense fund or the reserve fund. Secondly, the plaintiff claimed $1,461.92 for its payment of property management charges for securing and caring for the property, appraisal fee and utilities. These charges were permitted by s. 8(1) of the Limitation of Civil Rights Act (LCRA) and any inspections and administration fees had not been claimed by RBC. Further, the property management charge was recoverable under the terms of the mortgage. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Example of a legal case opinion with its summary. The summary is annotated with oracle argument structure labels (one Issue, one Conclusion, and two Reasons). Presenting an issue followed by a conclusion and reasons is the dataset's most common normalized structure pattern (54%). Complete descriptions of patterns are in Appendix A.</figDesc><graphic coords="1,322.30,212.60,185.95,146.13" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Illustration of our structure prompting approach (STRONG).</figDesc><graphic coords="3,127.57,70.86,340.16,170.09" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Figure 3. We observe that most 1049 test summaries are annotated in an Issue -Conclusion -Reasoning pattern, while the remaining have different reordering of latter patterns. Legal experts sometimes employ the "Conclusion then Reasoning" pattern (3.6%) to strengthen the validity of the case summary. We found 54 distinct normalized structure patterns without considering the Non_IRCs and varying numbers of neighboring sentences. This suggests that legal experts employed diverse strategies to construct the summaries and confirms the importance of structure modeling in text generation tasks. Regarding the original patterns (excluding Non_IRCs), as shown in Figure 4, the numbers of Issue and Reasoning sentences varied.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Pattern distribution of normalized summary structures, here we exclude the Non-IRC labels.</figDesc><graphic coords="8,80.22,368.68,199.56,188.08" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Pattern distribution of summary structures, here we exclude the Non-IRC labels.</figDesc><graphic coords="8,324.57,70.86,181.42,126.16" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Input case length distribution of the 1049 test set, for models truncated at 6144 tokens, we retain 83 percent complete inputs.</figDesc><graphic coords="8,306.14,250.28,226.75,172.11" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: ROUGE scores for NoStructure and STRONG models with 64, 128, 256, and 512 output token limits.</figDesc><graphic coords="10,75.68,126.00,208.62,143.69" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>the child was awarded to the mother. The father was ordered to pay interim child support of $193 per month. Both parents were ordered to complete the Parenting After Separation course.HELD:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>framed the task Dataset statistics of CanLII. Case/Summary len is the text length in terms of the number of words, while sents is the sentence count per summary.</figDesc><table><row><cell>Split</cell><cell cols="4">Case/Summ pairs Case len Summ len sents</cell></row><row><cell></cell><cell cols="2">No Manual Annotations</cell><cell></cell><cell></cell></row><row><cell>Train</cell><cell>21794</cell><cell>3979.4</cell><cell>276.2</cell><cell>10.9</cell></row><row><cell>Valid</cell><cell>2724</cell><cell>4067.4</cell><cell>279.8</cell><cell>11.0</cell></row><row><cell>Test</cell><cell>2723</cell><cell>3899.9</cell><cell>278.8</cell><cell>10.9</cell></row><row><cell></cell><cell cols="2">Manual IRC Annotations</cell><cell></cell><cell></cell></row><row><cell>1049-test</cell><cell>1049</cell><cell>3741.1</cell><cell>245.4</cell><cell>11.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 3</head><label>3</label><figDesc></figDesc><table><row><cell cols="2">ID Model</cell><cell>R-1</cell><cell>R-2</cell><cell>R-L</cell><cell>BS</cell><cell>SS</cell><cell>Avg Length Infer. Time</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">1049 Oracles</cell><cell></cell></row><row><cell cols="3">Max output of 256 tokens</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>1</cell><cell>SentBS</cell><cell cols="5">48.31 23.86 44.73 86.87 0.436</cell><cell>129.6</cell><cell>8.5 hours ♦</cell></row><row><cell>2</cell><cell cols="6">NoStructure* 50.33 25.84 46.47 87.39 0.344</cell><cell>159.2</cell><cell>2.2 hours</cell></row><row><cell>3</cell><cell>STRONG*</cell><cell cols="5">52.47 26.54 48.57 87.63 0.372</cell><cell>186.3</cell><cell>2.5 hours</cell></row><row><cell cols="3">Max output of 512 tokens</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>4</cell><cell>NoStructure</cell><cell cols="5">51.61 26.72 47.76 87.49 0.383</cell><cell>198.1</cell><cell>4.2 hours</cell></row><row><cell>5</cell><cell>STRONG*</cell><cell cols="5">55.90 28.61 51.97 87.78 0.535</cell><cell>263.0</cell><cell>4.3 hours</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">2723 Silver Test Set</cell><cell></cell></row><row><cell cols="3">Max output of 256 tokens</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>6</cell><cell>SentBS</cell><cell cols="5">49.24 25.43 45.58 85.47 0.470</cell><cell>118.0</cell><cell>21.5 hours ♦</cell></row><row><cell>7</cell><cell cols="6">NoStructure* 50.76 26.84 46.78 87.75 0.330</cell><cell>160.6</cell><cell>6.2 hours</cell></row><row><cell>8</cell><cell>STRONG*</cell><cell cols="5">52.84 27.90 48.73 87.97 0.493</cell><cell>179.3</cell><cell>6.3 hours</cell></row><row><cell cols="3">Max output of 512 tokens</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>9</cell><cell>NoStructure</cell><cell cols="5">52.22 27.57 48.18 87.69 0.440</cell><cell>196.9</cell><cell>13.0 hours</cell></row><row><cell cols="2">10 STRONG*</cell><cell cols="5">57.17 29.87 52.93 88.10 0.543</cell><cell>255.9</cell><cell>13.1 hours</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Results of different models on the CanLII oracle and silver test sets. BS refers to BERTScore, SS means structure similarity, respectively. Models with * mean all results are statistically different from the previous row, based on 95% confidence intervals. All results are reported as an average of 3 runs initialized with random seeds.</figDesc><table><row><cell>NoStructure</cell><cell>No</cell><cell>50.33 25.84 46.47 87.39</cell></row><row><cell>STRONG</cell><cell>No</cell><cell>52.47 26.54 48.57 87.63</cell></row><row><cell>NoStructure</cell><cell>Yes</cell><cell>50.74 25.91 47.07 87.17</cell></row><row><cell>STRONG</cell><cell>Yes</cell><cell>50.96 26.26 47.33 87.39</cell></row></table><note><p><p><p>Best results are highlighted with bold, and best results under the 256 token settings are underlined. Rows 1 and 6 (with ♦ ) experiment with an RTX3090Ti card with larger memory, which will make the inference time faster than on the default cards, which are RTX5000s and used for all other experiments.</p>Model</p>Control Len. R-1 R-2 R-L BS</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table /><note><p>Results of models when summary has a maximum (top) versus controlled (bottom) length of 256 tokens. Although STRONG still outperforms the baseline, the delta is reduced when the length is controlled.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Results of the average factuality scores for models in Table 2 over the CanLII oracle test set.</figDesc><table><row><cell>Model</cell><cell>SUMMAC CONV</cell></row><row><cell cols="2">Max output of 256 tokens</cell></row><row><cell>SentBS</cell><cell>0.660</cell></row><row><cell>NoStructure</cell><cell>0.663</cell></row><row><cell>STRONG</cell><cell>0.704*</cell></row><row><cell cols="2">Max output of 512 tokens</cell></row><row><cell>NoStructure</cell><cell>0.658</cell></row><row><cell>STRONG</cell><cell>0.697*</cell></row></table><note><p><p><p>However, controlled length can lead to incomplete generations (see an example in Appendix D.1), and STRONG can dynamically adjust and generate similar length summaries compared to the oracle when they can stop generation if needed. Additionally, for both NoStructure and STRONG, we observe a drop in ROUGE performance for extremely long summaries (512 tokens) compared to smaller output lengths (see Appendix D.1), likely because 512 tokens deviate from the distribution of human sum-5 An analysis of additional lengths is in Appendix D.1. marization lengths. We additionally experimented with another setup to adjust the minimum generation length of each model and with higher length penalties. These results are detailed in Table</p>9</p>, located in Appendix D.2. We observed that our STRONG model outperformed the baseline and reinforced the notion that structural information plays a crucial role in guiding the model to produce summaries with the appropriate length and level of detail. * means the result is significantly different from the previous row using paired t-test.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>IRC label classifier performance on the 1049 subset's validation and test split.</figDesc><table><row><cell cols="4">Data Split I-F1 R-F1 C-F1 Non-F1 Macro F1</cell></row><row><cell>Valid</cell><cell>76.7 66.3 76.7</cell><cell>76.0</cell><cell>73.8</cell></row><row><cell>Test</cell><cell>75.3 71.8 81.0</cell><cell>76.7</cell><cell>75.9</cell></row><row><cell></cell><cell cols="3">R-1 R-2 R-L Infer. time Avg length</cell></row><row><cell cols="3">sentence-ctrl 48.31 23.86 44.73 8.5 hours</cell><cell>129.6</cell></row><row><cell cols="3">segment-ctrl 42.79 21.56 39.59 6 hours</cell><cell>77.7</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>SentBS results with different structure sequences.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 7 :</head><label>7</label><figDesc>Evaluation of models under Controlled Length, BS -P, BS -R, and BS -F1 denote BERTScore for Precision, Recall, and F1-Score, respectively. The table presents the evaluation results of models under different controlled lengths. There still exists difference between the two models, while overall the 512 length generation becomes worse.</figDesc><table><row><cell>Length</cell><cell></cell><cell>noStructure</cell><cell></cell><cell></cell><cell>STRONG</cell><cell></cell></row><row><cell></cell><cell cols="6">BS -P BS -R BS -F1 BS -P BS -R BS -F1</cell></row><row><cell>64</cell><cell>89.08</cell><cell>83.36</cell><cell>86.09</cell><cell>89.22</cell><cell>83.38</cell><cell>86.17</cell></row><row><cell>128</cell><cell>88.27</cell><cell>85.64</cell><cell>86.91</cell><cell>88.47</cell><cell>85.67</cell><cell>87.02</cell></row><row><cell>256</cell><cell>86.79</cell><cell>87.50</cell><cell>87.17</cell><cell>87.04</cell><cell>87.80</cell><cell>87.39</cell></row><row><cell>512</cell><cell>84.56</cell><cell>88.49</cell><cell>86.46</cell><cell>84.62</cell><cell>88.86</cell><cell>86.66</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 8 :</head><label>8</label><figDesc>A sample of 256 token generation for NoStructure and STRONG models under the max and control length settings. Bold sentences are incomplete under the controlled length setting.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 10 :</head><label>10</label><figDesc>The Complete ROUGE results for various models on the CanLII 1049 oracle dataset.</figDesc><table><row><cell></cell><cell>44.67</cell><cell>46.33</cell><cell>48.70</cell><cell></cell><cell>48.19</cell><cell>51.80</cell></row><row><cell></cell><cell>41.45</cell><cell>44.17</cell><cell>48.40</cell><cell></cell><cell>49.62</cell><cell>57.53</cell></row><row><cell></cell><cell>55.65</cell><cell>56.04</cell><cell>54.67</cell><cell></cell><cell>53.76</cell><cell>49.61</cell></row><row><cell></cell><cell>23.80</cell><cell>25.65</cell><cell>27.04</cell><cell></cell><cell>26.85</cell><cell>28.33</cell></row><row><cell></cell><cell>22.10</cell><cell>24.31</cell><cell>26.93</cell><cell></cell><cell>27.53</cell><cell>31.52</cell></row><row><cell>1049 Oracles</cell><cell>29.75</cell><cell>31.31</cell><cell>30.38</cell><cell></cell><cell>30.14</cell><cell>27.13</cell></row><row><cell></cell><cell>48.27</cell><cell>50.15</cell><cell>52.62</cell><cell></cell><cell>51.99</cell><cell>55.74</cell></row><row><cell></cell><cell>44.93</cell><cell>47.99</cell><cell>52.47</cell><cell></cell><cell>53.67</cell><cell>61.99</cell></row><row><cell></cell><cell>59.93</cell><cell>60.45</cell><cell>58.84</cell><cell></cell><cell>57.88</cell><cell>53.33</cell></row><row><cell>Max output of 256 token</cell><cell>1 SentBS</cell><cell>2 NoStructure*</cell><cell>3 STRONG*</cell><cell>Max output of 512 token</cell><cell>4 NoStructure</cell><cell>5 STRONG*</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 11 :</head><label>11</label><figDesc>An example of the difference between generated summaries based on different prompts using our best structure prompt model STRONG. The original legal decision id is 2003skqb487.</figDesc><table><row><cell>ORACLE</cell></row><row><cell>Statutes -Interpretation -Limitation of Civil Rights Act, Section 2</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 12 :</head><label>12</label><figDesc>Different models' outputs for the legal decision (id: 5_2018skqb216). The structure prompt is "Non_IRC | Non_IRC | Non_IRC | Non_IRC | Non_IRC | Issue | Issue | Issue | Conclusion | Conclusion | Conclusion ".</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 13 :</head><label>13</label><figDesc>NoStructure and Strong models' outputs for the legal decision (id: 5_2018skqb216) under 512 max length generations. The structure prompt is "Non_IRC | Non_IRC | Non_IRC | Non_IRC | Non_IRC | Issue | Issue | Issue | Conclusion | Conclusion | Conclusion ".</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_0"><p>We include the model details in Appendix B.2.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_1"><p>The generation length of SentBS cannot be rigidly regulated, considering that it adheres to a sentence-bysentence generation paradigm, and the inconsistencies in the length of structural prompts result in diverse outputs.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_2"><p>https://github.com/Shen-Chenhui/SentBS</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_3"><p>https://huggingface.co/allenai/ led-base-16384/tree/main</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work is supported by the <rs type="funder">National Science Foundation</rs> under Grant No. <rs type="grantNumber">2040490</rs> and by <rs type="funder">Amazon</rs>. We want to thank the members of the <rs type="institution">Pitt AI Fairness</rs> and Law Project members, the <rs type="institution">Pitt PETAL group</rs>, and anonymous reviewers for their valuable comments in improving this work.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_4RRfKYX">
+					<idno type="grant-number">2040490</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The inferred rankings of different system outputs, determined based on human reflections over five legal decision summaries. Some annotators did not annotate a specific summary, and the row is represented by "N/A".</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Longformer: The long-document transformer</title>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arman</forename><surname>Cohan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.05150</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">GSum: A general framework for guided neural abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Zi-Yi</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hiroaki</forename><surname>Hayashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengbao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.384</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4830" to="4842" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">ArgLegal-Summ: Improving abstractive summarization of legal documents with argument mining</title>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Elaraby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diane</forename><surname>Litman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 7 We provide an example of feeding different prompts to generate diverse summaries in Appendix E.1. the 29th International Conference on Computational Linguistics</title>
+		<meeting>7 We provide an example of feeding different prompts to generate diverse summaries in Appendix E.1. the 29th International Conference on Computational Linguistics<address><addrLine>Gyeongju, Republic of Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6187" to="6194" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Discourse-aware soft prompting for text generation</title>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vera</forename><surname>Gor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asli</forename><surname>Celikyilmaz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4570" to="4589" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Evaluating factuality in generation with dependency-level entailment</title>
+		<author>
+			<persName><forename type="first">Tanya</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.322</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3592" to="3603" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Neural syntactic preordering for controlled paraphrase generation</title>
+		<author>
+			<persName><forename type="first">Tanya</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.22</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="238" to="252" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">CTRLsum: Towards generic controllable text summarization</title>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Kryscinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nazneen</forename><surname>Rajani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5879" to="5915" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Toward controlled generation of text</title>
+		<author>
+			<persName><forename type="first">Zhiting</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zichao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodan</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+		<ptr target="JMLR.org" />
+	</analytic>
+	<monogr>
+		<title level="m">ICML&apos;17</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1587" to="1596" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Summarization of legal documents: Where are we now and the way forward</title>
+		<author>
+			<persName><forename type="first">Deepali</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malaya</forename><surname>Dutta Borah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anupam</forename><surname>Biswas</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.cosrev.2021.100388</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Science Review</title>
+		<imprint>
+			<biblScope unit="volume">40</biblScope>
+			<biblScope unit="page">100388</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">DiscoDVT: Generating long text with discourse-aware discrete variational transformer</title>
+		<author>
+			<persName><forename type="first">Haozhe</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.347</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4208" to="4224" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Neural text summarization: A critical evaluation</title>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Kryscinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitish</forename><surname>Shirish Keskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mc-Cann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1051</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="540" to="551" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Evaluating the factual consistency of abstractive text summarization</title>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Kryscinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.750</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9332" to="9346" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">SummaC: Re-visiting NLIbased models for inconsistency detection in summarization</title>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Laban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tobias</forename><surname>Schnabel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">N</forename><surname>Bennett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marti</forename><forename type="middle">A</forename><surname>Hearst</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00453</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="163" to="177" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Bart</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">ROUGE: A package for automatic evaluation of summaries</title>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Text Summarization Branches Out</title>
+		<meeting><address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="74" to="81" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">Roberta: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Object-oriented neural programming (OONP) for document understanding</title>
+		<author>
+			<persName><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianggen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yukun</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daqi</forename><surname>Zheng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1253</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2717" to="2726" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Factscore: Fine-grained atomic evaluation of factual precision in long form text generation</title>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalpesh</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinxi</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pang</forename><surname>Wei Koh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">2022a. SentBS: Sentence-level beam search for controllable summarization</title>
+		<author>
+			<persName><forename type="first">Chenhui</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liying</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidong</forename><surname>Bing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>You</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luo</forename><surname>Si</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="10256" to="10265" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">MReD: A meta-review dataset for structure-controllable text generation</title>
+		<author>
+			<persName><forename type="first">Chenhui</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liying</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ran</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidong</forename><surname>Bing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>You</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luo</forename><surname>Si</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.198</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<imprint>
+			<publisher>Dublin, Ireland. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2521" to="2535" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Sequentially controlled text generation</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Spangher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Ming</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nanyun</forename><surname>Peng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2022</title>
+		<meeting><address><addrLine>Abu Dhabi, United Arab Emirates</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6848" to="6866" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">TL;DR: Mining Reddit to learn automatic summarization</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Teun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Van Dijk ; Routledge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Michael Völske</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shahbaz</forename><surname>Potthast</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benno</forename><surname>Syed</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Stein</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W17-4508</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on New Frontiers in Summarization</title>
+		<meeting>the Workshop on New Frontiers in Summarization<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013">2013. 2017</date>
+			<biblScope unit="page" from="59" to="63" />
+		</imprint>
+	</monogr>
+	<note>News as discourse</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Faithfulness-aware decoding strategies for abstractive summarization</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengwen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Dreyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th Conference of the European Chapter</title>
+		<meeting>the 17th Conference of the European Chapter<address><addrLine>Dubrovnik, Croatia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="2864" to="2880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-demos.6</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Accounting for sentence position and legal domain sentence embedding in learning to classify case sentences</title>
+		<author>
+			<persName><forename type="first">Huihui</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaromir</forename><surname>Savelka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Ashley</surname></persName>
+		</author>
+		<idno type="DOI">10.3233/FAIA210314</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Legal Knowledge and Information System</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Extractive is not faithful: An investigation of broad unfaithfulness problems in extractive summarization</title>
+		<author>
+			<persName><forename type="first">Shiyue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACL</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Bertscore: Evaluating text generation with bert</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Kishore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Reducing quantity hallucinations in abstractive summarization</title>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bonnie</forename><surname>Webber</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.203</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2237" to="2249" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">When does pretraining help? assessing self-supervised learning for law and the casehold dataset</title>
+		<author>
+			<persName><forename type="first">Lucia</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neel</forename><surname>Guha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brandon</forename><forename type="middle">R</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">E</forename><surname>Ho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Conference on Artificial Intelligence and Law</title>
+		<meeting>the 18th International Conference on Artificial Intelligence and Law</meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Computing and exploiting document structure to improve unsupervised extractive summarization of legal case decisions</title>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diane</forename><surname>Litman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Natural Legal Language Processing Workshop 2022</title>
+		<meeting>the Natural Legal Language Processing Workshop 2022<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates (Hybrid). Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="322" to="337" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

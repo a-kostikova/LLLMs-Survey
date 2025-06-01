@@ -1,0 +1,1607 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">On a Benefit of Masked Language Model Pretraining: Robustness to Simplicity Bias</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Ting-Rui</forename><surname>Chiang</surname></persName>
+							<email>tingruic@usc.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Southern California</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">On a Benefit of Masked Language Model Pretraining: Robustness to Simplicity Bias</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">729481D2EF24F1B538E98D079C2EBBD3</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:39+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Despite the success of pretrained masked language models (MLM), why MLM pretraining is useful is still a question not fully answered. In this work we theoretically and empirically show that MLM pretraining makes models robust to lexicon-level spurious features, partly answering the question. Our explanation is that MLM pretraining may alleviate problems brought by simplicity bias (Shah et al., 2020), which refers to the phenomenon that a deep model tends to rely excessively on simple features. In NLP tasks, those simple features could be token-level features whose spurious association with the label can be learned easily. We show that MLM pretraining makes learning from the context easier. Thus, pretrained models are less likely to rely excessively on a single token. We also explore the theoretical explanations of MLM's efficacy in causal settings. Compared with <ref type="bibr" target="#b49">Wei et al. (2021)</ref>, we achieve similar results with milder assumptions. Finally, we close the gap between our theories and real-world practices by conducting experiments on real-world tasks.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The question "why is masked language model (MLM) pretraining <ref type="bibr" target="#b7">(Devlin et al., 2019;</ref><ref type="bibr" target="#b31">Liu et al., 2019)</ref> useful?" has not been totally answered. In this work, as an initial step toward the answer, we show and explain that MLM pretraining makes the model robust to lexicon-level features that are spuriously associated with the target label. It gives the model a better generalization capability under distribution shift.</p><p>Previous studies have empirically shown the robustness of MLM pretrained models. <ref type="bibr" target="#b14">Hao et al. (2019)</ref> show that MLM pretraining leads to wider optima and better generalization capability. <ref type="bibr" target="#b17">Hendrycks et al. (2020)</ref> and <ref type="bibr" target="#b44">Tu et al. (2020)</ref> show that pretrained models are more robust to out-ofdistribution data and spurious features. However, Figure <ref type="figure">1</ref>: The pitfall of simplicity bias: The solid line is a simple (linear) decision boundary that utilizes only one dimension, while the dashed line is a more complex decision boundary that utilizes two dimensions and maximizes the margin.</p><p>it remains unanswered why pretrained models are more robust.</p><p>We conjecture that models trained from scratch suffer from the pitfall of simplicity bias <ref type="bibr">(Shah et al., 2020)</ref> (Figure <ref type="figure">1</ref>). <ref type="bibr">Shah et al. (2020)</ref> and <ref type="bibr" target="#b20">Kalimeris et al. (2019)</ref> showed that deep networks tend to converge to a simple decision boundary that involves only a few features. The networks may not utilize all the features and thus may not maximize the margin, which results in worse robustness. A consequence of this could be that a model may excessively rely on a feature that has spurious association with the label and ignore the other features that are more robust. In the studies of <ref type="bibr">Shah et al. (2020)</ref> and <ref type="bibr" target="#b20">Kalimeris et al. (2019)</ref>, they investigated networks with continuous input. <ref type="bibr" target="#b32">Lovering et al. (2021)</ref> discovered similar results on synthetic NLP tasks, where the inputs are discrete. We will further explore this discrete setting in this work.</p><p>We start the exploration with the following assumptions: Let the sentence, label pair be X, Y .</p><p>Assumption 1. We assume that from X, we can extract two features X 1 and X 2 .</p><p>Assumption 2. X 1 is a spurious feature that has strong association with Y . Specifically, it means that, solely relying on X 1 , one can predict with high accuracy over the data distribution, but cannot be 100% correctly. Assumption 3. X 2 is a robust feature based on which Y can be predicted with 100% accuracy. Namely, there exists a deterministic mapping f X 2 →Y that maps X 2 to Y .</p><p>The assumptions above are realistic in some NLP tasks. In NLP tasks, the input X is a sequence of tokens. Some tasks satisfy Assumption 1: X can be decomposed into X 1 and X 2 , where X 1 is the presence of certain tokens, and X 2 is the context of the token. Thus, X 2 has a much higher dimensionality than X 1 . As shown by the analysis of <ref type="bibr" target="#b10">Gardner et al. (2021)</ref>, there are indeed datasets where Assumption 2 is true. However, if Assumption 3 is true, we would desire the model to rely on X 2 , which contains the semantics of the input X.</p><p>With these assumptions, in Section 2 we empirically demonstrate that spurious features in discrete inputs can cause problems as in the continuous cases <ref type="bibr">(Shah et al., 2020;</ref><ref type="bibr" target="#b20">Kalimeris et al., 2019)</ref>. We show that, possibly due to the simplicity bias, a deep model is likely to excessively rely on X 1 and to rely on X 2 less. In Section 3.1 and Section 3.2 we provide a theoretical explanation of how MLM pretraining makes a model robust to spurious features. Let Π 1 be the conditional probability P (X 1 |X 2 ). We show (1) the relation between the mutual information I(Π 1 ; Y ) ≥ I(X 1 ; Y ) and that (2) the convergence rate of learning from Π 1 is of the same order as learning from X 1 . That is, when the MLM model can perfectly model the probability P (X 1 |X 2 ) and thus generate perfect Π 1 , learning from Π 1 is as easy as learning from X 1 . As a result, the model will be more likely to rely on Π 1 . Since Π 1 is estimated based on X 2 , higher reliance on Π 1 also implies higher reliance on the robust feature X 2 . This avoids the pitfall of simplicity bias that the model relies excessively on X 1 . To relax Assumption 3, we make one step further by considering causal settings in Section 3.3.</p><p>The above results partly explain why MLM pretrining is useful for NLP. Denote a sequence of tokens as X = X 1 , X 2 , • • • , X L . During the MLM pretraining process, each token is masked randomly at a certain probability, and the training objective is to predict the masked tokens with the maximum likelihood loss. As a result, the model is capable of estimating the conditional probability P (X i |X \X i ) for all i = 1, 2, • • • , L. Even though which of the tokens is spurious is unknown, as long as the spurious token has a non-zero probability to be masked during pretraining, MLM can estimate its distribution conditioned on the context and thus can reduce the reliance on it.</p><p>Finally, we close the gap between our theories and reality. One major gap is that, in reality, we do not use the conditional probability for downstream tasks. Instead, we feed the input X without masking any token and fine-tune the model along with a shallow layer over its output. Regardless of that, we hypothesize that the robustness brought by MLM pretraining still exists. To prove that, in Section 4 we use the toy example and verify the effect of MLM pretraining when using the common practice for fine-tuning. In Section 5, we validate our theories with two real-world NLP tasks.</p><p>To sum up, our study leads to new research directions. Firstly, we provide a new explanation of MLM pretraing's efficacy. Unlike the previous purely theoretical studies <ref type="bibr" target="#b39">(Saunshi et al., 2021;</ref><ref type="bibr" target="#b49">Wei et al., 2021)</ref>, our assumptions are milder and more realistic. Secondly, we study NLP robustness from the perspective of self-supervised model. Since self-supervised trained embeddings have been widely used since Word2vec <ref type="bibr" target="#b34">(Mikolov et al., 2013)</ref>, it is indispensable to the generalization to unseen data. We reveal the mechanism that leads to its robustness, which may enable us to further reinforce it in the future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">A Toy Example</head><p>To show that spurious association can cause difficulty of convergence, we construct a toy example with variables X 1 , X 2 , Y that satisfy the assumptions. We make X 1 depends only on X 2 , so it is not a causal feature of Y . Let the dimension of the random variables X 1 and X 2 be 2 and d 2 respectively. Their value x 1 ∈ X 1 = {e 1 , e 2 } and</p><formula xml:id="formula_0">x 2 ∈ X 2 = {e 1 , • • • , e d 2 }</formula><p>, where e i is the onehot vector whose ith element is 1. We control the strength of the association between X 1 and Y with ν &lt; 0.5, making X 1 = Y with probability 1 -ν. Specifically, denote with Ẋ2 the middle 2νd 2 dimensions of X 2 , i.e. the d 2 /2 -νd 2 th to the d 2 /2 + νd 2 th elements in X 2 . We consider the following random process: where f (X 2 ) = e 1 if X 2 = e i for some i &lt; d 2 /2, and f (X 2 ) = e 2 otherwise 1 . In this way, predicting Y solely based on the spurious feature X 1 can achieve accuracy 1 -ν.</p><formula xml:id="formula_1">X 2 = e i , i ∼ Uniform(1, d 2 ) Y = -1 if X 2 = e i for some i &lt; d 2 /2 +1 otherwise X 1 = e i , i ∼ Uniform(1, 2) If ẋ2 = 0 f (X 2 ) Otherwise ,<label>(1)</label></formula><p>We conduct experiments to inspect the effect of the strength of spurious association between X 1 and Y . We train linear networks by drawing batches of i.i.d. ([X 1 ; X 2 ], Y ) pairs from the random process defined in Equation 1. We use Adam optimization with learning rate 0.001 and the crossentropy loss. In addition to single-layer linear networks, we also try over-parameterized 2-layer and 3-layer linear networks. The hidden size is <ref type="bibr">[10,</ref><ref type="bibr">32]</ref>. Since it is a linearly separable problem, we can check whether the learned weight can lead to 100% accuracy in the defined distribution. We check it every 25 iterations. We say a model has converged if it is 100% accurate for 5 consecutive checks. We report the number of the iterations required before it converges for different ν and d 2 .</p><p>Even though it is a linear-separable convex optimization problem, our results in Table <ref type="table" target="#tab_0">1</ref> show that the strength of the spurious association can impact the number of iterations required to converge. We observe that when ν &lt; 0.5, the models tend to be trapped by the spurious feature, sticking at accuracy 1-ν for iterations. When the spurious relation between X 1 and Y is stronger, i.e. ν is smaller, the number of iterations required to converge is larger. In addition, the number of iterations is also larger when the d 2 is larger. An intuitive explanation is</p><formula xml:id="formula_2">1 Uniform(a, b) is the uniform distribution over {n} b n=a .</formula><p>that the learning signal from X 2 is more sparse when d 2 is larger.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">A Theoretical Explanation of the Efficacy of MLM Pretraining</head><formula xml:id="formula_3">3.1 P (X 1 |X 2 ) is More Informative Than X 2</formula><p>The toy example above motivates us to consider the information contained in P (X 1 |X 2 ). In the toy example, when predicting P (Y = 0|X), if we simply output P (X 1 = e 1 |X 2 ), then the accuracy of our prediction of Y will be as high as predicting Y solely based on X 1 . It motivates us to inspect the reliability of the estimated P (X 1 |X 2 ) as a feature for the prediction of</p><formula xml:id="formula_4">Y compared to X 1 . Let Π 1 be a |X 1 |-dimensional random variable whose value is P (X 1 |X 2 ) 2 . We can prove that when P (X 1 |X 2 ) is estimated perfectly, Π 1 is at least as informative as X 1 . Lemma 1. When X 1 , X 2 are discrete, if Π 1 per- fect, namely the value of Π 1 is exactly P (•|X 2 ), then the mutual information I(X 1 ; Π 1 ) = I(X 1 ; X 2 ). (Proof: Appendix A.1)</formula><p>Compared to previous works <ref type="bibr" target="#b18">(Hjelm et al., 2019;</ref><ref type="bibr" target="#b2">Belghazi et al., 2018;</ref><ref type="bibr" target="#b36">Oord et al., 2018;</ref><ref type="bibr" target="#b24">Kong et al., 2020)</ref> that show some self-supervised training objectives are lower bounds of the mutual information I(X 1 ; X 2 ), we directly show that the output of the MLM, Π, maximizes the mutual information, since I(X 1 ; f (X 2 )) ≤ I(X 1 ; X 2 ) for any f . Moreover, instead of explaining the efficacy of pretraining with the infomax principle <ref type="bibr" target="#b29">(Linsker, 1988;</ref><ref type="bibr" target="#b3">Bell and Sejnowski, 1995)</ref>, our theories below provide a different perspective.</p><p>Theorem 1. If Π is perfect,</p><formula xml:id="formula_5">I(Π; Y ) ≥ I(X 1 ; Y ) (2)</formula><p>Proof. Since Π is perfect, by Lemma 1, we have</p><formula xml:id="formula_6">I(X 1 ; X 2 ) = I(X 1 ; Π).<label>(3)</label></formula><p>By data processing inequality, Equation <ref type="formula" target="#formula_6">3</ref>implies</p><formula xml:id="formula_7">I(X 1 ; X 2 |Π) = 0. By Assumption 3, a determinis- tic mapping f X 2 →Y from X 2 to Y exists.</formula><p>Applying data processing inequality again, we have</p><formula xml:id="formula_8">I(X 1 , X 2 |Π) ≥ I(X 1 , f X 2 →Y (X 2 )|Π) = I(X 1 , Y |Π) ≥ 0,<label>(4)</label></formula><formula xml:id="formula_9">which implies I(Y, X 1 |Π) = 0. Accordingly, H(Y |Π) = H(Y |X 1 , Π) ≤H(Y |X 1 )<label>(5)</label></formula><p>Theorem 1 shows that Π is a more informative feature than X 1 . However, a model does not necessarily rely more on a more informative feature. We will discuss more in the next section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Learning from Π is Easy</head><p>It is important that learning from Π is easy. Because of simplicity bias, a neural network model is likely to rely on the easy-to-learn features <ref type="bibr">(Shah et al., 2020;</ref><ref type="bibr" target="#b20">Kalimeris et al., 2019)</ref>. We conjecture that a model excessively relies on the spurious feature X 1 when learning from X 1 is easier than learning from the robust feature X 2 . If learning from Π is easy, then the model will rely on Π more and thus will rely on X 1 less. However, features with higher mutual information to Y are not necessarily easy to learn. For instance, although X 2 is more informative, models tend to rely on X 1 instead of X 2 at the beginning of the training process. To show that MLM can mitigate the issue brought by simplicity bias, we need to show learning from Π is easy.</p><p>Therefore, we have the following theorem that implies learning from Π is at least as easy as learning from X 1 :</p><formula xml:id="formula_10">Theorem 2. Let h(Dn) X 1</formula><p>: X 1 → Y be the classifier trained with MLE loss using n data  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>pairs (x</head><p>(1) 1 , y (1) ), (x</p><formula xml:id="formula_11">(2) 1 , y (2) ), • • • (x (n) 1 , y (n) )</formula><p>, and the converged classifier be h * X 1 . There exists a learning algorithm, which generates h(Dn)</p><formula xml:id="formula_12">Π : Π → Y using (Π 1 , y (1) ), (π (2) , y (2) ), • • • , (π (n) , y (n) ),</formula><p>such that the following three properties are satisfied: (1)</p><formula xml:id="formula_13">E D KL h(Dn) Π h * Π = O 1 n ,<label>(6)</label></formula><p>which is asymptotically at the same rate as</p><formula xml:id="formula_14">E D KL h(Dn) X 1 h * X 1 .</formula><p>(2) Over the distribution of (X, Y ), the expected loss of the converged classifier h * Π is not greater than the expected loss of h *</p><formula xml:id="formula_15">X 1 . (3) h * Π is a linear model, whose input is Π. (Proof: Appendix A.2)</formula><p>The remaining question is whether deep learning models used in common practices can perform at least as well as the algorithm in Theorem 2. Indeed, without any knowledge of deep learning models, it is impossible to theoretically prove that a model will necessarily rely on Π instead of X 1 . Therefore, in Section 4 and Section 5 we will empirically validate that our theorems are applicable in the real world scenarios.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Extending with Causal Models</head><p>We make a step further by relaxing Assumption 3. We do so by treating X 1 as a confounder, and then we can see how MLM pre-training is helpful in the causal and anticausal settings as in <ref type="bibr" target="#b22">Kaushik et al. (2021)</ref>.</p><p>Ours <ref type="bibr" target="#b49">Wei et al. (2021)</ref> structural assumption X, Y follow Figure <ref type="figure" target="#fig_1">2b</ref>. X, Y follow an HMM. linear independence assum.</p><p>{P Theorem 3. Even if Assumption 3 is not true, Theorem 1 still holds if X 1 , X 2 , Y follow the causal setting in Figure <ref type="figure" target="#fig_1">2a</ref>.</p><formula xml:id="formula_16">(X 1 |y)|y ∈ Y} {P (X 0 |H 0 = h)|h ∈ H} implication I(P (X 1 |X 2 ); Y ) = I(X 2 ; Y ) I(P (H 0 |X); Y ) = I(X; Y )</formula><p>Proof. By the structure of X 1 , X 2 , Y , inequality 4 holds even if the deterministic mapping f X 2 →Y does not exist.</p><p>Theorem 4. Assume that the set of vectors {P (X 1 |Y = y)|y ∈ Y} is linear independent, and if X 1 , X 2 , Y follow the anticausal setting in Figure <ref type="figure" target="#fig_1">2b</ref>, then I(Π; Y ) ≥ I(X 2 ; Y ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Proof.</head><p>The assumption is a special case of the one in <ref type="bibr" target="#b27">(Lee et al., 2020)</ref>, so similar techniques can be used: According to the structure of X 1 , X 2 , Y , we have</p><formula xml:id="formula_17">P (X 1 |X 2 ) = y P (X 1 |y)P (y|X 2 ). (7) Therefore, if {P (X 1 |Y = y)|y ∈ Y} is linearly independent, P (y|X 2 ) can be recovered from Π = P (X 1 |X 2 ).</formula><p>Note that this theorem is very similar to Theorem 3.3 in <ref type="bibr" target="#b49">Wei et al. (2021)</ref>. However, the assumptions required in ours are weaker and more realistic, and the implication is very similar (Table <ref type="table" target="#tab_1">2</ref>): (1) Structure assumption: <ref type="bibr" target="#b49">Wei et al. (2021)</ref> assumed that X is generated from a HMM process with hidden variables H 0 , H 1 , • • • , which is stronger assumption than our assumption that X 1 , X 2 follow the anticausal setting. (2) Independence assumption: <ref type="bibr" target="#b49">Wei et al. (2021)</ref> assumed that the vectors in {P (X 0 |H 0 = h)|h ∈ H} need to be linearly independent. In comparison, we require only the independence in {P (X 1 |Y = y)|y ∈ Y}. Our assumption is more realistic because the number of hidden states |H| must be very large if X is generated from the HMM model, and |Y| tends to be much smaller than |H|. For example, in binary classification cases, our assumption holds as long as P (X 1 ) is not independent of P (Y ). (3) Implication: If we further assume that I(X 2 ; Y ) = I(X; Y ), then we reach a similar conclusion that P (Y |X) can be recovered from Π = P (X 1 |X 2 ) by applying a linear function.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Limitations of Our Theorems</head><p>Our theories do not ensure that Π 1 is the most informative feature to learn from. Consider tokens in a sentence X = X 1 , X 2 , • • • , X L and let Π i be the conditional probability P (X i |X \ X i ). A token with spurious association with the label can locate arbitrary position in the sentence, and its location is unknown during pretraining. That is, the pretrained model is able to generate Π i for all i. Without loss of generality, assume X 1 is the spurious token. It is possible that there exists some i such that I(Π 1 ; Y ) &lt; I(Π i ; Y ), and that Π i is predicted relying on X 1 . Concretely, here is an example for the causal setting with three features: X 3 is independent of X 1 and X 2 given Y (Figure <ref type="figure" target="#fig_1">2c</ref>). Using the results in Theorem 4, there is a linear mapping that can recover P (Y |X 1 , X 2 ) from Π 3 . Therefore, it is possible that I(Π 3 ; Y ) &gt; I(Π 1 ; Y ) if I(X 1 , X 2 ; Y ) &gt; I(Π 1 ; Y ) depending on the distribution of the data. We leave the study of I(Π i ; Y ) for future work.</p><p>Another limitation is that, in practice, NLP practitioners do not use the conditional probability predicted by the pretrained model. Instead, people stack a simple layer over the pretrained model, and fine-tune the whole model on downstream tasks. Regardless of this, we conjecture that the representation encoded by an MLM pretrained model still contains the information of {Π i } n i=1 and thus is robust to spurious lexicon-level feature.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Toy Example with a Pretrained Model</head><p>As the first step to close the gap between our theories and the real world, we repeat the toy experiments with pretraining. Before fitting the model with Y , we first pretrain the first layer to predict X 1 based on masked X. What we want to show is that, after pretraining, the representation encoded by the layer will have the equivalent role of Π even when the input is not masked. Specifically, the experimental design is as follows: We use the two-layer and three-layer MLP architectures same as in Section 2. When pretraining, we mask X 1 in X by using X = [0, 0; X 2 ] as inputs. Let the output from the first linear layer as Z = W X . The loss function is the cross-entropy between X 1 and the softmax over [z 1 , z 2 ]. After pretraining, we fine-tune the pretrained model with ([X 1 ; X 2 ], Y ) pairs, and report the average number of iterations required to converge for 25 different random seeds.</p><p>We want to eliminate the possibility that the faster convergence of the pretrained model is because of larger initial weights over X 1 . Therefore, after pretraining, we manually create a path from X 1 to Z. We do so by initializing the weights of the third and fourth row of</p><formula xml:id="formula_18">W with [k, -k, 0, • • • , 0] and [-k, k, • • • , 0, 0] respectively,</formula><p>where k is the average of the absolute value of the weights in the pretrained part, i.e. the weights of the first two rows in W . In this way, the information from X 1 has the same scale as the pretrained representation [Z 1 , Z 2 ], and thus it can compete with [Z 1 , Z 2 ] fairly.</p><p>Table <ref type="table" target="#tab_0">1</ref> shows that pretraining can always reduce the number of iterations required to converge when ν &lt; 0.50. The effect is more significant when d 2 is larger. It could be because of the higher sparsity of the learning signal from X 2 when d 2 is larger.</p><p>We further inspect how the importance over the inputs changes in the process of training. The importance can be inferred from the product of the linear layers. We observe that if the model is not pretrained, the weights over X 1 grow faster than the weights over X 2 at the beginning (the first row Figure <ref type="figure" target="#fig_2">3</ref>). The model cannot converge to 100% accuracy until weights on Ẋ2 , the middle ν × d 2 dimensions of X 2 , become greater than the weights on X 1 . In addition, after the model converges, weights over X 1 is still greater than weights over X 2 . On the other hand, if the model is pretrained, weights over X 1 stop growing after a few steps (the second row in Figure <ref type="figure" target="#fig_2">3</ref>). The above observations are aligned with our conjecture that the pretrained representation mitigates the robustness issue brought simplicity bias.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We experiment on real world NLP tasks to verify the relation between the capability of modeling the distribution of spurious features Π 1 and robustness. We facilitate datasets with known spurious features. We first pretrain models on the training dataset with different masking policies. One of them does not mask the spurious tokens, leading to the reduced capability of modeling Π 1 . Afterward, we finetune the model using the target label. We show that the models are less robust on downstream tasks if spurious tokens are not masked during pretraining, which validates our theories.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Dowstream Tasks</head><p>Hate Speech Detection Previous study has shown that hate speech detection datasets tend to have lexical bias <ref type="bibr" target="#b8">(Dixon et al., 2018)</ref>. That is, models rely excessively on the presence or the absence of certain words when predicting the label. Here we follow the formulation of lexical bias in hate speech detection proposed by <ref type="bibr" target="#b53">Zhou et al. (2021)</ref>.</p><p>We focus on the effect of non-offensive minority identity (NOI) mentions, such as "woman", "gay", "black". Those mentions are often highly associated with hateful instances. However, it is more desirable that a model does not rely on those mentions. Therefore, we can see the presence of NOI as a spurious feature.</p><p>Name Entity Recognition (NER) <ref type="bibr" target="#b28">Lin et al. (2020)</ref> has shown that name entity recognition (NER) models perform worse when the name entities not seen in the training data. In this case, we can see the content of the name entities as a spurious feature. Models may learn to memorize the name entities when fitting the training data, while we may desire the model to recognize name entities according to the context.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.1">Datasets</head><p>Hate Speech Detection We use a portion of the dataset proposed by <ref type="bibr" target="#b9">Founta et al. (2018)</ref>. In their original dataset, only a small number of hateful instances contain NOI. Our preliminary experiments show that the model without pretraining does not suffer much from the bias of NOI when training with the full data. Therefore, we create a dataset, whose positive (hateful) instances are all the positive samples in the original dataset that contain NOI. As for negative instances, we sample them randomly from the original training set. We control the number of negative instances so the ratio of positive and negative instances is the same as the original dataset. We create both the training and the validation splits in this way, and use the original full testing set for evaluation. We also evaluate the models on a NOI subset where all the instances contain NOI.</p><p>NER We use the standard NER dataset <ref type="bibr">Conll-2003 (Tjong Kim Sang and</ref><ref type="bibr" target="#b43">De Meulder, 2003)</ref>. To create a testing set with name entities unseen in the training set, we replace the name entities in the original validation and testing splits with the entities from WNUT-17 <ref type="bibr" target="#b6">(Derczynski et al., 2017)</ref>. Specifically, we replace the LOC, ORG, PER entities with the corresponding type of entities in WNUT-17, while the MISC entities remain untouched.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Masking Policies</head><p>For each sentence with n s spurious tokens, we experiment with different masking policies: (1) scratch: We do not pretrain the model before finetuning.</p><p>(2) vanilla: During pretraining, we mask each token with 15% probability, which is same as the original implementation in <ref type="bibr" target="#b7">(Devlin et al., 2019)</ref>.</p><p>(3) unmask random: This is similar to vanilla MLM, but we uniformly randomly select n s tokens from the whole sentence and unmask them if they have been masked. (4) unmask spurious: This is similar to vanilla MLM, but we unmask all the spurious tokens. (5) remove spurious: We replace spurious tokens with a special "[unk]" token, and we unmask them. Note that this setting can be seen as an oracle setting, since in most applications the spurious features are unknown. We will inspect the effect of masking spurious tokens by comparing setting (3), (4), (5). Note that these three setting have the same expected number of masked tokens. Therefore, it rules out the possibility that their downstream performance differs because of the number of masked tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Implementation Details</head><p>For both of the tasks and all the MLM settings, including the scratch setting, we tokenize the input with the bert-base-uncased tokenizer. We use the bert-base-uncased architecture and also the pretrained embedding layer, which is frozen through the pretraining process. We repeat each experiment 5 times. We include more details in Appendix A.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Result and Discussion</head><p>Results in Table <ref type="table">3</ref> validate our theorems. For both of the tasks, unmask random performs better than unmask spurious under distribution shift. Specifically, unmask random has higher F1 on the unseen set of the NER task, and unmask random has a lower false positive rate (FPR) on the NOI set. Also, unmask random performs similarly to vanilla. This implies that modeling the condition distribution of spurious tokens in the original random masking pretraining can reduce models' reliance on them. Note that unmask random and unmask spurious have similar in-distribution performance, so the performance difference is not due to better in-distribution generalization suggested by <ref type="bibr" target="#b35">Miller et al. (2021)</ref>.</p><p>We also compare unmask random with the oracle setting remove spurious. We notice that even though remove spurious performs as well as random, remove spurious hurts the performance in the seen set. It indicates that modeling the conditional distribution of spurious tokens has effects beyond simply removing them from the model. On the other hand, remove spurious performs better in the hate speech detection task. A possible explanation is that NOI mentions contain little useful information for the task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Recently, there are efforts attempting to explain the effectiveness of massive language modeling pretraining. Theoretically, <ref type="bibr">Saunshi et</ref>  Table <ref type="table">3</ref>: The performance on downstream tasks. For the hate speech detection task, we also report false positive detection (FPR) on the NOI subset, which is a set of instances containing non-offensive minority identity mentions, e.g. "women", "black". The results are the average of 5 runs, and the smaller number is the standard deviation.</p><p>explore why auto-regressive language models help solve downstream tasks. However, their explanation is based on the assumption that the downstream tasks are natural tasks, i.e. tasks that can be reformulated as sentence completion tasks. Their explanation also requires the pretrained language model to perform well for any sentence completion tasks, which is not likely to be true in the real world. <ref type="bibr" target="#b49">Wei et al. (2021)</ref> analyze the effect of fine-tuning a pretrained MLM model. Nonetheless, they have stronger assumptions as described in Section A.4. <ref type="bibr" target="#b0">Aghajanyan et al. (2020)</ref> show that pretrained models have lower intrinsic dimension, providing a generalization bound based on <ref type="bibr" target="#b1">Arora et al. (2018)</ref>. However, why pretrained models have lower intrinsic dimension is unknown. <ref type="bibr" target="#b33">Merrill et al. (2021)</ref> show that the parameter norm growth during training makes transformer a saturated model, which can be described in terms of formal languages. Empirically, <ref type="bibr" target="#b50">Zhang and Hashimoto (2021)</ref> show that the effectiveness of MLM pretraining cannot be explained by formulating the downstream tasks as sentence completion problems. <ref type="bibr" target="#b42">Sinha et al. (2021)</ref> find evidence supporting the hypothesis that masked language models benefit from modeling high-order word co-occurrence instead of word order. There are also some theories explaining the efficacy of non-MLM pretraining <ref type="bibr" target="#b27">Lee et al. (2020)</ref>; <ref type="bibr" target="#b40">Saunshi et al. (2019)</ref>; <ref type="bibr" target="#b51">Zhang and Stratos (2021)</ref>.</p><p>Many of the previous studies on robust NLP focus on supervised learning <ref type="bibr" target="#b48">(Wang et al., 2021;</ref><ref type="bibr">Utama et al., 2020b,a;</ref><ref type="bibr" target="#b21">Karimi Mahabadi et al., 2020;</ref><ref type="bibr" target="#b4">Chang et al., 2020;</ref><ref type="bibr" target="#b16">He et al., 2019;</ref><ref type="bibr" target="#b38">Sagawa* et al., 2020;</ref><ref type="bibr" target="#b23">Kennedy et al., 2020;</ref><ref type="bibr" target="#b5">Chiang et al., 2020)</ref>. However, without self-supervised learning, a model can impossibly extrapolate to out-ofdistribution data when the domain shifts. Our work also complements previous studies that focus on the bias or robustness of a model generated by the pretraining process <ref type="bibr" target="#b25">(Kumar et al., 2020;</ref><ref type="bibr" target="#b15">Hawkins et al., 2020;</ref><ref type="bibr" target="#b47">Vargas and Cotterell, 2020;</ref><ref type="bibr" target="#b30">Liu et al., 2020;</ref><ref type="bibr" target="#b12">Gonen and Goldberg, 2019;</ref><ref type="bibr" target="#b26">Kurita et al., 2019;</ref><ref type="bibr" target="#b52">Zhao et al., 2019)</ref>. In this work we investigate the pretraining process itself.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Implication and Conclusion</head><p>Our results provide possible explanations for some common practices found effective empirically. First, it could explain why continuing pretraining on target dataset is useful <ref type="bibr" target="#b13">(Gururangan et al., 2020)</ref>. It may be because continuing pretrained models model the distribution of spurious features in the target dataset better. Thus the model can better avoid the simplicity pitfall. Second, it provides reasons for more complex masking policies, such as masking continuous random spans <ref type="bibr">(Joshi et al., 2020)</ref>. It may improve the robustness to spurious features that contain more than one token. Third, if MLM can alleviate the simplicity bias and help the model to achieve a greater margin, it may also imply that the model has wider optima, explaining the finding in <ref type="bibr" target="#b14">Hao et al. (2019)</ref>.</p><p>In sum, we show a benefit of MLM pretraining, which partly explains its efficacy. We first empirically demonstrate the presence of simplicity bias when the input is discrete. We then theoretically and empirically explain how MLM pretraining can alleviate the problem brought by it. Finally, we close the gap between our theories and realworld practices with experiments on real-world NLP tasks. Our theories reveal a desirable mechanism of MLM pretraining, suggesting that reinforcing this mechanism could be a promising future research direction. discrete and finite. So we have</p><formula xml:id="formula_19">H(X 1 |Π 1 ) = x 1 ,π 1 P (X 1 , π 1 ) log P (x 1 |π 1 ) = x 1 ,π 1 x 2 :P (X 1 |x 2 )=π 1 P (x 1 , x 2 ) log P (x 1 |x 2 ) =H(X 1 |X 2 )</formula><p>Note that the assumption holds when X 2 is a sequence of tokens with bounded length. In practice, the input length of a MLM model is restricted due to the number of position embedding. So the assumption holds in general.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Proof of Theorem 2</head><p>The intuition of the proof is that we compare two classifiers: (1) The one based on X 1 , which can be constructed by counting the co-occurrence of X 1 and Y (Eq 10).</p><p>(2) The one based on Π. The construction of this classifier can be seen as a relaxed version of (1). In (1), we count the occurrence of X 1 based on the observation of X 1 . But in (2), we count the occurrence of X 1 based on the likelihood of x 1 for all x 1 ∈ X 1 (Eq 12).</p><p>We then show that (a) the convergence rates of (1) and ( <ref type="formula">2</ref>) are asymptotically equal. (b) the converged classifier from (2) is not worse than (1).</p><p>To proof Theorem 2, we need a lemma from <ref type="bibr" target="#b11">Gibbs and Su (2002)</ref>; <ref type="bibr" target="#b37">Paninski (2003)</ref> for the convergence rate of empirical measures.</p><formula xml:id="formula_20">Lemma 2. Given n samples x 1 , x 2 , • • • , x n of a random variable X ∈ {1, 2, • • • , m}. Let q (n) i = 1 n n j=1 1[x j = i].<label>(8)</label></formula><p>The expected convergence rate</p><formula xml:id="formula_21">E D KL q (n) p = O 1 n ,<label>(9)</label></formula><p>where p i = P (X = i).</p><p>Proof. a) , q (b) be the empirical distribution estimated by counting n samples following p (a) , p (b) .</p><formula xml:id="formula_22">m i=1 q (n) log q (n) i p i ≤ log   m i=1 q (n) i 2 p i   (By concavity of log) = log m i=1 (q (n) i -p i ) 2 p i + 1 ≤ m i=1 (q (n) i -p i ) 2 p i E m i=1 (q (n) i -p i ) 2 p i = O 1 n Lemma 3. Let q (</formula><formula xml:id="formula_23">If D KL p (a) q (a) = O(f (n)) and D KL p (b) q (b) = O(f (n)) for some function f (n) (e.g. O( 1 n )), then D KL p (a) p (b) q (a) q (b) = O(f ).</formula><p>With these two lemmas, we can prove Theorem 2:</p><p>Proof. Proof sketch of Theorem 2:</p><p>The classifier that maximizes the likelihood of (x</p><formula xml:id="formula_24">(1) 1 , y (1) ), (x (2) 1 , y (2) ), • • • (x (n) 1 , y (n) ) can be attained by counting the co-occurrence of X 1 and Y . h(n) X 1 (y|X 1 = x) = n i=1 1[y (i) = y]1[x (i) 1 = x] n i=1 1[x (i) 1 = x] (10) It converges to h * X 1 (y|X 1 = x) = P (y|X 1 = x).<label>(11)</label></formula><p>Based on Π 1 , a classifier can be attained by first estimating P (Y ) and P (x 1 |y) for all x 1 and y:</p><formula xml:id="formula_25">ρ (n) y|x 1 = n i 1[y (i) = y]π (i) x 1 n i π (i) x 1 ,<label>(12)</label></formula><p>where π (i)</p><formula xml:id="formula_26">x 1 = Π(X 1 = x (n) 1 |X 2 = x (n)</formula><p>2 ), and then we can construct a classifier </p><formula xml:id="formula_27">h(n) Π (y|π) = x 1 ρ (n) y|x 1 π x 1 . (<label>13</label></formula><formula xml:id="formula_28">P (Y |X 2 ) = AP (X 1 |X 2 ). (<label>18</label></formula><formula xml:id="formula_29">)</formula><p>The similar technique is used in Lemma 3.1 of <ref type="bibr" target="#b27">Lee et al. (2020)</ref>. This implies that Y can predicted based on Π as accurately as predicting based on X 2 . Thus, I(Π; Y ) ≥ I(X 2 ; Y ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Implementation Details of the Experiments</head><p>We pretrain the models until they converge, and choose the checkpoint with the lowest MLM loss on the validation set. For the hate speech detection task, we use the implementation provided by <ref type="bibr" target="#b53">Zhou et al. (2021)</ref>. Except that we use bert-base-uncased instead of roberta-large, we use the other hyper parameters provided in their script. For the NER task, we use the implementation by Hugging Face<ref type="foot" target="#foot_1">3</ref> .</p><p>A.5 Details of the Datasets NER: The size of the training, validation and testing set of Conll-2003 is 14986, 3466 and 2688 respectively. This dataset consists of Reuters news articles. We also use WNUT-17 which is distributed under CC-BY 4.0. The language is English.</p><p>Hate Speech Detection: We use the version preprocessed by <ref type="bibr" target="#b53">Zhou et al. (2021)</ref>. This dataset consists of Twitter comments After filtering out instances without NOI, there are 3491, 672 and 602 instances in the training, validation, testing set respectively. The preprocessed version is distributed under Apache License 2.0. The language is English.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.6 Computational Budget</head><p>Model Size: We use the BERT-base-cased model. The trainable part contains 85M parameters.</p><p>Infrastructure: Every experiment can be run with a single NVIDIA GTX 2080Ti GPU. The workstation used for the experiments is equipped with 64G memory.</p><p>Computation Time: For the NER task, it takes 90 minutes for a run. For the hate speech detection task, it takes 16 minutes for a run.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>A case where I(Π3; Y ) ≥ I(Π1; Y ) is possible.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The causal settings of the (X, Y ) pairs.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure3: The average weights over the features during training a two-layer model. The upper and the lower rows are the curves of model without and with pretraining respectively. From left to right, (d 2 , ν) = (50, 0.04), (500, 0.04). Blue, green, purple curves represent the average weights over features in X 1 , X 2 , and Ẋ2 (the middle part of X 2 ) respectively. The orange curve represents the accuracy.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>The number of iterations a model w/ or w/o pretraining requires to converge. The number is the average of 25 runs with different random seeds, and the number in parentheses is the standard deviation.</figDesc><table><row><cell></cell><cell></cell><cell>1 layer</cell><cell cols="2">2 layers</cell><cell cols="2">3 layers</cell></row><row><cell>d 2</cell><cell>ν</cell><cell>w/o</cell><cell>w/o pre</cell><cell>w/ pre</cell><cell>w/o pre</cell><cell>w/ pre</cell></row><row><cell></cell><cell cols="2">0.04 3680 (189.5)</cell><cell>691 (55.8)</cell><cell cols="3">614 (169.1) 302 (47.2) 249 (53.7)</cell></row><row><cell>50</cell><cell cols="2">0.10 2664 (121.2) 0.25 1420 (96.0)</cell><cell>530 (30.6) 352 (23.8)</cell><cell cols="3">441 (134.9) 242 (27.6) 180 (37.5) 300 (62.0) 179 (13.8) 148 (28.7)</cell></row><row><cell></cell><cell>0.50</cell><cell>306 (79.8)</cell><cell>141 (40.7)</cell><cell cols="3">118 (33.4) 106 (23.1) 89 (24.0)</cell></row><row><cell></cell><cell cols="2">0.04 5466 (170.1)</cell><cell>945 (57.2)</cell><cell cols="3">689 (225.3) 431 (51.1) 275 (72.1)</cell></row><row><cell>100</cell><cell>0.10 0.25</cell><cell>3789 (99.2) 1952 (64.9)</cell><cell>677 (32.2) 428 (13.1)</cell><cell cols="3">478 (142.9) 317 (30.3) 208 (44.3) 330 (85.0) 214 (16.2) 169 (32.5)</cell></row><row><cell></cell><cell>0.50</cell><cell>330 (78.0)</cell><cell>156 (34.0)</cell><cell cols="3">133 (41.2) 128 (28.2) 112 (36.1)</cell></row><row><cell></cell><cell cols="6">0.04 11127 (265.9) 1953 (112.5) 857 (442.6) 792 (69.8) 431 (88.4)</cell></row><row><cell>500</cell><cell cols="2">0.10 7912 (169.2) 0.25 4321 (152.3)</cell><cell cols="4">1279 (67.5) 657 (234.9) 550 (46.7) 402 (97.0) 772 (35.5) 501 (133.5) 399 (42.3) 391 (66.0)</cell></row><row><cell></cell><cell>0.50</cell><cell>576 (150.0)</cell><cell>392 (70.2)</cell><cell cols="3">407 (81.1) 367 (69.1) 386 (80.0)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Comparison between Theorem 4 in this work and Theorem 3.3 in<ref type="bibr" target="#b49">Wei et al. (2021)</ref>.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>) P (x 1 |x 2 )D KL [P (Y |x 2 ) P (Y |x 1 )] ≥D KL P (Y |x 2 ) x 1 P (Y |x 1 )P (x 1 |x 2 ) . Elaboration on the Proof of Theorem 4When X 2 is discrete, we can represent the conditional distribution as a matrix, e.g.P (X 1 |X 2 ) ∈ R |X 1 |×|X 2 | , P (X 1 |Y ) ∈ R |X 1 |×|Y| , P (Y |X 2 ) ∈ R |Y|×|X 2 | . Therefore, we have P (X 1 |X 2 ) = P (X 1 |Y )P (Y |X 2 ). (17)When the it holds that {P (X 1 |Y = y)|y Y} are linearly independent, namely columns in P (X 1 |Y ) are linearly independent, there exists a matrixA ∈ R |Y|×|X 1 | such that AP (X 1 |Y ) = I.By left multiplying A on the both side of Equation17, we have</figDesc><table><row><cell cols="2">It converges to</cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="3">h *  Π (y|π) =</cell><cell>P (y|x 1 )π.</cell><cell>(14)</cell></row><row><cell></cell><cell></cell><cell></cell><cell>x 1</cell></row><row><cell cols="5">Based on Lemma 2 and Lemma 3, we</cell></row><row><cell cols="2">have E D KL</cell><cell>h(n) X 1</cell><cell>h *  X 1</cell><cell>= O( 1 n ) and</cell></row><row><cell>E D KL</cell><cell>h(n) Π</cell><cell>h *  Π</cell><cell cols="2">= O( 1 n ).</cell></row><row><cell cols="5">Then we show that h *  Π (y|π) is at least as good as h *  X 2 (y|π) by show-</cell></row><row><cell>ing</cell><cell cols="4">D KL P (Y |X) h *  X 1 (Y |X)</cell><cell>≥</cell></row><row><cell cols="5">D KL P (Y |X) h *  Π (Y |X) with convexity:</cell></row><row><cell>x 1</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>(15)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>(16)</cell></row><row><cell>A.3</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>We will omit the subscript of Π1 when there is no ambiguity.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>https://github.com/huggingface/ transformers/blob/master/examples/ pytorch/token-classification/run_ner.py</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgement</head><p>I thank <rs type="person">Saurabh Garg</rs> and Divyansh Kaushik the in-depth discussions we had. I also thank <rs type="person">Ta-Chung Chi</rs> and <rs type="person">Dani Yogatama</rs> for the suggestions on the paper presentation. Finally, I appreciate the comments from the anonymous reviewers.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head><p>A.1 Proof of Lemma 1</p><p>Proof. Assume that |X 2 | is discrete finite. Since X 2 is discrete and finite, the set {P (X 1 |x 2 )|x 2 ∈ X 2 } is finite and discrete too. Therefore, the random variable Π ∈ {P (X 1 |x 2 )|x 2 ∈ X 2 } is also </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Intrinsic dimensionality explains the effectiveness of language model fine-tuning</title>
+		<author>
+			<persName><forename type="first">Armen</forename><surname>Aghajanyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonal</forename><surname>Gupta</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2012.13255</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Stronger generalization bounds for deep nets via a compression approach</title>
+		<author>
+			<persName><forename type="first">Sanjeev</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rong</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Behnam</forename><surname>Neyshabur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="254" to="263" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Mutual information neural estimation</title>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Ishmael Belghazi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aristide</forename><surname>Baratin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sai</forename><surname>Rajeshwar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sherjil</forename><surname>Ozair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devon</forename><surname>Hjelm</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 35th International Conference on Machine Learning</title>
+		<meeting>the 35th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="531" to="540" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of Machine Learning Research</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">An information-maximization approach to blind separation and blind deconvolution</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Anthony</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Terrence</forename><forename type="middle">J</forename><surname>Bell</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sejnowski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1129" to="1159" />
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Invariant rationalization</title>
+		<author>
+			<persName><forename type="first">Shiyu</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mo</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1448" to="1458" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">An empirical study of content understanding in conversational question answering</title>
+		<author>
+			<persName><forename type="first">Ting-Rui</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao-Tong</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun-Nung</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="7578" to="7585" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Results of the WNUT2017 shared task on novel and emerging entity recognition</title>
+		<author>
+			<persName><forename type="first">Leon</forename><surname>Derczynski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Nichols</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marieke</forename><surname>Van Erp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nut</forename><surname>Limsopatham</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W17-4418</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Noisy User-generated Text</title>
+		<meeting>the 3rd Workshop on Noisy User-generated Text<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="140" to="147" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Measuring and mitigating unintended bias in text classification</title>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Sorensen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nithum</forename><surname>Thain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><surname>Vasserman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 AAAI/ACM Conference on AI, Ethics, and Society</title>
+		<meeting>the 2018 AAAI/ACM Conference on AI, Ethics, and Society</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="67" to="73" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Large scale crowdsourcing and characterization of twitter abusive behavior</title>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Antigoni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Constantinos</forename><surname>Founta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Despoina</forename><surname>Djouvas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilias</forename><surname>Chatzakou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeremy</forename><surname>Leontiadis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gianluca</forename><surname>Blackburn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Athena</forename><surname>Stringhini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Vakali</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Sirivianos</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kourtellis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Twelfth International AAAI Conference on Web and Social Media</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Competency problems: On finding and removing artifacts in language data</title>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Merrill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Dodge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1801" to="1813" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">On choosing and bounding probability metrics</title>
+		<author>
+			<persName><forename type="first">Alison</forename><forename type="middle">L</forename><surname>Gibbs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francis</forename><forename type="middle">Edward</forename><surname>Su</surname></persName>
+		</author>
+		<idno type="DOI">10.1111/j.1751-5823.2002.tb00178.x</idno>
+	</analytic>
+	<monogr>
+		<title level="j">International Statistical Review</title>
+		<imprint>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="419" to="435" />
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Lipstick on a pig: Debiasing methods cover up systematic gender biases in word embeddings but do not remove them</title>
+		<author>
+			<persName><forename type="first">Hila</forename><surname>Gonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1061</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="609" to="614" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Don&apos;t stop pretraining: Adapt language models to domains and tasks</title>
+		<author>
+			<persName><forename type="first">Suchin</forename><surname>Gururangan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Marasović</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swabha</forename><surname>Swayamdipta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doug</forename><surname>Downey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.740</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8342" to="8360" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Visualizing and understanding the effectiveness of BERT</title>
+		<author>
+			<persName><forename type="first">Yaru</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1424</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4143" to="4152" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Investigating representations of verb bias in neural language models</title>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Hawkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Takateru</forename><surname>Yamakoshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adele</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.376</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4653" to="4663" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Unlearn dataset bias in natural language inference by fitting the residual</title>
+		<author>
+			<persName><forename type="first">He</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Zha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haohan</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-6115</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Deep Learning Approaches Low-Resource NLP</title>
+		<meeting>the 2nd Workshop on Deep Learning Approaches Low-Resource NLP<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019. DeepLo 2019</date>
+			<biblScope unit="page" from="132" to="142" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Pretrained transformers improve out-of-distribution robustness</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Dziedzic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishabh</forename><surname>Krishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.244</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2744" to="2751" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Learning deep representations by mutual information estimation and maximization</title>
+		<author>
+			<persName><forename type="first">Devon</forename><surname>Hjelm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Fedorov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Lavoie-Marchildon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karan</forename><surname>Grewal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phil</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Spanbert: Improving pre-training by representing and predicting spans</title>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Weld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">0</biblScope>
+			<biblScope unit="page" from="64" to="77" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Sgd on neural networks learns functions of increasing complexity</title>
+		<author>
+			<persName><forename type="first">Dimitris</forename><surname>Kalimeris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gal</forename><surname>Kaplun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preetum</forename><surname>Nakkiran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Edelman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tristan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boaz</forename><surname>Barak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haofeng</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="3496" to="3506" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">End-to-end bias mitigation by modelling biases in corpora</title>
+		<author>
+			<persName><forename type="first">Rabeeh</forename><surname>Karimi Mahabadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Belinkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.769</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8706" to="8716" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Explaining the efficacy of counterfactually augmented data</title>
+		<author>
+			<persName><forename type="first">Divyansh</forename><surname>Kaushik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amrith</forename><surname>Setlur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><forename type="middle">H</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><forename type="middle">Chase</forename><surname>Lipton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Contextualizing hate speech classifiers with post-hoc explanation</title>
+		<author>
+			<persName><forename type="first">Brendan</forename><surname>Kennedy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xisen</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aida</forename><forename type="middle">Mostafazadeh</forename><surname>Davani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morteza</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Ren</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.483</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5435" to="5442" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A mutual information maximization perspective of language representation learning</title>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cyprien</forename><surname>De Masson D'autume</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Nurse is closer to woman than surgeon? mitigating genderbiased proximities in word embeddings</title>
+		<author>
+			<persName><forename type="first">Vaibhav</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tenzin</forename><surname>Singhay Bhotia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vaibhav</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tanmoy</forename><surname>Chakraborty</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00327</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="486" to="503" />
+		</imprint>
+	</monogr>
+	<note>Transactions of the Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Measuring bias in contextualized word representations</title>
+		<author>
+			<persName><forename type="first">Keita</forename><surname>Kurita</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nidhi</forename><surname>Vyas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ayush</forename><surname>Pareek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><forename type="middle">W</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulia</forename><surname>Tsvetkov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W19-3823</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Workshop on Gender Bias in Natural Language Processing</title>
+		<meeting>the First Workshop on Gender Bias in Natural Language Processing<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="166" to="172" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Predicting what you already know helps: Provable self-supervised learning</title>
+		<author>
+			<persName><forename type="first">Jason D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikunj</forename><surname>Saunshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Zhuo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2008.01064</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A rigorous study on named entity recognition: Can fine-tuning pretrained model lead to the promised land?</title>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaojie</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialong</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianpei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhicheng</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><forename type="middle">Jing</forename><surname>Yuan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.592</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7291" to="7300" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Self-organization in a perceptual network</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Linsker</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/2.36</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computer</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="105" to="117" />
+			<date type="published" when="1988">1988</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Mitigating gender bias for neural dialogue generation with adversarial learning</title>
+		<author>
+			<persName><forename type="first">Haochen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wentao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiqi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zitao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.64</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="893" to="903" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">Roberta: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Predicting inductive biases of pretrained models</title>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Lovering</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rohan</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Linzen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Pavlick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Effects of parameter norm growth during transformer training: Inductive bias from gradient descent</title>
+		<author>
+			<persName><forename type="first">William</forename><surname>Merrill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivek</forename><surname>Ramanujan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roy</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1766" to="1781" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregory</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Accuracy on the line: on the strong correlation between out-of-distribution and in-distribution generalization</title>
+		<author>
+			<persName><forename type="first">Rohan</forename><surname>John P Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditi</forename><surname>Taori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiori</forename><surname>Raghunathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pang</forename><surname>Sagawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vaishaal</forename><surname>Wei Koh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Shankar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yair</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Carmon</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Schmidt</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7721" to="7735" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yazhe</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1807.03748</idno>
+		<title level="m">Representation learning with contrastive predictive coding</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Estimation of entropy and mutual</title>
+		<author>
+			<persName><forename type="first">Liam</forename><surname>Paninski</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/089976603321780272</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Comput</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1191" to="1253" />
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Distributionally robust neural networks</title>
+		<author>
+			<persName><forename type="first">Shiori</forename><surname>Sagawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pang</forename><surname>Wei Koh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename><surname>Tatsunori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">A mathematical exploration of why language models help downstream tasks</title>
+		<author>
+			<persName><forename type="first">Nikunj</forename><surname>Saunshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sadhika</forename><surname>Malladi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjeev</forename><surname>Arora</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">A theoretical analysis of contrastive unsupervised representation learning</title>
+		<author>
+			<persName><forename type="first">Nikunj</forename><surname>Saunshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orestis</forename><surname>Plevrakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjeev</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikhail</forename><surname>Khodak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hrishikesh</forename><surname>Khandeparkar</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th International Conference on Machine Learning</title>
+		<meeting>the 36th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">97</biblScope>
+			<biblScope unit="page" from="5628" to="5637" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of Machine Learning Research</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Prateek Jain, and Praneeth Netrapalli. 2020. The pitfalls of simplicity bias in neural networks</title>
+		<author>
+			<persName><forename type="first">Harshay</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaustav</forename><surname>Tamuly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditi</forename><surname>Raghunathan</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>In NeurIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<author>
+			<persName><forename type="first">Koustuv</forename><surname>Sinha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dieuwke</forename><surname>Hupkes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joelle</forename><surname>Pineau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2104.06644</idno>
+		<title level="m">Masked language modeling and the distributional hypothesis: Order word matters pre-training for little</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Introduction to the CoNLL-2003 shared task: Language-independent named entity recognition</title>
+		<author>
+			<persName><forename type="first">Erik</forename><forename type="middle">F</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fien</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meulder</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Conference on Natural Language Learning at HLT-NAACL 2003</title>
+		<meeting>the Seventh Conference on Natural Language Learning at HLT-NAACL 2003</meeting>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="142" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">An empirical study on robustness to spurious correlations using pre-trained language models</title>
+		<author>
+			<persName><forename type="first">Lifu</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Garima</forename><surname>Lalwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Spandana</forename><surname>Gella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>He</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00335</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="621" to="633" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Nafise Sadat Moosavi, and Iryna Gurevych. 2020a. Mind the trade-off: Debiasing NLU models without degrading the in-distribution performance</title>
+		<author>
+			<persName><forename type="first">Prasetya</forename><surname>Ajie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Utama</forename></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.770</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="8717" to="8729" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Towards debiasing NLU models from unknown biases</title>
+		<author>
+			<persName><forename type="first">Nafise</forename><surname>Prasetya Ajie Utama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Sadat Moosavi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.613</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7597" to="7610" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Exploring the linear subspace hypothesis in gender bias mitigation</title>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Vargas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Cotterell</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.232</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2902" to="2913" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Dynamically disentangling social bias from task-oriented representations with adversarial attack</title>
+		<author>
+			<persName><forename type="first">Liwen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanmeng</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keqing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.293</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3740" to="3750" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Why do pretrained language models help in downstream tasks? an analysis of head and prompt tuning</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sang</forename><surname>Michael Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengyu</forename><surname>Ma</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2106.09226</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">On the inductive bias of masked language modeling: From statistical to syntactic dependencies</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><forename type="middle">B</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.404</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5131" to="5146" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Understanding hard negatives in noise contrastive estimation</title>
+		<author>
+			<persName><forename type="first">Wenzheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Stratos</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.86</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1090" to="1101" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Gender bias in contextualized word embeddings</title>
+		<author>
+			<persName><forename type="first">Jieyu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianlu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Yatskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Cotterell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vicente</forename><surname>Ordonez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1064</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="629" to="634" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Challenges in automated debiasing for toxic language detection</title>
+		<author>
+			<persName><forename type="first">Xuhui</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Sap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swabha</forename><surname>Swayamdipta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3143" to="3155" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Zero-shot Triplet Extraction by Template Infilling</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Bosung</forename><surname>Kim</surname></persName>
+							<email>bosungkim@ucsd.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Hayate</forename><surname>Iso</surname></persName>
+							<email>hayate@megagon.ai</email>
+						</author>
+						<author>
+							<persName><forename type="first">Nikita</forename><surname>Bhutani</surname></persName>
+							<email>nikita@megagon.ai</email>
+						</author>
+						<author>
+							<persName><forename type="first">Estevam</forename><surname>Hruschka</surname></persName>
+							<email>estevam@megagon.ai</email>
+						</author>
+						<author>
+							<persName><forename type="first">Ndapa</forename><surname>Nakashole</surname></persName>
+							<email>nnakashole@eng.ucsd.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="department">San Diego Megagon Labs</orgName>
+								<orgName type="institution">University of California</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Zero-shot Triplet Extraction by Template Infilling</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">93C955B246B7890EFB796895EF7E99BC</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:32+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The task of triplet extraction aims to extract pairs of entities and their corresponding relations from unstructured text. Most existing methods train an extraction model on training data involving specific target relations, and are incapable of extracting new relations that were not observed at training time. Generalizing the model to unseen relations typically requires fine-tuning on synthetic training data which is often noisy and unreliable. We show that by reducing triplet extraction to a template infilling task over a pre-trained language model (LM), we can equip the extraction model with zero-shot learning capabilities and eliminate the need for additional training data. We propose a novel framework, ZETT (ZEro-shot Triplet extraction by Template infilling), that aligns the task objective to the pre-training objective of generative transformers to generalize to unseen relations. Experiments on FewRel and Wiki-ZSL datasets demonstrate that ZETT shows consistent and stable performance, outperforming previous state-of-the-art methods, even when using automatically generated templates. 1 * The work was partially done when Bosung Kim was a research intern at Megagon Labs.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Extracting pairs of entities and their relations from unstructured text is vital to several applications including knowledge base population, text retrieval and question answering <ref type="bibr" target="#b15">(Lin et al., 2015;</ref><ref type="bibr" target="#b33">Xu et al., 2016)</ref>. Traditional approaches obtain entity pairs and relations step-by-step by considering entity recognition and relation classification as two separate sub-tasks. However, such multi-step approaches suffer from cascading errors and ignore interdependence between the tasks. Recent studies aim at extracting entities and relations together in a single step <ref type="bibr" target="#b14">(Li and Ji, 2014;</ref><ref type="bibr" target="#b37">Zheng et al., 2017;</ref><ref type="bibr"></ref> c: Ay Juancito is an Argentine drama film directed by Héctor Olivera.</p><p>h t c: Ay Juancito is an Argentine drama film directed by Héctor Olivera.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Relations: director_of, lyrics_by, drafted_by, founded_by, located_in</head><p>Triplet: (Héctor Olivera, director_of, Ay Juancito) r</p><p>Figure <ref type="figure">1</ref>: Triplet extraction task: given a context c and a set of relations R, extract pairs of entities and their relations. Zero-shot extraction aims at extracting relations not covered in the training data. <ref type="bibr">Paolini et al., 2021)</ref>. Given a set of pre-defined relations and an input text, they extract triplets of the form <ref type="bibr">(head, relation, tail)</ref>. We refer to this task as triplet extraction (illustrated in Figure <ref type="figure">1</ref>). If the relations are pre-defined, an extraction model can be trained on large-scale labeled data acquired via distant supervision or crowdsourcing <ref type="bibr" target="#b29">(Sorokin and Gurevych, 2017;</ref><ref type="bibr" target="#b7">Han et al., 2018)</ref>. However, such methods are hard to adopt in realworld scenarios where ground-truth entities and relations cannot be specified in advance. To overcome these limitations, there is an increasing interest in generalizing models to extract entities and relations that are not observed during training -a zero-shot setting.</p><p>Automatically generating training data for unseen relations is a widely used approach to render zero-shot capabilities to an extraction model. Distant supervision <ref type="bibr" target="#b17">(Mintz et al., 2009;</ref><ref type="bibr" target="#b36">Zeng et al., 2015;</ref><ref type="bibr" target="#b10">Ji et al., 2017)</ref> and data augmentation <ref type="bibr" target="#b3">(Chia et al., 2022)</ref> can provide automatically labeled training data, but they suffer from quality and consistency of the synthetic data. They also require the model to be further fine-tuned on the synthetic data which can be computationally intensive. Yet another set of approaches extract unseen relations using cross-task knowledge learned from a collection of similar datasets and tasks <ref type="bibr">(Zhong et al., 2021;</ref><ref type="bibr" target="#b25">Sanh et al., 2022)</ref> . However, the performance of these methods depends on the similarity between the datasets or the tasks.</p><p>Recent progress in large language models (LMs) such as  shows that they can be adapted to zero-shot settings if the task objective is aligned with the pre-training objective <ref type="bibr" target="#b0">(Brown et al., 2020)</ref>. Based on this idea, many NLP tasks such as text classification <ref type="bibr">(Zhong et al., 2021)</ref> and relation classification <ref type="bibr" target="#b12">(Levy et al., 2017;</ref><ref type="bibr" target="#b19">Obamuyide and Vlachos, 2018)</ref> have been successfully reformulated into prompt-based tasks. However, the state-ofthe-art zero-shot triplet extraction approach still relies on synthetic data to generalize to unseen relations <ref type="bibr" target="#b3">(Chia et al., 2022)</ref>. Moreover, most existing prompting approaches are designed for simple classification or generation tasks, making them unsuitable for the structured prediction such as triplet extraction which requires the identification of the complex triplet format. This work is the first study to explore how to reformulate triplet extraction into a prompt-based method to effectively and efficiently generalize to unseen relations.</p><p>We formulate triplet extraction as a template infilling task and propose a novel framework, ZETT (ZEro-shot Triplet extraction by Template infilling) based on an end-to-end generative language model, T5 <ref type="bibr" target="#b22">(Raffel et al., 2019)</ref>. Concretely, ZETT extends the input text with a relation template (e.g., "&lt;X&gt; is nominated for &lt;Y&gt;") and learns to generate the correct entity pair (e.g., "&lt;X&gt; John Bright &lt;Y&gt; Best Story") for the relation. In this manner, it aligns the task objective with the pre-training objective of the T5 model. The model is fine-tuned using annotated examples and a relation template for each relation in a set of predefined relations. Then at inference, the model extends the input text with template for each unseen relation and generates an entity pair and its score. It uses these scores to rank the relations and entity pairs and output the most-likely triplet(s).</p><p>Although the model relies on a template for each seen and unseen relation, we show that ZETT can perform well even with automatically-generated templates for the relations. We further propose optimizations based on relation descriptions to improve efficiency at inference. Figure <ref type="figure">2</ref> shows the overview of ZETT. Note that ZETT adopts an efficient single-step approach for the task that does not require synthetic data or additional fine-tuning for unseen relations.</p><p>Experiments on publicly available datasets FewRel <ref type="bibr" target="#b7">(Han et al., 2018)</ref> and Wiki-ZSL <ref type="bibr" target="#b1">(Chen and Li, 2021)</ref> demonstrate that ZETT effectively generalizes to the zero-shot setting, outperforming state-of-the-art methods by up to 6 points in accuracy. We find that ZETT shows lower variance in performance compared to existing methods that rely on fine-tuning on noisy synthetic data. We also show that it is robust to the choice of template and can be integrated with automatically generated templates without significant loss in performance. In conclusion, ZETT is an effective and efficient method for the zero-shot triple extraction task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Method</head><p>We now introduce ZETT (ZEro-shot Triplet extraction by Template infilling), a generative triplet extraction framework that reformulates triplet extraction as template infilling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Task Definition</head><p>The goal of triplet extraction is to extract triplets T = {(h, r, t)} given an input context c, where h and t are head and tail entities and r is a predefined relation r ∈ R. In the zero-shot setting, we only have access to the dataset with the subset of relations R seen ⊂ R during training and have to generalize it to the dataset with unseen relations R unseen ⊂ R which is disjoint from seen relations: R seen ∩ R unseen = ϕ (Chia et al., 2022).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Triplet Extraction by Template Infilling</head><p>We reformulate the triplet extraction task to a template infilling task as follows. For each relation r ∈ R, we create a template τ r with placeholders for the head (&lt;head&gt;) and tail (&lt;tail&gt;) entities, and then fill in these placeholders with entities from the context c to identify the head (h) and tail (t) entities for the relation r. For example, for the relation participant in, we prepare a template, "&lt;head&gt; is a participant in &lt;tail&gt;". Using a context c ("His brother Byron LaBeach, also a sprinter, competed in the 1952 Summer Olympics representing Jamaica."), we fill the placeholders in the template to identify the head ("Byron LaBeach") and tail ("1952 Summer Olympics") entities for the relation participant in. We show more template examples in Table <ref type="table" target="#tab_1">1</ref>.</p><p>With this formulation, we can even extract unseen relations R unseen simply by preparing their templates and infilling them. This eliminates the need for additional fine-tuning for the unseen relations. At inference, we perform template infilling  Each template is created based on its description in Wikidata <ref type="bibr" target="#b30">(Vrandečić and Krötzsch, 2014)</ref>. We provide the full list of templates in supplementary materials.</p><p>for all target unseen relations and re-rank them based on the consistency between the context c and the infilled template.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">ZETT implementation with T5</head><p>We instantiate ZETT using the pre-trained language model T5 <ref type="bibr" target="#b22">(Raffel et al., 2019)</ref>. T5 is pre-trained to predict consecutive spans randomly dropped out from a sentence, which is closely aligned with the template infilling task. As illustrated in Figure <ref type="figure">2</ref>, we build input-output pairs for the text infilling task using the context c, the gold triplet T = (h, r, t), and corresponding template τ r . We replace the placeholder tokens &lt;head&gt; and &lt;tail&gt; in the template τ r with mask tokens &lt;X&gt; and &lt;Y&gt;, 2 and concatenate it with the context c to form a model input x. Then, we fine-tune the model to learn to generate output y consisting of the gold head and tail entities where 2 In T5 implementation, mask tokens are denoted as &lt;extra_id_n&gt;, where n ∈ {0, ..., 99}. We use simplified forms &lt;X&gt;, &lt;Y&gt;, and &lt;Z&gt; instead of &lt;extra_id_0&gt;, &lt;extra_id_1&gt;, and &lt;extra_id_2&gt;. We also note that &lt;X&gt; and &lt;Y&gt; are not respectively corresponding to &lt;head&gt; and &lt;tail&gt;. &lt;X&gt; and &lt;Y&gt; are used as mask tokens in the input sequence and as delimiters for predicted spans in the output sequence. Thus &lt;X&gt; always comes first followed by &lt;Y&gt;. On the other hand, the order of &lt;head&gt; and &lt;tail&gt; depends on its template. each entity follows the corresponding mask tokens. We use the standard negative log-loss minimization L = -log P T5 (y | x) for fine-tuning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Inference with relation constraint</head><p>At inference, we evaluate the model on the test data wherein input contexts have unseen relations R unseen during training. Given a context c, we build multiple model inputs {x r } r∈Runseen by concatenating templates τ r for each r ∈ R unseen . We then generate entity tokens for each sequence. Since some contexts may have multiple triplets, we use beam search to generate multiple output sequences for each model input x r . We then compute a score for each output sequence as P T5 (y | x r ). This score is used to rank all the generated triplets. The triplets are evaluated under single-triplet and multitriplet settings. Under single-triplet setting, it is assumed that the input sentence has one triplet. In this setting, we predict the best scoring triplet as the output. Under multi-triplet setting, a sentence can have more than one triplet. In that case, we use threshold over the score to filter triplets. We tune the threshold on the validation set.</p><p>Exhaustively generating sequences for every unseen relation and scoring them can be inefficient in real-world scenarios where the number of un- seen relations is large. Intuitively, not all unseen relations are related to the input context. Moreover, since ZETT relies on the LM's probability P T5 , the model tends to assign a higher score when the relation is frequently used in common sentences even when it is not relevant to the context. Therefore, instead of exhaustive scoring, we exploit relation constraints to filter out relations which are irrelevant to the given context. Since we don't have any data for unseen relations, we adopt the relation extraction model that utilizes relation descriptions <ref type="bibr" target="#b1">(Chen and Li, 2021)</ref>. We use a sentence similarity score between the context c and the description about the relation r to exclude irrelevant relations from R unseen . For the relation descriptions, we use the descriptions from Wikidata as shown in Table <ref type="table" target="#tab_1">1</ref>. Before generating entities, we first obtain the sentence embedding of the context and the relation's description using the off-the-shelf SBERT <ref type="bibr" target="#b23">(Reimers and Gurevych, 2019)</ref>. Then, we compute the cosine similarities between the context and relation's description embeddings and set the threshold δ on the validation set to filter out the relations whose similarity score is lower than δ. After filtering out the irrelevant relations, we evaluate the model on the constrained unseen relation set.</p><p>3 Experiments</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dataset</head><p>We evaluate our method on two datasets: FewRel <ref type="bibr" target="#b7">(Han et al., 2018)</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Experimental Settings</head><p>Training We use the pre-trained T5-base<ref type="foot" target="#foot_1">3</ref> . We fine-tune the model for 3 epochs with 64 batch size, and 3e-5 learning rate. We tune the parameters using the validation set. We provide details of the parameters in Appendix.</p><p>Inference At inference, ZETT generates entity spans given the input sentence concatenated with the relation template. We restrict the vocabulary to use tokens from the input sentence to ensure entities are spans from the input sentence. We use a beam size of 4 to generate a maximum of 4 candidate entity pairs for each relation type. For the relation constraint, we set a threshold δ and choose δ=0.85 based on the validation performance.</p><p>Single-and Multi-triplet evaluation Each example in the datasets includes one or more triplets.</p><p>We evaluate the models separately on singleand multi-triplet settings following the previous study <ref type="bibr" target="#b3">(Chia et al., 2022)</ref>. For the single-triplet setting, the examples have only one correct (gold) triplet, thus we use accuracy as the metric for evaluating performance. In the multi-triplet setting, the number of gold triplets is two or more, thus we evaluate performance with a F1 score. To retrieve positives in the multi-triplet setting, we set a threshold and output a candidate as a predicted positive example if its score is above this threshold.</p><p>The thresholds for the multi-triplet evaluation are provided in Appendix.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Baseline methods</head><p>We compare the performance of ZETT with four existing methods for triplet extraction: 1) ZS-BERT+spanNER is a pipeline model, where two sub-tasks: relation classification and entity extraction are combined to extract triplets. We use ZS-BERT <ref type="bibr" target="#b1">(Chen and Li, 2021)</ref> for the relation classi-   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Automatic Evaluation</head><p>Table <ref type="table" target="#tab_5">3</ref> shows the results of single-and multi-triplet evaluation settings on FewRel and Wiki-ZSL. As can be seen, ZETT consistently outperforms existing methods across different datasets under single-4 Since the synthetic data and pre-trained checkpoints for all experiments are not provided in the official implementation, we couldn't reproduce the results of RelationPrompt as same as reported in the paper. Thus, we re-trained the models with three different random seeds and report the average of them in Table <ref type="table" target="#tab_5">3</ref>  triplet setting. It achieves up to 6.45 and 5.14 higher accuracy than the existing state-of-the-art model, RelationPrompt on FewRel and Wiki-ZSL datasets, respectively. It also shows much lower variance in performance than RelationPrompt (see Figure <ref type="figure" target="#fig_0">3</ref>). In the worst case, performance of Rela-tionPrompt differs by 7.1 points in accuracy (fold 0, m=10, FewRel). We conjecture that the variance can be attributed to the varying quality of the synthesized dataset in every trial. On the the other hand, ZETT shows stable performance through all trials, consistently outperforming the existing methods. In the multi-triplet setting, ZETT achieves the best F1 score for different relation set sizes except on Wiki-ZSL with m=5. We argue that this is mainly due to the biased distribution in the multitriplet test sets; most examples are only for few relations. Therefore, performance loss in a particular relation results in significant drop in overall performance. We analyze the main causes of prediction failure in Section 5.4. Overall, results of automatic evaluation show that having a simpler training process can yield more effective and stable performance on the task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Human Evaluation</head><p>Both the test sets from our experiments are created using distant supervision and hence can be noisy and incomplete. In other words, they can include triplets that are not supported by an input text. Furthermore, it may not include all possible triplets from an input text. We, therefore, conduct human evaluation to better understand the performance of ZETT. We focus on WikiZSL since it is noisier and sample 200 contexts for manual annotation.</p><p>We ask three CS graduates to annotate top-5 predictions for each context. An annotator labels a prediction correct if it is supported by the input text. Three annotators labeled the triplets such that each triplet receives two annotations. We identified triplets labeled as True by both annotators, showing a high agreement with a Cohen's Kappa coefficient of 0.75. Among the 1,000 triplets, we found 127 mislabeled instances-24 were False (i.e., unsupported by input text) but originally labeled as True, and 103 were True but not covered in the original dataset. We found that accuracy of ZETT increased from 18% to 30.2% on this manually annotated dataset. We will release the manually annotated dataset for future research.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Robustness to choice of templates</head><p>Since ZETT uses templates to generalize to unseen relations, the performance can be sensitive to the wording of templates <ref type="bibr" target="#b25">(Sanh et al., 2022)</ref>. In this section, we investigate how the performance varies depending on the template. To that end, we paraphrase the manually defined templates and compare the performance of ZETT with manual and paraphrased templates. We adopt the back-translation method from <ref type="bibr" target="#b11">Jiang et al. (2020)</ref>, which uses an English-German machine translation model to generate semantically-similar templates. In our experiments, we used the translation model to generate 7 templates in German language for each manual template, and then back-translate each of them to 7 templates in English. As a result, we obtain 49 paraphrased templates per relation. Since many of them are duplicates, we evaluate on the mostfrequent template, Paraphrased (Top 1). We also compare with a randomly selected paraphrased template, Paraphrased (Random). We will release the full set of paraphrased templates.</p><p>Table <ref type="table" target="#tab_7">4</ref> compares the performance of ZETT with manual and paraphrased templates. Since automatically paraphrased templates can be noisy in capturing the semantic meaning of a relation, we observe small performance drops when using ZETT with paraphrased templates. The performance drop is much smaller with Paraphrased (Top 1). Even though the paraphrased templates are noisy, ZETT  still consistently outperforms current state-of-theart methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Ablation Study</head><p>Next, we conduct an ablation study to examine the importance of each generation setting and the relation constraint. The results are summarized in Table <ref type="table">6</ref>. First, we test without the vocabulary constraints that limits the vocabulary set to tokens that appear in the context. We observe a small drop in accuracy of up to 0.39 points. Second, we compare the performance of beam search with greedy decoding that only generates one sequence. We find that beam search improves accuracy by up to 1.62 points since it selects the best complete sequence of entity pair as opposed to selecting the best individual entity token in each position. Last, we observe that our proposed relation constraint, although simple, is effective in eliminating irrelevant relations and can improve accuracy by up to 3.56 points.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Qualitative Analysis</head><p>To further gain insights into the strengths and weaknesses of the models, we manually inspect examples where ZETT and RelationPrompt generate different triplets. We also find that RelationPrompt often fails to predict the correct order of entities. This is because the output sequence for generating a triplet "Head Entity: &lt;head&gt;, Tail Entity : &lt;tail&gt;, Relation : &lt;relation&gt;" does not encode any information about the order of entities. In contrast, ZETT can leverage the implicit information about entity types and their order encoded in relation templates. For instance, for the relation participating team, the template "&lt;tail&gt; is a participating team in &lt;head&gt;" provides implicit information that &lt;head&gt; entity is a sports team and &lt;tail&gt; entity should be a contest or sports game. This information helps ZETT correctly predict the order of entities.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Error Analysis</head><p>To understand the limitations of ZETT, we perform a detailed analysis of errors on 200 examples. Incorrect ranking of relations contributed to the most frequent errors, accounting for 36% of errors. Since ZETT relies on LM's probability P T 5 , it tends to assign high scores to relations that are frequently used in common sentences. We find that relations such as occupation, owned by or work location had higher scores than more rare relations such as contains administrative territorial entity or place served by transport hub. Lack of discriminatory power over semantically similar relations  <ref type="bibr" target="#b24">(Roth and Yih, 2004;</ref><ref type="bibr" target="#b35">Yu and Lam, 2010;</ref><ref type="bibr" target="#b28">Singh et al., 2013;</ref><ref type="bibr" target="#b18">Miwa and Sasaki, 2014;</ref><ref type="bibr" target="#b14">Li and Ji, 2014;</ref><ref type="bibr">Paolini et al., 2021)</ref> and end-to-end neural approaches <ref type="bibr" target="#b37">(Zheng et al., 2017)</ref> LM prompt-tuning with templates Recent progress in LM prompt-tuning aims to bridge the gap between pre-training and downstream tasks by using natural language templates. Most approaches reframe the downstream task as a masked language modeling problem and have been successfully applied for text classification <ref type="bibr" target="#b19">(Obamuyide and Vlachos, 2018;</ref><ref type="bibr" target="#b9">Hu et al., 2022;</ref><ref type="bibr" target="#b2">Chen et al., 2022)</ref>, named entity recognition <ref type="bibr" target="#b4">(Cui et al., 2021)</ref>, and natural language inference <ref type="bibr">(Schick and Schütze, 2021a,b)</ref>. However, these approaches are mostly tailored for classification tasks, and not suitable for structured prediction such as triplet extraction. <ref type="bibr" target="#b8">Hsu et al. (2022)</ref> introduced DEGREE, a method akin to ZETT, employing a template infilling task to extract events in a low-resource setting. However, DEGREE uses placeholders like "someone" or "somewhere" that are not part of the pre-training process, necessitating fine-tuning the model to new types of event. In contrast, the fine-tuning of ZETT is identical to pre-training of T5, that improves its capability to generalizability to unseen relations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We introduced the ZETT, a new framework for zero-shot triplet extraction which does not need any data augmentation or pipeline systems. We reformulate the triplet extraction as a template infilling problem using natural language templates. This enables the model to better leverage PLMs by aligning pre-training, fine-tuning, and inference objectives and eliminates the need for additional training data for unseen relations. ZETT is effective in extracting triplet by leveraging knowledge in PLMs, and is also more stable with a simple training process. Through experiments on two datasets, we demonstrated that ZETT outperforms previous state-of-the-art methods, showing consistent perfor-mance improvement without any extra models or synthetic data. We also showed that ZETT is robust in the variation of templates, showing competitive results without a significant performance loss.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Method limitations As discussed in Section 5.4, ZETT has several weaknesses: 1) the ranking score based on the PLM's probability is likely high when the templates of the relation include phrases or sentences which are commonly used in corpus.</p><p>2)</p><p>The model struggles to discriminate between similar relations.</p><p>3) The relation constraint method proposed in Section 2.4 could exclude the relevant relations in inference. Future work could explore more effective relation classification methods for the relation constraint and sophisticated score functions which are well generalized to relations even whose templates are infrequent in corpus.</p><p>Zero-shot setup limitations The zero-shot setup that has been explored in the literature assumes that the set of unseen relations is given in inference, and the number of unseen relations is at most 15. This setup cannot fully reflect the real-world problems where there are numerous unseen relations. Future work could include exploring more realistic task setups and developing techniques to overcome the challenges posed by them.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Results of each data fold in the single-triplet setting with m=10. We experiment on three different random seeds. Each point is the accuracy (%) of each evaluation and labeled numbers are an average of three results. Final column shows average over all folds.</figDesc><graphic coords="5,93.55,70.86,408.21,206.63" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>&lt;X&gt; Byron LaBeach &lt;Y&gt; 1952 Summer Olympics &lt;Z&gt; His brother Byron LaBeach, also a sprinter, competed in the 1952 Summer Olympics representing Jamaica. &lt;X&gt; is a participant in &lt;Y&gt; + T5 &lt;X&gt; Best Story &lt;Y&gt; John Bright &lt;Z&gt; &lt;X&gt; is manufactured by &lt;Y&gt; + T5 &lt;X&gt; is nominated for &lt;Y&gt; &lt;X&gt; John Bright &lt;Y&gt; Best Story &lt;Z&gt; &lt;X&gt; The Public Enemy &lt;Y&gt; John Bright &lt;Z&gt; &lt;X&gt; is written by &lt;Y&gt;</head><label></label><figDesc>Figure2: Fine-tuning and inference in ZETT: it fine-tunes T5 by extending input text with a relation template and learning to predict entity spans masked in the template. At inference, given templates for all unseen relation, it generates their entity spans and scores them. The best scoring sequences over a given threshold are then produced as the final output.</figDesc><table><row><cell cols="2">Fine-tuning: supervision with seen relations</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>Relation: participant in</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell>context</cell><cell></cell><cell>template</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Inference: evaluate on unseen relations</cell><cell></cell><cell></cell><cell>1) Generate</cell><cell></cell><cell cols="4">2) Score</cell><cell>3) Rank</cell><cell></cell><cell>4) Predict</cell></row><row><cell>He was nominated for Best Story with John Bright for "The Public Enemy"</cell><cell></cell><cell>Relation: manufacturer</cell><cell></cell><cell></cell><cell cols="3">P T5</cell><cell>: 0.08</cell><cell>(John Bright, nominated for, Best Story) Triplet</cell><cell>P T5 0.72</cell><cell>Prediction Single-triplet</cell></row><row><cell>. . . He was nominated for Best Story with John Bright for "The Public Enemy"</cell><cell>+</cell><cell>. . . Relation: nominated for</cell><cell>T5</cell><cell>. . .</cell><cell cols="2">P T5</cell><cell cols="2">: 0.72</cell><cell>. . . (The Public Enemy, author, John Bright)</cell><cell>0.59</cell><cell>Threshold</cell><cell>Multi-triplet Prediction</cell></row><row><cell>He was nominated for Best Story with John Bright for "The Public Enemy"</cell><cell>+</cell><cell></cell><cell>T5</cell><cell></cell><cell>P T5</cell><cell cols="3">: 0.59</cell><cell>(Best Story, manufacturer, John Bright)</cell><cell>0.08</cell></row><row><cell></cell><cell></cell><cell>Relation: author</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p><p>Relation</p>Description Template participant in event in which a person or organization was/is a participant &lt;head&gt; is a participant in &lt;tail&gt;. publisher organization or person responsible for publishing books, periodicals, printed music, podcasts, games or software &lt;head&gt; is published by &lt;tail&gt;. screenwriter person(s) who wrote the script for subject item &lt;tail&gt; wrote the script for &lt;head&gt;. cast member actor in the subject production &lt;tail&gt; is an actor in &lt;head&gt;.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Examples of relation types and templates. &lt;head&gt; and &lt;tail&gt; denote head and tail entities in a triplet.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Statistics of the datasets. |R| denotes the number of relations in each set, and m is the number of relations in the test set.</figDesc><table><row><cell></cell><cell cols="3"># of examples # of relations # of entities</cell></row><row><cell>FewRel</cell><cell>56,000</cell><cell>80</cell><cell>72,954</cell></row><row><cell>Wiki-ZSL</cell><cell>94,383</cell><cell>113</cell><cell>77,623</cell></row><row><cell></cell><cell>|Rtrain|</cell><cell cols="2">|Rtest| |Rvalidation|</cell></row><row><cell cols="2">FewRel Wiki-ZSL</cell><cell>m</cell><cell></cell></row><row><cell>70</cell><cell>103</cell><cell>5</cell><cell>5</cell></row><row><cell>65</cell><cell>98</cell><cell>10</cell><cell>5</cell></row><row><cell>60</cell><cell>93</cell><cell>15</cell><cell>5</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Accuracy in the single-triplet and F1 score in the multi-triplet settings. m denotes the number of unseen relations. All reported results are averaged over three different random seeds, where the result of each seed are averaged over five different data folds. Results of † are taken from Chia et al. (2022).</figDesc><table><row><cell>fication model and implement span-based named</cell><cell>seen relations. 4 They generate synthetic training</cell></row><row><cell>entity recognition model using transformer encoder</cell><cell>datasets for unseen relations using GPT-2 (Rad-</cell></row><row><cell>initialized with roberta-base checkpoint for en-</cell><cell>ford et al., 2019) 5 and fine-tune the Seq2seq-based</cell></row><row><cell>tity extraction (Fu et al., 2021). 2) TableSequence</cell><cell>triplet extraction model.</cell></row><row><cell>(Wang and Lu, 2020) is a joint learning model with</cell><cell></cell></row><row><cell>two separate encoders performing relation extrac-</cell><cell></cell></row><row><cell>tion and named entity recognition at the same time.</cell><cell></cell></row><row><cell>Since TableSequence is designed for supervised</cell><cell></cell></row><row><cell>learning, we report the results of models trained on</cell><cell></cell></row><row><cell>synthetic data from Chia et al. (2022). 3) Seq2seq</cell><cell></cell></row><row><cell>(Chia et al., 2022) is an encoder-decoder model</cell><cell></cell></row><row><cell>based on the pre-trained BART-base (Lewis et al.,</cell><cell></cell></row><row><cell>2020). The input to the encoder is a context, then</cell><cell></cell></row><row><cell>the decoder generates a triplet as a sequence of</cell><cell></cell></row><row><cell>structured template. 4) RelationPrompt (Chia</cell><cell></cell></row><row><cell>et al., 2022) is an additionally fine-tuned model</cell><cell></cell></row><row><cell>of the Seq2Seq on the synthetic data for the un-</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 4 :</head><label>4</label><figDesc>Comparison of performance with paraphrased templates at m=10. ∆ is the performance difference over ZETT with manual templates.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head></head><label></label><figDesc>Jimmy Jam is the son of Cornbread Harris, a Minneapolis blues and jazz musician. GOLD TRIPLET: (Jimmy Jam, father, Cornbread Harris) RP MODEL OUTPUT Head Entity : Cornbread Harris , Tail Entity : Minneapolis blues, Relation : field of work . TRIPLET (Cornbread Harris, field of work, Minneapolis blues)</figDesc><table><row><cell></cell><cell>TEMPLATE</cell><cell>&lt;tail&gt; is a father of &lt;head&gt;</cell></row><row><cell>ZETT</cell><cell cols="2">MODEL OUTPUT &lt;X&gt; Cornbread Harris &lt;Y&gt; Jimmy Jam &lt;Y&gt;</cell></row><row><cell></cell><cell>TRIPLET</cell><cell>(Jimmy Jam, father, Cornbread Harris)</cell></row><row><cell cols="3">CONTEXT: He participated in UEFA Euro 1972 for the Hungary national football team.</cell></row><row><cell cols="3">GOLD TRIPLET: (UEFA Euro 1972, participating team, Hungary national football team)</cell></row><row><cell>RP</cell><cell cols="2">MODEL OUTPUT Head Entity : Hungary national football team , Tail Entity : UEFA Euro 1972, Relation : participating team . TRIPLET (Hungary national football team, participating team, UEFA Euro 1972)</cell></row><row><cell></cell><cell>TEMPLATE</cell><cell>&lt;tail&gt; is a participating team in &lt;head&gt;</cell></row><row><cell>ZETT</cell><cell cols="2">MODEL OUTPUT &lt;X&gt; Hungary national football team &lt;Y&gt; UEFA Euro 1972 &lt;Y&gt;</cell></row><row><cell></cell><cell>TRIPLET</cell><cell>(UEFA Euro 1972, participating team, Hungary national football team)</cell></row></table><note><p>CONTEXT:</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 5 :</head><label>5</label><figDesc>Example MODEL OUTPUT sequences and triplets from RelationPrompt (RP) and ZETT.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head></head><label></label><figDesc>Table 5 shows some such examples. We observe that RelationPrompt often generates an incorrect triplet even for easy examples. For example, it fails to predict the correct relation father even when a context ("Jimmy Jam is the son of Cornbread Harris") clearly describes it. This can be attributed to noise in the synthesized training data for unseen relations. We find the training data for relation father includes noisy examples such as "The Last Days of the Lion-Cat is based on David Simon." → (The Last Days of the Lion-Cat, father, David Simon), where the context has no information about father. Such noisy examples can propagate errors in the multi-step training process of RelationPrompt. ZETT, being a single-step process, is more robust to such errors.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>The code is available at https://github.com/ megagonlabs/zett</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>https://huggingface.co/t5-base</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Hyperparameter Table <ref type="table">7</ref> describes hyperparameters and search spaces we considered in experiments. In training, we used AdamW optimizer <ref type="bibr" target="#b16">(Loshchilov and Hutter, 2019)</ref> for all transformerbased models with 0.2 warm-up ratio.</p><p>Thresholds of the multi-triplet evaluation As mentioned in Section 2.4, we use a threshold to retrieve positives when the example includes two or more triplets. We repeated the evaluation with the threshold in range of {2.0, 2.1, 2.2, . . . , 3.4, 3.5} on the validation set and chose the best performing ones. We report the detailed values in Table <ref type="table">8</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Computing Infrastructure</head><p>We ran all experiments on a single NVIDIA GeForce GTX 1080 (12GB) with CUDA 10.1 version.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Computational Budget</head><p>Training ZETT with hyperparameters in Table <ref type="table">7</ref> takes 1.5h on the FewRel dataset and 2h on the Wiki-ZSL dataset with a single NVIDIA GeForce GTX 1080.</p><p>Model Parameters Table <ref type="table">9</ref> provides the number of parameters in each model used in our experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Guidelines for Human Evaluation</head><p>The goal of the human evaluation is to address that the datasets have some wrong labeled examples and false negatives. We manually evaluated 1,000 examples: Top 5 predictions (triplets) of ZETT from 200 contexts. The contexts are randomly sampled from the single-triplet test set of m=10 in Wiki-ZSL. Three annotators are given 667, 667, and 666 examples, respectively. Each example consists of input sequence (context and template), gold triplet, predicted triplet, and the model's score P T 5 . The instructions for annotation are as follows:</p><p>• 1) Annotate TRUE if you think the given context and the model's prediction (triplet) are matched. Otherwise annotate FALSE.</p><p>• 2) Annotate FALSE if we cannot infer the triplet from the given context, even if the triplet itself is true. Concretely, for the example of the context "Elected to the comptrollers post in 1998 as a Republican , Keeton ran as an independent candidate for Texas governor against Republican incumbent James Richard Rick Perry in 2006." and the triplet (James Richard Rick Perry, residence, Texas), We cannot be sure whether James Richard Rick Perry lives in Texas or not just given the context. Thus, we should label this as FALSE.</p><p>We also provided the relation descriptions to avoid confusion between similar relations. For example, the relation residence and location can be confusing to annotators since both relations can refer to places of something. However, when we refer the description, we can clarify that these two relations have different head entity types: person for residence, and {object, structure or event} for location.</p><p>• residence (P551): the place where the person is or has been, resident</p><p>• location (P276): location of the object, structure or event. In the case of an administrative entity as containing item use P131. For statistical entities use P8138. In the case of a geographic entity use P706. Use P7153 for locations associated with the object. Table <ref type="table">10</ref>: Wrong labeled examples in the FewRel dataset. In example a), b), and c), although these triplets are true, the contexts are not related to the given relations or the triplets cannot be inferred from the contexts. Another type of error is a false negative. In the example d), our model predicts (Pixel C, owned by, Google) given the context, and this knowledge is also true. However, the triplet (Pixel C, owned by, Google) is not labeled as an answer in the dataset.</p><p>Context: Mondoedo is a small town and municipality in the Galician province of Lugo, Spain. Mondoedo is a small town and municipality in the Galician province of Lugo, Spain.</p><p>(head, relation, tail)</p><p>&lt;X&gt; contains administrative territorial entity &lt;Y&gt; (Galician, contains administrative territorial entity, province of Lugo)</p><p>Mondoedo is a small town and municipality in the Galician province of Lugo, Spain.</p><p>-1.05 -1.52</p><p>Context: Its hub is Tinson Pen Aerodrome in Kingston ( KTP ), and its other major gateway was Sangster International Airport in Montego Bay ( MBJ ).</p><p>Gold Triplet: (Tinson Pen Aerodrome, place served by transport hub, Kingston) </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Alec Radford, Ilya Sutskever, and Dario Amodei</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+	<note>Language models are few-shot learners</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">ZS-BERT: Towards zero-shot relation extraction with attribute representation learning</title>
+		<author>
+			<persName><forename type="first">Chih-Yao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng-Te</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.272</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3470" to="3479" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Meta-learning via language model in-context tuning</title>
+		<author>
+			<persName><forename type="first">Yanda</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Zha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Karypis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>He</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.53</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="719" to="730" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">RelationPrompt: Leveraging prompts to generate synthetic data for zero-shot relation triplet extraction</title>
+		<author>
+			<persName><forename type="first">Ken</forename><surname>Yew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidong</forename><surname>Chia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soujanya</forename><surname>Bing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luo</forename><surname>Poria</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Si</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.5</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="45" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Template-based named entity recognition using BART</title>
+		<author>
+			<persName><forename type="first">Leyang</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sen</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-acl.161</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1835" to="1845" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Open information extraction from the web</title>
+		<author>
+			<persName><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Banko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Communications of the ACM</title>
+		<imprint>
+			<biblScope unit="volume">51</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="68" to="74" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">SpanNER: Named entity re-/recognition as span prediction</title>
+		<author>
+			<persName><forename type="first">Jinlan</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.558</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="7183" to="7195" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">FewRel: A large-scale supervised few-shot relation classification dataset with state-of-the-art evaluation</title>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1514</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4803" to="4809" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">DEGREE: A data-efficient generation-based event extraction model</title>
+		<author>
+			<persName><forename type="first">I-Hung</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuan-Hao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elizabeth</forename><surname>Boschee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prem</forename><surname>Natarajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nanyun</forename><surname>Peng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.138</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter</title>
+		<meeting>the 2022 Conference of the North American Chapter<address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="1890" to="1908" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Knowledgeable prompt-tuning: Incorporating knowledge into prompt verbalizer for text classification</title>
+		<author>
+			<persName><forename type="first">Shengding</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huadong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juanzi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.158</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2225" to="2240" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Distant supervision for relation extraction with sentence-level attention and entity descriptions</title>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shizhu</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v31i1.10953</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">31</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">How can we know what language models know?</title>
+		<author>
+			<persName><forename type="first">Zhengbao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><forename type="middle">F</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Araki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00324</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="423" to="438" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Zero-shot relation extraction via reading comprehension</title>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/K17-1034</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st Conference on Computational Natural Language Learning</title>
+		<meeting>the 21st Conference on Computational Natural Language Learning<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017. CoNLL 2017</date>
+			<biblScope unit="page" from="333" to="342" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Incremental joint extraction of entity mentions and relations</title>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/P14-1038</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="402" to="412" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning entity and relation embeddings for knowledge graph completion</title>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Ninth AAAI Conference on Artificial Intelligence, AAAI&apos;15</title>
+		<meeting>the Twenty-Ninth AAAI Conference on Artificial Intelligence, AAAI&apos;15</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="2181" to="2187" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Decoupled weight decay regularization</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Loshchilov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Hutter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Distant supervision for relation extraction without labeled data</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Mintz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Bills</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rion</forename><surname>Snow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP<address><addrLine>Suntec, Singapore</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="1003" to="1011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Modeling joint entity and relation extraction with table representation</title>
+		<author>
+			<persName><forename type="first">Makoto</forename><surname>Miwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutaka</forename><surname>Sasaki</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/v1/D14-1200</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1858" to="1869" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Zeroshot relation classification as textual entailment</title>
+		<author>
+			<persName><forename type="first">Abiola</forename><surname>Obamuyide</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-5511</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Workshop on Fact Extraction and VERification (FEVER)</title>
+		<meeting>the First Workshop on Fact Extraction and VERification (FEVER)<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="72" to="78" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Cicero Nogueira dos Santos, Bing Xiang, and Stefano Soatto. 2021. Structured prediction as translation between augmented natural languages</title>
+		<author>
+			<persName><forename type="first">Giovanni</forename><surname>Paolini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Athiwaratkun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Krone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Achille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishita</forename><surname>Anubhai</surname></persName>
+		</author>
+		<idno>ICLR 2021</idno>
+	</analytic>
+	<monogr>
+		<title level="m">9th International Conference on Learning Representations</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI blog</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<idno>CoRR, abs/1910.10683</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Sentence-BERT: Sentence embeddings using Siamese BERTnetworks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1410</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3982" to="3992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A linear programming formulation for global inference in natural language tasks</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth Conference on Computational Natural Language Learning</title>
+		<meeting>the Eighth Conference on Computational Natural Language Learning<address><addrLine>Boston, Massachusetts, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+	<note>HLT-NAACL 2004</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Multitask prompted training enables zero-shot task generalization</title>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Webson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Bach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lintang</forename><surname>Sutawika</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zaid</forename><surname>Alyafeai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Chaffin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arnaud</forename><surname>Stiegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arun</forename><surname>Raja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manan</forename><surname>Dey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Saiful Bari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Urmish</forename><surname>Thakker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shanya</forename><surname>Sharma Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eliza</forename><surname>Szczechla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taewoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gunjan</forename><surname>Chhablani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nihal</forename><surname>Nayak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Debajyoti</forename><surname>Datta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Tian-Jian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matteo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Manica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng Xin</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harshit</forename><surname>Yong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rachel</forename><surname>Pandey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Bawden</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<editor>
+			<persName><forename type="first">Jos</forename><surname>Rozen</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Abheesht</forename><surname>Sharma</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Andrea</forename><surname>Santilli</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Thibault</forename><surname>Fevry</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jason</forename></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Alan</forename><surname>Fries</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ryan</forename><surname>Teehan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Le</forename><surname>Teven</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Scao</surname></persName>
+		</editor>
+		<meeting><address><addrLine>Stella Biderman, Leo Gao, Thomas Wolf, and Alexander M Rush</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Exploiting cloze-questions for few-shot text classification and natural language inference</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.20</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="255" to="269" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">2021b. It&apos;s not just size that matters: Small language models are also fewshot learners</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.185</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="2339" to="2352" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Joint inference of entities, relations, and coreference</title>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Martin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaping</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/2509558.2509559</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Workshop on Automated Knowledge Base Construction, AKBC &apos;13</title>
+		<meeting>the 2013 Workshop on Automated Knowledge Base Construction, AKBC &apos;13<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="1" to="6" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Contextaware representations for knowledge base relation extraction</title>
+		<author>
+			<persName><forename type="first">Daniil</forename><surname>Sorokin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1188</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1784" to="1789" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Wikidata: A free collaborative knowledgebase</title>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Vrandečić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Krötzsch</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/2629489</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Commun. ACM</title>
+		<imprint>
+			<biblScope unit="volume">57</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="78" to="85" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Zero-shot information extraction as a unified text-to-triple translation</title>
+		<author>
+			<persName><forename type="first">Chenguang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zui</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyun</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.94</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1225" to="1238" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Two are better than one: Joint entity and relation extraction with tablesequence encoders</title>
+		<author>
+			<persName><forename type="first">Jue</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Lu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.133</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1706" to="1721" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Question answering on Freebase via relation extraction and textual evidence</title>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yansong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songfang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongyan</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P16-1220</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2326" to="2336" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Entity conceptenhanced few-shot relation extraction</title>
+		<author>
+			<persName><forename type="first">Shan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongfei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanglin</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinghua</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiliang</forename><surname>Pu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-short.124</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="987" to="991" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Jointly identifying entities and extracting relations in encyclopedia text via a graphical model approach</title>
+		<author>
+			<persName><forename type="first">Xiaofeng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wai</forename><surname>Lam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Coling 2010 Organizing Committee</title>
+		<meeting><address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="1399" to="1407" />
+		</imprint>
+	</monogr>
+	<note>Coling 2010: Posters</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Distant supervision for relation extraction via piecewise convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">Daojian</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yubo</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1203</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1753" to="1762" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Joint extraction of entities and relations based on a novel tagging scheme</title>
+		<author>
+			<persName><forename type="first">Suncong</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyun</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuexing</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1113</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1227" to="1236" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Adapting language models for zero-shot learning by meta-tuning on dataset and prompt collections</title>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristy</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-emnlp.244</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2021</title>
+		<meeting><address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2856" to="2878" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">A frustratingly easy approach for entity and relation extraction</title>
+		<author>
+			<persName><forename type="first">Zexuan</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.5</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="50" to="61" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

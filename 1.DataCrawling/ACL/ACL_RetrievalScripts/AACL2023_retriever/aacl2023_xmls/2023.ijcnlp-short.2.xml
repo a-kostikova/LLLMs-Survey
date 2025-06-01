@@ -1,0 +1,1384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Learning to Predict Concept Ordering for Common Sense Generation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Tianhui</forename><surname>Zhang</surname></persName>
+							<email>tianhui.zhang@liverpool.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Liverpool</orgName>
+								<address>
+									<settlement>Amazon</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+							<email>danushka@liverpool.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Liverpool</orgName>
+								<address>
+									<settlement>Amazon</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bei</forename><surname>Peng</surname></persName>
+							<email>bei.peng@liverpool.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Liverpool</orgName>
+								<address>
+									<settlement>Amazon</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Learning to Predict Concept Ordering for Common Sense Generation</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">507B948D3B44E2921CF3D52C1EB7815B</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:59+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Prior work has shown that the ordering in which concepts are shown to a commonsense generator plays an important role, affecting the quality of the generated sentence. However, it remains a challenge to determine the optimal ordering of a given set of concepts such that a natural sentence covering all the concepts could be generated from a pretrained generator. To understand the relationship between the ordering of the input concepts and the quality of the generated sentences, we conduct a systematic study considering multiple language models (LMs) and concept ordering strategies. We find that BART-large model consistently outperforms all other LMs considered in this study when fine-tuned using the ordering of concepts as they appear in CommonGen training data as measured using multiple evaluation metrics. Moreover, the larger GPT3-based large language models (LLMs) variants do not necessarily outperform much smaller LMs on this task, even when fine-tuned on task-specific training data. Interestingly, human annotators significantly reorder input concept sets when manually writing sentences covering those concepts, and this ordering provides the best sentence generations independently of the LM used for the generation, outperforming a probabilistic concept ordering baseline. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In Generative Commonsense Reasoning (GCR) <ref type="bibr" target="#b18">(Lin et al., 2020)</ref>, the goal is to generate a natural commonsense adhering sentence that covers all of the input concepts. GCR is a challenging natural language generation (NLG) task because it requires (a) relational reasoning using background commonsense knowledge associated with the input concepts, and (b) compositional generalisation ability to work on unseen concept combinations. CommonGen dataset (Lin et al.,   1 Code: https://github.com/TianhuiZhang/concept ordering 2020) was specifically developed to evaluate the ability of a generative model to produce sentences covering a given set of concepts. For example, given the set of concepts {ball, batter, pitcher, throw}, a human annotator would come up with a sentence such as The pitcher throws the ball, and the batter hits a home run! The input concepts (shown in boldface fonts) are ordered in a specific manner in the produced sentence such as to create a commonsense bearing sentence.</p><p>Although neural generation systems produce fluent texts when compared to template-based methods, they fall short in fluency and faithfulness to the input and do not allow control over the output structure <ref type="bibr" target="#b28">(Puzikov and Gurevych, 2018)</ref>. Similar observations are made by prior work on GCR, where the input ordering of concepts has been reported to influence the quality of the generated sentences <ref type="bibr" target="#b39">(Zhao et al., 2022;</ref><ref type="bibr" target="#b37">Yang et al., 2023)</ref>. However, the relationship between (a) the ordering of the concepts given as the input to a neural text generation model and (b) the architecture of the underlying LM used in the generator remains unexplored, which is the focus of our study in this paper. Although we consider the concept ordering problem in the context of GCR, we note that it has broader relevance to other tasks in NLP such as multi-document summarisation <ref type="bibr" target="#b5">(Bollegala et al., 2005</ref><ref type="bibr" target="#b6">(Bollegala et al., , 2006</ref><ref type="bibr" target="#b7">(Bollegala et al., , 2012) )</ref> and textual coherence modelling <ref type="bibr" target="#b3">(Barzilay and Lapata, 2005)</ref> We evaluate the quality of the sentences generated by five commonsense generation LMs: BERT-gen <ref type="bibr" target="#b2">(Bao et al., 2020)</ref>, BART-base <ref type="bibr" target="#b17">(Lewis et al., 2019)</ref>, T5-base <ref type="bibr" target="#b29">(Raffel et al., 2019)</ref>, BART-large <ref type="bibr" target="#b17">(Lewis et al., 2019)</ref> and T5-large <ref type="bibr" target="#b29">(Raffel et al., 2019)</ref>, where the input concepts are ordered following three different strategies as described in § 3.2. We use seven evaluation metrics to compare the generated sentences against human-written sentences in CommonGen. Specifically, we fine-tune each LM on the train sentences in CommonGen dataset using next token prediction as the training objective.</p><p>We find BART-large to consistently outperform the other LMs across several evaluation metrics when fine-tuned using the ordering of concepts as they appear in CommonGen training data. To further compare the concept ordering in the modelgenerated sentence against the human-generated sentence for the same set of concepts, we use the Kendall rank correlation coefficient (i.e., Kendall's τ ) as an evaluation metric. We find that there exists only a weak correlation (τ = 0.328) between the ordering of concepts shown to the human annotators and the ordering in which those concepts appear in the sentences written by those annotators. This indicates that human annotators significantly reorder the input concepts when writing sentences that convey commonsense relationships among given concepts. Interestingly, all the generator models we compare in this paper are able to produce better quality sentences when they are presented with the input concepts in the same ordering as ordered in the sentences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Concept Ordering. Concept Ordering aims to reorder the given concepts in a sequence according to their importance and inner relevance. Recent work by <ref type="bibr" target="#b25">Ou et al. (2022)</ref> highlighted the effectiveness of pre-trained language models, such as BART <ref type="bibr" target="#b17">(Lewis et al., 2019)</ref>, in tasks related to concept ordering. <ref type="bibr" target="#b15">Huang et al. (2023)</ref> fine-tune the LM to find the most complementary concepts to the given one. <ref type="bibr" target="#b14">Hoyle et al. (2021)</ref> and <ref type="bibr" target="#b39">(Zhao et al., 2022)</ref> show that suitable concept ordering could increase the quality of the generated sentences. In this work, we aim to explore the relation between the concept ordering and different LMs, assessing their performance in the GCR task.</p><p>Generative Commonsense Reasoning. Recently, a series of works have been proposed to evaluate the commonsense reasoning quality of the model's generation. One strand of research leverages these generations as the external commonsense explanation <ref type="bibr" target="#b9">(Chen et al., 2023)</ref> or chain-of-thought <ref type="bibr" target="#b38">(Zhang et al., 2023)</ref>, aiding models in various tasks, including question answering. Another approach compares the generation with the references, examining if the model could write as natural as human, such as CommonGen <ref type="bibr" target="#b18">(Lin et al., 2020)</ref> and ROCStories <ref type="bibr" target="#b24">(Mostafazadeh et al., 2016)</ref>. <ref type="bibr" target="#b21">Liu et al. (2021)</ref> and <ref type="bibr" target="#b20">Liu et al. (2022)</ref> incorporate external knowledge into pre-trained LMs to enrich the generation information.</p><p>Text Generation. Prior work on text generation from structured data such as RDF has shown that the ordering in which a set of entities shown to neural text generation models significantly influences the quality of the generated text <ref type="bibr" target="#b23">(Moryossef et al., 2019;</ref><ref type="bibr" target="#b40">Zhao et al., 2020)</ref>. Unlike templatebased generation methods <ref type="bibr" target="#b30">(Reiter and Dale, 2000;</ref><ref type="bibr" target="#b12">Gatt and Krahmer, 2018)</ref>, neural text generation methods such as Seq2Seq <ref type="bibr" target="#b32">(Sutskever et al., 2014)</ref> models perform text planning (how to order the inputs) as well as plan realisation (how to verbalise the plan) as a single end-to-end task <ref type="bibr" target="#b11">(Gardent et al., 2017)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methods</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Task definition</head><p>Given a set X = {x 1 , x 2 , . . . , x m } of lemmatised tokens representing concepts x i , the goal of the GCR task is to generate a natural and grammatically correct sentence y = y 1 , y 2 , . . . , y n , with tokens (or sub-tokens) y j . Note that X is an unordered set of concepts, while the tokens in y are ordered. We must use all concepts in X when generating y. However, we are allowed to use different morphological forms (inflections) of the concepts for this purpose. Typically in CommonGen dataset ca. m = 5, whereas n is determined by the generator model used to produce y. Given a set of concepts X , there exists m! number of possible ordering of concepts.</p><p>Let us denote one such ordering by x = x 1 , x 2 , . . . , x m . Given x, a generator parameterised by θ produces the output sequence y = y 1 , y 2 , . . . y n according to the generation probabilities given by (1).</p><formula xml:id="formula_0">p(y|x; θ) = n i=2 p(y i |y 1:i-1 , x; θ)<label>(1)</label></formula><p>We generate sentences y using different pre-trained generators for the same set of concepts X , ordered using different strategies as described in § 3.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Concept Ordering Strategies</head><p>We name the ordering of input concepts in a train/test instance in CommonGen as the Original ordering. We propose three different strategies to re-order the Original ordering for the purpose of fine-tuning LMs using the CommonGen training instances. In Random ordering, the concepts in the input set are randomly ordered. The Example ordering considers the ordering of concepts as they appear in a human-written example sentence in the CommonGen train dataset. 2 However, this concept ordering information is not available at test time, we thus use Random Ordering of input concept sets at test time even for the LMs fine-tuned using the Example Ordering.</p><p>We induce a Probabilistic ordering among the concepts in a given set using transition probabilities p(x j |x i ) for ordering the concept x j after x i because we want to find a method that could be used both at training and test times and do not extract the concept ordering from pre-trained models' outputs. Therefore, inspired by Glove word embeddings <ref type="bibr" target="#b27">(Pennington et al., 2014)</ref>, which use the co-occurrence information between words, we use the co-occurrence frequency of each concept pair inside the paths of the ConceptNet to determine the ordering in a given concept set. Specifically, we first perform random walks over the Concept-Net graph starting from vertices that appear in the CommonGen train sentences, limiting to a maximum path length of five concepts. Next, we count the number of paths, #(x i → x j ), where x i appears before x j . The transition probabilities are estimated from the path counts as in (2).</p><formula xml:id="formula_1">p(x j |x i ) = #(x i → x j ) #(x i → x j ) + #(x j → x i ) (2)</formula><p>Finally, the probability of generating an ordering x = x 1 , x 2 , . . . , x m is computed assuming a first-order Markov chain such that p(x) = m i=2 p(x i |x i-1 ). The Probabilistic ordering strategy enables us to incorporate external knowledge from ConceptNet for the purpose of determining the ordering of input concepts. Moreover, unlike the Example ordering, Probabilistic ordering can be used both at training and test times.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experiments setting</head><p>Dataset: Our experiments are conducted on the CommonGen dataset <ref type="bibr" target="#b18">(Lin et al., 2020)</ref>, which con-2 As detailed in Appendix A, in our preliminary experiments, we evaluated three different input formats for a concept ordering: (a) space delimited, (b) comma delimited, and (c) space delimited with a special end-of-ordering token (i.e., <ref type="bibr">[ORDERING]</ref>). We found the input format method (c) to perform slightly better than the other two, albeit no significant improvements were observed. tains 3.5K distinct concept sets (32651/993/1497) with 67389/4018/6042 human written sentences in the training/development/test splits. Each instance contains ca. 3-5 input concepts with multiple human-written reference sentences.</p><p>Evaluation Metrics: We conduct two types of evaluations. First, to evaluate the quality of the generated sentences, we employ the following generation evaluation metrics: BLEU <ref type="bibr" target="#b26">(Papineni et al., 2002)</ref>, , ROUGE <ref type="bibr" target="#b19">(Lin, 2004)</ref>, METEOR <ref type="bibr" target="#b1">(Banerjee and Lavie, 2005)</ref>, CIDEr <ref type="bibr" target="#b34">(Vedantam et al., 2015)</ref> and SPICE <ref type="bibr" target="#b0">(Anderson et al., 2016)</ref>. We report the Coverage of concepts <ref type="bibr" target="#b18">(Lin et al., 2020)</ref>, which is defined as the average percentage of input concepts that are present in the generated sentences. Second, we evaluate the ordering of the concepts produced by different LMs (in the order that they appear in the generated sentences) by comparing that to the ordering in human-written test example sentences using the Kendall rank correlation coefficient (τ ∈ [-1, 1]). A higher τ indicates a closer correlation between a concept ordering and their order observed in reference sentences. If there are multiple human-written sentences with different orderings for the same input concept set, we take the highest τ over all of the orderings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>Main Results: We use each concept ordering method to fine-tune five LMs: BERT-Gen <ref type="bibr" target="#b2">(Bao et al., 2020)</ref>, T5-base/large <ref type="bibr" target="#b29">(Raffel et al., 2019)</ref>, and BART-base/large <ref type="bibr" target="#b17">(Lewis et al., 2019)</ref>. Implementation details and hyperparameters can be found in Appendix C. To assess the effectiveness of the concept set ordering strategies, we compare their performance against two types of prior methods. The first uses the Original ordering specified in CommonGen <ref type="bibr" target="#b18">(Lin et al., 2020)</ref> to fine-tune LMs. The second set includes models that incorporate external knowledge, such as KG-BART <ref type="bibr" target="#b21">(Liu et al., 2021)</ref> and EKI-BARTD out <ref type="bibr" target="#b10">(Fan et al., 2020)</ref>, as well as models that improve performance through pre-training tasks, such as CALM <ref type="bibr" target="#b41">(Zhou et al., 2021)</ref>, NeuroLogic <ref type="bibr" target="#b22">(Lu et al., 2021)</ref>, and the [MASK] <ref type="bibr" target="#b37">(Yang et al., 2023)</ref>.</p><p>As shown in Table <ref type="table" target="#tab_0">1</ref>, both Probabilistic and Example ordering outperform the Original Ordering presented in CommonGen <ref type="bibr" target="#b18">(Lin et al., 2020)</ref>. This shows that refining the ordering strategy for input concepts could enhance an LM's performance in commonsense generation. <ref type="bibr">Moreover</ref> Table 2: Kendall's τ between the reference ordering and the concept orderings produced using different methods: Lines 2-4 show Original, Random and Probabilistic orderings ( § 3.2), Lines 5-9 show the orderings of concepts as they appear in the sentences generated using LMs fine-tuned on CommonGen, and Line 10 is the Reference ordering (i.e., ordering of the concepts in human-written CommonGen test sentences).</p><p>Effect of concept ordering: The ordering of concepts as they appear in the human-written Com-monGen test sentences (here onwards referred to as the Reference ordering) can be considered as a gold standard for concept ordering. To evaluate the level of re-ordering of input concepts conducted by an LM, we compare the ordering of concepts in a sentence generated using an LM against their Reference ordering using the Kendall's τ . Specifically, we first fine-tune each LM using the concept sets as ordered in the CommonGen train instances (i.e., Original ordering). Next, we present each fine-tuned LM the concept sets in CommonGen test instances in their Original ordering and generate a sentence containing all of the input concepts. Finally, we compare the ordering of the concepts in the generated sentence against their Reference ordering using τ . The reference sentences in the CommonGen dataset are written by human annotators given the shuffled concepts. Therefore, we think it could be considered as a "golden" ordering of input concepts. To further evaluate the correlation between the ordering of input concepts and the quality of the sentences generated by an LM, we use BART-large fine-tuned with Example ordering as a sentence generator, where we provide it a set of concepts ordered using different methods.</p><p>As seen from Table <ref type="table">2</ref>, among the three concept ordering strategies described in § 3.2, the Probabilistic ordering reports the highest τ value. In particular, Original has a low τ value, comparable to Random ordering, indicating that human annotators had to significantly re-order the concept sets shown to them when writing natural sentences. As we hiked beside the stream, my daughter asked if she could throw a rock in the water, but I reminded her that it was too dangerous and daddy Babbage(Original ordering) little girl throwing a tantrum in the park with her father and sister by the stream and crying because she did not get a toy in the stream. Curie(Original ordering) mother throwing her daughter in the stream near the rocks with daddy Babbage(Example ordering) A father and daughter are throwing rocks into a stream. Curie(Example ordering) daddy and daughter throwing rocks into a stream concept words dog throw frisbee catch Reference A man throws away his dog's favorite frisbee expecting him to catch it in the air. Turbo(zero shot)</p><p>The dog loves to play fetch and is always ready to catch the frisbee when it's thrown. Babbage(Original ordering) A dog is throwing a frisbee.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Curie(Original ordering)</head><p>A dog is throwing a frisbee and catching it. Babbage(Example ordering) A dog catching a frisbee and throwing it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Curie(Example ordering)</head><p>A dog catching a frisbee thrown by a man.</p><p>concept words hang squeeze shut head eye</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reference</head><p>Hanging her head, someone squeezes her eyes shut. Turbo(zero shot) I tried to hang the picture but couldn't do it with just one hand, so I had to squeeze my eyes shut and use both hands to get it done Babbage(Original ordering) Someone grabs someone by the eyes and squeezes them shut, then drags him away.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Curie(Original ordering)</head><p>A woman is hanging upside down and squeezing her legs shut, then she opens her eyes. Babbage(Example ordering) Someone squeezes his eyes shut and hangs his head.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Curie(Example ordering)</head><p>Someone squeezes his eyes shut and hangs his head.</p><p>concept words mirror gear picture hold take</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reference</head><p>The man holds the gear and uses the picture taken by the mirror. Turbo(zero shot) She carefully held the picture up to the mirror to take a closer look at the intricate gear design. Babbage(Original ordering) A picture of a man in a space suit, holding a mirror, and taking off his gear.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Curie(Original ordering)</head><p>The mirror has gears in it and a picture of a train engine held up. Babbage(Example ordering) A man is holding on to a railing to take a picture of his gear and mirror.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Curie(Example ordering)</head><p>A man is holding a camera and taking a picture of himself in the mirror. Interestingly, all five LMs fine-tuned with the Example ordering strategy outperform those three strategies, suggesting that the sentences carry useful contextual clues for determining the ordering of concepts that are exploited by the LMs. We find that the extracted concept ordering generated by BART-large model outperforms that generated by other pre-trained models. It is consistent with the conclusions of <ref type="bibr" target="#b25">Ou et al. (2022)</ref> that a large amount of dependency structure knowledge exists in BART. Moreover, we see that τ values closely aligns with other automatic evaluation metrics, indicating that concept ordering with a higher τ results in high quality sentence generations. Overall, these results suggest that if the concept orderings more closely align with the orderings found in the dataset reference sentences, the Example Ordering trained model could generate superior sentences, leveraging the inherent commonsense knowledge embedded within the pre-trained models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Large Language Model Scenario</head><p>Large Language Models (LLMs) have shown impressive performance in complex reasoning compared to the smaller size models <ref type="bibr" target="#b8">(Brown et al., 2020;</ref><ref type="bibr" target="#b33">Thoppilan et al., 2022)</ref>. To investigate their effectiveness for concept ordering, we use the GPT-3 and GPT-3.5 <ref type="bibr" target="#b8">(Brown et al., 2020)</ref> as LLMs and use a prompt-based instruction (see Appendix B for the details of the prompts) to induce an ordering among a given set of concepts. Due to the space limitations we show the results in the Appendix Table <ref type="table" target="#tab_2">4</ref>. We find that the Example Ordering outperforms the unordered inputs, indicating that concept ordering is also important to the LLMs. Moreover, from the generated sentences (shown in Table <ref type="table" target="#tab_1">3</ref>) we find that the Example ordering improves their quality as well as the concept coverage. Interestingly however, the best results obtained using LLMs with prompts are worse than that compared to the finetuned BART-large, which indicates importance of fine-tuning on CommonGen.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We examined the impact of concept ordering on the quality of generated sentences in GCR using multiple LMs. We find that ordering the input concepts can improve performance, and all fine-tuned LMs generate better quality sentences when the input concepts were presented in an order consistent with that found in human-written sentences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Limitations</head><p>In this work, we limited our investigation to the generation of English sentences and to a finite set of pre-trained language models (PLMs). This limitation was largely due to the nature of the Com-monGen dataset, the only publicly available dataset we found for concept-to-sentence tasks, which is primarily English-centric. Therefore, our evaluation of the generation quality was limited to English, which is a morphologically limited language. Different languages have different grammars and sentence structures, but the automatic evaluation metrics such as BLEU <ref type="bibr" target="#b26">(Papineni et al., 2002)</ref>, ROUGE <ref type="bibr" target="#b19">(Lin, 2004)</ref> and CIDEr <ref type="bibr" target="#b34">(Vedantam et al., 2015)</ref> could also be used for other languages.</p><p>Therefore, we consider it to be an important next step to evaluate the concept ordering strategies described in this work on languages other than English.</p><p>Furthermore, we focus only on the experiments around concept ordering in the LLM scenario. However, as reported in much prior work, the commonsense knowledge inside the LLMs could be efficiently exploited by intermediate reasoning steps and designed prompts <ref type="bibr" target="#b35">(Wei et al., 2022;</ref><ref type="bibr" target="#b38">Zhang et al., 2023)</ref>. We utilised identical prompts for each backbone LLM and did not investigate the potential influence of prompt variations. we observed that some sentences generated by LLMs contradict commonsense. Therefore, generative commonsense reasoning tasks remain a challenge for LLMs. Given the scope of the current paper, research on prompt design and encoding concept ordering into intermediate steps will be pursued in future work.</p><p>Given a set of concepts, it is possible to write multiple natural sentences that arrange the input concepts in different orders. However, in the Com-monGen dataset only a small number of humanwritten sentences are available for a given concept set, which does not cover all possible orderings. Therefore, the Kendall's τ values reported in this paper must be taken as a lower bound on the agreement with a human determining the ordering of concepts in a sentence. Moreover, we it is important to consider other types of rank evaluation metrics in addition to Kendall's τ for future evaluations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Ethical Considerations</head><p>While we conducted our research primarily on the CommonGen dataset, which to the best of our knowledge does not present any explicit ethical issues, it is essential to acknowledge the potential for social biases in the LMs <ref type="bibr" target="#b4">(Blodgett et al., 2021)</ref>. One of the pre-trained language models we used in our experiments, BART are significantly prone to prediction errors related to gender bias <ref type="bibr" target="#b31">(Sharma et al., 2021)</ref> and we are not evaluating for the biases in the generated sentences here which should be done before LMs are deployed in the downstream NLP applications. Given that we are fine-tuning LMs on the CommonGen dataset, some social biases could get amplified during this fine-tuning process. The predicted sentences are possibly influenced by such biases. It is still an open question for how to effectively mitigate these biases, particularly in the context of generative commonsense reasoning tasks. with the different input formatting methods. However, the best performance among the three input formatting methods is achieved when the concepts are concatenated with the ordered concepts around tokens. This may be attributed to the fact that, with the tokens and ordered concepts, a model might better comprehend the ordering task and use the syntactic knowledge embedded in the pre-trained models <ref type="bibr" target="#b25">(Ou et al., 2022)</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Concept Ordering on LLMs</head><p>We also conducted concept ordering experiments using the CommonGen dataset on LLMs containing more than one billion parameters. Specifically, we selected GPT3 models (Babbage and Curie) and GPT3.5 Turbo from OpenAI as our backbone models. Since the Turbo model does not support fine-tuning, it was evaluated solely in a zero-shot setting. We evaluated the quality of the generated outputs using both the Original ordering and Example ordering strategies on the Babbage and Curie models.</p><p>As shown in Table <ref type="table" target="#tab_2">4</ref>, the Example Ordering strategy also enhanced the performance of LLMs on the CommonGen dataset task. However, we observed that the three LLMs underperform compared against the smaller fine-tuned LMs. We notice that this problem also exists in other NLP tasks <ref type="bibr" target="#b8">(Brown et al., 2020;</ref><ref type="bibr" target="#b13">Gutiérrez et al., 2022)</ref>. Therefore, we examined some sentences generated by these LLMs as presented in Table <ref type="table" target="#tab_1">3</ref>. Under the zero-shot setting, Turbo was capable of generating more complex sentences than those provided in the references, and these sentences were consistent with commonsense. When we try to use Example Ordering Strategy for the Turbo model with the prompt Given a concept list: [concepts], please generate a sentence that aligns the ordering of the concepts:, we find that the model could not always follow the concept ordering given even under the few-shot setting.</p><p>For the Babbage and Curie models, the Original Ordering strategy often resulted in generated sentences that did not encompass all concepts from the given input set. The Example Ordering strategy ameliorated this issue; however, even when the grammar was correct, some sentences were inconsistent with commonsense (e.g., A dog catching a Frisbee and throwing it). We surmise that these issues are the primary reasons why the LLMs did not perform well. As is suggested by OpenAI website, the performance of the model is based on the description given and external content would improve the performance. However, the input of CommonGen only has a single concept set. Potential improvements for the performance of LLMs on such tasks could involve providing more content around the concept set such as description about the relations among the concepts.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>, Example Evaluating the quality of the generated sentences on CommonGen test instances. The input concept sets are ordered using the three strategies described in § 3.2 during fine-tuning different LMs. Best performing LM fine-tuned with each ordering strategy is shown in italics, while the overall best is shown in bold.</figDesc><table><row><cell></cell><cell></cell><cell>Model</cell><cell></cell><cell cols="7">BLEU3 BLEU4 ROUGE-2 ROUGE-L METEOR CIDEr SPICE Coverage</cell></row><row><cell cols="2">Original Ordering (Lin et al., 2020)</cell><cell cols="2">BERT-Gen T5-base BART-large T5-large</cell><cell>30.4 26.0 36.3 39.0</cell><cell>21.1 16.4 26.3 28.6</cell><cell>18.1 14.6 22.2 22.0</cell><cell>40.5 34.6 42.0 43.0</cell><cell>27.3 23.0 30.9 30.1</cell><cell>12.5 9.2 13.9 15.0</cell><cell>27.3 22.0 30.6 31.6</cell><cell>86.1 76.7 97.4 95.3</cell></row><row><cell></cell><cell></cell><cell cols="2">BERT-Gen</cell><cell>30.5</cell><cell>21.1</cell><cell>18.0</cell><cell>40.1</cell><cell>27.4</cell><cell>12.6</cell><cell>27.4</cell><cell>86.5</cell></row><row><cell cols="2">Random ordering</cell><cell cols="2">BART-base T5-base BART-large</cell><cell>36.0 37.7 42.4</cell><cell>26.6 26.9 31.8</cell><cell>22.0 20.9 23.8</cell><cell>43.3 43.2 44.7</cell><cell>28.8 30.2 32.8</cell><cell>13.9 15.1 16.6</cell><cell>28.5 31.2 32.3</cell><cell>92.0 94.2 98.8</cell></row><row><cell></cell><cell></cell><cell>T5-large</cell><cell></cell><cell>40.6</cell><cell>30.0</cell><cell>23.1</cell><cell>44.9</cell><cell>31.5</cell><cell>15.9</cell><cell>32.1</cell><cell>97.6</cell></row><row><cell></cell><cell></cell><cell cols="2">BERT-Gen</cell><cell>29.1</cell><cell>19.9</cell><cell>16.9</cell><cell>38.6</cell><cell>26.7</cell><cell>12.2</cell><cell>26.7</cell><cell>85.7</cell></row><row><cell cols="2">Probabilistic ordering</cell><cell cols="2">BART-base T5-base BART-large</cell><cell>33.5 37.6 38.5</cell><cell>23.8 26.8 28.0</cell><cell>20.4 20.5 21.8</cell><cell>41.2 42.4 42.4</cell><cell>28.0 30.6 31.7</cell><cell>13.4 15.1 15.4</cell><cell>27.8 31.1 32.2</cell><cell>92.6 96.4 98.8</cell></row><row><cell></cell><cell></cell><cell>T5-large</cell><cell></cell><cell>40.8</cell><cell>29.8</cell><cell>22.2</cell><cell>43.9</cell><cell>31.6</cell><cell>16.2</cell><cell>32.4</cell><cell>95.7</cell></row><row><cell></cell><cell></cell><cell cols="2">BERT-Gen</cell><cell>33.0</cell><cell>23.6</cell><cell>19.3</cell><cell>41.8</cell><cell>28.9</cell><cell>13.7</cell><cell>28.8</cell><cell>93.3</cell></row><row><cell cols="2">Example ordering</cell><cell cols="2">BART-base T5-base BART-large</cell><cell>36.0 40.0 44.3</cell><cell>26.8 30.0 33.8</cell><cell>22.7 22.7 24.5</cell><cell>44.4 45.0 45.6</cell><cell>29.3 31.3 32.8</cell><cell>14.7 16.0 17.2</cell><cell>29.1 32.3 33.1</cell><cell>97.5 97.6 99.1</cell></row><row><cell></cell><cell></cell><cell>T5-large</cell><cell></cell><cell>43.4</cell><cell>32.7</cell><cell>23.8</cell><cell>45.6</cell><cell>32.3</cell><cell>16.9</cell><cell>33.5</cell><cell>98.0</cell></row><row><cell></cell><cell></cell><cell cols="2">KG-BART</cell><cell>42.1</cell><cell>30.9</cell><cell>23.4</cell><cell>44.5</cell><cell>32.9</cell><cell>17.5</cell><cell>32.7</cell><cell>98.7</cell></row><row><cell cols="2">Other Prior Methods</cell><cell cols="2">EKI-BARTD out CALM NeuroLogic</cell><cell>42.9 -41.3</cell><cell>26.3 29.5 36</cell><cell>24.4 --</cell><cell>45.4 -44.7</cell><cell>32.0 31.9 31.0</cell><cell>16.8 15.6 15.9</cell><cell>32.5 33.2 31.1</cell><cell>---</cell></row><row><cell></cell><cell></cell><cell cols="2">[MASK]</cell><cell>43.3</cell><cell>32.5</cell><cell>24.2</cell><cell>44.9</cell><cell>32.5</cell><cell>17.1</cell><cell>32.8</cell><cell>-</cell></row><row><cell cols="7">ordering reports the best performance for all five</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="7">LMs, even outperforming prior methods that use</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">pre-training tasks or external resources.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Ordering</cell><cell cols="6">τ BLEU4 ROUGE-L METEOR CIDEr SPICE</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Original</cell><cell>0.328</cell><cell>19.0</cell><cell>36.4</cell><cell>29.0</cell><cell>12.9</cell><cell>27.7</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Random</cell><cell>0.327</cell><cell>18.9</cell><cell>36.2</cell><cell>29.0</cell><cell>12.7</cell><cell>27.7</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">Probabilistic 0.402</cell><cell>20.9</cell><cell>37.9</cell><cell>29.6</cell><cell>13.4</cell><cell>29.1</cell><cell></cell><cell></cell><cell></cell></row><row><cell>BERT-Gen</cell><cell>0.595</cell><cell>29.0</cell><cell>43.1</cell><cell>31.4</cell><cell>16.0</cell><cell>31.3</cell><cell></cell><cell></cell><cell></cell></row><row><cell>BART-base</cell><cell>0.648</cell><cell>31.5</cell><cell>44.2</cell><cell>31.9</cell><cell>16.6</cell><cell>32.1</cell><cell></cell><cell></cell><cell></cell></row><row><cell>T5-base</cell><cell>0.627</cell><cell>30.3</cell><cell>43.9</cell><cell>31.9</cell><cell>16.4</cell><cell>32.0</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">BART-large 0.697</cell><cell>33.4</cell><cell>45.5</cell><cell>32.7</cell><cell>17.3</cell><cell>33.0</cell><cell></cell><cell></cell><cell></cell></row><row><cell>T5-large</cell><cell>0.696</cell><cell>32.9</cell><cell>45.2</cell><cell>32.6</cell><cell>17.0</cell><cell>32.7</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Reference</cell><cell>1</cell><cell>35.3</cell><cell>57.4</cell><cell>33.3</cell><cell>18.1</cell><cell>33.5</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 3 :</head><label>3</label><figDesc>Generated examples by different LLMs</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 4 :</head><label>4</label><figDesc>Evaluation of the effect of different concept ordering strategies on the LLMs. The results show that a good concept ordering strategy could also help the quality of large model generation.</figDesc><table><row><cell></cell><cell cols="6">Parameters BLEU4 ROUGE-L METEOR CIDEr SPICE</cell></row><row><cell>Turbo(zero shot)</cell><cell>135B</cell><cell>13.9</cell><cell>33.5</cell><cell>27.2</cell><cell>8.7</cell><cell>24.0</cell></row><row><cell>Babbage (Original)</cell><cell>6.7B</cell><cell>19.7</cell><cell>37.7</cell><cell>27.1</cell><cell>12.0</cell><cell>26.7</cell></row><row><cell>Curie(Original)</cell><cell>13B</cell><cell>13.5</cell><cell>32.6</cell><cell>26</cell><cell>10.0</cell><cell>24.6</cell></row><row><cell>Babbage (Example)</cell><cell>6.7B</cell><cell>23.6</cell><cell>41.0</cell><cell>29.2</cell><cell>13.6</cell><cell>29.2</cell></row><row><cell>Curie (Example)</cell><cell>13B</cell><cell>25.5</cell><cell>41.9</cell><cell>30.0</cell><cell>14.4</cell><cell>30.1</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 5 :</head><label>5</label><figDesc>Three different input formats given a concept set {ski, mountain, skier}</figDesc><table><row><cell cols="6">Concept set BLEU4 ROUGE-L METEOR CIDEr SPICE</cell></row><row><cell>w/o Comma</cell><cell>33.4</cell><cell>45.5</cell><cell>32.6</cell><cell>17.1</cell><cell>32.8</cell></row><row><cell>Comma</cell><cell>32.5</cell><cell>45</cell><cell>32.4</cell><cell>16.8</cell><cell>32.6</cell></row><row><cell>Token</cell><cell>33.8</cell><cell>45.6</cell><cell>32.8</cell><cell>17.2</cell><cell>33.1</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 6 :</head><label>6</label><figDesc>The generated evaluation of different inputs formats.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_0"><p>https://platform.openai.com/docs/guides</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Supplementary Appendix</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Different Input Formats for Example Ordering</head><p>We conducted an evaluation to examine the impact of input formats on the quality of generation. We designed three types of input formats, given a concept set: 1) the ordered concepts are concatenated together, 2) the ordered concepts are concatenated together and separated (delimitted) by commas, and 3) the unordered concepts are concatenated with the ordered concepts and denoted by a special "[ORDERING]" tokens. An example using the concept set ski, mountain, skier, is provided in Table 5. As shown in Table <ref type="table">6</ref>, the performance of the generated sentences does not change significantly</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Training Details</head><p>We utilised the BERT, BART, and T5 models as implemented in the Transformers library <ref type="bibr" target="#b36">(Wolf et al., 2020)</ref>. Detailed hyper-parameters are provided in the accompanying bash scripts (submitted as supplementary materials). The primary hyperparameters were initialised in alignment with the standards set out in the CommonGen paper <ref type="bibr" target="#b18">(Lin et al., 2020)</ref>. We fine-tuned each model using the ADAM optimiser <ref type="bibr" target="#b16">(Kingma and Ba, 2015)</ref>. To prevent over-fitting, we adopted an early stopping strategy based on the development set's loss. We train the model with one NVIDIA A6000 GPU and one V100 GPU. Each model could be fine-tuned in less than 6 hours.</p><p>The training of the LLMs utilised OpenAI's API. 3 Training a Babbage model incurred a cost of $3 for the CommonGen dataset, while training a Curie model incurred a cost of $14. During model training, each instance would start with the prompt "Generate a sentence containing all the concepts in the concept set:" for each concept set and we added a separator " -&gt;" at the end of the prompt. We also use an ending token "/n" at the end of the target sentence.  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Spice: Semantic propositional image caption evaluation</title>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Basura</forename><surname>Fernando</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Gould</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computer Vision-ECCV 2016: 14th European Conference</title>
+		<meeting><address><addrLine>Amsterdam, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2016-10-11">2016. October 11-14, 2016</date>
+			<biblScope unit="page" from="382" to="398" />
+		</imprint>
+	</monogr>
+	<note>Proceedings, Part V 14</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Meteor: An automatic metric for mt evaluation with improved correlation with human judgments</title>
+		<author>
+			<persName><forename type="first">Satanjeev</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the acl workshop on intrinsic and extrinsic evaluation measures for machine translation and/or summarization</title>
+		<meeting>the acl workshop on intrinsic and extrinsic evaluation measures for machine translation and/or summarization</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Unilmv2: Pseudomasked language models for unified language model pre-training</title>
+		<author>
+			<persName><forename type="first">Hangbo</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songhao</forename><surname>Piao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="642" to="652" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Modeling local coherence: An entity-based approach</title>
+		<author>
+			<persName><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1219840.1219858</idno>
+		<ptr target="https://doi.org/10.3115/1219840.1219858" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)</title>
+		<meeting>the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="141" to="148" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Stereotyping norwegian salmon: An inventory of pitfalls in fairness benchmark datasets</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gilsinia</forename><surname>Blodgett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Lopez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Olteanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanna</forename><surname>Sim</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wallach</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1004" to="1015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A machine learning approach to sentence ordering for multidocument summarization and its evaluation</title>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naoaki</forename><surname>Okazaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitsuru</forename><surname>Ishizuka</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/11562214_55</idno>
+		<ptr target="https://doi.org/10.1007/1156221455" />
+	</analytic>
+	<monogr>
+		<title level="m">Second International Joint Conference on Natural Language Processing: Full Papers</title>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A bottom-up approach to sentence ordering for multi-document summarization</title>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naoaki</forename><surname>Okazaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitsuru</forename><surname>Ishizuka</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1220175.1220224</idno>
+		<ptr target="https://doi.org/10.3115/1220175.1220224" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st International Conference on Computational Linguistics and 44th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 21st International Conference on Computational Linguistics and 44th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sydney, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="385" to="392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">A preference learning approach to sentence ordering for multi-document summarization</title>
+		<author>
+			<persName><forename type="first">Danushka</forename><surname>Bollegala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naoaki</forename><surname>Okazaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitsuru</forename><surname>Ishizuka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Information Sciences</title>
+		<imprint>
+			<biblScope unit="volume">217</biblScope>
+			<biblScope unit="page" from="78" to="95" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Distinguish before answer: Generating contrastive explanation as knowledge for commonsense question answering</title>
+		<author>
+			<persName><forename type="first">Qianglong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guohai</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luo</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yin</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.findings-acl.835</idno>
+		<ptr target="https://doi.org/10.18653/v1/2023.findings-acl.835" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2023</title>
+		<meeting><address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="13207" to="13224" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">An enhanced knowledge injection model for commonsense generation</title>
+		<author>
+			<persName><forename type="first">Zhihao</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yeyun</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongyu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yameng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan-Jing</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruofei</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2014" to="2025" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">The WebNLG challenge: Generating text from RDF data</title>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Perez-Beltrachini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Conference on Natural Language Generation. Association for Computational Linguistics</title>
+		<meeting>the 10th International Conference on Natural Language Generation. Association for Computational Linguistics<address><addrLine>Santiago de Compostela, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="124" to="133" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Survey of the state of the art in natural language generation: Core tasks, applications and evaluation</title>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Gatt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emiel</forename><surname>Krahmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Artif. Int. Res</title>
+		<imprint>
+			<biblScope unit="volume">61</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="65" to="170" />
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jiménez</forename><surname>Bernal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolas</forename><surname>Gutiérrez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clay</forename><surname>Mcneal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">You</forename><surname>Washington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Su</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.08410</idno>
+		<title level="m">Thinking about gpt-3 in-context learning for biomedical ie? think again</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Promoting graph awareness in linearized graph-to-text generation</title>
+		<author>
+			<persName><forename type="first">Alexander Miserlis</forename><surname>Hoyle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Marasović</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="944" to="956" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfeng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangqiu</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zining</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoming</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Chen-Chuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Yin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.11480</idno>
+		<title level="m">Ccgen: Explainable complementary concept generation in e-commerce</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">3rd International Conference on Learning Representations, ICLR 2015</title>
+		<meeting><address><addrLine>San Diego, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-05-07">2015. May 7-9, 2015</date>
+		</imprint>
+	</monogr>
+	<note>Conference Track Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Denoising sequenceto-sequence pre-training for natural language generation, translation, and comprehension. meeting of the association for computational linguistics</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Lewis</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<pubPlace>Bart</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">CommonGen: A constrained text generation challenge for generative commonsense reasoning</title>
+		<author>
+			<persName><forename type="first">Wangchunshu</forename><surname>Bill Yuchen Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandra</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<meeting><address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1823" to="1840" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Rouge: A package for automatic evaluation of summaries</title>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Text summarization branches out</title>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="74" to="81" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Kgr4: Retrieval, retrospect, refine and rethink for commonsense generation</title>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junwei</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenqing</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihua</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiying</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinsong</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="11029" to="11037" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Kg-bart: Knowledge graph-augmented bart for generative commonsense reasoning</title>
+		<author>
+			<persName><forename type="first">Ye</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lifang</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><forename type="middle">S</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="6418" to="6425" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Neurologic decoding:(un) supervised neural text generation with predicate logic constraints</title>
+		<author>
+			<persName><forename type="first">Ximing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Ronan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandra</forename><surname>Bras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4288" to="4299" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Step-by-step: Separating planning from realization in neural data-to-text generation</title>
+		<author>
+			<persName><forename type="first">Amit</forename><surname>Moryossef</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2267" to="2277" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A corpus and cloze evaluation for deeper understanding of commonsense stories</title>
+		<author>
+			<persName><forename type="first">Nasrin</forename><surname>Mostafazadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Chambers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devi</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dhruv</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><surname>Vanderwende</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pushmeet</forename><surname>Kohli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Allen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter</title>
+		<meeting>the 2016 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Human Language Technologies</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="839" to="849" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">On the role of pre-trained language models in word ordering: A case study with bart</title>
+		<author>
+			<persName><forename type="first">Zebin</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meishan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Computational Linguistics</title>
+		<meeting>the 29th International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6516" to="6529" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th annual meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th annual meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 conference on empirical methods in natural language processing (EMNLP)</title>
+		<meeting>the 2014 conference on empirical methods in natural language processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">E2E NLG challenge: Neural models vs. templates</title>
+		<author>
+			<persName><forename type="first">Yevgeniy</forename><surname>Puzikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Conference on Natural Language Generation</title>
+		<meeting>the 11th International Conference on Natural Language Generation<address><addrLine>Tilburg University, The Netherlands</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="463" to="471" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Building Natural Language Generation Systems</title>
+		<author>
+			<persName><forename type="first">Ehud</forename><surname>Reiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Dale</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2000">2000</date>
+			<publisher>Cambridge University Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Evaluating gender bias in natural language inference</title>
+		<author>
+			<persName><forename type="first">Shanya</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manan</forename><surname>Dey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koustuv</forename><surname>Sinha</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=bnuU0PzXl0-" />
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Le</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note>In NIPS&apos;14</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Romal</forename><surname>Thoppilan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">De</forename><surname>Freitas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamie</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Apoorv</forename><surname>Kulshreshtha</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Heng-Tze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alicia</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taylor</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leslie</forename><surname>Bos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Du</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2201.08239</idno>
+		<title level="m">Lamda: Language models for dialog applications</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Cider: Consensus-based image description evaluation</title>
+		<author>
+			<persName><forename type="first">Ramakrishna</forename><surname>Vedantam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lawrence</forename><surname>Zitnick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devi</forename><surname>Parikh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="4566" to="4575" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Transformers: State-of-the-art natural language processing</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Chaumond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Delangue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Moi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierric</forename><surname>Cistac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rault</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Louf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgan</forename><surname>Funtowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Davison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><surname>Patrick Von Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canwen</forename><surname>Plu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mariama</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Drame</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Lhoest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rush</surname></persName>
+		</author>
+		<ptr target="https://www.aclweb.org/anthology/2020.emnlp-demos.6" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Bridging the gap between pretraining and fine-tuning for commonsense generation</title>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piji</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wai</forename><surname>Lam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EACL 2023</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="376" to="383" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Multimodal chain-of-thought reasoning in language models</title>
+		<author>
+			<persName><forename type="first">Zhuosheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aston</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hai</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Karypis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Smola</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.00923</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Revisiting generative commonsense reasoning: A pre-ordering approach</title>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Faeze</forename><surname>Brahman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tenghao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Snigdha</forename><surname>Chaturvedi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-naacl.129</idno>
+		<ptr target="https://doi.org/10.18653/v1/2022.findings-naacl.129" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: NAACL 2022. Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Seattle, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="1709" to="1718" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Bridging the structural gap between encoding and decoding for data-to-text generation</title>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marilyn</forename><surname>Walker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Snigdha</forename><surname>Chaturvedi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Online</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2481" to="2491" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Pre-training text-to-text transformers for concept-centric common sense</title>
+		<author>
+			<persName><forename type="first">Wangchunshu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong-Ho</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ravi</forename><surname>Kiran Selvam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seyeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Ren</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=3k20LAiHYL2" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

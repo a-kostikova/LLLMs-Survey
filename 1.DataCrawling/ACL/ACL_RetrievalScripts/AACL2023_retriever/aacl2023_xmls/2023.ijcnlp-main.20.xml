@@ -1,0 +1,1555 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Faithful Chain-of-Thought Reasoning</title>
+				<funder ref="#_CdjYb79">
+					<orgName type="full">DARPA KAIROS Program</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">National Science Foundation</orgName>
+					<orgName type="abbreviated">NSF</orgName>
+				</funder>
+				<funder ref="#_DJSvHBs">
+					<orgName type="full">IARPA HIATUS Program</orgName>
+				</funder>
+				<funder ref="#_wZQBskC">
+					<orgName type="full">DARPA</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Qing</forename><surname>Lyu</surname></persName>
+							<email>lyuqing@seas.upenn.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Shreya</forename><surname>Havaldar</surname></persName>
+							<email>shreyah@seas.upenn.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Adam</forename><surname>Stein</surname></persName>
+							<email>steinad@seas.upenn.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Li</forename><surname>Zhang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Delip</forename><surname>Rao</surname></persName>
+							<email>deliprao@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Eric</forename><surname>Wong</surname></persName>
+							<email>exwong@seas.upenn.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Marianna</forename><surname>Apidianaki</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Pennsylvania</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Faithful Chain-of-Thought Reasoning</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">817E079EF2032B09F438E4C0E085C62D</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:42+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>While Chain-of-Thought (CoT) prompting boosts Language Models' (LM) performance on a gamut of complex reasoning tasks, the generated reasoning chain does not necessarily reflect how the model arrives at the answer (aka. faithfulness). We propose Faithful CoT, a reasoning framework involving two stages: Translation (Natural Language query → symbolic reasoning chain) and Problem Solving (reasoning chain → answer), using an LM and a deterministic solver respectively. This guarantees that the reasoning chain provides a faithful explanation of the final answer. Aside from interpretability, Faithful CoT also improves empirical performance: it outperforms standard CoT on 9 of 10 benchmarks from 4 diverse domains, with a relative accuracy gain of 6.3% on Math Word Problems (MWP), 3.4% on Planning, 5.5% on Multi-hop Question Answering (QA), and 21.4% on Relational Inference. Furthermore, with GPT-4 and Codex, it sets the new state-of-the-art few-shot performance on 7 datasets (with 95.0+ accuracy on 6 of them), showing a strong synergy between faithfulness and accuracy. 1 * Equal contribution. 1 Our code, data, and prompts are available at https:// github.com/veronica320/Faithful-COT.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Complex reasoning tasks, such as commonsense reasoning and math reasoning, have long been the Achilles heel of LMs <ref type="bibr" target="#b1">(Bengio, 2019)</ref>, until a recent line of work on Chain-of-Thought (CoT) reasoning <ref type="bibr" target="#b32">(Wei et al., 2022;</ref><ref type="bibr">Wang et al., 2022, i.a.)</ref> brought striking performance gains. CoT prompts an LM to generate a reasoning chain along with the answer, given only a few in-context exemplars.</p><p>Besides performance improvement, CoT is also claimed to "provide an interpretable window into the behavior of the model" <ref type="bibr" target="#b32">(Wei et al., 2022)</ref>. However, it is unclear how accurately these reason-Q: John plans to sell all his toys and use the money to buy video games. He has 13 lego sets and he sells them for $15 each. He ends up buying 8 videogames for $20 each and has $5 left. How many lego sets does he still have?</p><p>A: He started with 13 lego sets. He sold them for $15 each. So he must have gotten 13 * $15 = $195 from selling them. He used this money to buy 8 video games for $20 each. This means he spent 8 * $20 = $160 on the video games. He had $5 left, so in total he must have had $195 + $5 = $200. The answer is 0.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input</head><p>CoT output Figure <ref type="figure">1</ref>: An example of unfaithful output from CoT prompting <ref type="bibr" target="#b32">(Wei et al., 2022)</ref> on GSM8K. The answer (green) does not follow from the reasoning chain (blue).</p><p>ing chains reflect the underlying reasoning process behind the model's prediction, namely, how faithful they are as explanations <ref type="bibr">(Jacovi and Goldberg, 2020, i.a.)</ref>. In standard CoT, faithfulness is not guaranteed and even systematically violated <ref type="bibr" target="#b30">(Turpin et al., 2023)</ref>, as the final answer does not necessarily follow from the generated reasoning chain. In other words, CoT can "lie" about the model's true reasoning process. Figure <ref type="figure">1</ref> exemplifies such an unfaithful CoT generation from <ref type="bibr" target="#b32">Wei et al. (2022)</ref> on GSM8K: the answer "0" is not even mentioned in the reasoning chain. This, along with more examples in Appendix B.1, illustrates that standard CoT does not provide interpretability of how the model predicts the answer. The lack of faithfulness in CoT can be dangerous in high-stake applications because it may mislead people into believing that the model is selfinterpretable, while there is no actual causal relationship between the reasoning chain and the answer. Even worse, when an unfaithful explanation looks plausible (i.e., convincing to humans) <ref type="bibr" target="#b12">(Jacovi and Goldberg, 2020)</ref>, this makes it easier for people (e.g., legal practitioners) to over-trust the model (e.g., a recidivism predictor) even if it has implicit biases (e.g., against racial minorities) <ref type="bibr" target="#b23">(Pruthi et al., 2020;</ref><ref type="bibr" target="#b29">Slack et al., 2020)</ref>.</p><p>To address this concern, we propose Faithful CoT, a reasoning framework where the answer is the result of deterministically executing the reasoning chain. Specifically, we break down a com- plex reasoning task into two stages: Translation and Problem Solving (Figure <ref type="figure" target="#fig_0">2</ref>). During Translation, an LM translates a query into a reasoning chain, which interleaves NL and Symbolic Language (SL). The NL component decomposes the original query into multiple simpler, interdependent subproblems. Then, each subproblem is tackled in a task-dependent SL, such as Python, Datalog, or Planning Domain Definition Language (PDDL). In the Problem Solving stage, the reasoning chain is executed by a deterministic solver, e.g., a Python/Datalog interpreter, or a PDDL planner, to derive the answer.</p><p>Our reasoning chain (outcome of Translation) is guaranteed to provide a faithful explanation of how the final answer is produced (outcome of Problem Solving), therefore making our method more interpretable than standard CoT methods.<ref type="foot" target="#foot_0">2</ref> While interpretability is not the same as correctness (i.e. our method can reveal the reasoning process behind both correct and wrong answers), we find that it does empirically improve correctness: when evaluated on 10 reasoning datasets from 4 diverse domains (MWP, Planning, Multi-hop QA, and Relational Inference), Faithful CoT brings consistent performance gains over three existing baselines, across different LMs and decoding strategies. With Codex, our approach outperforms vanilla CoT on 9 of the 10 datasets, with a relative accuracy gain of 6.3% on MWP, 3.4% on Planning, 5.5% on Multihop QA, and 21.4% on Relational Inference. With GPT-4, our method sets the new SOTA few-shot performance on 7 datasets, with 95.0+ accuracy on 6 of them. This suggests that interpretability does not have to come at the cost of performance; instead, there exists a strong synergy in between.</p><p>Our key contributions are as follows: (a) We propose Faithful CoT, a framework that decomposes reasoning into Translation and Problem Solving. The reasoning chain interleaves userunderstandable natural language comments and executable symbolic language programs, thus providing faithful interpretability of how the model arrives at the answer. (b) Our approach is generalizable to multiple domains beyond arithmetic reasoning and simple symbolic reasoning, thanks to its flexible integration with any choice of SL and external solver. We set the new SOTA performance on 7 out of the 10 reasoning datasets, showing a strong synergy between faithfulness and accuracy. (c) We provide an extensive analysis of the strengths and weaknesses of our method, showing its generalizability across LMs, robustness to the choice of exemplars and prompt phrasing, the pivotal role of the solver, the plausibility of generated reasoning chains, as well as frequent error patterns where it still struggles.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Faithfulness.</p><p>In interpretability, faithfulness (also called fidelity or reliability) means that an explanation should "accurately represent the reasoning process behind the model's prediction", which is a fundamental requirement of an explanation <ref type="bibr" target="#b10">(Harrington et al., 1985;</ref><ref type="bibr" target="#b25">Ribeiro et al., 2016;</ref><ref type="bibr" target="#b9">Gilpin et al., 2018;</ref><ref type="bibr" target="#b12">Jacovi and Goldberg, 2020)</ref>. <ref type="foot" target="#foot_1">3</ref> It should be contrasted with plausibility (a.k.a. persuasiveness or understandability), which refers to "how convincing an explanation is to humans" <ref type="bibr" target="#b11">(Herman, 2019;</ref><ref type="bibr" target="#b12">Jacovi and Goldberg, 2020)</ref>. In the context of CoT prompting, a faithful reasoning chain needs to accurately reflect how the model arrives at the final answer, whereas a plausible reasoning chain is one that looks reasonable and coherent to humans. Standard CoT <ref type="bibr" target="#b32">(Wei et al., 2022)</ref> generates the rea-soning chain in pure NL, which may often look plausible; nevertheless, the final answer does not need to causally follow from the reasoning chain, thus not guaranteeing faithfulness. Chain-of-Thought-style prompting. In CoTstyle prompting, given a complex question Q, an LM is prompted to generate a reasoning chain C along with the final answer A. Specifically, the prompt consists of a few examples of (Q, C, A) triples, called in-context exemplars. This allows pre-trained LMs (e.g., <ref type="bibr">GPT-3 (Brown et al., 2020)</ref>) to solve unseen questions with much higher accuracy than standard prompting, where the exemplars do not contain the reasoning chain C.</p><p>We create a taxonomy of existing CoT-style prompting methods into three types: all-at-once, ensemble-based, and modularized. All-at-once prompting means that the LM produces C and A as one continuous string, without any dependencies or constraints in between. Scratchpad <ref type="bibr" target="#b19">(Nye et al., 2021)</ref>, standard CoT <ref type="bibr" target="#b32">(Wei et al., 2022)</ref>, and "Let's think step by step" <ref type="bibr" target="#b14">(Kojima et al., 2022)</ref>, are all examples of this kind. Ensemble-based prompting is designed to overcome the local optimality issue of the one-shot generation in previous methods by sampling multiple (C, A) pairs and choosing the best answer via strategies like majority voting. Examples include Self-Consistent CoT <ref type="bibr" target="#b31">(Wang et al., 2022)</ref>, Minerva <ref type="bibr" target="#b15">(Lewkowycz et al., 2022)</ref>, and DI-VERSE <ref type="bibr" target="#b16">(Li et al., 2022)</ref>, which differ mainly in the voting granularity and the underlying LM. Modularized methods break down Q into subproblems and then conquer them individually <ref type="bibr" target="#b13">(Jung et al., 2022;</ref><ref type="bibr">Qian et al., 2022, i.a.)</ref>. In particular, Leastto-Most prompting <ref type="bibr">(Zhou et al., 2022)</ref> has a similar question decomposition process to ours, but there is still no faithfulness guarantee since the reasoning chain is entirely in NL.</p><p>Concurrent with our work, Chen et al. ( <ref type="formula">2022</ref>) and <ref type="bibr" target="#b7">Gao et al. (2022)</ref> both generate Python programs (i.e., SL-only reasoning chains) to derive the answer. We want to highlight the following qualitative differences:<ref type="foot" target="#foot_2">4</ref> (a) In terms of motivation, our approach is interpretability-driven, whereas theirs are performance-driven. (b) Our reasoning chain involves a structured decomposition of the problem in NL, allowing users without a programming background to better understand and potentially interact with the system. (c) They only use Python as the SL and only tackle math and simple symbolic reasoning tasks, whereas we demonstrate the generalizability of our approach to multiple symbolic languages and various other domains. In particular, we innovatively recast a diverse set of realistic tasks (Planning, Multi-hop QA, and Relational Inference) into a symbolic representation, which allows us to tackle them with a single framework. (d) We perform a more comprehensive analysis compared to previous work, especially a human evaluation of the reasoning chain correctness.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>Our method, Faithful CoT, is a 2-stage pipeline, as seen in Figure <ref type="figure" target="#fig_0">2</ref>. Like previous CoT-style work, our prompt consists of (Q, C, A) triples. Notable differences lie in our unique interleaving of NL (natural language) and SL (symbolic language) in C, as well as the way we derive the final answer A.</p><p>In the Translation stage, given a complex query Q in NL, we prompt an LM to translate it into a reasoning chain C, which interleaves NL comments and SL programs. The NL component decomposes the original query into multiple simpler, interdependent subproblems. Then, each subproblem is tackled in a task-dependent SL, such as Python, Datalog, or PDDL. In the Problem Solving stage, we call a deterministic external solver, e.g., a Python interpreter, a Datalog executor, or PDDL planner, depending on the task, to obtain the answer A from the reasoning chain C. As shown in Figure <ref type="figure" target="#fig_1">3</ref>, we define C N L to be the NL component (black) and C SL to be the SL component (blue) in C. Though we separate the two components notationally, they are interleaved in the generation. Using this approach, C is guaranteed to be a faithful model explanation, since our final A is the result of deterministically executing C SL . Moreover, C N L allows the user to better understand the reasoning process. <ref type="foot" target="#foot_3">5</ref>We apply this method to 4 types of complex reasoning tasks: MWP, Multi-hop QA, Planning, and Relational Inference. Next, we will illustrate how our method works for each of them, with examples from Figure <ref type="figure" target="#fig_1">3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Math Word Problems (MWP)</head><p>Given a grade-school math question Q written in NL ("If there are 3 cars in the parking lot and 2 more cars arrive, how many cars are in the parking lot?", shown in green in Figure <ref type="figure" target="#fig_1">3</ref>), we want to # 1. How many cars are there in the beginning? (independent, support: ["there are 3 cars in the parking lot"]) n_cars_begin = 3 # 2. How many cars arrive? (independent, support: ["2 more cars arrive"]) n_cars_arrive = 2 # 3. Final answer: How many cars are in the parking lot? (depends on 1, 2) n_cars_total = n_cars_begin + n_cars_arrive // 1. What is the density of an apple? // The density of an apple is about 0.75 g/cm^3. // 2. What is the density of water? // Water has a density of 1 g/cm^3. // Then, we represent these answers in Datalog: // 1. The density of an apple is about 0.75 g/cm^3. .decl Has_density(Object:symbol, Density:float) Has_density("apple", 0.75). // 2. Water has a density of 1 g/cm^3. Has_density("water", 1). // Now, we derive the final answer: Would an apple sink in water? // The answer is Yes only if an apple is more dense than water.</p><p>.decl Answer() Answer() :-Has_density("apple", density1  obtain A as a real-valued number (5). In the Translation stage, we prompt the LM to take in Q and generate a reasoning chain C, which interleaves C N L and C SL . Specifically, the C N L component consists of three types of information: (a) Subquestions: Q is broken down into multiple smaller-scale subquestions, e.g., "1. how many cars are there in the beginning?", "2. how many cars arrive?", and "3. how many cars are in the parking lot?".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Query</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reasoning Chain Answer</head><p>(b) Dependency Graph: Each subquestion can either be answered directly via context (subquestions 1 and 2 are "independent") or rely on answers to previous subquestions (subquestion 3 "depends on 1 and 2").</p><p>(c) Rationales: Each subquestion is accompanied with rationale(s) to support the answer (the "support" field). The rationales can be either a subset of the original context ("2 more cars arrive") or any external knowledge ("there are 7 days in a week") relevant to the subquestion.</p><p>Each subquestion and its corresponding dependencies and rationales inform the subsequent generation of C SL . In our example in Figure <ref type="figure" target="#fig_1">3</ref>, C SL consists of Python code generated to answer each subquestion in C N L . During the Problem Solving stage, we execute C SL using our solver, a Python interpreter, to derive A (5 cars in the end).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Multi-hop QA</head><p>Given a complex question Q that involves multiple steps of reasoning (e.g., "Would a pear sink in water?", shown in red in Figure <ref type="figure" target="#fig_1">3</ref>), we want to obtain the answer A as a Boolean value or string value variable. Similar to our MWP task formulation, C interleaves C N L (NL comments), and C SL (symbolic program). Depending on the nature of the task, the format of the reasoning chain C is slightly different: for some datasets, the LM first generates all subquestions and their answers in NL, and then represents these answers as SL to derive A (see Figure <ref type="figure" target="#fig_1">3</ref>); for others, the LM interleaves the NL subquestions and the SL program, similar to the case of MWP (see Table <ref type="table" target="#tab_6">14</ref> and Table <ref type="table" target="#tab_12">15</ref> for examples). In terms of SL, we use both Python and Datalog, also depending on the dataset. As Multi-hop QA problems involve multi-step reasoning to solve, C SL often utilizes Boolean algebra and string comparisons (in Python) along with relation definitions and logic programming (in Datalog). We use their corresponding interpreter as our deterministic solver to execute C SL and obtain A.</p><p>In the example from Figure <ref type="figure" target="#fig_1">3</ref>, the LM first generates the subquestions, "1. What is the density of a pear?" and "2. What is the density of water?", which are individually answered in NL. The answers ("Water has a density of 1g/cm 3 ") are converted to Datalog statements (Has_density("water", 1)), which are then combined to formalize the truth condition of the final answer. Finally, we execute the Datalog program to determine that a pear would not sink in water.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Planning</head><p>In a user-robot interaction scenario, given a household task query Q from a user, we want to come up with a plan of actions A that the robot should take in order to accomplish the task. For example, in Figure <ref type="figure" target="#fig_1">3</ref>, given user query "I spilled my coke on the table, could you throw it away and bring something to clean with?", a possible plan can be "find(coke), pick(coke), find(trash), put(coke) ...". In the Translation stage, an LM translates Q into C, consisting of C N L (which breaks down Q into subtasks) and C SL (which represents the subtasks as a symbolic goal in PDDL<ref type="foot" target="#foot_4">6</ref> -a language to define and solve classical planning problems). Figure <ref type="figure" target="#fig_1">3</ref> shows this translation, with C SL in blue and C N L in black. Finally, we call a PDDL Planner as the deterministic solver to obtain A, a plan to accomplish the goal C SL under the predefined scenario.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Relational Inference</head><p>Given a relational inference problem Q written in NL, we want to obtain A as a string-valued variable. For example, the CLUTRR <ref type="bibr" target="#b28">(Sinha et al., 2019)</ref> dataset involves inferring the family relationship (e.g., "grandson") between two people from a short story (e.g., "[Gabrielle] drove her daughter [Dorothy] to the hospital. [Dorothy]'s son <ref type="bibr">[Vincent]</ref> showed up shortly after. How is <ref type="bibr">[Vincent]</ref> related to [Gabrielle]?", shown in yellow in Figure <ref type="figure" target="#fig_1">3</ref>). During the Translation stage, we prompt the LM to generate C, consisting of C N L and C SL . Similar to previous tasks, C N L breaks down Q into subquestions ("How is [Vincent] related to [Dorothy]" and "How is [Dorothy] related to [Gabrielle]"), as well as provide input extracts as rationales to support the answer ("[Dorothy]'s son <ref type="bibr">[Vincent]</ref> showed up shortly after", etc.). Each subquestion in C N L is answered in C SL via a relational expression representing the relation between the mentioned entities, for example, relation(Vincent, Dorothy)=son denotes that Vincent is Dorothy's son. In the Problem Solving stage, our solver is a simple relational inference engine that relies on a set of transitivity rules provided by <ref type="bibr" target="#b34">Zhang et al. (2022)</ref> among possible family relationships, e.g., son@daughter=grandson (the son of one's daughter is one's grandson). Our solver recursively applies these rules on C SL to derive A, and determine that Vincent is Gabrielle's grandson.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental setup</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>Here, we summarize the evaluation datasets used for each domain. We select the same number (6 to 10, depending on the task) of exemplars as in <ref type="bibr" target="#b32">Wei et al. (2022)</ref> to form our few-shot prompt, which can be found in our repository. Unless otherwise stated, we use the official splits: training set for exemplar selection, validation set for prompt tuning, and test set for evaluation. <ref type="foot" target="#foot_5">7</ref>Math Word Problems (MWP). We follow <ref type="bibr" target="#b32">Wei et al. (2022)</ref> and consider the same five MWP benchmarks: GSM8K <ref type="bibr" target="#b6">(Cobbe et al., 2021)</ref>, SVAMP <ref type="bibr" target="#b21">(Patel et al., 2021)</ref>, MultiArith <ref type="bibr" target="#b26">(Roy and Roth, 2015)</ref>, ASDiv <ref type="bibr" target="#b18">(Miao et al., 2020)</ref>, and AQuA <ref type="bibr" target="#b17">(Ling et al., 2017)</ref>. For all datasets, the input question is phrased in NL. The answer is a string-valued mathematical expression for AQuA, and one or more integer(s) for all other datasets. We use the same 8-shot prompt for all datasets except AQuA. Multi-hop QA. We consider the three datasets: StrategyQA <ref type="bibr" target="#b8">(Geva et al., 2021)</ref>, a dataset of opendomain questions that require an implicit multistep strategy to answer, e.g., "Did Aristotle use a laptop?" involves answering "1. When did Aristotle live?", "2. When was the laptop invented?", and "3. Is #2 before #1?"; Date Understanding from BIG-bench (BIG-Bench collaboration, 2021), which asks the model to infer a date from a context, by performing computation on relative periods of time; and finally, Sports Understanding from BIG-bench, which asks the model to decide whether an artificially constructed statement related to sports is plausible or implausible. Since the latter two datasets do not have a training set, we follow <ref type="bibr" target="#b32">Wei et al. (2022)</ref> and select 10 examples from the test set to form the prompt and use the rest for evaluation. Planning. We use the SayCan dataset <ref type="bibr" target="#b0">(Ahn et al., 2022)</ref>, which assumes a scenario of a robot operat- </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model Output</head><p>Chain of Thought (CoT) Prompting <ref type="bibr" target="#b32">(Wei et al., 2022)</ref> Standard Prompting</p><p>The answer is 4 hours and 20 minutes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model Output</head><p>Least-to-Most Prompting <ref type="bibr">(Zhou et al., 2023)</ref> To answer the question, we need to know:</p><p>Q1. How many minutes does Rob take? Rob takes 2 hours. Q2. How many minutes does Royce take? Royce takes 40 minutes more than double Rob.</p><p>Final Answer: How many minutes does Royce take? Royce takes 2*2 + 40 = 84 minutes.</p><p>The answer is 84.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model Output</head><p>Python Interpreter &gt;&gt;&gt; 280 &gt;&gt;&gt; Figure <ref type="figure">4</ref>: A sample output for a math question from three baselines and Faithful CoT (our method). The ground-truth answer is 280, and only our method correctly computes the answer.</p><p>ing in a kitchen, helping the user with household tasks, e.g., "bring a coke to the table". There are a number of locations and objects that the robot can interact with. The robot can only perform a fixed set of actions, including find, pick, and put.</p><p>The task is to map a user query in NL to a plan of predefined actions. Following <ref type="bibr" target="#b32">Wei et al. (2022)</ref>, we manually write 7 exemplars, since no training set is provided.</p><p>Relational inference. We use the CLUTRR <ref type="bibr" target="#b28">(Sinha et al., 2019)</ref> benchmark described in Section 3.4. The dataset has multiple splits based on the number of intermediate steps K required to reach the answer. We construct the prompt using 8 exemplars with K ∈ {2, 3}, and test the models on the remaining examples with K up to 10.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Evaluation Metrics</head><p>We evaluate the model performance with final answer accuracy as the main metric. Following previous work <ref type="bibr" target="#b32">(Wei et al., 2022;</ref><ref type="bibr" target="#b31">Wang et al., 2022;</ref><ref type="bibr" target="#b5">Chen et al., 2022)</ref>, for all MWP datasets (except AQuA) where the answer contains integer(s), a correct answer is defined as the exact match between the prediction and the ground truth both converted to the nearest integer; for StrategyQA and Sports Understanding where the answer is a Boolean value, it is defined as the exact match between the prediction and the ground truth both evaluated as a Boolean variable; for SayCan, the generated plan is considered correct if it is among the ground truth plans; for all other datasets, we rely on the exact match between the prediction string and the ground truth string. Additionally, we evaluate the human-rated plausibility of the reasoning chain in Appendix D.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Baselines</head><p>We compare our method to three other few-shot prompting baselines, shown in All prompting methods are compared under two decoding strategies: greedy decoding, where the LM samples the most probable next token from the vocabulary (i.e., temperature = 0.0); and selfconsistency decoding <ref type="bibr" target="#b31">(Wang et al., 2022)</ref>, where the LM generates multiple reasoning chains and chooses the final chain based on majority voting on the evaluated answer (we use a temperature of 0.4 and 40 generations for all datasets). <ref type="foot" target="#foot_6">8</ref> We reproduce the baseline results ourselves in cases when they are not reported on certain tasks or when we clean the test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">LMs</head><p>We use OpenAI Codex <ref type="bibr" target="#b6">(Chen et al., 2021)</ref> (code-davinci-002) in Section 5 and experiment with four other code-generation LMs in Appendix C.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>Our results on all datasets are shown in Table <ref type="table" target="#tab_2">1</ref>.</p><p>With code-davinci-002 as the Translator, Faithful CoT outperforms all baselines across the vast On the other hand, we do not see clear empirical gains on two multi-hop QA datasets, Sports Understanding on StrategyQA. On Sports Understanding, Faithful CoT and LtM both have near perfect accuracy (99+), suggesting that the dataset is almost saturated. On StrategyQA, however, the performance of our method is still far from the baselines. To understand why, we specifically compare the examples where CoT makes a correct prediction but our method fails. As shown in Figure <ref type="figure" target="#fig_10">11</ref> in Appendix F, we find that the likely primary cause is the sparsity of Datalog in the pretraining data for Codex, as an overwhelming 29% of errors are syntax-related. Moreover, including Datalog in the prompt also interferes with NL generation, making it harder for Codex to produce relevant subquestions (17%), retrieve knowledge correctly (10%), and come up with valid reasoning from the knowledge to the answer (10%). Another potential cause is the nature of the task, as the difficulty for many StrategyQA questions does not lie in reasoning but rather in knowledge retrieval, which makes the advantages of our deterministic solver less obvious. Still, with further pretraining on Datalog, we believe that there is room for improvement.</p><p>To see how generalizable our method is, we also experiment with four alternative LMs and observe consistent gains brought by Faithful CoT over the baselines, as shown in Appendix C.3. In particular, with GPT-4, we set the new few-shot SOTA results on 7 datasets, achieving 95.0+ accuracy in four out of five MWP and two out of three Multi-hop QA datasets. Overall, these results suggest that faithfulness does empirically improve performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Analysis</head><p>In this section, we perform an extensive analysis of the strengths and weaknesses of our method, to better understand the role of different components, the robustness to design choices, the plausibility of generated reasoning chains, as well as frequent error patterns where it still struggles. Here, we only show the first two aspects; see the rest in Appendix C. Unless otherwise stated, we choose one dataset from each domain (GSM8K, Date Understanding, Say-Can, and CLUTRR) and use code-davinci-002 outputs with greedy decoding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Ablation Study</head><p>Given the strong performance of Faithful CoT, we now address a natural question: how much does each part of the prompt contribute to the accuracy? We perform an ablation study where we re- move different parts of the prompt and see how the performance changes. In addition to the original prompt ("Full"), we test four variations, illustrated with the example from Figure <ref type="figure">4</ref>: No rationale. We remove the rationales, i.e., everything in the brackets from the NL comments, e.g., "independent, support: ['There are 15 trees']".</p><p>No NL but nudge. We remove all NL comments except the "nudge" line: e.g., "# To answer this question, we write a Python program to answer the following subquestions".</p><p>No NL. We remove all NL comments. No solver. Instead of calling the external solver, we add "Answer: {answer}" to the end of every exemplar and let the LM predict the answer itself.</p><p>Figure <ref type="figure" target="#fig_4">5</ref> shows the results of all prompt variations. On GSM8K, Date Understanding, and Say-Can, NL comments contribute little to the performance, and sometimes even slightly hurt it. On CLUTRR, however, their role is crucial, since the exclusion of each component (rationale, nudge, subquestions) results in a clear accuracy drop. In particular, comparing No NL but nudge and No NL, the nudge line itself brings a striking improvement by 31.3 points.</p><p>The external solver relieves the burden of problem solving from the LM. Without it, the accuracy suffers a huge decline on GSM8K, Date Understanding, and CLUTRR (-50.8, -22.9, and -19.4 respectively), while on SayCan it improves by 2.9 nonetheless. One potential influencing factor is that SayCan might be too homogeneous, as it contains a set of only 3 predefined actions. This can make the task relatively easy, which allows all model variants to achieve around 90% accuracy and renders the solver unnecessary. Another potential reason is the level of correspondence between the final answer and the reasoning chain for different datasets: as shown in Figure <ref type="figure" target="#fig_1">3</ref>, the answer in SayCan is a sequence of actions (e.g., find(redbull)), each directly corresponding to one step in the reasoning chain (e.g., at redbull trash). However, the answer in the other three datasets is only a single number or string, which can only be derived after executing all the steps in the reasoning chain. Therefore, the latter type of tasks further necessitates the presence of an external solver.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Robustness to Exemplars</head><p>We now answer the next question: how much does the choice of exemplars matter? To do this, we annotate 20 examples in total, randomly sample k (7-10, depending on the dataset) to construct the prompt, and repeat the process five times. Table <ref type="table" target="#tab_3">2</ref> shows the performance of all six runs, including the original (from Table <ref type="table" target="#tab_2">1</ref>). The mean accuracy is close to the original (-1.5 to +1.2), still above the baselines by a large margin (7 to 17) on all datasets except the arguably easiest SayCan, considering the standard deviation (1.3 to 2.9). This strongly suggests that the benefits of Faithful CoT are minimally influenced by the choice of exemplars.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Human Evaluation of Plausibility</head><p>Our main experiments use final answer accuracy as the performance measure, but this does not necessarily correspond to the validity of the reasoning chain. Technically, a model can sometimes accidentally arrive at the correct answer with an invalid reasoning chain. We then ask: when the answer is correct, how often is the reasoning chain truly correct? In other words, we want to evaluate the plausibility of the reasoning chains.</p><p>We conduct a human evaluation study on Prolific: given a generated reasoning chain that results in a correct answer, a crowd-worker selects whether it is A) completely correct, or, if incorrect, specify why with B) incorrect NL and/or C) incorrect SL. Alternatively, they can select D) flawed question and E) I am confused. <ref type="foot" target="#foot_7">9</ref>The results of our study are shown in Figure <ref type="figure" target="#fig_5">6</ref> (see  For most domains, we see that annotators often find the reasoning chain fully correct -Sports, Say-Can, and MWP have a 90%+ correctness rate. To gain more insight into when the reasoning chain can be "incorrect", we perform an in-depth analysis of user annotations for the three worst-performing datasets -StrategyQA (66.7% correctness), Date (87.9% correctness), and CLUTRR (88.0% correctness). From our inspection, we find that annotators mistakenly mark a correct reasoning chain as incorrect at different rates based on the task (8.3% of the time for StrategyQA, 41.7% for Date Understanding, and 100% for CLUTRR). We find annotators are inaccurate for Date because they incorrectly believe the generated code misuses a Python library (relativedelta), or they complain that there is a better way to answer the question. For CLUTRR, annotators mark chains as incorrect due to known ambiguity in the dataset. For example, the grandmother of one's child may not necessarily be their parent, but also a parent-in-law.</p><p>As for the remaining truly incorrect reasoning chains, we find the LM can sometimes add unnecessary steps or arrive at the correct answer by chance. The latter is especially an issue in Strate-gyQA -given that all questions have a True/False answer, it is common for an incorrect reasoning chain to result in a correct answer. For example, the LM correctly answers the question "Was Karachi a part of Alexander the Great's success?" as "True." However, the reasoning chain contains the flawed subquestion "Which countries are in Pakistan? Pakistan includes Pakistan, Afghanistan, and India."</p><p>Though the final answer is correct and faithful to the LM generation, the reasoning chain contains wrong knowledge.</p><p>Overall, Faithful CoT does generate valid reasoning chains for the vast majority of the time when the answer is correct. However, we still see exceptions where the model arrives at the right answer via an incorrect reasoning chain. Though this happens infrequently, it raises concerns about when people should trust LMs. To our knowledge, we are the first to conduct a systematic human study on the plausibility of CoT-style reasoning chains, and we hope to see future work further investigate and improve on the flaws that our study brings to light.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We propose Faithful CoT, a framework that decomposes complex reasoning into Translation and Problem Solving. It guarantees that the reasoning chain is a faithful explanation of how the model arrives at the answer. We demonstrate the efficacy of our approach on 4 types of complex reasoning problems: Math Word Problems, Multi-hop QA, Planning, and Relational Inference. Our method sets new SOTA performance on 7 of the 10 datasets, while additionally providing a faithful explanation for the final answer. These results give empirical evidence that improving model interpretability, by guaranteeing the faithfulness of an explanation, does not come at the expense of overall performance; in fact, we see a strong synergy in between. Through a comprehensive analysis of the strengths and weaknesses of our method, we show its robustness to the choice of exemplars, the pivotal role of the solver, as well as frequent error patterns where it still struggles.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>One crucial limitation of our study is that on March 23rd, 2023, OpenAI discontinued the use of codedavinci-002. This has rendered part of our results unreplicable for any teams or researchers who have not been granted continued access to the model. This discontinuation was unexpected during our study. It raises important questions about using closed-source models for academic research.</p><p>Meanwhile, one methodological limitation of our approach lies in the scope of faithfulness. Currently, we guarantee that Problem Solving stage is faithful. However, the Translation stage is still opaque, meaning it is not self-interpretable how the LM generates the reasoning chain from the question. It is still an under-explored question whether it is possible to improve the interpretability of the LM generation process in general, and a few recent studies have made promising early progress <ref type="bibr" target="#b33">(Yin and Neubig, 2022;</ref><ref type="bibr" target="#b27">Sarti et al., 2023)</ref> that might be used to improve the faithfulness of the Translation stage.</p><p>Finally, it still needs further exploration of the role NL comments in the reasoning chain. From our ablation study, in terms of performance, whether to include the NL comments in the reasoning chain does not make a big difference on many of the datasets, especially those where the task is not knowledge-intensive. Nevertheless, speaking of interpretability, NL comments can make the reasoning chain more structured and understandable to the end user. Further, NL comments can be an interface that allows users without a programming background to interact with and debug the model, which we leave for future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>With the recent success of generative large LMs, they are now being used to solve complex reasoning problems. When using the output of an LM for reasoning, there is a danger that if the reasoning appears realistic, then the final answer or conclusion will also be considered reliable. As we highlighted in Figure <ref type="figure">1</ref> and 7, this is often not true, since an LM may produce a reasoning chain that looks plausible, but the final answer is still wrong. This work is a step in the direction of making the use of LMs more trustworthy by using the LM for just expressing its reasoning in a symbolic program and executing the program independently. In this work, we have ensured the faithfulness of the reasoning chain w.r.t how the final answer is produced in a variety of domains, but admittedly the Translation phase is still opaque. Therefore, our pipeline is still not entirely interpretable. Furthermore, as we have stressed in Section 1, faithfulness does not guarantee correctness, so our method can still sometimes produce erroneous answers, which may pose a risk for users that rely on it for decision making.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Implementation Details</head><p>In all our experiments, we use OpenAI GPT-3 (text-davinci-001 and text-davinci-002) and Codex (code-davinci-001 and code-davinci-002) models through the Python API available at beta.openai.com, from Sept, 2022 to Jan, 2023. The inference cost per example is $0 for all Codex models since they are in limited beta period, and $0.01 -$0.03 for GPT-3 models depending on the dataset. It takes 2-15 seconds to run inference on one example with Codex models under a rate limit of 150,000 tokens/minute, and 1-8 seconds with GPT-3 models under 250,000 tokens/minute, also depending on the dataset. For example, on the GSM8K test set of 1,319 examples, it takes 3.5h to finish the inference with Codex and 2.3h with GPT-3.</p><p>We use the following hyper-parameters throughout all experiments: temperature: 0.0 for greedy decoding, 0.4 for self-consistent decoding; max_tokens: 1000; n: 1 for greedy decoding, 40 for self-consistent decoding; frequency_penalty: 0; presence_penalty: 0.</p><p>Any unspecified hyper-parameters are set to the default value on https://beta.openai.com/ docs/api-reference/completions/create.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Extended Results</head><p>In this section, we present more results that do not fit into the main text.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Examples of Unfaithful CoT Output</head><p>Figure <ref type="figure">7</ref> shows examples of unfaithful output from the CoT method <ref type="bibr" target="#b32">(Wei et al., 2022)</ref> on three datasets: GSM8K (MWP), StrategyQA (Multi-hop QA), and SayCan (Planning). Note that here we only show model outputs that are apparently unfaithful. In other cases, there is no known inconsistency between the reasoning chain and the answer, but this still does not imply that the reasoning chain is a faithful explanation, since the ground truth (how the model predicts the answer) is unknown.</p><p>The GSM8K example is explained in Section 1. In the StrategyQA example, though the reasoning chain correctly identifies that a hummingbird weighs much more than a pea, the answer is still "yes"; in the SayCan example, the reasoning chain only mentions "visit the table and the counter", Q: John plans to sell all his toys and use the money to buy video games. He has 13 lego sets and he sells them for $15 each. He ends up buying 8 videogames for $20 each and has $5 left. How many lego sets does he still have?</p><p>A: He started with 13 lego sets. He sold them for $15 each. So he must have gotten 13 * $15 = $195 from selling them. He used this money to buy 8 video games for $20 each. This means he spent 8 * $20 = $160 on the video games. He had $5 left, so in total he must have had $195 + $5 = $200. The answer is 0.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input CoT output</head><p>Visit the table and the counter.</p><p>The user has asked me to visit the table and the counter, I will do so in that order. 1. find(table), 2. pick(table), 3. find(counter), 4. put(counter), 5. done()</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Planning (SayCan)</head><p>CoT output Q: Could a bee hummingbird balance a scale with a single pea on it?</p><p>Multi-hop QA (StrategyQA)</p><p>A: The bee hummingbird is the smallest bird in the world. The average weight of a bee hummingbird is about 2 grams. A single pea weighs about 0.1 grams. Thus, a bee hummingbird could balance a scale with a single pea on it. So the answer is yes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>CoT output Input</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Math Word Problem (GSM8K)</head><p>Figure <ref type="figure">7</ref>: Examples of unfaithful output from CoT prompting <ref type="bibr" target="#b32">(Wei et al., 2022)</ref> on three datasets. The answer (green) does not follow from the reasoning chain (blue). but the plan contains unnecessary "pick" and "put" operations. <ref type="bibr" target="#b32">Wei et al. (2022)</ref> claim that CoT "provides an interpretable window into the behavior of the model, suggesting how it might have arrived at a particular answer and providing opportunities to debug where the reasoning path went wrong". As we have pointed out in Section 1, since CoT does not guarantee faithfulness, how the model arrives at the answer could differ drastically from what is shown in the reasoning chain. Furthermore, it is still hard for the user to debug the model: even if they manually correct the reasoning chain and let the model regenerate the answer, it might still be wrong, since there is no causality between the reasoning chain and the answer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Comparison with Few-shot SOTA</head><p>We compare the results of Faithful CoT with the published few-shot SOTA in Table <ref type="table" target="#tab_5">3</ref>  With Codex and GPT-4, Faithful CoT sets new SOTA performance on 7 out of the 10 datasets across four domains, achieving 95.0+ accuracy on 6 of them.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 Empirical Comparison with Concurrent Work</head><p>Two pieces of concurrent work, Program of Thoughts (PoT) <ref type="bibr" target="#b5">(Chen et al., 2022)</ref> and Program-Aided Language Models (PAL) <ref type="bibr" target="#b7">(Gao et al., 2022)</ref>, were announced on arXiv within three months of our work. Essentially, they both generate Python programs, or SL-only reasoning chains, to derive the answer. Our approach differs from them mainly in the additional component of structured NL comments, which decomposes the original problem into simpler, inter-dependent subproblems. Aside from the qualitative differences highlighted in Section 2, we perform an empirical performance comparison with them on the same set of 10 datasets used in our main evaluation. Since both papers have only tackled math reasoning and symbolic reasoning tasks, we reimplement their methods by using the "noNL" prompt in our ablation study from Section 6.1. The comparison is done with code-davinci-002 as the underlying LM and greedy decoding.</p><p>As shown in Figure <ref type="figure" target="#fig_6">8</ref>, on 6 of the 10 datasets (including most MWP datasets, SayCan, and Date Understanding), PAL/PoT and Faithful CoT have very close accuracy (&lt;2.0 difference). On AQuA, PAL/PoT is visibly better. On the remaining three datasets (StrategyQA, Sports Understanding, and CLUTRR), Faithful CoT reasonably outperforms PAL/PoT. This may suggest that our method has an advantage when the task requires extensive external knowledge (e.g., StrategyQA and Sports Understanding) or when the SL is not frequent in the LM's pretraining data (e.g., Datalog, or our selfdefined relational expressions).</p><p>Finally, note that the key contribution of our method lies in interpretability. Though the addition of structured NL comments sometimes does not make a difference in performance, it does make the reasoning chain more understandable to the user. Furthermore, it may even enable users without a programming background to debug the model, by only interacting with the NL subproblems (e.g., adding/removing/editing a subproblem), which is worth further exploration in the future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Extended Analysis</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Ablation Study</head><p>Table <ref type="table" target="#tab_6">4</ref> shows the full results of the ablation study from Section 6.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 Robustness to Prompt Phrasing</head><p>We study the sensitivity of our method to subtle differences in the prompt design. We experiment with three prompt variations: 1. randomly permuting the order of independent subquestions/reasoning steps; 2: Changing the variable names; 3. changing the nudge line (e.g. from "# To answer this question, write a Python program to answer the following subquestions" to "# To solve this question, we answer each of the following subquestions with a Python program").</p><p>We rerun the evaluation of all three variations on 4 datasets (when applicable) used in the Section 6, under greedy decoding. Table <ref type="table" target="#tab_7">5</ref> shows the results. Overall, the performance is quite stable, always above each baseline on all four datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 Model Sensitivity</head><p>In this section, we want to answer the question: how much does the choice of LM matter? All results in Section 5 are obtained using code-davinci-002. Here, we examine the effect of using four alternative code-generation models as the Translator: code-davinci-001, text-davinci-002, text-davinci-003, gpt-4. We compare our method with the three baselines using each of the above LM on five MWP datasets, using the greedy decoding strategy.</p><p>As shown in Table <ref type="table" target="#tab_8">6</ref>, regardless of the underlying LM, Faithful CoT consistently outperforms all baselines on the vast majority of the datasets, and performs very closely with the best method (&lt;2.0 difference) on the remaining ones. On average, it has a relative accuracy gain of 16.1%, 11.0%, 9.4%, and 4.6 % over the best-performing method among the baselines, for each LM respectively. This indicates that even though the absolute performance varies depending on the LM, Faithful CoT brings a relatively consistent accuracy gain.</p><p>Notably, with GPT-4 as the underlying LM, Faithful CoT results in 95.0+ accuracy in 4 of the 5 MWP datasets, far outperforming the previous fewshot SOTA on three of them (GSM8K, SVAMP, and ASDiv).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.4 Enforcing Constraints</head><p>Since our generated reasoning chain contains structured components (e.g., dependency graphs), another natural question to ask is: will it be helpful to enforce certain constraints on the generation? Using MWP datasets as a case study, we examine the effect of three such constraints:</p><p>Graph validity. The dependency graph must be a Directed Cyclic Graph (DAG), e.g., it is not allowed for a subquestion to depend on itself.</p><p>No over-dependency. The code cannot depend on any variable that its corresponding subquestion has not mentioned, e.g. in Figure <ref type="figure">4</ref>, since Q5 says "depend on 4", then the corresponding code should not use the variable eggs_in_dozen, since it is not the output of Q4.</p><p>No under-dependency. The code must depend on all variables that its corresponding subquestion has mentioned, e.g. in the same example, since Q5 says "depend on 4", then the corresponding code must use the variable eggs_in_dozen.</p><p>We investigate the effect of adding constraints on the generations under self-consistent decoding. Starting with our original results (without any constraint), we add a different set of constraints at each time and report the accuracy change in Table <ref type="table">7</ref>. Individually, the graph validity constraint results in little to no change in the performance, but the other two constraints lead to a more unstable changemostly a decrease-across datasets. Adding two or more constraints further lowers the performance in almost all cases except on MultiArith (the easiest dataset), revealing the tradeoff between accuracy and satisfying the constraints. It also indicates that a proportion of generations (1.0% to 8.9%) in our existing results do not satisfy all constraints. However, it may still be worth enforcing some of these constraints (e.g., graph validity) at the cost of performance, in order for users to better control and interact with the model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Human Evaluation Details</head><p>We hire crowd workers on Prolific to evaluate the correctness of model-generated reasoning chains that result in a correct answer. We sample </p><formula xml:id="formula_0">G 0.0 0.0 0.0 -0.1 -0.8 + O -0.9 -0.1 -0.1 +0.4 -3.9 + U -1.0 -3.6 0.0 -1.2 +1.2 + GO -1.7 -0.4 -0.1 +0.2 -3.9 + GU -1.0 -3.7 0.0 -1.2 +0.8 + OU -4.0 -5.4 -0.1 -2.6 -4.3 + GOU -5.0 -5.9 -0.1 -3.2 -5.5</formula><p>Table <ref type="table">7</ref>: Accuracy change after enforcing different constraints on the generation. The "None" row shows the original performance without any constraint (from Table <ref type="table" target="#tab_2">1</ref>). Each row below adds a different set of constraints: G stands for "graph validity", O for "no overdependency", and U for "no under-dependency". Results are on all MWP datasets under self-consistent decoding.</p><p>100 reasoning chains for each domain generated by code-davinci-002 with the greedy decoding strategy, where each set of 100 contains an equal number of samples from all datasets within the domain. We further require annotators to have experience coding in the programming language of the dataset they annotate (Python for MWP/CLUTRR/Sports/Date, and Scala for Strat-egyQA, as Datalog was not an option in Prolific).</p><p>We have a single survey for each domain, with the exception of Multi-hop QA (in this case, we have separate surveys for StrategyQA, Date, and Sports, given the different nature of each dataset).</p><p>Additionally, there was no way to ensure annotators knew PPDL on Prolific. In order to ensure high-quality annotations for SayCan, the authors Table <ref type="table">8</ref>: Numerical results for human evaluation of reasoning chain correctness, accompanying Figure <ref type="figure" target="#fig_5">6</ref>. Each row represents the percent (0-100) of different answer choices selected by human evaluators in each domain/dataset, as well as the inter-annotator agreement.</p><p>response repeatedly or complete the survey in under 3 minutes). After the surveys are complete, we compute annotator agreement and then take the majority label for each reasoning chain as the final label in our analysis. Our annotator population consists of 100 annotators with an average age of 25 years and an average income of 40k per year. 87.9% of the annotators are males and 56% have a four year college degree. Annotators are compensated at $16/hr, and average 2 minutes per question.</p><p>Our full study cost $280. Sample instructions for the CLUTRR survey can be found in the Supplementary Materials.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Dataset Details E.1 Statistics</head><p>We show the dataset details in Table <ref type="table">9</ref>, including the statistics, the number of few-shot exemplars used in the prompt, and example inputs and outputs.</p><p>In particular, we notice that in one of our baselines <ref type="bibr" target="#b32">Wei et al. (2022)</ref>, the reported number of exemplars used in the prompt is inconsistent between the main text (10) and the appendix (6). To ensure fair comparison, we rerun the baseline with 10 exemplars for our results in Table <ref type="table" target="#tab_2">1</ref>, which is what we use for our method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2 URLs and Licenses</head><p>We use the same distribution of datasets following <ref type="bibr" target="#b32">Wei et al. (2022)</ref>:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Math Word Problems</head><p>• GSM8K <ref type="bibr" target="#b6">(Cobbe et al., 2021)</ref>: https:// github.com/openai/grade-school-math, MIT license: https://github.com/ openai/grade-school-math/blob/ master/LICENSE.</p><p>• SVAMP <ref type="bibr" target="#b21">(Patel et al., 2021)</ref>: https:// github.com/arkilpatel/SVAMP, MIT license: https://github.com/arkilpatel/ SVAMP/blob/main/LICENSE.</p><p>• MultiArith <ref type="bibr" target="#b26">(Roy and Roth, 2015)</ref>, license: CC BY 4.0.</p><p>• ASDiv <ref type="bibr" target="#b18">(Miao et al., 2020)</ref>: https://github. com/chaochun/nlu-asdiv-dataset.</p><p>• AQuA <ref type="bibr" target="#b17">(Ling et al., 2017)</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Relational Reasoning</head><p>• CLUTRR <ref type="bibr" target="#b28">(Sinha et al., 2019)</ref>: https:// github.com/facebookresearch/clutrr, license: https://github.com/ facebookresearch/clutrr/blob/main/ the court. We remove 8 questions with such actionbased ambiguities. Additionally, since the release of this dataset, a few new athletes have risen to fame with identical names to those mentioned in the dataset. For example, the question "Chris Paul struck out the side" is implausible, as the referenced "Chris Paul" is a famous basketball player. However, "Chris Paul" is also the name of a new MLB baseball player, in which case this statement is plausible. We remove 5 questions with such name-based ambiguities.</p><p>SayCan: We discover a few issues in the test set: (1) the environment setup (e.g., the list of objects, the list of locations, and the initial location of each object) is not the same for all examples; (2) the annotation of the ground truth answer is often incomplete (i.e., for a given task like "visit all locations", there exist many possible plans in terms of the order of locations visited, but not all of them are included in the annotation); (3) there are ambiguous descriptions in certain queries, for example, in "Could you get me something refreshing?", it is unclear what drinks are considered "refreshing". For these questions, we complete the annotation whenever possible, and filter out the rest. The resulting test set contains 103 examples out of the original 120.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.4 Dataset Splits</head><p>As stated in Section 4.1, we use the official splits whenever possible: training set for exemplar selection, validation set for prompt tuning, and test set for evaluation. In cases where they are available, we adopt the following strategies for each dataset:</p><p>GSM8K: it only has training and test sets. We form the validation set by randomly sampling 1,000 examples from the training set.</p><p>Other MWP datasets: for AQuA, we use the official training/validation/test split. For the other datasets, only the test sets are used, since we have the same prompt for GSM8K and them.</p><p>Date Understanding and Sports Understanding: they only have test sets. We follow <ref type="bibr" target="#b32">Wei et al. (2022)</ref>  CLUTRR: this dataset is split into multiple folds. There is a training fold with K ∈ {2, 3} (where K is the number of intermediate steps required to reach the answer), and one test fold for each K from 2 to 10. We construct the few-shot prompt using exemplars from the training fold, and test our method on the concatenation of all test folds.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Error Analysis</head><p>To further investigate where our method still fails, we inspect 100 errors<ref type="foot" target="#foot_8">10</ref> from model predictions on each of the four datasets and manually annotate the error categories. As shown in Figure <ref type="figure" target="#fig_9">10</ref>, we categorize the errors on GSM8K into 6 types, inversely sorted with frequency: Wrong Subquestion (49%): The LM produces a wrong NL subquestion, which eventually leads to the incorrect answer. While this is the majority error type in our sample, it is worth noting that in a typical human-in-the-loop collaboration, these errors are easily fixable. Even if the user is unfamiliar with programming, they can inspect the NL subquestions and potentially correct the model error by simply deleting or editing a wrong subquestion. Wrong Code (24%): The NL subquestion is correct, but the code fails to answer the subquestion correctly. For example, the code uses a variable that has not been previously defined. Semantic Understanding Error (12%): The LM incorrectly interprets certain semantic subtleties in the query. This is the most complex and most interesting error category. For example, consider the # 1. How many pounds will Martin lose per week if he eats Cheerios every day for breakfast? (independent, support: ["he'll lose 1.25 pounds/week"]) pounds_lost_cheerios = 1.25 # 2. How many pounds will Martin gain per week if he eats donuts every day for breakfast? (independent, support: ["he'll gain 1.75 pounds/week"]) pounds_gained_donuts = 1.75 # 3. How many weeks are there in 5 weeks? (independent, support: ["External knowledge: there are 7 days in a week"]) weeks_in_5_weeks = 5 # 4. How many pounds will Martin lose in 5 weeks if he eats Cheerios every day for breakfast? (depends on 1 and 3, support: []) pounds_lost_cheerios_5_weeks = pounds_lost_cheerios * weeks_in_5_weeks # 5. How many pounds will Martin gain in 5 weeks if he eats donuts every day for breakfast? (depends on 2 and 3, support: []) pounds_gained_donuts_5_weeks = pounds_gained_donuts * weeks_in_5_weeks # 6. What will be the difference in his weight at the end of 5 weeks between the two breakfast options? (depends on 4 and 5, support: []) difference_5_weeks = pounds_gained_donuts_5_weeks -pounds_lost_cheerios_5_weeks # 7. Final Answer: What will be the difference in his weight at the end of 5 weeks between the two breakfast options? (depends on 6, support: []) answer = difference_5_weeks</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.1 GSM8K</head><p>Table 10: Generated code for the question in Appendix F.1, as an example of "semantic understanding error".</p><p>following problem:</p><p>If Martin eats Cheerios every day for breakfast, he'll lose 1.25 pounds/week. If he eats donuts every day for breakfast, he'll gain 1.75 pounds/week. What will be the difference in his weight at the end of 5 weeks between the two breakfast options?</p><p>The generated code, as shown in Table <ref type="table" target="#tab_2">10</ref>, does not assign opposite polarities (signs) for "pounds lost" vs. "pounds gained". For other examples in this category, we notice errors like missing that a pair of something has 2 items in it, missing to subtract 2 for "two years ago" when it occurs as a subjunctive, and so on. Fixing these errors, in general, will require more than providing additional examples in the prompt. Generation Cutoff (7%): The generation stops midway, mainly due to the LM producing the same steps over and over again. These errors could be easily detected in postprocessing and possibly fixed by re-prompting the LM. Wrong Gold Label (5%): We find 5 (out of our 100) examples that are genuine annotation errors in the gold labels. Missing Subquestion (3%): The LM misses a relevant subquestion needed for the rest of the reasoning chain to work. These errors are also potentially fixable via human-in-the-loop interaction, where the user can insert a subquestion into the reasoning chain.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.2 StrategyQA</head><p>As mentioned in Section 5, Figure <ref type="figure" target="#fig_10">11</ref> shows the error type distribution on a sample of 70 instances from StrategyQA, where we specifically compare the cases where the prediction of CoT is correct whereas ours is wrong. There are 8 error types, from most to least frequent:</p><p>Syntax (29%): these are syntax-related errors that result in an invalid Datalog program. For example, the LM redefines a relation that is previously declared, uses an invalid string comparison operation, generates an ungrounded variable in the answer definition, and so on. With further pretraining on Datalog, we believe Codex is able to overcome these errors to a reasonable extent.</p><p>Infinite Loop (24%): the LM generates an in-finite loop of subquestions, which are oftentimes rather philosophical. For example, for the question "Are potatoes native to the European continent?", the LM generates a list of 40 subquestions (potentially more, if not truncated by the token limit):</p><p>1. Where are potatoes native to? Potatoes are native to the Andes. 2. Which continent is the Andes in?</p><p>The Andes is in South America.</p><p>3. Which continent is South America in? South America is in the Americas. 4. Which continent is the Americas in?</p><p>The Americas is in the Western Hemisphere. 5. Which hemisphere is the Western Hemisphere in?</p><p>The Western Hemisphere is in the Earth. We notice that this type of errors also happen if the prompt does not include Datalog code but just the NL subquestions, but much less often.</p><p>Wrong Subquestions (17%): The LM generates an irrelevant subquestion to the original question. For instance, given the question, "Would toast for a vegan have margarine instead of butter?", one subquestion that is generated is "What is the difference between a vegan and a vegetarian?", which does not help with reaching the final answer.</p><p>Wrong Reasoning (10%): The subquestions are correct, but the reasoning from the retrieved facts to the final answer is problematic. For example, to answer the question, "Do solo pianists require a conductor?", the model correctly generates the relevant subquestions and their respective answers:</p><p>1. What is the definition of a solo pianist? A solo pianist is a pianist who performs alone. 2. What is the definition of a conductor? A conductor is a person who leads an orchestra.</p><p>3. What is the definition of an orchestra? An orchestra is a large instrumental ensemble that contains string, brass, woodwind, and percussion instruments.</p><p>But in deriving the final answer, the reasoning is wrong: "Now, we derive the final answer: Do solo pianists require a conductor? The answer is Yes only if a solo pianist is not a conductor."</p><p>Wrong Knowledge (10%): the LM fails to retrieve the correct knowledge to answer the subquestions. For example, given the original question "Is the largest city in New Mexico also known as Yootó?", the model correctly generates the subquestions "What is the largest city in New Mexico?" (answer: Albuquerque) and "Is Albuquerque also known as Yootó?". However, when answering the second subquestion, it retrieves a wrong piece of knowledge ("Albuquerque is also known as Yootó.", whereas in reality, it should be "Santa Fe" that is known as Yootó).</p><p>Answer Definition (6%): In our prompt, we always derive the answer in the format of "The answer is Yes only if ...", which is followed by a Datalog rule containing conditions that should be satisfied for the answer to be true. However, the LM sometimes generates this as "The answer is No only if ...", which outputs the reversed answer.</p><p>Knowledge Representation (3%): The retrieved knowledge in NL is correct, but the representation of it in Datalog is wrong. For example, for the piece of knowledge "The Lucy Show is not the same TV series as JAG (TV series)", the model represents it as follows:</p><p>.decl Same_TV_series(TV_series1:symbol, TV_series2:symbol) Same_TV_series("The Lucy Show", "JAG (TV series)")."</p><p>which actually means the reverse (they are the same).</p><p>Unknown (1%): There is a very small proportion of errors (1 out of 70) where we are unsure of the cause. Specifically, we expect the solver to output True, but it outputs False instead. Unlike GSM8K, we only have 69 errors out of the 359 test examples, so we annotate them all, as shown in Figure <ref type="figure" target="#fig_11">12</ref>. The error categories for date understanding are similar to GSM8K, except that we do not see any generation errors in the samples, but we see questions with ambiguous phrasing allowing both the gold and predicted answers to be correct based on interpretation.  (not (at jalapeno-chips counter))</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.3 Date Understanding</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.4 SayCan</head><p>(not (at jalapeno-chips table))</p><p>(not (at jalapeno-chips trash))</p><p>(not (at jalapeno-chips bowl))</p><p>(not (at jalapeno-chips user)) ) )</p><p>Wrong Object (36%): Here the model generates the wrong object/object types in the goal. For example, a request such as "I opened a pepsi earlier. How would you bring me an open can?" fails because the model generates actions with water instead of Pepsi. For CLUTRR, we group all error cases by K, the number of steps in their gold reasoning chain, as a proxy for problem complexity, and perform importance sampling on these groups to select 100 examples. Our annotation of these examples reveals 5 error categories, as shown in Figure <ref type="figure" target="#fig_14">14</ref>: Inversed Relation (41%): This stands out as the majority of the errors. These errors are caused by the reversal of directional relationships for the actors in the problem, i.e., predicting "mother" or "nephew" when the answer is "daughter" or "uncle" respectively. Wrong Relation (30%): Here the model extracts the relation incorrectly (not even the inverse). For example, for the subquestion "How is [Donald] related to [Jason]?" with the correctly identified support "[Jason] is father of their father", the model produces relation(Donald, Jason) = son when the correct relation should be "grandson". Nonexistent Relation (4%): The model hallucinates a non-existent relation (e.g. "adopted" for daughter). Wrong Path (12%): Here, the model does not generate a correct reasoning path from target entity A to target entity B in the question. Wrong Gold Label (13%): These are annotation errors in the CLUTRR dataset. In one example, for the sentence, "[Gloria] asked her mother <ref type="bibr">[Laura]</ref> if she could go outside and play with her friends.", the annotation says Laura is Gloria's grandmother.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.5 CLUTRR</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G Prompts</head><p>Due to the space limit, we show one exemplar in the prompt for each dataset here. The full prompts can be found in our repository.</p><p>Among all the MWP datasets, our prompt for AQuA is different from the rest, because the answers are in a multiple-choice format instead of integers. To produce a multiple-choice answer, we take a two-step approach by first producing a numerical answer in the same way as for the other math datasets. Then, we perform an additional step of converting the numerical answer into an answer choice by again prompting the language model to generate which answer choice is closest to the previously produced numerical answer. An exemplar of this 2-step prompt is shown in Table <ref type="table" target="#tab_11">11</ref>.  EXEMPLAR FOR GSM8K, SVAMP, MULTIARITH, AND ASDIV # Q: There are 15 trees in the grove. Grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today? # To answer this question, write a Python program to answer the following subquestions: # 1. How many trees are there in the beginning? (independent, support: ["There are 15 trees"]) trees_begin = 15 # 2. How many trees are there in the end? (independent, support: ["there will be 21 trees"]) trees_end = 21 # 3. How many trees did the grove workers plant today? (depends on 1 and 2, support: []) trees_today = trees_end -trees_begin # 4. Final Answer: How many trees did the grove workers plant today? (depends on 3, support: []) answer = trees_today Table <ref type="table" target="#tab_3">12</ref>: An exemplar from our prompt for GSM8K, SVAMP, MultiArith, and ASDiv.</p><p>EXEMPLAR FOR STRATEGYQA // Q: Would a pear sink in water?</p><p>// To answer this question, we answer the following subquestions: // 1. What is the density of a pear? // The density of a pear is about 0.6g/cm 3 . // 2. What is the density of water? // Water has a density of 1g/cm 3 . // Then, we represent these answers in Datalog: // 1. The density of a pear is about 0.6g/cm 3 . .decl Has_density(Object:symbol, Density:float) Has_density("pear", 0.6). // 2. Water has a density of 1g/cm 3 . Has_density("water", 1).</p><p>// Now, we derive the final answer: Would a pear sink in water? // The answer is Yes only if the density of a pear is more than the density of water. .decl Answer() Answer() :-Has_density("pear", density1), Has_density("water", density2), density1 &gt; density2. .output Answer Table <ref type="table" target="#tab_5">13</ref>: An exemplar from our prompt for StrategyQA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>329</head><p>EXEMPLAR FOR DATE UNDERSTANDING # Q: Yesterday was April 30, 2021. What is the date tomorrow in MM/DD/YYYY? # To answer this question, we write a program to answer the following subquestions: # import relevant packages from datetime import date, time, datetime from dateutil.relativedelta import relativedelta # 1. What is the date yesterday? (independent, support: ["Yesterday was April 30, 2021"]) date_yesterday = date(2021,4,30) # 2. What is the date today? (depends on 1, support: ["Yesterday was April 30, 2021"]) date_today = date_yesterday + relativedelta(days=1) # 3. What is the date tomorrow? (depends on 2, support: []) date_tomorrow = date_today + relativedelta(days=1) # 4. Final Answer: What is the date tomorrow in MM/DD/YYYY? (depends on 3, support: []) answer = date_tomorrow.strftime("%m/%d/%Y") Table <ref type="table" target="#tab_6">14</ref>: An exemplar from our prompt for Date Understanding.</p><p>EXEMPLAR FOR SPORTS UNDERSTANDING # Q: Is the following statement plausible? Sam Darnold passed the puck # To answer this question, write a Python program to answer the following subquestions: # 1. Sam Darnold is a player in which sport? (independent, support: ["Sam Darnold is an NFL Quarterback", "NFL is the National Football League"]) player_sport = "football" # 2. The phrase "passed the puck" implies playing which sport? (independent, support: ["Players pass the puck in hockey"]) playing_sport = "hockey" # 3. Is the following statement plausible? Sam Darnold passed the puck (depends on 1 and 2, support: ["Sam Darnold is an NFL Quarterback", "NFL is the National Football League", "Players pass the puck in hockey"]) plausibility = (player_sport == playing_sport) # 4. Is the following statement plausible? Sam Darnold passed the puck (depends on 3, support: []) answer = int(plausibility) ; it has to satisfy the following conditions (and ; the snack must not be sweet (not (is-sweet ?s)) ; bring it to the user (at ?s user) ) ) )</p><p>Table <ref type="table" target="#tab_8">16</ref>: An exemplar from our prompt for SayCan.  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: An overview of our Faithful CoT framework, consisting of Translation, where an LM translates a query (in NL/Natural Language) into a reasoning chain (which interleaves NL and SL/Symbolic Language), and Problem Solving, where an external solver executes the reasoning chain to derive the answer.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Examples from each task (Math Word Problems, Multi-hop QA, Relational Inference, and Planning) showing our 2-stage Translation and Problem Solving pipeline.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Royce takes 40 minutes more than double Rob to shingle a house. If Rob takes 2 hours, how many minutes does Royce take? Query Faithful CoT Reasoning (ours) # To answer this question, write a Python program to answer the following subquestions: # 1. How many minutes does Rob take to shingle a house? (independent, support: ["If Rob takes 2 hours"]) minutes_rob = 2 * 60 # 2. How many minutes does Royce take to shingle a house? (depends on 1, support: ["Royce takes 40 minutes more than double Rob"]) minutes_royce = minutes_rob * 2 + 40 # 3. Final Answer: How many minutes does Royce take? (depends on 2, support: []) answer = minutes_royce Model Output Royce takes 40 minutes more than double Rob. That means Royce takes 2 * 2 + 40 = 80 + 40 = 120 minutes. The answer is 120.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>Figure 4: standard prompting, popularized by Brown et al. (2020), with demonstrations of only the question and the answer; CoT (Wei et al., 2022), which additionally includes an NL reasoning chain; and Leastto-Most (LtM) (Zhou et al., 2022), which decomposes the question in NL but does not involve SL.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Ablation study results: accuracy when we remove different parts of the prompt. See Section 6.1 for details.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Human evaluation results of reasoning chain plausibility. Each column represents the percent of different answer choices selected by human evaluators in each domain/dataset.</figDesc><graphic coords="9,74.31,71.21,214.70,123.80" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 8 :</head><label>8</label><figDesc>Figure8: Accuracy of our method and two concurrent methods, Program of Thoughts (POT)<ref type="bibr" target="#b5">(Chen et al., 2022)</ref> and Program-Aided Language Models (PAL)<ref type="bibr" target="#b7">(Gao et al., 2022)</ref>, on 10 reasoning datasets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Example of our annotation interface for the CLUTRR survey</figDesc><graphic coords="16,306.14,322.91,218.26,164.22" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>to select the same number of examples from the test set to form the few-shot prompt and use the remaining examples as a new test set. SayCan: Following Wei et al. (2022), we manually write 7 few-shot exemplars, since no training set is provided. We evaluate the models on our cleaned version of the test set, described in the previous subsection.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 10 :</head><label>10</label><figDesc>Figure 10: Error analysis for GSM8K. For a detailed description of the error categories, see Appendix F.1.</figDesc><graphic coords="19,311.32,302.48,215.40,106.85" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 11 :</head><label>11</label><figDesc>Figure 11: Error analysis for StrategyQA. For a detailed description of the error categories, see Section F.2.</figDesc><graphic coords="20,306.14,419.77,218.27,149.74" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 12 :</head><label>12</label><figDesc>Figure 12: Error analysis for Date Understanding. For a detailed description of the error categories, see Appendix F.3.</figDesc><graphic coords="22,306.14,281.81,218.25,149.36" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_12"><head>Figure 13 :</head><label>13</label><figDesc>Figure 13: Error analysis for SayCan. For a detailed description of the error categories, see Section F.4. Since SayCan only has 120 test examples and Faithful CoT produces 7 errors, we annotate all 7 of them, as shown in Figure 13. These 7 examples can be categorized into two types: Additional Subgoals (64%): Cases where the model generated unnecessary subgoals in the decomposition of the original task, leading the planner astray. This is illustrated by the request "Clear the jalapeno chips off the counter": (:goal</figDesc><graphic coords="22,70.87,477.63,218.27,118.51" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_14"><head>Figure 14 :</head><label>14</label><figDesc>Figure 14: Error analysis for CLUTRR. For a detailed description of the error categories, see Section F.5.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_15"><head></head><label></label><figDesc>In a flight of 600 km, an aircraft was slowed down due to bad weather. Its average speed for the trip was reduced by 200 km/hr and the time of flight increased by 30 minutes. The duration of the flight is: # Answer option: ['A)1 hour', 'B)2 hours', 'C)3 hours', 'D)4 hours', 'E)5 hours'] # Write Python code to solve the following questions. Store your result as a variable named 'answer'. # 1. What was the duration of the flight? (independent, support: ["The duration of the flight is"]) duration = Symbol('duration', positive=True) # 2. What is the delay of the flight? (independent, support: ["the time of flight increased by 30 minutes"]) delay = 30 / 60 # 3. What was the total flight distance? (independent, support: ["In a flight of 600 km"]) total_distance = 600 # 4. What was the original speed? (depends on 1 and 3, support: ["External knowledge: speed is distance over time"]) original_speed = total_distance / duration # 5. What was the reduced speed? (depends on 1, 2, and 3, support: []) reduced_speed = total_distance / (duration + delay) # 6. What was the duration of the flight if the original speed was 200 km/hr faster than the reduced speed? (depends on 4, 5, and 1, support: []) solution = solve_it(original_speed -reduced_speed -200, duration) answer = solution[duration] Step 2: Multiple Choice Conversion # Question: In a flight of 600 km, an aircraft was slowed down due to bad weather. Its average speed for the trip was reduced by 200 km/hr and the time of flight increased by 30 minutes. The duration of the flight is: # Answer option: ['A)1 hour', 'B)2 hours', 'C)3 hours', 'D)4 hours', 'E)5 hours'] # Prediction: 1.00000000000000 # Closest Option: A</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_16"><head></head><label></label><figDesc>EXEMPLAR FOR CLUTRR # Context:[Jason]  always had some great adventure planned for his granddaughter[Guillermina]  when she came to visit. So, naturally, when [Myrna] told her daughter [Guillermina] that they would be going to visit[Jason]  she could hardly contain herself.# Question: How is [Jason] related to[Myrna]? # To answer this question, we write a program to answer the following subquestions: # 1. How is [Jason] related to [Guillermina]? (independent, support: "[Jason] always had some great adventure planned for his granddaughter[Guillermina]  when she came to visit.") relation(Jason, Guillermina) = grandfather # 2. How is [Guillermina] related to [Myrna]? (independent, support: "So, naturally, when [Myrna] told her daughter [Guillermina] that they would be going to visit[Jason]  she could hardly contain herself.") relation(Guillermina, Myrna) = daughter # 3. Final answer: How is [Jason] related to [Myrna]? (depends on 1, 2) relation(Jason, Myrna) = relation(Jason, Guillermina) @ relation(Guillermina, Myrna)    </figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>Accuracy of different prompting methods on 10 reasoning datasets from 4 domains. We compare our method, Faithful CoT, with standard<ref type="bibr" target="#b3">(Brown et al., 2020)</ref>, CoT<ref type="bibr" target="#b32">(Wei et al., 2022)</ref>, and Least-to-Most prompting(Zhou et al., 2022), with code-davinci-002 as the LM. The best results within each decoding strategy are bolded. majority of datasets and domains under both decoding strategies. With greedy decoding, Faithful CoT outperforms all baselines on 8 of the 10 datasets,</figDesc><table><row><cell></cell><cell></cell><cell cols="3">Math Word Problems</cell><cell cols="2">Planning</cell><cell cols="2">Multi-hop QA</cell><cell>Relation</cell></row><row><cell>Method</cell><cell cols="9">GSM8K SVAMP MultiArith ASDiv AQuA SayCan StrategyQA Date Sport CLUTRR</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Greedy Decoding</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Standard</cell><cell>19.6</cell><cell>69.5</cell><cell>43.8</cell><cell>72.1</cell><cell>31.5</cell><cell>82.5</cell><cell>63.9</cell><cell>51.3 71.9</cell><cell>42.0</cell></row><row><cell>CoT</cell><cell>63.3</cell><cell>77.3</cell><cell>96.5</cell><cell>80.0</cell><cell>42.1</cell><cell>86.4</cell><cell>72.5</cell><cell>59.9 98.6</cell><cell>48.5</cell></row><row><cell>LtM</cell><cell>38.3</cell><cell>80.3</cell><cell>74.0</cell><cell>76.5</cell><cell>40.6</cell><cell>77.7</cell><cell>72.2</cell><cell>76.6 99.5</cell><cell>47.2</cell></row><row><cell>Faithful CoT (ours)</cell><cell>72.3</cell><cell>83.4</cell><cell>98.8</cell><cell>80.2</cell><cell>47.2</cell><cell>89.3</cell><cell>63.0</cell><cell>81.6 99.1</cell><cell>58.9</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="3">Self-Consistency Decoding</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>CoT</cell><cell>78.0</cell><cell>86.8</cell><cell>100.0</cell><cell>84.2</cell><cell>52.0</cell><cell>89.3</cell><cell>79.8</cell><cell>63.8 98.0</cell><cell>45.7</cell></row><row><cell>LtM</cell><cell>38.8</cell><cell>80.5</cell><cell>74.0</cell><cell>76.3</cell><cell>44.9</cell><cell>76.7</cell><cell>71.9</cell><cell>77.2 99.4</cell><cell>50.9</cell></row><row><cell>Faithful CoT (ours)</cell><cell>80.0</cell><cell>88.8</cell><cell>99.2</cell><cell>84.4</cell><cell>61.4</cell><cell>94.2</cell><cell>65.2</cell><cell>85.5 99.0</cell><cell>71.9</cell></row></table><note><p>by a relative improvement of up to 14.2% on MWP, 3.4% on Planning, 6.5% on Date Understanding from Multi-hop QA, and a surprising 21.4% on Relational Inference. Generally, we see larger gains on harder datasets. Take MWP as an example: on simpler datasets where CoT already performs decently (e.g., MultiArith and AsDiv, where most questions require only 1-2 steps to solve), the gains are smaller (0.3% to 2.4%); however, we see the largest gain (14%) on the most difficult GSM8K, which requires up to 8 steps to solve. With selfconsistency decoding, Faithful CoT still performs the best on 7 out of the 10 datasets. Compared to greedy decoding, the relative gain increases on 4 datasets (AQUA: 12.1% → 18.1%, SayCan: 3.4% → 5.5%, Date Understanding: 6.5% → 10.8%, and CLUTRR: 21.4% → 41.3%), but decreases or remains unchanged for the remaining three MWP datasets (GSM8K: 9.0% → 2.6%, SVAMP: 3.9% → 2.3%, ASDiV 0.2% → 0.2%).</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Robustness to the choice of exemplars.</figDesc><table><row><cell>Exemplars</cell><cell cols="4">GSM8K Date SayCan CLUTRR</cell></row><row><cell>Set 0 (Table 1)</cell><cell cols="2">72.3 81.6</cell><cell>89.3</cell><cell>58.9</cell></row><row><cell>Set 1</cell><cell cols="2">72.6 81.3</cell><cell>91.3</cell><cell>59.0</cell></row><row><cell>Set 2</cell><cell cols="2">71.1 85.0</cell><cell>85.4</cell><cell>57.2</cell></row><row><cell>Set 3</cell><cell cols="2">72.3 82.5</cell><cell>88.3</cell><cell>58.0</cell></row><row><cell>Set 4</cell><cell cols="2">71.2 77.4</cell><cell>88.3</cell><cell>55.5</cell></row><row><cell>Set 5</cell><cell cols="2">71.5 85.0</cell><cell>89.3</cell><cell>56.0</cell></row><row><cell>Mean</cell><cell cols="2">71.8 82.1</cell><cell>88.7</cell><cell>57.4</cell></row><row><cell>Std</cell><cell>0.6</cell><cell>2.8</cell><cell>1.9</cell><cell>1.5</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>Table 8 in the Appendix for numerical results).</figDesc><table><row><cell>R e la ti o n</cell></row><row><cell>Multi-hop QA</cell></row><row><cell>313</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Comparison between the existing few-shot SOTA results and the optimal Faithful CoT results (with the best-performing LM (code-davinci-002 for SayCan and CLUTRR, and gpt-4 for the rest of the datasets). See Appendix B.2 for sources of SOTA results.</figDesc><table><row><cell>. The Faithful</cell></row></table><note><p>SVAMP: Chen et al. (2022); AQuA: Pitis et al. (2023);</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 4 :</head><label>4</label><figDesc>Ablation study results that accompany Figure5. We report accuracy when we remove different parts of the prompt.</figDesc><table><row><cell>Prompt</cell><cell></cell><cell cols="4">GSM8K Date SayCan CLUTRR</cell></row><row><cell>Full</cell><cell></cell><cell cols="2">72.3 81.6</cell><cell>89.3</cell><cell>58.9</cell></row><row><cell>No rationale</cell><cell></cell><cell cols="2">75.4 83.0</cell><cell>-</cell><cell>51.8</cell></row><row><cell cols="2">No NL but nudge</cell><cell cols="2">73.5 80.2</cell><cell>-</cell><cell>39.6</cell></row><row><cell>No NL</cell><cell></cell><cell cols="2">72.8 79.7</cell><cell>90.3</cell><cell>9.3</cell></row><row><cell>No solver</cell><cell></cell><cell cols="2">21.5 57.9</cell><cell>90.3</cell><cell>40.9</cell></row><row><cell>Prompt</cell><cell cols="5">GSM8K Date SayCan CLUTRR</cell></row><row><cell>Original</cell><cell></cell><cell cols="2">72.3 81.6</cell><cell>89.3</cell><cell>58.9</cell></row><row><cell>Variation 1</cell><cell></cell><cell cols="2">69.1 84.4</cell><cell>88.3</cell><cell>-</cell></row><row><cell>Variation 2</cell><cell></cell><cell cols="2">70.3 81.6</cell><cell>90.3</cell><cell>56.2</cell></row><row><cell>Variation 3</cell><cell></cell><cell cols="2">70.2 80.5</cell><cell>87.4</cell><cell>55.9</cell></row><row><cell>Mean</cell><cell></cell><cell cols="2">70.5 82.0</cell><cell>88.8</cell><cell>57.0</cell></row><row><cell>Std</cell><cell></cell><cell>1.3</cell><cell>1.7</cell><cell>1.3</cell><cell>1.7</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 5 :</head><label>5</label><figDesc>Robustness to prompt phrasing.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 6 :</head><label>6</label><figDesc>Accuracy of different prompting methods with each underlying LM on 5 MWP reasoning datasets.</figDesc><table><row><cell cols="6">Constraint GSM8K SVAMP MultiArith ASDiv AQuA</cell></row><row><cell>None</cell><cell>80.0</cell><cell>88.8</cell><cell>99.2</cell><cell>84.4</cell><cell>61.4</cell></row><row><cell>+</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 11 :</head><label>11</label><figDesc>An exemplar from our prompt for AQuA.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 15 :</head><label>15</label><figDesc>An exemplar from our prompt for Sports Understanding.EXEMPLAR FOR SAYCANUser query: Bring me something not sweet to eat.</figDesc><table><row><cell>Goal in PDDL:</cell></row><row><cell>(:goal</cell></row><row><cell>; I need to find a snack</cell></row><row><cell>(exists (?s -snack)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 17 :</head><label>17</label><figDesc>An exemplar from our prompt for CLUTRR.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>Note that we do not claim that the process of generating the reasoning chain itself, i.e., the Translation stage, is interpretable. See more discussion in Limitations.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>Note that this differs from the notion of faithfulness in the Natural Language Generation (NLG) literature, primarily in what constitutes the ground truth. In interpretability, we talk about the faithfulness of an explanation w.r.t. the model's underlying reasoning mechanism -the ground truth is usually unknown. In NLG, we talk about the faithfulness of the generated text (e.g., a translated sentence, or a summary) w.r.t. some explicit source (e.g., the source sentence, or the full document) -the ground truth is transparent.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>Also see Appendix B.3 for an empirical comparison.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>While no constraints are enforced between CNL and CSL in our main experiments, we analyze this in Section C.4.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_4"><p>https://en.wikipedia.org/wiki/Planning_ Domain_Definition_Language.A goal is a special construct in PDDL.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_5"><p>See Appendix E for dataset statistics, examples, data cleaning method, splits, prompt construction strategy, etc.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_6"><p>Note that we do not report the performance of standard prompting with self-consistency decoding, since when the number of sampled outputs is large enough, this converges to standard prompting with greedy decoding<ref type="bibr" target="#b31">(Wang et al., 2022)</ref>.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_7"><p>See Appendix D for more details on the human study.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="10" xml:id="foot_8"><p>To encourage sample diversity, we embed all the errors using text-davinci-002 and cluster the embeddings using spectral clustering. This produces around 70 clusters of different sizes, from which we gather 100 samples using importance sampling.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This research is based upon work supported in part by the <rs type="funder">DARPA KAIROS Program</rs> (contract <rs type="grantNumber">FA8750-19-2-1004</rs>), the <rs type="funder">DARPA</rs> <rs type="programName">LwLL Program</rs> (contract <rs type="grantNumber">FA8750-19-2-0201</rs>), the <rs type="funder">IARPA HIATUS Program</rs> (contract <rs type="grantNumber">2022-22072200005</rs>), and the <rs type="funder">NSF</rs> (Award 1928631). Approved for Public Re-lease, Distribution Unlimited. The views and conclusions contained herein are those of the authors and should not be interpreted as necessarily representing the official policies, either expressed or implied, of <rs type="affiliation">DARPA</rs>, <rs type="institution">IARPA</rs>, <rs type="institution">NSF</rs>, or the <rs type="institution">U.S. Government</rs>.</p><p>We appreciate the support from OpenAI on increasing the rate limit for the Codex API. We also thank <rs type="person">Jiani Huang</rs>, <rs type="person">Ziyang Li</rs>, <rs type="person">Litao Yan</rs>, <rs type="person">Andrew Head</rs>, <rs type="person">Mayur Naik</rs>, and <rs type="person">Lyle Ungar</rs> for their valuable feedback.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_CdjYb79">
+					<idno type="grant-number">FA8750-19-2-1004</idno>
+				</org>
+				<org type="funding" xml:id="_wZQBskC">
+					<idno type="grant-number">FA8750-19-2-0201</idno>
+					<orgName type="program" subtype="full">LwLL Program</orgName>
+				</org>
+				<org type="funding" xml:id="_DJSvHBs">
+					<idno type="grant-number">2022-22072200005</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>LICENSE.</head><p>We obtain the publicly distributed version available at https: //drive.google.com/file/d/1SEq_ e1IVCDDzsBIBhoUQ5pOVH5kxRoZF/view, specifically the data_089907f8 split.</p><p>We use all the above datasets for research purposes only, consistent with their intended use.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.3 Data Cleaning</head><p>We perform manual cleaning on ASDiv, Date Understanding, Sports Understanding, and SayCan as we discover a number of annotation issues. In our experiment, we rerun all baselines on our cleaned version of the test sets. They are provided in our repository to assist future research.</p><p>Specifically, we clean each of the datasets as follows:</p><p>ASDiv: We start with the test set used by <ref type="bibr" target="#b32">Wei et al. (2022)</ref>, which removes all questions with float-valued and string-valued answers. However, in their released version, we notice an error in the answer extraction step for questions with more than one value in the answer (e.g., "what is the width and length of X?", where the answer consists of two values). In their implementation, only the first value is extracted as the ground truth answer, which is then compared against model outputs. This might artificially inflate the final accuracy. To fix this, we extract all values in the answer as a set and compare model outputs against it.</p><p>Date Understanding: We find a number of wrong answers in the test set. For example, for the question "Jane and John married on Jan 2, 1958. It is their 5-year anniversary today. What is the date today in MM/DD/YYYY?", the provided answer is "01/02/1961", whereas the correct answer should be "01/02/1963". We manually correct these answers, and the resulting test set has the same number of examples as the original one.</p><p>Sports Understanding: We notice a few ambiguities with the Sports Understanding dataset. For instance, running out of bounds is illegal in many sports. The phrase "Domantas Sabonis ran out of bounds" is labeled as implausible, however, Domantas Sabonis is a basketball player, and basketball players can indeed run out of bounds on</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Michael Ahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Brohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yevgen</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Chebotar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Byron</forename><surname>Cortes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuyuan</forename><surname>Finn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keerthana</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karol</forename><surname>Gopalakrishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Hausman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Herzog</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jasmine</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ibarz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Irpan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rosario</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Jauregui Ruano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sally</forename><surname>Jeffrey</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jesmonth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nikhil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Julian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuheng</forename><surname>Kalashnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuang-Huei</forename><surname>Kuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linda</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carolina</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Parada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jornell</forename><surname>Pastor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kanishka</forename><surname>Quiambao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jarek</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Rettinghouse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Reyes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Sermanet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clayton</forename><surname>Sievers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Toshev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Vanhoucke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sichun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyuan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zeng</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2204.01691</idno>
+		<idno>ArXiv:2204.01691</idno>
+		<title level="m">Grounding Language in Robotic Affordances</title>
+		<meeting><address><addrLine>Not As I Say</addrLine></address></meeting>
+		<imprint>
+			<publisher>Do As I Can</publisher>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">FROM SYSTEM 1 DEEP LEARNING TO SYSTEM 2 DEEP LEARNING</title>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Beyond the Imitation Game: Measuring and extrapolating the capabilities of language models</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>BIG-Bench collaboration</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Alec Radford, Ilya Sutskever, and Dario Amodei</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+	<note>Language Models are Few-Shot Learners</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiming</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrique</forename><surname>Ponde De Oliveira Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harri</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Brockman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raul</forename><surname>Puri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heidy</forename><surname>Khlaaf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brooke</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikhail</forename><surname>Pavlov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alethea</forename><surname>Power</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Tillet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felipe</forename><forename type="middle">Petroski</forename><surname>Such</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dave</forename><surname>Cummings</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fotios</forename><surname>Chantzis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elizabeth</forename><surname>Barnes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Hebgen Guss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Nichol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Paino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolas</forename><surname>Tezak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Babuschkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suchir</forename><surname>Balaji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shantanu</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Saunders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">N</forename><surname>Carr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Leike</surname></persName>
+		</author>
+		<editor>Josh Achiam, Vedant Misra, Evan Morikawa, Alec Radford, Matthew Knight, Miles Brundage, Mira Murati, Katie Mayer, Peter Welinder, Bob McGrew, Dario Amodei, Sam McCandlish, Ilya Sutskever</editor>
+		<imprint/>
+	</monogr>
+	<note>and Wojciech Zaremba. 2021. Evaluating Large Language Models Trained on Code. ArXiv:2107.03374 [cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Program of Thoughts Prompting: Disentangling Computation from Reasoning for Numerical Reasoning Tasks</title>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueguang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2211.12588</idno>
+		<idno>ArXiv:2211.12588</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Training Verifiers to Solve Math Word Problems</title>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reiichiro</forename><surname>Nakano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2110.14168</idno>
+		<idno>ArXiv:2110.14168</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">PAL: Program-aided Language Models</title>
+		<author>
+			<persName><forename type="first">Luyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuyan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uri</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamie</forename><surname>Callan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2211.10435</idno>
+		<idno>ArXiv:2211.10435</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Did Aristotle Use a Laptop? A Question Answering Benchmark with Implicit Reasoning Strategies</title>
+		<author>
+			<persName><forename type="first">Mor</forename><surname>Geva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Khashabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elad</forename><surname>Segal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00370</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="346" to="361" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Explaining Explanations: An Overview of Interpretability of Machine Learning</title>
+		<author>
+			<persName><forename type="first">Leilani</forename><forename type="middle">H</forename><surname>Gilpin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Bau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><forename type="middle">Z</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ayesha</forename><surname>Bajwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Specter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lalana</forename><surname>Kagal</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/DSAA.2018.00018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2018 IEEE 5th International Conference on Data Science and Advanced Analytics (DSAA)</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="80" to="89" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">A</forename><surname>Harrington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Morley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Šcedrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Simpson</surname></persName>
+		</author>
+		<title level="m">Harvey Friedman&apos;s Research on the Foundations of Mathematics</title>
+		<imprint>
+			<publisher>Google-Books</publisher>
+			<date type="published" when="1985">1985</date>
+		</imprint>
+	</monogr>
+	<note>2plPRR4LDxIC</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Bernease</forename><surname>Herman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1711.07414</idno>
+		<idno>ArXiv: 1711.07414</idno>
+		<title level="m">The Promise and Peril of Human Evaluation for Model Interpretability</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>cs, stat</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Towards faithfully interpretable NLP systems: How should we define and evaluate faithfulness?</title>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Jacovi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.386</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4198" to="4205" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jaehun</forename><surname>Jung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianhui</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sean</forename><surname>Welleck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Faeze</forename><surname>Brahman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandra</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ronan</forename><surname>Le Bras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<idno>ArXiv:2205.11822</idno>
+		<title level="m">Maieutic Prompting: Logically Consistent Reasoning with Recursive Explanations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Takeshi</forename><surname>Kojima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shane</forename><surname>Shixiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Machel</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutaka</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusuke</forename><surname>Matsuo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Iwasawa</surname></persName>
+		</author>
+		<title level="m">Large Language Models are Zero-Shot Reasoners</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Solving Quantitative Reasoning Problems with Language Models</title>
+		<author>
+			<persName><forename type="first">Aitor</forename><surname>Lewkowycz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Andreassen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henryk</forename><surname>Michalewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinay</forename><surname>Ramasesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ambrose</forename><surname>Slone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cem</forename><surname>Anil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Imanol</forename><surname>Schlag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Theo</forename><surname>Gutman-Solo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhuai</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Behnam</forename><surname>Neyshabur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Gur-Ari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vedant</forename><surname>Misra</surname></persName>
+		</author>
+		<idno>ArXiv:2206.14858</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">On the Advance of Making Language Models Better Reasoners</title>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeqi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shizhuo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiang</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian-Guang</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2206.02336</idno>
+		<idno>ArXiv:2206.02336</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Program induction by rationale generation: Learning to solve and explain algebraic word problems</title>
+		<author>
+			<persName><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1015</idno>
+		<idno>ArXiv:1705.04146</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="158" to="167" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">A diverse corpus for evaluating and developing English math word problem solvers</title>
+		<author>
+			<persName><forename type="first">Chao-Chun</forename><surname>Shen-Yun Miao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keh-Yih</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Su</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.92</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="975" to="984" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Nye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Johan Andreassen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Gur-Ari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henryk</forename><surname>Michalewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Bieber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aitor</forename><surname>Lewkowycz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Augustus</forename><surname>Odena</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2112.00114</idno>
+		<idno>ArXiv:2112.00114</idno>
+		<title level="m">Show Your Work: Scratchpads for Intermediate Computation with Language Models</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<title level="m">Gpt-4 technical report</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Are NLP models really able to solve simple math word problems?</title>
+		<author>
+			<persName><forename type="first">Arkil</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satwik</forename><surname>Bhattamishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Navin</forename><surname>Goyal</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.168</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2080" to="2094" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Boosted prompt ensembles for large language models</title>
+		<author>
+			<persName><forename type="first">Silviu</forename><surname>Pitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Michael R Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2304.05970</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Learning to deceive with attention-based explanations</title>
+		<author>
+			<persName><forename type="first">Danish</forename><surname>Pruthi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mansi</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhuwan</forename><surname>Dhingra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><forename type="middle">C</forename><surname>Lipton</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.432</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4782" to="4793" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+		</author>
+		<idno>ArXiv:2208.05051</idno>
+		<title level="m">Limitations of Language Models in Arithmetic and Symbolic Induction</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">why should I trust you?&quot;: Explaining the predictions of any classifier</title>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N16-3020</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Demonstrations, KDD &apos;16</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Demonstrations, KDD &apos;16<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="97" to="101" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Solving general arithmetic word problems</title>
+		<author>
+			<persName><forename type="first">Subhro</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1202</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1743" to="1752" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Inseq: An interpretability toolkit for sequence generation models</title>
+		<author>
+			<persName><forename type="first">Gabriele</forename><surname>Sarti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Feldhus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Sickert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oskar</forename><surname>Van Der Wal</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.13942</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">CLUTRR: A diagnostic benchmark for inductive reasoning from text</title>
+		<author>
+			<persName><forename type="first">Koustuv</forename><surname>Sinha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shagun</forename><surname>Sodhani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joelle</forename><surname>Pineau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">L</forename><surname>Hamilton</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1458</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4506" to="4515" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Fooling LIME and SHAP: Adversarial Attacks on Post hoc Explanation Methods</title>
+		<author>
+			<persName><forename type="first">Dylan</forename><surname>Slack</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sophie</forename><surname>Hilgard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Himabindu</forename><surname>Lakkaraju</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3375627.3375830</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI/ACM Conference on AI, Ethics, and Society</title>
+		<meeting>the AAAI/ACM Conference on AI, Ethics, and Society<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="180" to="186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Language Models Don&apos;t Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting</title>
+		<author>
+			<persName><forename type="first">Miles</forename><surname>Turpin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Self-Consistency Improves Chain of Thought Reasoning in Language Models</title>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aakanksha</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2203.11171</idno>
+		<idno>ArXiv:2203.11171</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Chain of Thought Prompting Elicits Reasoning in Large Language Models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Interpreting language models with contrastive explanations</title>
+		<author>
+			<persName><forename type="first">Kayo</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.10419</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Improved logical reasoning of language models via differentiable symbolic programming</title>
+		<author>
+			<persName><forename type="first">Hanlin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiani</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mayur</forename><surname>Naik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Xing</surname></persName>
+		</author>
+		<idno>ArXiv:2205.10625</idno>
+	</analytic>
+	<monogr>
+		<title level="m">First Workshop on Pre-training: Perspectives, Pitfalls, and Paths Forward at ICML 2022</title>
+		<editor>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nathanael</forename><surname>Schärli</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Le</forename><surname>Hou</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nathan</forename><surname>Scales</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Olivier</forename><surname>Bousquet</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2022">2022. 2022</date>
+		</imprint>
+	</monogr>
+	<note>Leastto-Most Prompting Enables Complex Reasoning in Large Language Models. cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Method / Dataset GSM8K SVAMP MultiArith ASDiv AQuA Average</title>
+		<idno>LM: code-davinci-001</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

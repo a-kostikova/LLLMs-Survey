@@ -1,0 +1,1544 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Joint Representations of Text and Knowledge Graphs for Retrieval and Evaluation</title>
+				<funder ref="#_AyX7bw5">
+					<orgName type="full">Agence Nationale de la Recherche</orgName>
+					<orgName type="abbreviated">ANR</orgName>
+				</funder>
+				<funder ref="#_DVDGaGf">
+					<orgName type="full">unknown</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Teven</forename><surname>Le Scao</surname></persName>
+							<email>teven.le-scao@loria.fr</email>
+						</author>
+						<author>
+							<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+							<email>claire.gardent@loria.fr</email>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Université de Lorraine</orgName>
+								<address>
+									<country>Hugging Face</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">CNRS/LORIA</orgName>
+								<orgName type="institution" key="instit2">Université de Lorraine</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Joint Representations of Text and Knowledge Graphs for Retrieval and Evaluation</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2C463F625DB20296318D02069AE50DD4</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:43+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>A key feature of neural models is that they can produce semantic vector representations of objects (texts, images, speech, etc.) ensuring that similar objects are close to each other in the vector space. While much work has focused on learning representations for other modalities, there are no aligned crossmodal representations for text and knowledge base (KB) elements. One challenge for learning such representations is the lack of parallel data, which we use contrastive training on heuristics-based datasets and data augmentation to overcome, training embedding models on (KB graph, text) pairs. On WEBNLG, a cleaner manually crafted dataset, we show that they learn aligned representations suitable for retrieval. We then fine-tune on annotated data to create EREDAT (Ensembled Representations for Evaluation of DAta-to-Text), a similarity metric between English text and KB graphs. EREDAT outperforms or matches state-of-theart metrics in terms of correlation with human judgments on WEBNLG even though, unlike them, it does not require a reference text to compare against.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural approaches have progressed in capturing semantic relatedness between larger and larger text units, from Word2Vec <ref type="bibr" target="#b19">(Mikolov et al., 2013)</ref> to SBERT <ref type="bibr" target="#b29">(Reimers and Gurevych, 2019)</ref>. Such models have shown to perform well on a wide array of semantic similarity tasks, helped in part by retrieval systems like DPR <ref type="bibr">(Karpukhin et al., 2020a)</ref>.</p><p>Other work has shown that deep representations of knowledge bases (KBs) help improve such tasks as few shot link prediction, analogical reasoning <ref type="bibr" target="#b25">(Pezeshkpour et al., 2018;</ref><ref type="bibr" target="#b23">Pahuja et al., 2021)</ref>, entity linking <ref type="bibr" target="#b46">(Yu et al., 2020)</ref> or cross-lingual entity alignment <ref type="bibr" target="#b6">(Chen et al., 2018;</ref><ref type="bibr" target="#b43">Xu et al., 2019)</ref>.</p><p>In this work, we focus on learning cross-modal representations for English text and KB graphs. Our input graphs are in RDF (Resource Description Framework, <ref type="bibr" target="#b20">(Miller, 1998)</ref>) format, a standard where graphs are sets of (subject, predicate, object) triples. We linearize those graphs and consider them as text data so that the same model can take text and graphs as input. Given some aligned RDFtext data, our model learns fixed-length latent representations for texts and RDF graphs such that texts and RDF graphs that are semantically similar are close in vector space. This enables retrieval across modalities and allows us to create a cross-modality similarity score which can be used to evaluate the output of RDF-to-text generation models.</p><p>One challenge for learning cross-modal RDFtext representations is the lack of parallel data. We train on various RDF-text datasets created using distant supervision techniques, either combining these datasets or using them in isolation. We then compare the performance of the resulting retrieval models (i) on the WEBNLG dataset, a parallel RDF-text dataset where texts are crowdsourced to match the graph (texts and graphs are semantically equivalent), and (ii) on WIKICHUNKS, a more challenging, less well aligned dataset which imitates the conditions in which retrieval on Wikipedia is usually executed. We use the difference in performance between models to analyze the alignment quality of training datasets.</p><p>Distance within embedding space can be used to evaluate the output of RDF-to-text generation models (Is the generated text similar to the input graph?). In order to evaluate this metric, we compute correlations between our model's similarity score for graph-text pairs and human judgments of semantic adequacy (input/output semantic similarity) using ratings from the 2020 WEBNLG Challenge. After fine-tuning on data from the 2017 WEBNLG challenge, as well as introducing new classes of data augmentation at pre-training time, our best system, EREDAT, is better or on par than existing metrics at correlating with human evaluation, even though it does not require a reference for comparison as do most NLG evaluation metrics such as BLEU <ref type="bibr" target="#b24">(Papineni et al., 2002)</ref>, TER <ref type="bibr" target="#b36">(Snover et al., 2006)</ref>, BLEURT <ref type="bibr">(Sellam et al., 2020b)</ref>, ME-TEOR <ref type="bibr" target="#b1">(Banerjee and Lavie, 2005)</ref> or BERT-Score <ref type="bibr">(Zhang* et al., 2020)</ref>.</p><p>Our contributions can be summarised as follows.</p><p>• We train a cross-modal RDF-text model to learn aligned (RDF graph, text) representations, making it suitable for cross-modal retrieval. We show that this retrieval model outperforms a state-of-the-art text-only retrieval model by a large margin, demonstrating the effectiveness of our adaptation procedure. We train on several datasets of RDF-text pairs, using the quality of the ensuing retrieval models to analyze the quality of training datasets.</p><p>• We provide a novel evaluation metric for RDFto-text generation models by combining biand cross-encoder training procedures and adding adversarial data to address the models' weaknesses. We show that this new metric outperforms other existing RDF-to-text evaluation metrics in terms of correlation with human judgments of semantic adequacy, even though it does not require a costly human reference to compare against. We release our models on huggingface.co under the Apache 2.0 license.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>We briefly review recent approaches to uni-and cross-modal retrieval, representation learning models, and evaluation metrics for Natural Language Generation (NLG) models.</p><p>Natural Language Retrieval Models. For natural language, a first class of retrieval models focuses on retrieving sentences that are similar to some input sentence. BERT <ref type="bibr" target="#b8">(Devlin et al., 2019)</ref> has been used as a cross-encoder. Two sentences are given with a separator token, cross-attention applies to all input tokens and the resulting representation is fed into a linear layer to score the match. However, this is computationally inefficient as it is not possible to pre-compute and index such representations. A pre-computable model was proposed by <ref type="bibr" target="#b29">(Reimers and Gurevych, 2019)</ref> who used twin encoders pre-trained on Natural Language Inference data <ref type="bibr" target="#b3">(Bowman et al., 2015)</ref> to set new state-of-the-art performance on a large set of sentence scoring tasks. Further work <ref type="bibr" target="#b5">(Chen et al., 2020;</ref><ref type="bibr" target="#b15">Humeau et al., 2019)</ref> combined cross-and bi-encoders to reach a tradeoff between accuracy and efficiency. We differ from those works in that we focus on cross-modal representation learning.</p><p>Representation Learning for Knowledge-Bases.</p><p>Various KB embedding models have been proposed to support downstream applications such as KB completion or alignment of different bases. Compositional approaches <ref type="bibr" target="#b22">(Nickel et al., 2011</ref><ref type="bibr" target="#b21">(Nickel et al., , 2016) )</ref> use tensor products to model relations as functions of their argument entities. Translational approaches model relations as translation operations from the subject (head) to object (tail) entity <ref type="bibr" target="#b2">(Bordes et al., 2013;</ref><ref type="bibr" target="#b45">Yang et al., 2014;</ref><ref type="bibr" target="#b39">Trouillon et al., 2016)</ref>.</p><p>Neural models have also leveraged 2-D convolutions over entity embeddings to predict relations <ref type="bibr" target="#b7">(Dettmers et al., 2018)</ref> as well as graph convolutional networks <ref type="bibr" target="#b30">(Schlichtkrull et al., 2018)</ref>. All these approaches focus on representation learning for Knowledge-Bases entities and relations. In contrast, we focus on cross-modal similarity between a text and a KB graph.</p><p>Cross-Modal Representation Learning and Retrieval. Some work has focused on incorporating natural language information to improve KB representations. <ref type="bibr" target="#b13">(Han et al., 2016;</ref><ref type="bibr" target="#b38">Toutanova et al., 2015;</ref><ref type="bibr" target="#b42">Wu et al., 2016)</ref> encode words and KB entities into a single vector space, and <ref type="bibr" target="#b40">(Wang and Li, 2016;</ref><ref type="bibr" target="#b44">Yamada et al., 2016)</ref> learn word and entity embeddings separately then map them into a shared space. Both approaches use text as additional training signal to improve KB representations, and limit themselves to word-level information. Instead, we focus on scoring the similarity between arbitrarylength natural language text and a KB graph. We are not aware of any extant such text-KB models.</p><p>The best-known cross-modal contrastive model is <ref type="bibr" target="#b27">Radford et al. (2021)</ref>, which pre-trained an imagetext match scoring model.</p><p>Evaluation metrics for Natural Language Generation Models. Surface-based metrics such as BLEU <ref type="bibr" target="#b24">(Papineni et al., 2002)</ref>, which measure token overlap between generated and reference text, are commonly used. Methods such as BERT-Score <ref type="bibr">(Zhang* et al., 2020)</ref> or BLEURT <ref type="bibr">(Sellam et al., 2020a)</ref> which leverage neural representations are currently state-of-the-art. All these methods compute a score by comparing the generated text with human-produced references, rarely available and costly to produce. Some metrics evaluate the generated output with respect to the input rather than to a reference. <ref type="bibr" target="#b41">Wiseman et al. (2017)</ref> use the precision of input relations found in the output texts. <ref type="bibr" target="#b9">(Dušek and Kasner, 2020</ref>) use a natural language inference pre-trained model to score input-output two-way entailment. For data-to-text generation specifically, <ref type="bibr" target="#b28">(Rebuffel et al., 2021)</ref> introduce Data-QuestEval, which uses question answering to compare input graph and output text.</p><p>3 Learning Cross-Modal RDF-text Representations</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model</head><p>Similar to <ref type="bibr" target="#b31">(Schroff et al., 2015;</ref><ref type="bibr" target="#b29">Reimers and Gurevych, 2019)</ref>, we use twin Transformer encoders to create RDF and text representations such that the embeddings of an RDF graph and of a piece of text with similar content are close in the vector space. A mean-pooling operation creates fixed-sized embeddings embed(x) for x either an RDF graph or a text. RDF graphs are linearized as:</p><formula xml:id="formula_0">[S] &lt;subject 1 &gt; [P] &lt;property 1 &gt; [O] &lt;object 1 &gt; ... [S] &lt;subject n &gt; [P] &lt;property n &gt; [O] &lt;object n &gt;</formula><p>where "[S]", "[P]", "[O]" serve as special tokens and are added to the tokenizer vocabulary. This allows us to treat any knowledge base format.</p><p>We train this system using a contrastive loss with in-batch negatives <ref type="bibr" target="#b14">(Henderson et al., 2017)</ref>. This variant of contrastive loss computes the pairwise similarities between every text and every RDF in the batch. A softmax is then applied on the RDF axis, which creates a multi-class classification problem: every text data point must be matched to the parallel RDF. The loss can be written as :</p><formula xml:id="formula_1">l = - i∈I log exp(sim(text i , rdf i )) j∈J exp(sim(text i , rdf j ))</formula><p>sim(text i , rdf j ) = cos(embed(text i ), embed(rdf j ))</p><p>with I the set of training instances in the batch. Intuitively, this trains the encoder to learn representations that map text items closer to their RDF anchor than to other RDF graphs in the dataset.</p><p>In all our experiments, we start from all-mpnet-base-v2, a pre-trained sentence-MPNet <ref type="bibr" target="#b37">(Song et al., 2020)</ref> model, in order to leverage its strong pre-trained text representations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Training Datasets</head><p>For training, we need (g, t) pairs where g is a Wikidata RDF graph and t is a text in English whose content is similar to g. We compare three datasets, all created using distant supervision.</p><p>TeKGen. <ref type="bibr" target="#b0">(Agarwal et al., 2021)</ref> use heuristics to align triples from Wikidata to Wikipedia sentences. The TEKGEN dataset covers 1,041 Wikidata properties and consists of about 6M (graph, text) pairs where each text is a sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>KELM.</head><p>The KELM corpus has 15M (graph, text) pairs where graphs are created based on relation co-occurrence counts i.e. frequency of alignment of two properties to the same sentence in the training data <ref type="bibr" target="#b0">(Agarwal et al., 2021)</ref>. Texts are then generated from these graphs using a T5 model fine-tuned on TEKGEN.</p><p>TREx. <ref type="bibr" target="#b10">(Elsahar et al., 2018)</ref> use word-and sentence-tokenization, coreference resolution, a date-time and a predicate linker, plus various RDFtext alignment methods to create TREX, a dataset aligning 11 million Wikidata triples with 6 million Wikipedia sentences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Test Datasets</head><p>We use two datasets for evaluation: WEBNLG <ref type="bibr" target="#b11">(Gardent et al., 2017)</ref> and WIKICHUNKS, which we create in this work. Appendix A shows some statistics for all datasets.</p><p>WebNLG is a dataset of pairs where the texts were crowdsourced to match the input graph. In WEBNLG the RDF graph is from the DBpedia KB, whereas our models were trained on the Wikidata KB format. To assess the ability of our retrieval model to generalize to different KBs, we evaluate our model both on WEBNLG-DB, the original DBpedia-based dataset, and WEBNLG-WD where the DBpedia graphs have been mapped to Wikidata <ref type="bibr" target="#b12">(Han et al., 2022)</ref>.</p><p>WikiChunks consists of 7.3M graph-text pairs where the text is a 100-word passage from a Wikipedia dump and the graphs are matching Wikidata graphs. We create matching graphs by aligning all Wikidata (s, p, o) triples with a Wikipedia passage such that the subject s of that triple matches . the entity described by the Wikipedia page from which the passage was extracted and the object o, or one of its aliases, is mentioned in that passage. Retrieving on this dataset imitates the conditions in which retrieval on Wikipedia is usually executed <ref type="bibr">(Karpukhin et al., 2020b;</ref><ref type="bibr">Lewis et al., 2020)</ref>. This is a challenging task as, contrary to WEBNLG, WIKICHUNKS matches are not aligned: the Wikidata graph information is strictly included in the passage, which may contain much more. Several passages may also contain very similar information. We use a subset of 30000 pairs, the same size as WEBNLG, to make results comparable.</p><p>We evaluate our representations using a retrieval reformulation of the data-to-text NLG task: Given the embedding of a graph, how well can we identify the most similar text in the corpus? As our evaluation sets have 1-to-1 mappings between sources (the graphs) and targets (the texts), the retrieval performance in the opposite direction does not vary by more than 2%. We consider top-result accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">General Results</head><p>We use all-mpnet-base-v2, the state-of-theart dense sentence embedding model that our models are training from, as a baseline. all-mpnet-base-v2 can estimate semantic similarity, as our models do, but was only trained on text. It can still process the linearized RDF data, however, as it is in the form of natural text. The baseline is reasonable, but training yields strong improvements with a top accuracy of 80% for all settings against 38% for the base model (Figure <ref type="figure" target="#fig_0">1</ref>) and 0.003% for random-chance performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Generalization to other KB formats</head><p>Encoding the RDF data as natural language allows for flexibility in the RDF format, as opposed to earlier graph approaches that encode relations and entities as integers. After fine-tuning on Wikidata graphs, which include relations like place served by transport hub, we might be able to generalize to DBPedia, which would use cityServed instead, as the base pre-trained model knows all these words. Indeed, we find that retrieval performance is similar on WEBNLG-WD and WEBNLG-DB.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Batch Size and Negatives</head><p>We experiment with adding artificial hard negatives to the batch, and with different batch sizes. Confounders are constructed from the correct graph by corrupting a triple inside that graph, replacing a subject, object or predicate at random with another subject, object or predicate in the dataset. This form of data augmentation is made possible by the formalized nature of RDF graphs: it would be much harder to create confounders on the text side.</p><p>Hard vs. In-batch negatives Figure <ref type="figure" target="#fig_0">1</ref> shows retrieval accuracy when using only in-batch vs. using in-batch and hard negatives. We see that hard negatives mostly help when retrieving parallel data (WEBNLG) i.e. when small graph-text mismatches strongly impact accuracy. We also see that hard negatives have the strongest impact on the model trained on TEKGEN, which is also the one with the lowest retrieval accuracy. This suggests that hard negatives are most helpful when the training data is noisier than the evaluation data.</p><p>Batch size. As previous work has found that larger batch sizes improve contrastive training <ref type="bibr" target="#b26">(Qu et al., 2021)</ref>, we experiment with two batch size set-ups: 192 1 and 2560 2 . We do not find that larger batch sizes consistently improve retrieval accuracy, and keep the smaller ones for practical reasons. Figure <ref type="figure">8</ref> in appendix B shows detailed results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Training Data Quality</head><p>The quality of training data has a strong impact on retrieval accuracy. We see that performance varies with the training data used: on WEBNLG retrieval, KELM yields by far the best results followed successively by TREX and TEKGEN. On WI-KICHUNKS, which is more loosely aligned, TREX is the best dataset and KELM is slightly behind. We create an equal-mixture dataset by concatenating subsets of equal sizes of each dataset 3 . As the rightmost column in Figure <ref type="figure" target="#fig_0">1</ref> shows, this allows us to capture the best of both worlds. We dub the model trained on this data with hard negatives all_datasets_hard_negatives.</p><p>The similarity distributions according to all_datasets_hard_negatives is shown in Figure <ref type="figure" target="#fig_1">2</ref>, which matches those results: KELM is much better aligned. This is in line with intuition as KELM text is generated from the input graphs while TREX and TEKGEN are created using distant supervision. We attempted to bootstrap dataset quality by re-training models on the 50% of the data identified as highest-similarity. We find that this does not increase performance and can even decrease it, probably due to loss of diversity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Training Data Quantity</head><p>As shown in Figure <ref type="figure" target="#fig_2">3</ref>, performance plateaus early in training. The advantage of KELM or the concatenated dataset is not due to their larger size.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Building a Referenceless Metric for Data-to-text Generation</head><p>Commonly-used metrics for Natural Language Generation require references to compare the output against, which must be produced by human annotators. Can we leverage our joint embeddings to compare the output text to the input RDF directly, reducing the necessary resources?</p><p>1 The maximum we could fit on an 8-A100 cloud instance. 2 The maximum we could fit on a larger cluster. 3 In total, thrice the size of the smallest dataset, TREX.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Fine-tuning on Human Judgments of Semantic Adequacy</head><p>Our retrieval models can be used to provide a similarity metric between text and formal data in the form of the scalar product or cosine distance in embedding space. We can further improve this metric by fine-tuning on human judgments of RDF-text adequacy. In order to show the generalization strength of this approach, we finetune our all_datasets_hard_negatives model on human-rated WEBNLG-2017 items, and evaluate on human-rated WEBNLG-2020 items, which uses different test data and different criteria for the assessment of semantic adequacy by human judges. <ref type="bibr" target="#b34">(Shimorina et al., 2018)</ref> provides human judgments for the output of 10 NLG systems from WEBNLG challenge 2017. Each model was evaluated on a sample of 223 texts yielding a total of 2230 generated texts annotated with human judgments for the following three criteria.</p><p>• Semantic adequacy: Does the text correctly represent the meaning in the data?</p><p>• Grammaticality: Is the text grammatical (no spelling or grammatical errors)?</p><p>• Fluency: Does the text sound natural? <ref type="bibr" target="#b4">(Castro Ferreira et al., 2020)</ref> provides human judgments for the output of 16 NLG systems from WEBNLG Challenge 2020. Each model was evaluated on a sample of 178 texts yielding a total of 2,848 generated texts annotated with human judgments for the following five criteria.</p><p>• Data Coverage: Does the text include descriptions of all predicates in the input?</p><p>• Relevance: Does the text describe only triples present in the graph?</p><p>• Correctness: For graph predicates, does the text correctly describe their arguments?</p><p>• Text Structure: Is the text grammatical, wellstructured, written in acceptable English?</p><p>• Fluency: Does the text progress naturally and form a coherent, easy-to-understand whole?</p><p>We train on the 2017 semantic adequacy metric. To assess how well our similarity metric reflects human judgments of similarity between an RDF graph  Figure <ref type="figure">4</ref>: Fine-tuning setup. We fine-tune both bi-encoders and cross-encoders on human-rated data. At inference time, we use the mean of a bi-encoder and a cross-encoder as the final metric. and a Natural Language Text, we compute correlations between our system's scores and the 2020 human judgments of semantic adequacy, namely data coverage, relevance, and correctness<ref type="foot" target="#foot_0">4</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Fine-tuning Procedure</head><p>Bi-and Cross-encoder ensembling We can finetune our pre-trained model as a cross-encoder, where there is only one instance of the model, which can attend to both items simultaneously and feed into a linear layer, rather than a bi-encoder as previously, where two instances of the model embed the two items separately and the dot product or cosine distance serves as the output. The crossattention feature allows for higher performance at the cost of making retrieval expensive as all n 2 distances must be computed separately <ref type="bibr" target="#b15">(Humeau et al., 2019)</ref>. However, bi-and cross-encoders perform well on different data points. The scores they give WEBNLG-2020 candidates have surprisingly low Pearson correlation, 0.66. This makes them good candidates for ensembling, and indeed, taking the mean of the bi-and cross-encoder scores yields Figure <ref type="figure">5</ref>: Difference in similarity between correct and corrupted graph-text pairs. On the left, all_datasets_hard_negatives and all_datasets_hardinv_negatives just after pre-training, and on the right, both models after fine-tuning and ensembling on WEBNLG-2017. The system we used as a final metric is the last plot on the right. Models that have seen inverted negatives at identify correct and corrupted pairs better.</p><p>higher correlations with all human judgments. Both architectures and the ensembling method are represented in diagram 4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Robustness to inversion</head><p>Transformer-based models can sometimes behave as advanced bagof-word models <ref type="bibr" target="#b35">(Sinha et al., 2021)</ref>, which would not see a difference if the subject and object are reversed in a triple. In order to examine the robustness, we create an adversarial dataset from all the 1-triple graphs in WEBNLG 2020 with nonsymmetrical 5 relationships. In this dataset, for each text, there is a pair with the correct triple and a pair in which the triple's predicate arguments (subject and object) have been inverted e.g., (André the Giant, larger than, Samuel Beckett) vs. <ref type="bibr">(Samuel Beckett, larger than, André the Giant)</ref>. This dataset (WEBNLG-INV) consists of 2793 (g, t), and (g_inv, t) pairs where (g, t) is a graph of size one with a non-symmetrical relationship in WEBNLG-WD, t is the corresponding text and g_inv is the corrupted triple.</p><p>We report the difference sim(g, t)-sim(g inv , t) in the similarity between text and correct graph on the one hand and text and corrupted graph on the other in Figure <ref type="figure">5</ref>. The higher, the better the model is at recognizing predicate inversion. all_datasets_hard_negatives, the retrieval model presented in Section 3.1, does not do well at this task, with 38% of the inverted triplets estimated more similar to the text than the original ones. (After fine-tuning on WEBNLG-2017 judgments, 30%) 5 Manually defined. The list is in appendix D.</p><p>In order to make our models robust to inversion, at pre-training time, we add inverted negatives to the mix of artificial negatives in the batches: confounding graphs where a random triplet has been inverted. The resulting model, all_datasets_hardinv_negatives has the same retrieval accuracy but gains inversion detection abilities. This ability is conserved through fine-tuning, as Figure <ref type="figure">5</ref> shows: only 14% of triplets are misclassified.</p><p>The final system we choose as a metric is the ensemble of a bi-and cross-encoder pre-trained on the concatenation of KELM, TEKGEN and TREX with our two types of data augmentation, then finetuned on WEBNLG-2017 human judgments. We call it EREDAT, for Ensembled Representations for Evaluation of DAta-to-Text.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Comparison with other Evaluation Metrics</head><p>Correlations with human judgments are shown in Figure <ref type="figure">6</ref> for a variety of automated evaluation metrics: three metrics that require a reference (BLEU, BERTscore-F1, and BLEURT, the previous state of the art) and two referenceless metrics (Data-QuestEval and EREDAT). Our metric is the best correlated with all human judgment categories, even including metrics with references. As shown in 7, this advantage is mostly explainable by ERE-DAT's improved robustness to longer, more complex graphs, which tend to degrade correlation with human judgment. Scatter plots of the underlying distributions are given in appendix C. As human references are rarely available and costly to produce, and EREDAT attains higher correlation with human judgments without relying on them, it is the most practical choice to evaluate data-to-text generation. In this case, it was not fine-tuned to the same kind of data it was applied to, showing it generalizes to new datasets. If one has a specific dataset or task in mind, even better performance could be attained by training on a set of problem-specific human judgments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We presented an architecture and pre-training strategy to measure the similarity between RDF graphs and English texts, introducing novel data augmentation strategies made possible by the RDF structure.</p><p>Specifically, we introduced a bi-encoder retrieval model trained on unlabeled RDF-text data which achieves high retrieval accuracy on both parallel and real-life, less well aligned datasets. Building from this pre-trained model, we further provided a novel evaluation metric for RDF-to-text generation models which matches state-of-the art metrics in terms of correlation with human judgments of semantic adequacy without needing costly humanwritten references. This metric can also be used to filter existing text/RDF datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitations and compute statement</head><p>This study focuses on English text. Reproducing the proposed approach for use on other languages would require dedicated datasets of similar scale, along with graph/text alignments. Further, the other languages differ quite a lot from English-centric RDF graphs, potentially reducing the suitability of the proposed framework and requiring more advanced multilingual methods. We release our models with the intended use of representation learning and automated RDF-to-text evaluation. Other uses may not be appropriate.</p><p>We trained over 2000 models for a total of approximately 2400 GPU-hours (NVIDIA V100s and A100s) of compute on public infrastructure and Google Compute Engine. Most of them were based on all-mpnet-base-v2, with 109M parameters.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Retrieval Accuracy for a variety of training datasets and objectives. Our models outperform the base model (leftmost grey bar) by a large margin. Hard negatives help across the board. Training on an equal mix of datasets yields consistently high performance on aligned (WEBNLG) and noisy (WIKICHUNKS) data.</figDesc><graphic coords="4,93.55,70.87,408.19,154.54" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Pair similarity distributions according to all_datasets_hard_negatives for all datasets.</figDesc><graphic coords="6,93.55,70.87,408.18,116.54" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Performance throughout training evaluated by WEBNLG-WD accuracy. Training for longer than the size of the smallest datasets does not change performance meaningfully.</figDesc><graphic coords="6,93.55,221.28,408.19,106.70" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 :Figure 7 :</head><label>67</label><figDesc>Figure6: Pearson correlation between automatic metrics and human judgments. Lighter and higher is better. EREDAT outperforms the other referenceless metric and matches BLEURT, which requires a reference.</figDesc><graphic coords="8,93.54,70.88,408.18,204.09" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="7,93.55,70.87,408.18,152.84" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="13,70.87,106.50,453.54,171.71" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="13,70.87,391.32,453.54,322.16" type="bitmap" /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_0"><p>We train on WEBNLG-2017 and evaluate on WEBNLG-2020 as semantic adequacy is a more global criterion encompassing coverage, relevance and correctness while the reverse is not true.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8">Acknowledgments</head><p>We thank the anonymous reviewers for their feedback. We gratefully acknowledge the support of the <rs type="funder">French National Research Agency</rs> (<rs type="projectName">Gardent</rs>; award <rs type="grantNumber">ANR-20-CHIA-0003</rs>, XNLG "<rs type="projectName">Multilingual, Multi-Source Text Generation</rs>").</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_AyX7bw5">
+					<idno type="grant-number">ANR-20-CHIA-0003</idno>
+					<orgName type="project" subtype="full">Gardent</orgName>
+				</org>
+				<org type="funded-project" xml:id="_DVDGaGf">
+					<orgName type="project" subtype="full">Multilingual, Multi-Source Text Generation</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Symmetrical Relationships in WebNLG</head><p>We manually inspected all relationships in WEBNLG and deemed the following to be symmetrical in nature: "taxon synonym", "partner in business or sport", "opposite of", "partially coincident with", "physically interacts with", "partner", "relative", "related category", "connects with", "twinned administrative body", "different from", "said to be the same as", "sibling", "adjacent station", "shares border with"  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Knowledge graph based synthetic corpus generation for knowledge-enhanced language model pre-training</title>
+		<author>
+			<persName><forename type="first">Oshin</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heming</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siamak</forename><surname>Shakeri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.278</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3554" to="3565" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">METEOR: An automatic metric for MT evaluation with improved correlation with human judgments</title>
+		<author>
+			<persName><forename type="first">Satanjeev</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization</title>
+		<meeting>the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Translating embeddings for modeling multirelational data</title>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Garcia-Durán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 26th International Conference on Neural Information Processing Systems<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="2787" to="2795" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A large annotated corpus for learning natural language inference</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabor</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1075</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="632" to="642" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">The 2020 bilingual, bi-directional WebNLG+ shared task: Overview and evaluation results (WebNLG+ 2020)</title>
+		<author>
+			<persName><forename type="first">Thiago</forename><surname>Castro Ferreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolai</forename><surname>Ilinykh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Van Der Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Mille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Moussallem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)</title>
+		<meeting>the 3rd International Workshop on Natural Language Generation from the Semantic Web (WebNLG+)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="55" to="76" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">DiPair: Fast and accurate distillation for trillion-scale text matching and pair modeling</title>
+		<author>
+			<persName><forename type="first">Jiecao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Raman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Bendersky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jung-Jung</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Najork</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danyang</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ehsan</forename><surname>Emadzadeh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.264</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2925" to="2937" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Co-training embeddings of knowledge graphs and entity descriptions for cross-lingual entity alignment</title>
+		<author>
+			<persName><forename type="first">Muhao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingtao</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Skiena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlo</forename><surname>Zaniolo</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2018/556</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Seventh International Joint Conference on Artificial Intelligence, IJCAI-18</title>
+		<meeting>the Twenty-Seventh International Joint Conference on Artificial Intelligence, IJCAI-18</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3998" to="4004" />
+		</imprint>
+	</monogr>
+	<note>International Joint Conferences on Artificial Intelligence Organization</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Convolutional 2d knowledge graph embeddings</title>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Dettmers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pasquale</forename><surname>Minervini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pontus</forename><surname>Stenetorp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Thirty-second AAAI conference on artificial intelligence</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Evaluating semantic accuracy of data-to-text generation with natural language inference</title>
+		<author>
+			<persName><forename type="first">Ondřej</forename><surname>Dušek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zdeněk</forename><surname>Kasner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Conference on Natural Language Generation</title>
+		<meeting>the 13th International Conference on Natural Language Generation<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="131" to="137" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">T-REx: A large scale alignment of natural language with knowledge base triples</title>
+		<author>
+			<persName><forename type="first">Hady</forename><surname>Elsahar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlos</forename><surname>Vougiouklis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arslen</forename><surname>Remaci</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christophe</forename><surname>Gravier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathon</forename><surname>Hare</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)</title>
+		<meeting>the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)<address><addrLine>Miyazaki, Japan</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>Frederique Laforest, and Elena Simperl</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Creating training corpora for NLG micro-planners</title>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Perez-Beltrachini</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1017</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="179" to="188" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Generating questions from Wikidata triples</title>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thiago</forename><surname>Castro Ferreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth Language Resources and Evaluation Conference</title>
+		<meeting>the Thirteenth Language Resources and Evaluation Conference<address><addrLine>Marseille, France</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="277" to="290" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Joint representation learning of text and knowledge for knowledge graph completion</title>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1611.04125</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Efficient natural language response suggestion for smart reply</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">L</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Strope</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun-Hsuan</forename><surname>Sung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">László</forename><surname>Lukács</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjiv</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Balint</forename><surname>Miklos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ray</forename><surname>Kurzweil</surname></persName>
+		</author>
+		<idno>CoRR, abs/1705.00652</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Real-time inference in multi-sentence tasks with deep pretrained transformers</title>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Humeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kurt</forename><surname>Shuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Anne</forename><surname>Lachaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<idno>CoRR, abs/1905.01969</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Dense passage retrieval for open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.550</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6769" to="6781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Dense passage retrieval for open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<idno>CoRR, abs/2004.04906</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Retrieval-augmented generation for knowledge-intensive NLP tasks</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">H</forename><surname>Patrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heinrich</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kiela</surname></persName>
+		</author>
+		<idno>CoRR, abs/2005.11401</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName><forename type="first">Tomaš</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.1301.3781</idno>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">An introduction to the resource description framework</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Miller</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1998">1998</date>
+			<publisher>D-lib Magazine</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Holographic embeddings of knowledge graphs</title>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lorenzo</forename><surname>Rosasco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomaso</forename><surname>Poggio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirtieth AAAI Conference on Artificial Intelligence, AAAI&apos;16</title>
+		<meeting>the Thirtieth AAAI Conference on Artificial Intelligence, AAAI&apos;16</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1955" to="1961" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">A three-way model for collective learning on multi-relational data</title>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hans-Peter</forename><surname>Volker Tresp</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kriegel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on International Conference on Machine Learning, ICML&apos;11</title>
+		<meeting>the 28th International Conference on International Conference on Machine Learning, ICML&apos;11<address><addrLine>Madison, WI, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Omnipress</publisher>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="809" to="816" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">A systematic investigation of KB-text embedding alignment at scale</title>
+		<author>
+			<persName><forename type="first">Vardaan</forename><surname>Pahuja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehdi</forename><surname>Bahrami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Peng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.139</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1764" to="1774" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Philadelphia, Pennsylvania, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Embedding multimodal relational data for knowledge base completion</title>
+		<author>
+			<persName><forename type="first">Pouya</forename><surname>Pezeshkpour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liyan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1359</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3208" to="3218" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">RocketQA: An optimized training approach to dense passage retrieval for opendomain question answering</title>
+		<author>
+			<persName><forename type="first">Yingqi</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wayne</forename><forename type="middle">Xin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daxiang</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haifeng</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.466</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5835" to="5847" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning transferable visual models from natural language supervision</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jong</forename><forename type="middle">Wook</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hallacy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Goh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Data-QuestEval: A referenceless metric for data-to-text semantic evaluation</title>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Rebuffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laure</forename><surname>Soulier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Piwowarski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Lamprier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacopo</forename><surname>Staiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Scoutheeten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Gallinari</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="8029" to="8036" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Sentence-BERT: Sentence embeddings using Siamese BERTnetworks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1410</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3982" to="3992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Modeling Relational Data with Graph Convolutional Networks</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Schlichtkrull</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Kipf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Bloem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rianne</forename><surname>Berg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Welling</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-319-93417-4_38</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="593" to="607" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Facenet: A unified embedding for face recognition and clustering</title>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Schroff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Kalenichenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Philbin</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/cvpr.2015.7298682</idno>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<imprint>
+			<date type="published" when="2015">2015. 2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">BLEURT: Learning robust metrics for text generation</title>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.704</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7881" to="7892" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Learning to evaluate translation beyond English: BLEURT submissions to the WMT metrics 2020 shared task</title>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Sellam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Pu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyung</forename><forename type="middle">Won</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qijun</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifth Conference on Machine Translation</title>
+		<meeting>the Fifth Conference on Machine Translation</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="921" to="927" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">WebNLG Challenge: Human Evaluation Results</title>
+		<author>
+			<persName><forename type="first">Anastasia</forename><surname>Shimorina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Perez-Beltrachini</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<publisher>Loria &amp; Inria Grand Est</publisher>
+		</imprint>
+	</monogr>
+	<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Masked language modeling and the distributional hypothesis: Order word matters pre-training for little</title>
+		<author>
+			<persName><forename type="first">Koustuv</forename><surname>Sinha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dieuwke</forename><surname>Hupkes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joelle</forename><surname>Pineau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<idno>CoRR, abs/2104.06644</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">A study of translation edit rate with targeted human annotation</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Snover</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bonnie</forename><surname>Dorr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rich</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linnea</forename><surname>Micciulla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Makhoul</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th Conference of the Association for Machine Translation in the Americas: Technical Papers</title>
+		<meeting>the 7th Conference of the Association for Machine Translation in the Americas: Technical Papers<address><addrLine>Cambridge, Massachusetts, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="223" to="231" />
+		</imprint>
+	</monogr>
+	<note>Association for Machine Translation in the Americas</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Mpnet: Masked and permuted pre-training for language understanding</title>
+		<author>
+			<persName><forename type="first">Kaitao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tie-Yan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno>CoRR, abs/2004.09297</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Representing text for joint embedding of text and knowledge bases</title>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Pantel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hoifung</forename><surname>Poon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pallavi</forename><surname>Choudhury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Gamon</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D15-1174</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon</addrLine></address></meeting>
+		<imprint>
+			<publisher>Portugal. Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1499" to="1509" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Complex embeddings for simple link prediction</title>
+		<author>
+			<persName><forename type="first">Théo</forename><surname>Trouillon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Welbl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Éric</forename><surname>Gaussier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Bouchard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 33rd International Conference on International Conference on Machine Learning</title>
+		<meeting>the 33rd International Conference on International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">48</biblScope>
+		</imprint>
+	</monogr>
+	<note>ICML&apos;16, page 2071-2080. JMLR.org</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Text-enhanced representation learning for knowledge graph</title>
+		<author>
+			<persName><forename type="first">Zhigang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juanzi</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI&apos;16</title>
+		<meeting>the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI&apos;16</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1293" to="1299" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Challenges in data-to-document generation</title>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stuart</forename><surname>Shieber</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Rush</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D17-1239</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="2253" to="2263" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Knowledge representation via joint learning of sequential text and knowledge graphs</title>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruobing</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.07075</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Cross-lingual knowledge graph alignment via graph matching neural network</title>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liwei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mo</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yansong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1304</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3156" to="3161" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Joint learning of the embedding of words and entities for named entity disambiguation</title>
+		<author>
+			<persName><forename type="first">Ikuya</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hiroyuki</forename><surname>Shindo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hideaki</forename><surname>Takeda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshiyasu</forename><surname>Takefuji</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/K16-1025</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 20th SIGNLL Conference on Computational Natural Language Learning</title>
+		<meeting>The 20th SIGNLL Conference on Computational Natural Language Learning<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="250" to="259" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Embedding entities and relations for learning and inference in knowledge bases</title>
+		<author>
+			<persName><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Bridging text and knowledge with multi-prototype embedding for few-shot relational triple extraction</title>
+		<author>
+			<persName><forename type="first">Haiyang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ningyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shumin</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongbin</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajun</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.563</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6399" to="6410" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Bertscore: Evaluating text generation with bert</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Kishore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">*</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1084 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MCML: A Novel Memory-based Contrastive Meta-Learning Method for Few Shot Slot Tagging</title>
+				<funder ref="#_XBzHQRH">
+					<orgName type="full">unknown</orgName>
+				</funder>
+				<funder ref="#_XTaQNhh">
+					<orgName type="full">ITF</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Hongru</forename><surname>Wang</surname></persName>
+							<email>hrwang@se.cuhk.edu.hk</email>
+							<affiliation key="aff0">
+								<orgName type="department">MoE Key Laboratory of High Confidence Software Technologies</orgName>
+								<orgName type="institution">The Chinese University of Hong Kong</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zezhong</forename><surname>Wang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">MoE Key Laboratory of High Confidence Software Technologies</orgName>
+								<orgName type="institution">The Chinese University of Hong Kong</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Wai</forename><forename type="middle">Chung</forename><surname>Kwan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">MoE Key Laboratory of High Confidence Software Technologies</orgName>
+								<orgName type="institution">The Chinese University of Hong Kong</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Kam-Fai</forename><surname>Wong</surname></persName>
+							<email>kfwong@se.cuhk.edu.hk</email>
+							<affiliation key="aff0">
+								<orgName type="department">MoE Key Laboratory of High Confidence Software Technologies</orgName>
+								<orgName type="institution">The Chinese University of Hong Kong</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MCML: A Novel Memory-based Contrastive Meta-Learning Method for Few Shot Slot Tagging</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">BC0F178A9461248B526231C12D03A6F4</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Meta-learning is widely used for few-shot slot tagging in task of few-shot learning. The performance of existing methods is, however, seriously affected by sample forgetting issue, where the model forgets the historically learned meta-training tasks while solely relying on support sets when adapting to new tasks. To overcome this predicament, we propose the Memory-based Contrastive Meta-Learning (aka, MCML) method, including learn-from-the-memory and adaption-from-thememory modules, which bridge the distribution gap between training episodes and between training and testing respectively. Specifically, the former uses an explicit memory bank to keep track of the label representations of previously trained episodes, with a contrastive constraint between the label representations in the current episode with the historical ones stored in the memory. In addition, the adaption-frommemory mechanism is introduced to learn more accurate and robust representations based on the shift between the same labels embedded in the testing episodes and memory. Experimental results show that the MCML outperforms several state-of-the-art methods on both SNIPS and NER datasets and demonstrates strong scalability with consistent improvement when the number of shots gets more.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Slot tagging <ref type="bibr" target="#b29">(Tur and De Mori, 2011)</ref>, is a key part of natural language understanding, which is usually modeled as a sequence labeling problem with BIO format as shown in Figure <ref type="figure" target="#fig_0">1</ref>  <ref type="bibr" target="#b4">(Chen et al., 2019)</ref>. However, rapid domain transfer and scarce labeled data in the target domain introduce new challenges <ref type="bibr">(Bapna et al., 2017a;</ref><ref type="bibr" target="#b33">Zhang et al., 2020)</ref>. To this end, significant efforts have been made to develop few-shot techniques <ref type="bibr" target="#b19">(Li Fei-Fei et al., 2006;</ref><ref type="bibr" target="#b25">Snell et al., 2017;</ref><ref type="bibr" target="#b30">Vinyals et al., 2016)</ref>, which aim to recognize a set of novel classes with only a few labeled samples (i.e, less than 50-shot) by knowledge transfer from a set of base classes with abundant annotated samples.</p><p>Among several few-shot learning approaches <ref type="bibr" target="#b13">(Hospedales et al., 2022)</ref>, metric-based metalearning has been widely used in slot tagging because they are model-agnostic, effective, and easily applicable <ref type="bibr" target="#b25">(Snell et al., 2017;</ref><ref type="bibr" target="#b30">Vinyals et al., 2016;</ref><ref type="bibr" target="#b34">Zhu et al., 2020;</ref><ref type="bibr" target="#b14">Hou et al., 2020)</ref>. To cope with the data scarcity of novel classes, metric-based methods split data into different episodes deliberately while each episode consists of one support set and one query set. The model classifies a (query) item according to its similarity with the representation of each label learned from the support set in this episode.</p><p>However, this kind of setting has shown several limitations, where the similarity calculation conducted only at the episode level hinders the learning of the original representations, resulting in the sample forgetting problem <ref type="bibr" target="#b28">(Toneva et al., 2018)</ref>. On the one hand, this cripples the model's ability to learn consistent representations for the same labels across different episodes. Here, the same labels may occur during different episodes at the meta-training stage and also possibly span the meta-training and meta-testing stages. For example, B-Object_name occurs in both the metatraining stage and meta-testing stage as shown in Figure <ref type="figure" target="#fig_0">1</ref>. On the other hand, the similarity calculation is conducted between the query and support set only in one episode under the few-shot setting, resulting in the representation shift while ignoring the same label representation in previous episodes. First of all, the representation of each label is not accurate due to the limited labeled samples. Besides that, the locally closest label in one episode is not necessarily the globally closest. Furthermore, with the number of shots increasing, the sample forgetting problem becomes worse and the model performance saturates quickly <ref type="bibr" target="#b3">(Cao et al., 2019)</ref>.</p><p>To overcome the above limitations, we propose the Memory-based Contrastive Meta-learning (aka, MCML) method, marrying the benefits of learnfrom-the memory and adaption-from-the-memory to capture more transferable and informative label representations. Specifically, during meta-training, we use an explicit memory bank to keep track of the label representations from the historical episodes. Then a contrastive constraint is added to pull together semantically similar (i.e, positive) samples in the embedding space while pushing apart dissimilar (i.e, negative) samples. This is what we call the learn-from-the-memory technique. Secondly, during meta-testing, we use the adaption-from-thememory technique to bridge the shift between the input labels embedded in the test episodes and the label anchors in the memory. In addition, an indicator is used to control how much information we want to acquire from the memory. The combination of learn-from-the-memory and adaption-from-thememory helps the model to learn consistent representations for the same labels and distinguished representations for different labels concurrently across different episodes. To summarize, our contributions are three-fold:</p><p>• This is the first work to tackle the sample forgetting problem of metric-based methods. We propose a novel Memory-based Contrastive Meta-learning (MCML) method to bridge the gap between different episodes.</p><p>• We propose two model-agnostic methods including learn-from-the-memory and adaption-from-the-memory, which can be applied in different stages separately. The combination of them achieves the best performance even with the number of shots increasing.</p><p>• The experimental results confirm the effectiveness of our model with very favorable performance over several state-of-the-art methods on both SNIPS and NER datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Few-shot learning was first proposed as a transfer method using a Bayesian approach on low-level visual features <ref type="bibr" target="#b19">(Li Fei-Fei et al., 2006)</ref>. Over the past few years, researchers have developed alternative techniques to build domain-specific modules for low-resource cross-domain natural language understanding <ref type="bibr">(Bapna et al., 2017b;</ref><ref type="bibr" target="#b17">Lee and Jha, 2019;</ref><ref type="bibr" target="#b10">Fritzler et al., 2019;</ref><ref type="bibr" target="#b24">Shah et al., 2019)</ref>. Most recent works have tried to model the transition possibility or similarity function between different labels with the metric-based meta-learning framework as backbone <ref type="bibr" target="#b14">(Hou et al., 2020;</ref><ref type="bibr" target="#b34">Zhu et al., 2020;</ref><ref type="bibr" target="#b31">Wang et al., 2022)</ref>. Nevertheless, episode-level relationships are still under-explored in previous works, except for a number of methods on image classification <ref type="bibr" target="#b18">(Li et al., 2019;</ref><ref type="bibr" target="#b26">Sun et al., 2019;</ref><ref type="bibr" target="#b21">Ouali et al., 2020;</ref><ref type="bibr" target="#b9">Fei et al., 2021)</ref>. <ref type="bibr" target="#b9">Fei et al. (2021)</ref>  Distinguishing from prior work, we first exploit the inter-episode relationship for natural language understanding by using an explicit memory bank. Most researchers choose to store the encoded contextual information in each meta episode under the few-shot setting <ref type="bibr" target="#b15">(Kaiser et al., 2017;</ref><ref type="bibr" target="#b2">Cai et al., 2018)</ref>. Another alternative method adopts parameterized memory network to implicitly save historical information <ref type="bibr" target="#b11">(Geng et al., 2020)</ref>. Our work also keeps in line with Momentum Contrast(MoCo) which utilizes an external memory module to store positive or negative samples for contrastive learning <ref type="bibr" target="#b12">(He et al., 2020)</ref>. Similarly, with a relatively large size of samples, unilateral representations from one episode in the metric-based methods can be alleviated.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Preliminaries</head><p>Before introducing our proposed framework, we provide the problem definition and an illustration of the basic framework of metric-based meta-learning to solve few-shot slot tagging in this section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Problem Definition</head><p>We denote each sentence x = (x 1 , x 2 , x 3 , ..., x p ) and the corresponding label y = (y 1 , y 2 , y 3 , ..., y p ). Usually, we are provided with lots of labeled data (i.e. (x, y) pairs) of source domains D s , and fewshot (less than 50) labeled data as well as plenty of unlabeled data in the target domain D t under the few shot setting. We split the data as episodes e = (S, Q) in which S = {x j i , y j i } j=1...K i=1...N and Q = {x j , y j } |Q| j=1 respectively. S, as the support set, contains K examples (K-shot) for each of N labels (N-way) while Q contains several unlabeled samples 1 . Thus, the few-shot model is trained based on many episodes E tr = (e 1 , e 2 , e 3 , ..., e n ) initially. The trained model is then directly evaluated on the target domain E te = (e 1 , e 2 , ..., e m ). The objective is formulated as follows:</p><formula xml:id="formula_0">y * = argmax y p θ (y|x, S)<label>(1)</label></formula><p>where θ refers the parameters of the slot tagging mode, the (x, y) pair and the support set from the target domain, E tr and E te represent different episodes during meta-training and meta-testing respectively.</p><p>1 We have labels during meta-training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Metric-based Meta Learning</head><p>Given an episode consisting of a support-query set pair, the basic idea of metric-based meta-learning <ref type="bibr" target="#b34">(Zhu et al., 2020;</ref><ref type="bibr" target="#b14">Hou et al., 2020)</ref> is to classify an item (a sentence or token) in the query set based on its similarity with the representation of each label, which is learned from the few labeled data of the support set. Some representative works are matching network <ref type="bibr" target="#b30">(Vinyals et al., 2016)</ref> and prototypical network <ref type="bibr" target="#b25">(Snell et al., 2017)</ref>. More specifically, given an input episode (S, Q) pair, the model encodes these two parts to get the sample vector and query vector respectively:</p><formula xml:id="formula_1">S, Q = Encoder(S, Q) (2)</formula><p>After that, various models can be used to extract label representations c y i . Take the prototypical network as an example, each prototype (label representation) is defined as the average vector of the embedded samples which have the same labels:</p><formula xml:id="formula_2">c y i = 1 N y i N i=1 K j=1 I{y j i = y i }s j i (<label>3</label></formula><formula xml:id="formula_3">)</formula><p>while I is an indicator function which equals to True when y j i == y i else False; s j i is the corresponding sample vector from S.</p><p>Lastly, we calculate the distance between the label representation and the sample vector from the query set. The most popular distance function is the dot product function which is defined as follows:</p><formula xml:id="formula_4">SIM (x i , c k ) = x T i c k (4) y = Sof tmax(SIM (x i , c k ))<label>(5)</label></formula><p>The label of instance (i.e, x i ) from the query set is the label whose embedding is closest with the instance vector (i.e, c i ). This can be calculated through a softmax layer. However, in this way, the learned prototype of labels may lack general discriminative semantic features since it (c i ) only needs to be closer to instance (x i ) compared with other prototypes (i.e, c j where j!=i) in the same episode without considering the global prototypes. Since the support set may only contain a few instances with the same label, the representation becomes imprecise and fragile <ref type="bibr" target="#b21">(Ouali et al., 2020)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Model</head><p>In this section, we first illustrate the overview of our proposed framework (Section 4.1), and then we discuss how to learn and adaption from memory (Section 4.2 and 4.3) respectively. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>BERT</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Support Set</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Query Set</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Prototype-Network Classification</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Sample Vector</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Framework</head><p>Due to data scarcity and domain transfer, sample forgetting problem seriously hinders the model to learn robust representation, resulting in worse adaptability. To overcome this problem during meta-training and meta-testing stages, we propose learn-from-the-memory and adaption-fromthe-memory techniques respectively as shown in Figure <ref type="figure" target="#fig_1">2</ref> to reuse the learned representations <ref type="bibr" target="#b23">(Raghu et al., 2019)</ref>.</p><p>Learn-from-the-memory: During the metatraining stage, the model will continuously train on different episodes. We utilize an external memory bank to store all learned label representations from the support set. These representations form different clusters naturally according to their original labels. When a newly seen label appears, a contrastive loss is computed on these dimensional representations by attracting positive samples, which have the same label, and by repelling the negative samples which have different labels. If this label has not been encountered before, we just write it into our memory.</p><p>Adaption-from-the-memory: During the metatesting stage, we first learn an adaption layer by using these overlapped labels during meta-training and meta-testing, and then we use the learned adaption layer to project these unseen (i.e, not overlap) labels from testing space to training space in order to bridge the shift between testing space and training space. In addition, we use the skip connection to control how much information we want to acquire from the memory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Learn from Memory</head><p>To consider all prototypes and learn consistent representations during meta-training, we first use a memory bank to store all prototypes of different labels from the support set. We design three basic operations in the memory bank: write, update, and read.</p><p>Write. Specifically, starting from the first episode e 1 to the last episode e n in E tr , we store the label representations from the corresponding support set C i = (c 1 , c 2 , ...c k ) into external memory bank M with the label name as key, where k is the number of labels for the current episode. M increases as the episode continue on.</p><formula xml:id="formula_5">k ≤ M ≤ m * k (6)</formula><p>while k represents average number of labels for all episodes, and m is the number of episodes. For the ith episode, we first calculate the prototypical embedding of seen-label clusters from memory. Theoretically, this step is unnecessary but we choose to do so to save computational resources<ref type="foot" target="#foot_0">2</ref> . Figure <ref type="figure">3</ref>: The high-level overview of our learn-fromthe-memory. There are multiple label representations in the memory bank. We will attract representations with the same label, repel otherwise, and also update accordingly.</p><formula xml:id="formula_6">c ⋆ k = 1 N k N k i=1 I{c i = c k }c i (7)</formula><p>We use c ⋆ k to represent the centroid of the kth cluster and we also store it in the memory bank, and then we define a distance function following <ref type="bibr" target="#b8">(Ding et al., 2021)</ref> as follows:</p><formula xml:id="formula_7">d(c i , c j ) = 1/(1 + exp( c i ||c i || • c j ||c j || ) (8)</formula><p>Read. For the coming labels and corresponding representations, there are two situations: (1) the label is new which means it never appears in the previous episodes, and (2) the label has already been stored in the memory bank. We extract all centroid representations from the memory bank and impose a contrastive learning constraint accordingly.</p><formula xml:id="formula_8">L memory = - 1 K c i ∈S c ,c j ∈S -c [log d(c i , c ⋆ k ) + log(1 -d(c j , c ⋆ k ))]<label>(9)</label></formula><p>For the new label, there are no positive pairs, and we increase the distances between its representation and all extracted representations. For the same label, we draw the same centroid representation but repel different centroids.</p><p>This objective effectively serves as regularization to learn more consistent and transferable label representation as they evolve during meta-training <ref type="bibr" target="#b8">(Ding et al., 2021;</ref><ref type="bibr" target="#b12">He et al., 2020)</ref>. We emphasize that the parameters of models do not change at this stage, and we do not need to modify the architecture of traditional metric-based meta-learning models. As such, the model can be easily trained together with other components in an end-to-end fashion.</p><p>Update. At the last, we need to re-calculate the prototypical embeddings of seen-label clusters in the memory following Equation <ref type="formula">7</ref>. In this way, the Figure <ref type="figure">4</ref>: The high-level overview of our adaption-frommemory. We extract global representations from the memory bank which stores label representations during the meta-training stage and use them as grounded truth to learn the adaption layer (aka, MLP) with label representations from the current episode (aka, local representations) as input. We pass all labels, including overlap labels and new labels, from the current episode to the adaption layer to get the final representations. distribution shift across different episodes during meta-training will be alleviated and thus more general discriminative representations can be learned. Figure <ref type="figure">3</ref> demonstrates the whole processing of learn-from-the-memory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Adaption from Memory</head><p>To address the forgetting problem during the metatesting stage, we take advantage of stored representations in the memory bank to build a bridge connecting the testing space and training space. With overlapped labels between meta-training and metatesting, two types of representations can be observed: 1) one from memory during meta-training; 2) the other from the current episode during metatesting. It is noted that labels overlap frequently in practice, e.g. B-person and B-city almost appear in every slot tagging dataset.</p><p>As shown in Figure <ref type="figure">4</ref>, we decompose the whole process into two steps. First of all, we use the overlapped labels during meta-training and meta-testing to learn the adaption function f which minimizes the representation gap between meta-training and meta-testing <ref type="foot" target="#foot_1">3</ref> .</p><formula xml:id="formula_9">y i = f (R i test_overlap )<label>(10)</label></formula><p>Where f can be implemented by Multilayer Perceptron (MLP) or one linear layer with the following loss function. Here R i test_overlap means ith label appears in both the memory bank and current test episode. The learning objective of adaption layers L ada can be defined as follows:</p><formula xml:id="formula_10">L ada = |Overlap| i=1 ||R i train_overlap -y i || 2 (11)</formula><p>Where R i train_overlap here can be directly extracted from the memory bank as the ground truth representation. We then use the learned adaption function to project the new labels (i.e, not overlap) to the training space based on the assumption that the training space should be more accurate than the testing space which consists of more labeled data.</p><formula xml:id="formula_11">R train_new = f (R test_new )<label>(12)</label></formula><p>In this case, we can get original representations in the testing space and representations in the training space after adaption for both overlap labels and new labels. Our final representation for each label can be the combination of these two kinds of representation from different spaces.</p><formula xml:id="formula_12">R f in = α * R ori + (1 -α) * R ada<label>(13)</label></formula><p>where α ∈ (0, 1) is a hyper-parameter that controls the percentage of information from the original testing space and from adaption. By adaption from the memory, the distribution shift in the testing episodes rooting in domain transfer and few-shot setting will be de-biased by the global representations in the memory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Training Objective</head><p>The learning objective of our methods is the sum of three parts. It is noted that these losses are not optimized simultaneously.</p><formula xml:id="formula_13">L ner = K c=1 y c log(P c )<label>(14)</label></formula><formula xml:id="formula_14">L = L ner + L memory + L ada<label>(15)</label></formula><p>while L ner represents the traditional crossentropy loss of sequence labeling (see Eq. 14) and is optimized with L memory during training (see Eq. 9). L ada is optimized during testing (see Eq. 11).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Datasets</head><p>We evaluate the proposed methods following the data split setting provided by <ref type="bibr" target="#b14">(Hou et al., 2020)</ref> on NER and SNIPS datasets <ref type="bibr" target="#b5">(Coucke et al., 2018)</ref>. It is in the episode data setting <ref type="bibr" target="#b30">(Vinyals et al., 2016)</ref>, where each episode contains a support set (1-shot or 5-shot) and a batch of labeled samples. For NER, we followed the setting as same as <ref type="bibr" target="#b34">(Zhu et al., 2020)</ref>, which contains 4 different datasets: CoNLL-2003 (i.e. News) <ref type="bibr" target="#b27">(Tjong Kim Sang and De Meulder, 2003)</ref>, GUM (i.e. Wiki) <ref type="bibr" target="#b32">(Zeldes, 2017)</ref>, <ref type="bibr">WNUT-2017 (i.e. Social)</ref>  <ref type="bibr" target="#b6">(Derczynski et al., 2017)</ref> and OntoNotes (i.e. Mixed) <ref type="bibr" target="#b22">(Pradhan et al., 2013)</ref>. For SNIPS, it consists of 7 domains with different label sets: Weather (We), Music (Mu), PlayList (Pl), Book (Bo), Search Screen (Se), Restaurant (Re) and Creative Work (Cr). And also, we extend our method to more shots (10-shot and 20-shot) to further demonstrate the effectiveness and robust generalization capability of our approach.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Baselines</head><p>SimBERT. It assigns labels to words according to the cosine similarity of word embedding of a fixed BERT. For each word x i , SimBERT finds the most similar word x k in the support set and assigns x k 's label to x i . TransferBERT. It directly transfers the knowledge from the source domain to the target domain by parameter sharing. We train it on the source domain and select the best model on the same validation set of our model. Before evaluation, we fine-tune it on the target domain support set. L-TapNet+CDT+PWE <ref type="bibr" target="#b14">(Hou et al., 2020)</ref> one of the strong baselines for few-shot slot tagging, which enhances the WarmProtoZero(WPZ) <ref type="bibr" target="#b10">(Fritzler et al., 2019)</ref> model with label name representation and incorporate it into the proposed CRF framework. L-ProtoNet+CDT+VPB <ref type="bibr" target="#b34">(Zhu et al., 2020)</ref> current state-of-the-art metric-based meta-learning, which investigates the different distance functions and utilizes the distance function VPB to boost the performance of the model. Coach <ref type="bibr" target="#b20">(Liu et al., 2020)</ref> Coarse-to-fine approach (Coach) for cross-domain slot filling, which is a current state-of-the-art few-shot fine-tuning method incorporating template regular loss and slot description information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Implementation Details</head><p>We take the pre-trained uncased BERT-Base <ref type="bibr" target="#b7">(Devlin et al., 2019)</ref> as an encoder to embed words into contextually related vectors in all experiments. Following the setting in <ref type="bibr" target="#b34">(Zhu et al., 2020)</ref>, we use ADAM <ref type="bibr" target="#b16">(Kingma and Ba, 2015)</ref> to train the model with a learning rate of 1e-5, a weight decay of Table <ref type="table">2</ref>: F 1 scores on few-shot slot tagging of the NER dataset 5e-5. And we set the distance function as VPB <ref type="bibr" target="#b34">(Zhu et al., 2020)</ref>. To prevent the impact of randomness, we test each experiment 10 times with different random seeds following <ref type="bibr" target="#b14">(Hou et al., 2020)</ref>.</p><p>For adaption from memory, we set the iteration as 1000, and α from [0.1, 0.3, 0.5, 0.7, 0.9] and report the best result.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Main Result</head><p>Table <ref type="table" target="#tab_2">1</ref> and Table <ref type="table">2</ref> show the results of both 1-shot and 5-shot slot tagging of SNIPS and NER datasets respectively. Our method reaches comparable results with the state-of-the-art and outperforms in 3 out of 7 domains under 1-shot setting, and 6 under 5-shot setting at SNIPS dataset. Specifically, our method achieves about 13% (70.27 → 79.57) and 7% (75.95 → 81.07) improvements in the Cr domain under 1-shot and 5-shot respectively. Besides that, the improvement keeps consistent on the NER dataset while adding additional shots leads to greater improvement. It's obvious that our method demonstrates strong scalability and flexibility with the number of shots increasing.</p><p>When comparing Coach <ref type="bibr" target="#b20">(Liu et al., 2020)</ref> with L-TapNet+CDT+PWE <ref type="bibr" target="#b14">(Hou et al., 2020)</ref> and L-TapNet+CDT+VPB <ref type="bibr" target="#b34">(Zhu et al., 2020)</ref>, it is also interesting to see that fine-tuning is not as competitive as metric-based approaches when the shot is smaller.</p><p>6 Ablation Study and Analysis</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Ablation Result</head><p>We borrow the result from <ref type="bibr" target="#b34">Zhu et al. (2020)</ref> as baseline (i.e. L-ProtoNet+CDT+VPB) here since it reaches the best performance out of all baselines. Table <ref type="table">3</ref> shows the ablation study of learning and adaption from memory. Comparing the result between 1-shot, 5-shot, 10-shot, and 20-shot, we find that the learn-from-the-memory (i.e. M) module gets more important as the number of shots increases. We attribute this phenomenon to the more transferable representations due to more labeled data brought by more shots. However, the adaption-from-the-memory cannot keep consistent improvement, we think this is caused by noise introduced by the adaption layer.  <ref type="table">3</ref>: Ablation Study of adaption-from-the-memory and learn-from-the-memory on 1-shot, 5-shot, 10-shot and 20-shot respectively on SNIPS dataset. B, A, and M stand for the strongest baseline L-ProtoNet+CDT+VPB, only adaption-from-memory, and only learn-from-memory respectively. these two modules, the model can reach the best performance as reported in Table <ref type="table" target="#tab_2">1</ref> and<ref type="table">Table 2</ref>. Compared with the strongest baseline, the averaged F1 score further improved (More analysis can be found in Appendix A).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">t-SNE Visualization Analysis</head><p>We present a t-SNE visualization of label representations of trained metric-based meta-learning methods as shown in Figure <ref type="figure" target="#fig_3">5</ref> and we additionally draw the t-SNE visualization of label representations after adding contrastive learning constraint in Figure <ref type="figure">7</ref>. On the one hand, it is observed from Figure 5 that: 1) the representations of B-object_type and I-object_type at the meta-training stage are separated into distant groups; and 2) the representations at the meta-testing stage are shifted compared with those at the meta-training stage. For the first observation, we can conclude that the model can not remember what it already learned, failing to capture a consistent representation of the same label. A similar problem still happens at the metatesting stage due to the presence of poorly sampled shots <ref type="bibr" target="#b9">(Fei et al., 2021)</ref>. On the other hand, in Figure <ref type="figure">7</ref>, it is found that the distance between the representations of B-object_type (also I-object_type) during the meta-training stage is much closer, which proves the effectiveness of learn-from-the-memory to alleviate the sample forgetting problem.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">The Impact of different value of scale</head><p>To investigate the effects of α during adaptionfrom-the-memory, we report the performance of different assignments of this scale. The result can be found in Figure <ref type="figure">6</ref>. Since the larger the value, the more information from the meta-testing space, the less information from adaption. Thus, as long as the graph is monotonically increasing, the less useful the adaption is. However, as we can observe, it is obvious that not all domains show this trend. Specifically, under the 1-shot setting, "Pl", "Se" and "Cr" gets higher performance because of the adaption, and "Pl" and "Cr" continue this trend in the 5-shot. This shows the adaption layer is highly domain-sensitive and prefers the domain which has more overlapped labels. More analysis can be found in Appendix A.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this paper, we address the sample forgetting problem during meta-training and meta-testing stages in the metric-based meta-learning framework by capturing more transferable and informative label representations. To this end, we propose the Memorybased Contrastive Meta-learning (MCML) method, which consists of two modules: learn-from-thememory and adaption-from-the-memory to function at different stages. Experimental results on both NER and SNIPS datasets demonstrate the advantages of our MCML framework in terms of scalability and robustness.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>This paper tackles the issues of the sample forgetting problem in the metric-based meta-learning framework. We mainly focus on the few-shot slot tagging tasks but our proposed method is motivated by the unique setting of metric-based meta-learning which can be applied to other text classification tasks such as intent detection or news classification.</p><p>We left this in our future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Analysis</head><p>A.1 Less-shot or More-shot ?</p><p>Table <ref type="table">3</ref> shows the result of 10-shot and 20-shot on the SNIPS dataset which is generated following the method proposed by <ref type="bibr" target="#b14">Hou et al. (2020)</ref>. More Shots. Compare 10-shot with 20-shot, we can find that all domains are improved with the help of learn-from-the-memory when the number of shots increases except "SearchCreativeWork". Since this is the only domain which has 100% overlap labels during meta-training and meta-testing, we attribute this phenomenon caused by poor representations from meta-testing without adaptionfrom-memory. Fewer Shot v.s More Shot. Compare 1-shot and 5-shot (less-shot) with 10-shot and 20-shot (moreshot), there are some interesting findings: 1) learnfrom-the-memory can boost 6 out of 7 domains in more-shot instead of 3 in less-shot. This demonstrates the importance and effectiveness of this module when the number of shots gets more; 2) adaption-from-memory shows exactly the same gains whether or not there are more shots. This is reasonable since the number of shots does not affect the number of labels, and also the accuracy of adaption. We conclude that learn-from-thememory is always worth trying, and adaption-fromthe-memory highly depends on a specific domain.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 The Impact of overlap</head><p>The performance of the adaption function highly depends on the number of overlap labels. Since the more overlap labels between training and testing, we will get a more accurate adaption function.</p><p>Figure <ref type="figure" target="#fig_5">8</ref> shows the percentage of overlap labels between training data and validation or test data. To further investigate to what extent the influence of overlap labels on adaption performance, we utilize the Pearson correlation coefficient to analyze the relationship between these two variables. The calculated result is 0.83 which shows these two variables are highly related. The performance improved by the adaption of different domains can be found in Figure <ref type="figure" target="#fig_6">9</ref>. It is noted that although "GetWeather" domain has 60% overlap labels with training data, the performance declines surprisingly. We further investigate the specific overlap labels of this domain, and we find most of them are "state", "country" and "city", common regular entity types which appear in almost every corpus. When the number of shots is less, these common entities cannot be represented accurately during meta-training, much less during adaption. This explains the poor performance of 1-shot and 5-shot and the higher performance of 10-shot and 20-shot. For the above reasons, we argue it is worth trying adaption once the overlap exceeds 50% as long as the overlaps labels have some domain-specific features.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Episode-setting of Metric-based meta-learning, where each domain contains multiple episodes and each episode consists of a support-query-set pair. Different colors indicate different labels.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: The overview of Our Framework, including three modules 1) Memory Bank, 2) Learn-from-the-memory, and 3) Adaption-from-the-memory, while the memory bank stores global representations across different episodes, learn-from-the-memory is used to learn more accurate and robust representations during the meta-training stage, and adaption-from-the-memory to bridge the gap between training and testing for local representations in test episode.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: The t-SNE visualization of label representations during meta-training and meta-testing learned by Metric-based Meta-learning Model (Target Domain: Cr 5-shot).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 6 :Figure 7 :</head><label>67</label><figDesc>Figure6: The impact of different scales on the performance, we suggest zooming in to check more details.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: The Percentage of Overlap Labels between train and valid or test</figDesc><graphic coords="12,74.52,599.15,210.96,138.00" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Improvement of different shots with different percentage overlapped labels.</figDesc><graphic coords="12,312.68,163.88,205.20,128.40" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>F 1 scores on few-shot slot tagging of the SNIPS dataset ProtoNet+CDT+VPB 42.23 11.36 27.72 31.17 28.10 56.30 19.17 34.95 43.30 38.43 Ours 42.70 13.20 26.75 29.86 28.13 56.89 22.09 35.27 42.08 39.08</figDesc><table><row><cell cols="2">N-shot Model</cell><cell></cell><cell></cell><cell>We</cell><cell>Mu</cell><cell>Pl</cell><cell>Domain Bo</cell><cell>Se</cell><cell>Re</cell><cell>Cr</cell><cell>Avg.</cell></row><row><cell></cell><cell>SimBERT</cell><cell></cell><cell></cell><cell cols="6">36.10 37.08 35.11 68.09 41.61 42.82 23.91 40.67</cell></row><row><cell></cell><cell cols="2">TransferBERT</cell><cell></cell><cell cols="6">55.82 38.01 45.65 31.63 21.96 41.79 38.53 39.06</cell></row><row><cell>1-shot</cell><cell cols="9">L-TapNet+CDT+PWE L-ProtoNet+CDT+VPB 73.08 58.50 68.81 82.41 75.88 73.17 70.27 71.73 71.53 60.56 66.27 84.54 76.27 70.79 62.89 70.41</cell></row><row><cell></cell><cell cols="9">Coach (Liu et al., 2020) 55.81 38.72 41.60 41.44 35.25 54.38 47.74 44.99</cell></row><row><cell></cell><cell>Ours</cell><cell></cell><cell></cell><cell cols="6">72.30 58.33 69.64 82.90 77.23 72.79 79.57 73.25</cell></row><row><cell></cell><cell>SimBERT</cell><cell></cell><cell></cell><cell cols="6">53.46 54.13 42.81 75.54 57.10 55.30 32.38 52.96</cell></row><row><cell></cell><cell cols="2">TransferBERT</cell><cell></cell><cell cols="6">59.41 42.00 46.07 20.74 28.20 67.75 58.61 46.11</cell></row><row><cell>5-shot</cell><cell cols="9">L-TapNet+CDT+PWE L-ProtoNet+CDT+VPB 82.54 69.52 80.45 91.03 86.14 80.75 75.95 80.91 71.64 67.16 75.88 84.38 82.58 70.05 73.41 75.01</cell></row><row><cell></cell><cell cols="9">Coach (Liu et al., 2020) 73.56 45.85 47.23 61.61 65.82 69.99 57.28 60.19</cell></row><row><cell></cell><cell>Ours</cell><cell></cell><cell></cell><cell cols="6">81.79 69.70 80.78 91.53 87.09 82.49 81.07 82.06</cell></row><row><cell>Model</cell><cell></cell><cell cols="5">1-shot News. Wiki Social Mixed Avg.</cell><cell cols="3">5-shot News Wiki Social Mixed Avg.</cell></row><row><cell>SimBERT</cell><cell></cell><cell cols="2">19.22 6.91</cell><cell>5.18</cell><cell cols="5">13.99 11.32 32.01 10.63 8.20</cell><cell>21.14 18.00</cell></row><row><cell cols="2">TransferBERT</cell><cell>4.75</cell><cell>0.57</cell><cell>2.71</cell><cell>3.46</cell><cell>2.87</cell><cell cols="2">15.36 3.62</cell><cell>11.08 35.49 16.39</cell></row><row><cell cols="2">L-TapNet+CDT+PWE</cell><cell cols="8">44.30 12.04 20.80 15.17 23.08 45.35 11.65 23.30 20.95 25.31</cell></row><row><cell>L-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>We 73.08 72.30 71.83 82.54 81.13 81.79 79.09 78.75 79.12 82.06 80.92 82.79 Mu 58.50 56.58 58.33 69.52 67.95 69.70 65.71 64.75 66.65 68.94 67.47 70.03 Pl 68.81 69.64 68.16 80.45 80.78 79.62 74.43 75.08 77.89 75.90 76.16 77.09 Avg. 71.73 72.70 71.32 80.91 80.78 81.24 78.92 79.02 79.96 80.15 79.96 80.79</figDesc><table><row><cell></cell><cell></cell><cell>1-shot</cell><cell></cell><cell></cell><cell>5-shot</cell><cell></cell><cell></cell><cell>10-shot</cell><cell></cell><cell></cell><cell>20-shot</cell></row><row><cell></cell><cell>B</cell><cell>A</cell><cell>M</cell><cell>B</cell><cell>A</cell><cell>M</cell><cell>B</cell><cell>A</cell><cell>M</cell><cell>B</cell><cell>A</cell><cell>M</cell></row><row><cell>Bo</cell><cell cols="12">82.41 81.95 82.90 91.03 89.99 91.53 88.38 87.31 89.65 89.10 88.16 90.94</cell></row><row><cell>Se</cell><cell cols="12">75.88 77.23 74.45 86.41 86.35 86.95 86.96 87.37 87.70 88.33 88.08 88.48</cell></row><row><cell>Re</cell><cell cols="12">73.17 71.64 72.79 80.75 78.21 82.49 77.06 74.95 78.00 79.32 76.90 80.31</cell></row><row><cell>Cr</cell><cell cols="12">70.27 79.57 70.77 75.95 81.07 76.61 80.82 84.91 77.31 77.37 82.02 75.88</cell></row><row><cell>Table</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">After combining</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>We call the prototypical embedding of label clusters by centroid (i.e, prototype in historical episodes), and prototype as average label embedding in one episode. Here if we skip the calculation of centroid, then we can directly use these prototypes.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>We emphasize this operation is conducted at episode-level to comply with the few-shot setting.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgement</head><p>We thank all reviewers for their insightful comments and suggestions. This research work is partially supported by <rs type="funder">ITF</rs> Project No. <rs type="grantNumber">PRP/054/21FX</rs> and <rs type="institution">CUHK</rs> under Project No. <rs type="grantNumber">3230366</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_XTaQNhh">
+					<idno type="grant-number">PRP/054/21FX</idno>
+				</org>
+				<org type="funding" xml:id="_XBzHQRH">
+					<idno type="grant-number">3230366</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Towards zero-shot frame semantic parsing for domain scaling</title>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Bapna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gokhan</forename><surname>Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilek</forename><surname>Hakkani-Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Larry</forename><surname>Heck</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.02363</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Towards zero-shot frame semantic parsing for domain scaling</title>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Bapna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gokhan</forename><surname>Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilek</forename><surname>Hakkani-Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Larry</forename><surname>Heck</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.02363</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Memory matching networks for oneshot image recognition</title>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingwei</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenggang</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Mei</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/CVPR.2018.00429</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2018 IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting><address><addrLine>Salt Lake City, UT, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="2018-06-18">2018. June 18-22, 2018</date>
+			<biblScope unit="page" from="4080" to="4088" />
+		</imprint>
+	</monogr>
+	<note>CVPR 2018</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">A theoretical analysis of the number of shots in fewshot learning</title>
+		<author>
+			<persName><forename type="first">Tianshi</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Law</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanja</forename><surname>Fidler</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.11722</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Qian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhu</forename><surname>Zhuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1902.10909</idno>
+		<title level="m">Bert for joint intent classification and slot filling</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Snips voice platform: an embedded spoken language understanding system for private-by-design voice interfaces</title>
+		<author>
+			<persName><forename type="first">Alice</forename><surname>Coucke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alaa</forename><surname>Saade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrien</forename><surname>Ball</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Théodore</forename><surname>Bluche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Caulier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Leroy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Doumouro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Gisselbrecht</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Caltagirone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibaut</forename><surname>Lavril</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1805.10190</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Results of the WNUT2017 shared task on novel and emerging entity recognition</title>
+		<author>
+			<persName><forename type="first">Leon</forename><surname>Derczynski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Nichols</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marieke</forename><surname>Van Erp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nut</forename><surname>Limsopatham</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W17-4418</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Noisy User-generated Text</title>
+		<meeting>the 3rd Workshop on Noisy User-generated Text<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="140" to="147" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Prototypical representation learning for relation extraction</title>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaobin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guangwei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengjun</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hai-Tao</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.11647</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Melr: Meta-learning via modeling episodelevel relationships for few-shot learning</title>
+		<author>
+			<persName><forename type="first">Nanyi</forename><surname>Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwu</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songfang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Int. Conf. Learn. Represent</title>
+		<meeting>Int. Conf. Learn. Represent</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1" to="20" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Few-shot classification in named entity recognition task</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Fritzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maksim</forename><surname>Kretov</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3297280.3297378</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th ACM/SIGAPP Symposium on Applied Computing</title>
+		<meeting>the 34th ACM/SIGAPP Symposium on Applied Computing</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Dynamic memory induction networks for few-shot text classification</title>
+		<author>
+			<persName><forename type="first">Ruiying</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binhua</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongbin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodan</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.102</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1087" to="1094" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Momentum contrast for unsupervised visual representation learning</title>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoqi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saining</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ross</forename><surname>Girshick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9729" to="9738" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Meta-learning in neural networks: A survey</title>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Hospedales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antreas</forename><surname>Antoniou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Micaelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amos</forename><surname>Storkey</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/TPAMI.2021.3079209</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Pattern Analysis and Machine Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">44</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="5149" to="5169" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Few-shot slot tagging with collapsed dependency transfer and label-enhanced task-adaptive projection network</title>
+		<author>
+			<persName><forename type="first">Yutai</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongkui</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijia</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.128</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1381" to="1393" />
+		</imprint>
+	</monogr>
+	<note>Online. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning to remember rare events</title>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Nachum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurko</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samy</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">5th International Conference on Learning Representations</title>
+		<title level="s">Conference Track Proceedings. OpenReview</title>
+		<meeting><address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-04-24">2017. 2017. April 24-26, 2017</date>
+		</imprint>
+	</monogr>
+	<note>net</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">3rd International Conference on Learning Representations, ICLR 2015</title>
+		<meeting><address><addrLine>San Diego, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-05-07">2015. May 7-9, 2015</date>
+		</imprint>
+	</monogr>
+	<note>Conference Track Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Zero-shot adaptive transfer for conversational language understanding</title>
+		<author>
+			<persName><forename type="first">Sungjin</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahul</forename><surname>Jha</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v33i01.33016642</idno>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirty-Third AAAI Conference on Artificial Intelligence, AAAI 2019, The Thirty-First Innovative Applications of Artificial Intelligence Conference, IAAI 2019, The Ninth AAAI Symposium on Educational Advances in Artificial Intelligence</title>
+		<meeting><address><addrLine>Honolulu, Hawaii, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2019-01-27">2019. 2019. January 27 -February 1, 2019</date>
+			<biblScope unit="page" from="6642" to="6649" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Lgm-net: Learning to generate matching networks for few-shot learning</title>
+		<author>
+			<persName><forename type="first">Huaiyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiming</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chongyang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feiyue</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bao-Gang</forename><surname>Hu</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3825" to="3834" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Oneshot learning of object categories</title>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Fergus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Perona</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/TPAMI.2006.79</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Pattern Analysis and Machine Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="594" to="611" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Coach: A coarse-to-fine approach for cross-domain slot filling</title>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Indra Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.3</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="19" to="25" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Spatial contrastive learning for few-shot classification</title>
+		<author>
+			<persName><forename type="first">Yassine</forename><surname>Ouali</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Céline</forename><surname>Hudelot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myriam</forename><surname>Tami</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2012.13831</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Towards robust linguistic analysis using OntoNotes</title>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Sameer Pradhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nianwen</forename><surname>Moschitti</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tou</forename><surname>Hwee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Uryupina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventeenth Conference on Computational Natural Language Learning</title>
+		<meeting>the Seventeenth Conference on Computational Natural Language Learning<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="143" to="152" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Samy Bengio, and Oriol Vinyals</title>
+		<author>
+			<persName><forename type="first">Aniruddh</forename><surname>Raghu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maithra</forename><surname>Raghu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.09157</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Rapid learning or feature reuse? towards understanding the effectiveness of maml</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Robust zero-shot cross-domain slot filling with example values</title>
+		<author>
+			<persName><forename type="first">Darsh</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raghav</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Fayazi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilek</forename><surname>Hakkani-Tur</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1547</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="5484" to="5490" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Prototypical networks for few-shot learning</title>
+		<author>
+			<persName><forename type="first">Jake</forename><surname>Snell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Swersky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Zemel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Long Beach, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-09">2017. 2017. December 4-9, 2017</date>
+			<biblScope unit="page" from="4077" to="4087" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Meta-transfer learning for few-shot learning</title>
+		<author>
+			<persName><forename type="first">Qianru</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaoyao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tat-Seng</forename><surname>Chua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernt</forename><surname>Schiele</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="403" to="412" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Introduction to the CoNLL-2003 shared task: Language-independent named entity recognition</title>
+		<author>
+			<persName><forename type="first">Erik</forename><forename type="middle">F</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fien</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meulder</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Conference on Natural Language Learning at HLT-NAACL 2003</title>
+		<meeting>the Seventh Conference on Natural Language Learning at HLT-NAACL 2003</meeting>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="142" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">An empirical study of example forgetting during deep neural network learning</title>
+		<author>
+			<persName><forename type="first">Mariya</forename><surname>Toneva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Remi</forename><surname>Tachet Des Combes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><forename type="middle">J</forename><surname>Gordon</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1812.05159</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Gokhan</forename><surname>Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renato</forename><forename type="middle">De</forename><surname>Mori</surname></persName>
+		</author>
+		<title level="m">Spoken language understanding: Systems for extracting semantic information from speech</title>
+		<imprint>
+			<publisher>John Wiley &amp; Sons</publisher>
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Matching networks for one shot learning</title>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Blundell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daan</forename><surname>Wierstra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 29: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-12-05">2016. 2016. December 5-10, 2016</date>
+			<biblScope unit="page" from="3630" to="3638" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Prior omission of dissimilar source domain(s) for cost-effective few-shot learning</title>
+		<author>
+			<persName><forename type="first">Zezhong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongru</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wai</forename><surname>Chung Kwan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kam-Fai</forename><surname>Wong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Conference on Natural Language and Speech Processing (IC-NLSP 2022)</title>
+		<meeting>the 5th International Conference on Natural Language and Speech Processing (IC-NLSP 2022)<address><addrLine>Trento, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="30" to="39" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">The gum corpus: Creating multilayer resources in the classroom</title>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Zeldes</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s10579-016-9343-x</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Lang. Resour. Eval</title>
+		<imprint>
+			<biblScope unit="volume">51</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="581" to="612" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">MZET: Memory augmented zero-shot finegrained named entity typing</title>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Congying</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chun-Ta</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.7</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain (Online</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="77" to="87" />
+		</imprint>
+	</monogr>
+	<note>International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Vector projection network for few-shot slot tagging in natural language understanding</title>
+		<author>
+			<persName><forename type="first">Su</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruisheng</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2009.09568</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

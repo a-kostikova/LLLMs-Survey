@@ -1,0 +1,1304 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Examining Consistency of Visual Commonsense Reasoning based on Person Grounding</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Huiju</forename><surname>Kim</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science and Engineering</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Youjin</forename><surname>Kang</surname></persName>
+							<email>yjkang10@korea.ac.kr</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science and Engineering</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Sangkeun</forename><surname>Lee</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science and Engineering</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department">Department of Artificial Intelligence</orgName>
+								<orgName type="institution">Korea University</orgName>
+								<address>
+									<settlement>Seoul</settlement>
+									<country key="KR">Republic of Korea</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Examining Consistency of Visual Commonsense Reasoning based on Person Grounding</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">3FBE51F8CCBEBC8BA0752D676303E4A2</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:51+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Given an image depicting multiple individuals, humans are capable of inferring each individual's emotions, intentions, and social norms based on commonsense understanding. However, a machine's ability of commonsense reasoning about distinct individuals in images remains underexplored. In this study, we examine the consistency of visual commonsense reasoning based on person grounding. We introduce a novel test dataset called Visual Commonsense Reasoning-Contrast Sets (VCR-CS) to evaluate whether models can reason about individual people in an image by changing the person tags in the questions and answers. We benchmark various vision-language models on VCR-CS and observe that they fail in consistent commonsense reasoning about different people in one image, showing a performance decrease of up to 31.5%. To mitigate such failures, we propose a multi-task learning framework called Personcentric groundIng eNhanced Tuning (PINT). Our framework enhances a model's ability to perform person-grounded commonsense reasoning by leveraging two novel person-centric pretraining tasks: Image Person-based Text Matching and Person-Masked Language Modeling. The experimental results revealed the effectiveness of PINT by showing the lowest performance degradation on VCR-CS and the improvements in consistency and sensitivity metrics. Our dataset and code are publicly available 1 .</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Commonsense reasoning from visual scenes involves inferring about people's emotions, intentions, and social norms based on a commonsense understanding of the given image <ref type="bibr" target="#b33">(Zellers et al., 2019)</ref>. It plays a crucial role when machines are required to operate in person-centric scenarios by leveraging commonsense knowledge about people's thoughts, behaviors, and interactions in dynamic situations <ref type="bibr" target="#b30">(You et al., 2022)</ref>. Such an ability should be consistently applied, even though commonsense reasoning processes may differ for different individuals in different situations. For example, Figure <ref type="figure" target="#fig_0">1</ref> depicts the different situations for [PERSON1] and <ref type="bibr">[PERSON5]</ref>, which leads to varying reasoning processes for individuals. This type of person-grounded commonsense reasoning often shapes the inferences about people in a given situation.</p><p>In the fields of vision and language, several datasets <ref type="bibr" target="#b33">(Zellers et al., 2019;</ref><ref type="bibr" target="#b22">Park et al., 2020;</ref><ref type="bibr" target="#b18">Lei et al., 2020;</ref><ref type="bibr" target="#b8">Dong et al., 2022;</ref><ref type="bibr" target="#b30">You et al., 2022)</ref> that focus on the reasoning about individuals using visual commonsense knowledge have been proposed. In one of the notable datasets, VCR <ref type="bibr" target="#b33">(Zellers et al., 2019)</ref>, the models are required to provide answers with justifications for commonsense questions related to the individuals in the given images. In such scenarios, the ability of vision-language (VL) models to leverage accurate person grounding is a significant factor in commonsense reasoning <ref type="bibr" target="#b33">(Zellers et al., 2019</ref><ref type="bibr" target="#b35">(Zellers et al., , 2021</ref><ref type="bibr" target="#b34">(Zellers et al., , 2022))</ref>, however, this has not received enough research attention.</p><p>A recently released dataset called HumanCog <ref type="bibr" target="#b30">(You et al., 2022)</ref> focuses on person-centric visual grounding, which requires reasoning regarding which person in an image is being referred to in the commonsensical description. However, we argue that in general situations where such commonsense explanations are not explicitly provided, appropriate commonsense reasoning about individuals should be performed. Moreover, evaluating the consistent commonsense reasoning abilities of various individuals depicted in images remains challenging. Interestingly, in our pilot experiment, we observed that various Transformer-based VL models <ref type="bibr" target="#b21">(Lu et al., 2019;</ref><ref type="bibr" target="#b11">Gan et al., 2020;</ref><ref type="bibr">Chen et al., 2020b;</ref><ref type="bibr" target="#b34">Zellers et al., 2022;</ref><ref type="bibr" target="#b3">Cho et al., 2021)</ref> trained on VCR achieved an accuracy greater than 40% on VCR subsets where person-grounding information was not provided.</p><p>In this study, we propose a novel test dataset called Visual Commonsense Reasoning-Contrast Sets (VCR-CS) to investigate the consistent commonsense reasoning abilities of individuals depicted in images. VCR-CS is a challenging dataset that leads the model to predict incorrect answers when the model ignores the person referred to in the text description. The dataset comprises original VCR validation examples and manually edited contrast examples in which the person mentioned in the original question is changed to another person in such a manner that the gold label changes. We then benchmark six visual commonsense reasoning models on VCR-CS and observed a significant performance decrease (∼31.5%) on the suggested hard-negative examples. We then evaluate the models on VCR-CS using three metrics: accuracy, consistency, and sensitivity. Consistency estimates the model's ability to predict correct answers across the original and contrast examples, and sensitivity measures whether predictions change after perturbations in the person tags.</p><p>We further present Person-centric groundIng eNhanced Tuning (PINT), which is a novel multitask learning framework that enhances the model's ability in commonsense reasoning about different individuals within an image. PINT comprises two person-centric pre-training tasks: (i) Image Person-based Text Matching (IPTM) and (ii) Person-Masked Language Modeling (PMLM). IPTM task guides the model to learn the alignment between images and text queries by focusing on person links in the text. In PMLM task, the model is trained to reconstruct masked person links using a cross-modal context. Extensive experiments revealed that PINT achieved the best performance for most metrics on VCR-CS. Specifically, our experimental results show that PINT improved the consistency by more than 25%, and sensitivity by 15% on VCR-CS dataset. To summarize, our contributions are as follows:</p><p>• In this study, we examine the consistency of visual commonsense reasoning (VCR) systems based on person grounding.</p><p>• We propose a test dataset called VCR-CS, to evaluate whether VCR models can reason about individual people in an image. We benchmark six VL models and observe a performance decrease (up to 31.5%).</p><p>• Furthermore, we introduce PINT, which is an effective multi-task learning framework, to enhance a model's ability in person-grounded commonsense reasoning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Preliminaries</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Vision-Language Model</head><p>Transformer-based VL models <ref type="bibr">(Chen et al., 2020b;</ref><ref type="bibr" target="#b11">Gan et al., 2020;</ref><ref type="bibr" target="#b21">Lu et al., 2019;</ref><ref type="bibr" target="#b19">Li et al., 2019;</ref><ref type="bibr" target="#b31">Yu et al., 2021)</ref> benefit from multimodal pre-training to learn universal image-text representation. Given a single image-text pair (I, T ) in a pre-training dataset, the model first encodes the image and text inputs as feature vectors, and the vectors pass through the multilayer transformer to learn crossmodal representations. To learn rich multimodal representations, previous studies <ref type="bibr" target="#b11">(Gan et al., 2020;</ref><ref type="bibr" target="#b21">Lu et al., 2019;</ref><ref type="bibr">Chen et al., 2020b;</ref><ref type="bibr" target="#b35">Zellers et al., 2021</ref><ref type="bibr" target="#b34">Zellers et al., , 2022;;</ref><ref type="bibr" target="#b3">Cho et al., 2021)</ref>   <ref type="bibr">)</ref>, ground truth answer (GT), and distractors (DT).</p><p>Here, we report on one of the distractors for reference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Visual Commonsense Reasoning</head><p>Task Given an image, I, VCR task can be decomposed into two subtasks: (1) q→a: Given question Q, choose the correct answer, A + , out of the four candidate answers.</p><p>(2) qa→r: Given question Q with the correct answer, A + , select the correct rationale, R + , to justify A + from the four rationale candidates. By integrating these two subtasks, the q→ar metric measures whether the model chooses the correct answer with the proper rationale.</p><p>Fine-tuning Strategy Following recent studies <ref type="bibr">(Chen et al., 2020b;</ref><ref type="bibr" target="#b11">Gan et al., 2020;</ref><ref type="bibr" target="#b34">Zellers et al., 2022</ref><ref type="bibr" target="#b35">Zellers et al., , 2021))</ref>, we fine-tuned the model to both subtasks simultaneously by decomposing the multichoice settings into binary classification problems. Mathematically, the objective function for a single VCR example is:</p><formula xml:id="formula_0">L q→a (θ) = -logP θ (a i |I, Q, A i ) (1) L qa→r (θ) = -logP θ (r i |I, Q, A + , R i ) (2)</formula><p>where A i and R i denote the i-th answer and rationale candidate and a i ∈ {0, 1} and r i ∈ {0, 1} are binary labels representing whether A i and R i are correct. θ represents a VL model with a softmax classifier that outputs a predicted probability distribution. Finally, the model is trained to minimize the objective function, L V CR , as follows:</p><formula xml:id="formula_1">L V CR (θ) = L q→a (θ) + L qa→r (θ)</formula><p>(3)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Pilot Experiments</head><p>We conducted a pilot experiment to investigate whether models trained on VCR can predict correct answers without seeing the person referred to in the queries. Person-Masked Modification As shown in Table 1, we conduct an experiment employing personmasked modifications. In this setting, we replaced the person links with [MASK] tokens. Intuitively, if the model cannot predict an answer without seeing the person about whom the question is being asked, the accuracy is similar to that of random settings. From Figure <ref type="figure" target="#fig_1">2</ref>, it is evident that the entire model could predict the correct answers with a probability greater than 40%, without seeing any individual.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Dataset Construction</head><p>To examine the grounded commonsense reasoning of VL models, we proposed a new evaluation dataset called VCR-CS, which is built on top of VCR dataset. VCR-CS comprises pairs of "original" and "contrast" examples, which are denoted by {I, q 1 , a, g 1 } and {I, q 2 , a, g 2 }, respectively. Each example includes an image, a question, multiplechoice answers, and a gold label. The two examples within a pair are distinguished from each other in a simple yet carefully designed manner to investigate person-grounded reasoning.</p><p>Instance candidate selection The creation process begins by selecting the original examples from VCR validation split. In the candidate selection phrase, we excluded instances that either non-person tags in the questions or belonged to the "why" and "where" question types, because these are deemed to inappropriate for generating contrast examples. Moreover, we only consider the examples in which the number of individuals detected in the image ranged from 2 to 15.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Perturbed instance generation</head><p>In this phase, the original question, q 1 , is manually selected from the candidates. The two authors then manually substitute the person reference in q 1 with another person observed in an image to create a contrast question, q 2 . The people queried in each contrast instance are deliberately selected to have different intentions or actions compared to the people described in the original question. Therefore, the expected gold label, which is denoted by g 1 , for the original instance is different from the gold label, which is denoted by g 2 , for the contrast instance (g 1 ̸ = g 2 ). For example, as shown in Figure <ref type="figure" target="#fig_0">1</ref>, if [PERSON5] in the question of the original example is changed to [PERSON1] in the question of the contrast example, the gold label for the contrast example is changed from A2 in the original example to A3. Therefore, we can expect VCR models to predict A2 as the correct answer when the person mentioned in the question is [PERSON5] and predict A3 when [PERSON1].</p><p>Validation To ensure high quality, annotators from Amazon Mechanical Turk (AMT) verify the labels of the instance pairs. Each instance is evaluated by five annotators, and the final label for the example is determined by a majority vote. If the label of the original instance, provided in advance by VCR, does not match the result of the majority vote, the latter is adopted as the final gold label. The agreement score between the annotators measured using Fleiss's kappa <ref type="bibr" target="#b10">(Fleiss, 1971</ref>) is 0.64 (the indicating "Substantial agreement" degree of agreement). Consequently, VCR-CS dataset contains 159 instance pairs 2 . We offer various analyses and distributions of VCR-CS in Appendix A. 2 We experimentally determine the evaluation scale by observing the convergence of the performance of models (see Appendix C).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">The Person-Grounded VCR Model</head><p>To enhance person-grounded reasoning ability, we present a new framework, PINT, which improves the model's ability to perform reasoning about different individuals within an image. PINT is a multi-task learning framework consisting of two pre-training tasks: i) IPTM and ii) PMLM. In PINT, the model learns from both suggested tasks and VCR at the same time. Figure <ref type="figure" target="#fig_2">3</ref> depicts our suggested framework.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Image Person-based Text Matching</head><p>IPTM task aims to determine whether a given question is relevant to the image context by focusing on the person mentioned in the question. We design this task as an image-text matching task that includes hard negatives, where the person links mentioned in the questions are perturbed.</p><p>The training set for our IPTM task is built by reconstructing VCR training set and employing this person-perturbation strategy to obtain hardnegative examples. For each epoch, we randomly select 50% of VCR training examples and apply the following algorithm to the question of these examples to generate hard negatives. First, we create a set of {[PERSON#]} 81 #=1 person links. We consider the person links mentioned in each question as the target links that need to be perturbed. If the image of the example depicts two or more people, the target link is swapped for a person link referring to another person in the image. If only one person appears in the image, the target link is changed to another person link, randomly selected from the set of person links. If the above conditions were not satisfied, the question is replaced by a question of randomly selected example.</p><p>The person perturbation strategy uses the question Q, the ground truth answer A, the ground truth rationale R in each example of VCR to generate a perturbed question, Q, a perturbed ground truth answer Ã, and a perturbed ground truth rationale R. The text sequence S ∈ {S qa , S qar } is produced by either concatenating {Q, A} or {Q, A, R} and is assumed to align with image V . The text sequence S ∈ { Sqa , S qar } is then generated by concatenating either { Q, Ã} or { Q, Ã, R}, and is considered unaligned with image V . The model performs binary classification on both the aligned pair (S, V ) and the misaligned pair ( S, V ), where it is trained to minimize the objective function described below:</p><formula xml:id="formula_2">L IP T M = -E (S,V )∼D [ylogf θ (S, V ) + (1 -y)log(1 -f θ ( S, V ))]<label>(4)</label></formula><p>where f θ is a vision-language model with a sigmoid classifier that outputs a normalized probability vector indicating whether S or S and V are aligned.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Person-Masked Language Modeling</head><p>The goal of PMLM task is to recover corrupted tokens (mainly person links) based on observations of their surrounding tokens and visual regions. This task forces the model to learn the fine-grained connections between the person links and the location of the persons in the image during training. This strategy aims to construct a corrupted input sequence by masking the person links. Given the text sequence S, the object-region links mentioned in the descriptions are replaced with their object names. This preprocessing results in two types of tokens for the input sequence: person links and common words. Then, we apply the two masking strategies to this sequence. First, person links in a given sequence are randomly selected with a probability of 50%. All selected person links are replaced with <ref type="bibr">[MASK]</ref> tokens. This masking strategy increases the sensitivity to person links and guides the model to capture different personal information from distinct tokens. Secondly, if we have 15% of the remaining masking budget, we select common words and decompose this masking budget into 10% random, 10% unconverted, and 80% [MASK] tokens.</p><p>The objective function of PMLM is defined as follows:</p><formula xml:id="formula_3">L P M LM (θ) = -E (S,V )∼D logP θ (S m |S /m , V )) (5)</formula><p>where S /m is the corrupted token sequence obtained by masking S; m is the set of masked token indices; and S m is the masked token sequence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Overall Training Objectives</head><p>Finally, we train the model with three tasks using an overall loss function defined as follows:</p><formula xml:id="formula_4">L total = L V CR + L IP T M + L P M LM (6)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments and Results</head><p>Human Evaluation To measure the difficulty of our tests, we sampled 50% of the contrast set pairs (79 pairs) and conducted an evaluation per question by five AMT annotators. If the workers failed to achieve majority voting or answered the question incorrectly, the question was considered incorrect.</p><p>Baseline We evaluated six re-implemented Transformer-based VL models on VCR-CS. The characteristics of the models differ according to their image encoding choices and Transformer architectures: UNITER <ref type="bibr">(Chen et al., 2020b)</ref>, VILLA <ref type="bibr" target="#b11">(Gan et al., 2020)</ref>, ViLBERT <ref type="bibr" target="#b21">(Lu et al., 2019)</ref>, VL-BART <ref type="bibr" target="#b3">(Cho et al., 2021)</ref>, VL-T5 <ref type="bibr" target="#b3">(Cho et al., 2021)</ref>, and MERLOT-Reserve <ref type="bibr" target="#b34">(Zellers et al., 2022)</ref>. Further details of the model architecture are provided in Appendix B.1</p><p>Implementation Details The models were trained on a VCR training set (using the published code and hyper-parameters reported in the original papers; see Appendix B.2). In our experiment, we reported the performance of all base-sized models, except for ViLBERT. We evaluated the six trained models on VCR-CS and VCR validation sets. We fine-tuned VILLA model using PINT scheme on VCR training set. We adopted an additional training schedule based on a previous study <ref type="bibr">(Chen et al., 2020a)</ref>. Specifically, in the early training process, we focused on training IPTM and PMLM and then shifted to training VCR towards the end of the process (see Appendix B.3).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Evaluation Metrics</head><p>We introduce two metrics to evaluate the person-grounded commonsense reasoning ability: Consistency and Sensitivity. Following <ref type="bibr" target="#b12">(Gardner et al., 2020)</ref>, Consistency is defined as whether all the elements of the contrast set pair are accurately predicted. Mathematically, this is expressed as:</p><formula xml:id="formula_5">Consistency = 1 N N i=1 1[(y i o = g i o ) ∧ (y i p = g i p )]</formula><p>where the model-predicted labels y i o , y i p on i th original and perturbed questions are matched to the gold labels, g i o and g i p , respectively.  Sensitivity is the average percentage when the examples of the contrast set pair were correctly predicted, in cases where the model predictions are different between the examples. It can be written as:</p><formula xml:id="formula_6">Sensitivity = N i=1 1 [(y i o = g i o ) ∧ (y i p = g i p )] [(y i o ̸ = y i p )]</formula><p>Furthermore, we report the model accuracy of the original and contrast examples as an additional evaluation metric for VCR-CS.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Challenges faced by VCR models on VCR-CS</head><p>We evaluated the state-of-the-art models on VCR benchmarks on VCR-CS. Table <ref type="table" target="#tab_2">2</ref> shows that the human performance on the contrast examples was similar to that on the original examples. Furthermore, unlike the baseline models, the human performance was 1.3% higher in the contrast examples and achieved 93.1% at Sensitivity. This indicates that humans usually make decisions based on the person links mentioned in a question.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>PINT improves person-grounded reasoning</head><p>The central part of Comparison with other relevant methods In Table <ref type="table">4</ref>, we present an experiment comparing the person grounding method used for the personcentric visual commonsense task with our method. The first method follows the method in <ref type="bibr" target="#b22">(Park et al., 2020)</ref>, adds text embedding to the visual embedding corresponding to the person, and uses it as the input value for the model. We call this "add person embeddings." The second method follows a previous study <ref type="bibr" target="#b35">(Zellers et al., 2021</ref><ref type="bibr" target="#b34">(Zellers et al., , 2022) )</ref> and displays the corresponding image area in color related to each person designation. We refer to this "Draw person boxes." Both methods insert persongrounding information at the input stage, and our experiments confirmed that these methods failed to maximize the grounding-based reasoning ability in VCR-CS. Moreover, PINT was shown to be more effective than the existing ground-based methods.    Ablation Study Reasoning based on person grounding is integrally learned from our suggested pre-training tasks and VCR task, which is essential for improving person-centric visual commonsense. To verify this, ablation studies were conducted using three objective function variants of PINT. Table <ref type="table" target="#tab_5">5</ref> shows the performance improvement for training VILLA for each objective function that comprises PINT. L IPTM and L PMLM trained together with L VCR help maximize both consistency and sensitivity, complementing each other to improve the grounding-based reasoning ability.</p><p>In addition, we noticed a trade-off between consistency, sensitivity, and accuracy while applying PINT during VCR training. Although there was a significant increase in the consistency and sensitivity on VCR-CS, we observed a slight decrease in the accuracy on VCR validation set when applying PINT strategy to VILLA. We suspect that this effect occurs because the model relies on spurious correlations <ref type="bibr" target="#b28">(Ye and Kovashka, 2021)</ref> to achieve a high performance. Enhancing person-centric reasoning leads to improved consistency but a slight decline in accuracy. This suggests that our consistency and sensitivity metrics can effectively measure the ability of the model to reason about multiple people described in the images.</p><p>Limitations of PINT We performed a detailed qualitative analysis of the limits of PINT on VCR validation set in Figure <ref type="figure" target="#fig_5">5</ref>. We marked the incorrect PINT prediction with a red "X" and the correct answer with a bold. We observed that PINT suffers in some examples in which the correct answer can be predicted by word overlap between the question and the answer. For example, in the example at the bottom in Figure <ref type="figure" target="#fig_5">5</ref>, given an image depicting the outside of a faintly lit warehouse, PINT replies, "It's dark outside". In night scenarios, such a prediction may seem plausible, but it may fail if the overlap between the words used in the questions and answers, "in the warehouse" and "[PERSON1]", can lead to the correct label.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>Person-Centric Vision-Language Task The person-centric vision-language task <ref type="bibr" target="#b33">(Zellers et al., 2019;</ref><ref type="bibr" target="#b8">Dong et al., 2022;</ref><ref type="bibr" target="#b5">Cui et al., 2021;</ref><ref type="bibr" target="#b30">You et al., 2022)</ref>, is mainly based on grounding references to a person; therefore, person-centric visual grounding ability is a crucial component. VCR <ref type="bibr" target="#b33">(Zellers et al., 2019)</ref> is a task that answers commonsensical questions about the people depicted in an image.</p><p>The person-centric visual grounding task <ref type="bibr" target="#b5">(Cui et al., 2021)</ref> aims to predict a mentioned person, given an image and a contextual textual description. The person-centric commonsense grounding task <ref type="bibr" target="#b30">(You et al., 2022)</ref>, which extends a person-centric visual grounding task to a commonsense domain, is designed to identify the person mentioned in the commonsense description in the image. However, they consider grounding and high-level reasoning as separate tasks and focus on each single task. Our study differs from the above-mentioned studies in that we address commonsense reasoning based on person grounding, which can fill the gap between the two tasks.</p><p>Consistency on Contrast Sets Language-based adversarial examples were generated to investigate the robustness of the models in the natural language processing and vision-language fields <ref type="bibr" target="#b36">(Zhou et al., 2020;</ref><ref type="bibr" target="#b27">Wang et al., 2021;</ref><ref type="bibr" target="#b17">Jin et al., 2020;</ref><ref type="bibr" target="#b0">Akula et al., 2020;</ref><ref type="bibr" target="#b12">Gardner et al., 2020;</ref><ref type="bibr" target="#b16">Jimenez et al., 2022)</ref>. In the natural language processing fields, the language model's commonsense reasoning ability is investigated by generating and evaluating dual test samples <ref type="bibr" target="#b36">(Zhou et al., 2020)</ref>. In vision-language fields, the grounding abilities of the visual referring expression models were measured by manipulating the word order of text descriptions and verifying whether the grounding was performed correctly <ref type="bibr" target="#b0">(Akula et al., 2020)</ref>. It is found that the model's performance on various tasks is significantly lower on the contrast sets, which are created by manually changing words in a manner that changes the gold labels <ref type="bibr" target="#b12">(Gardner et al., 2020)</ref>. Although they focused on analyzing a model's poor performance using contrast sets, they did not consider strategies for improving model performance. Our approach suggests a novel training method, PINT, to improve the model's reasoning ability, even though we use contrast sets that are similar to the previous methods.</p><p>Task-Specific Transfer Learning Although large-scale pre-trained language models (PLM) <ref type="bibr" target="#b6">(Devlin et al., 2019;</ref><ref type="bibr" target="#b20">Liu et al., 2019;</ref><ref type="bibr" target="#b4">Clark et al., 2020)</ref> are fine-tuned for various NLP tasks to achieve competitive performance, this fine-tuning approach has limitations in capturing the important patterns of downstream tasks <ref type="bibr" target="#b32">(Yuan et al., 2023;</ref><ref type="bibr" target="#b7">Dodge et al., 2020;</ref><ref type="bibr" target="#b13">Gu et al., 2020)</ref>. To mitigate such a problem, continuous pre-training and finetuning regularization techniques <ref type="bibr" target="#b15">(Hua et al., 2021;</ref><ref type="bibr" target="#b23">Qu et al., 2021;</ref><ref type="bibr" target="#b14">Gururangan et al., 2020;</ref><ref type="bibr" target="#b13">Gu et al., 2020)</ref> are proposed. Continual pre-training of PLM on given downstream domain data has proven effective for final target task performance <ref type="bibr" target="#b14">(Gururangan et al., 2020)</ref>. Task-specific pre-training with a selective masking strategy is suggested for learning task-specific expressions based on domain data <ref type="bibr" target="#b13">(Gu et al., 2020)</ref>. We adopted target-specific tasks, such as a person-centric masking strategy; however, in contrast to the above studies, our framework additionally focuses on person-centric image-text matching in a self-supervised manner.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>In this study, we examined the consistency of visual commonsense reasoning systems based on person grounding. We proposed a novel test dataset called VCR-CS to evaluate whether the models can reason about individuals depicted in an image. We demonstrated that the models trained on VCR dataset exhibited a limited capacity for consistent reasoning regarding different individuals depicted in a given image. To mitigate this problem, we designed a multitask learning framework, PINT, which learns from two person-centric pre-training tasks: IPTM and PMLM. Our experiments show that PINT enhances a model's ability in persongrounded commonsense reasoning, as indicated by the minimal performance decline in VCR-CS and improvements in both consistency and sensitivity metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgement</head><p>This work was supported by the Basic Research Program through the National Research Foundation of Korea (NRF) grant funded by the Korea government (MSIT) (2021R1A2C3010430).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>In this work, we proposed a test dataset and a training methodology to examine and improve the models' ability for person-grounded commonsense reasoning. However, the performance gap with humans shown in experimental results suggests the need for a training set to learn more granular and person-grounded commonsense reasoning. In future studies, we plan to construct a larger dataset for training and extensive evaluation by incorporating an automatic process into VCR-CS construction pipeline. Question CDF</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>VCR-CS VCR val</head><p>Figure <ref type="figure">6</ref>: CDF of questions ordered by frequency. Red and black denote the questions from VCR-CS and VCR validation sets, respectively. We considered the two questions to be the same when they were equal after tokenization, lemmatization, and stop word removal.</p><p>function (CDF) of a question, ordered by frequency, is shown in Figure <ref type="figure">6</ref>. The graph from VCR-CS is closer to x = y, indicating that various questions are contained compared with VCR validation set.</p><p>Figure <ref type="figure">9</ref> shows the inference types required for the questions in VCR-CS. This indicates that VCR-CS is an underlying dataset with diverse types of reasoning. Notably, each answer requires more than one type of inference. We follow the type pattern in <ref type="bibr" target="#b33">(Zellers et al., 2019)</ref>. The center of the bounding box of the person objects obtained by normalization is shown in Figure <ref type="figure">7</ref>. The red dots represent the original set, whereas the yellow dots represent the contrast set. The person positions are more widespread in the contrast set than in the original set. Figure <ref type="figure">8</ref> shows box plots of the normalized size of the bounding boxes of the person tags depicted in the questions. VCR-CS is collected to ask for various sizes of bounding boxes for persons in the images.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Implementation Details</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Baseline Details</head><p>We adopt six Transformer-based vision-language models as baselines. All the baseline models, ex- </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Baseline Implementation Details</head><p>We followed the public code and hyperparameters of the original paper on the baseline models. We trained baseline models and PINT on VCR training dataset with single NVIDIA Tesla V100 GPU with 32GB of VRAM. The detailed code can be found at the following repositories:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Performance Convergence in VCR-CS</head><p>It is only necessary that the contrast evaluation set be sufficiently large enough to verify the substantiated conclusions about the model behavior <ref type="bibr" target="#b12">(Gardner et al., 2020)</ref>. Recent studies <ref type="bibr" target="#b12">(Gardner et al., 2020;</ref><ref type="bibr" target="#b36">Zhou et al., 2020)</ref> have used 70 to 646 contrast sets. Moreover, a study <ref type="bibr">(Yin et al., 2021)</ref> used 108 to 282 QA pairs for evaluating VCR models. Therefore, we drew the performances of the two models, UNITER and VILLA, according to the number of VCR-CS data points to validate their significance for 159 data points. Figure <ref type="figure" target="#fig_7">10</ref> shows that the overall performance of the models in VCR-CS gradually converged from approximately 100 data points.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D VCR subset in pilot experiments</head><p>As a motivation for VCR-CS construction, we conducted a pilot experiment. In the pilot experiment, we investigated whether the models can predict a correct answer without accurate notification of whom the question is asking. We show the statistics of the subset of VCR validation set used in our pilot experiment. It took about 83% of the overall validation dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Validation and Human Evaluation on VCR-CS</head><p>Our VCR-CS dataset was validated and evaluated with the help of 14 and 28 workers from AMT, respectively. VCR-CS dataset was validated, and human performance was assessed through AMT. Our worker selection setting was inspired by that of a previous study <ref type="bibr" target="#b16">(Jimenez et al., 2022)</ref>. A total of 14 and 28 workers participated in the validation and evaluation, respectively, of HITs. The validation instructions and human evaluation instructions can be found in Figures <ref type="figure" target="#fig_8">11</ref> and<ref type="figure" target="#fig_3">12</ref>, respectively. Each HIT for data validation and evaluation comprised ten contrast set pairs. The work of the annotators was validated by in-house workers, who were paid $2 per HIT if their work was accepted. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>1Figure 1 :</head><label>1</label><figDesc>Figure 1: Examples of questions about perturbed person tags with different labels. Existing models face challenges in commonsense reasoning about a person when person tags are perturbed.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The existing VCR model's performance on original (Origin.) subset and masked modification (Masked.) settings.</figDesc><graphic coords="3,304.15,68.03,222.26,134.50" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>QFigure 3 :</head><label>3</label><figDesc>Figure</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Table 2 :</head><label>2</label><figDesc>Figure 4: (a) depicts the image in original (top) and contrast examples (bottom); (b) and (c) visualize the person's grounding without and with applying PINT by applying Grad-CAM for each original and contrast example.</figDesc><graphic coords="6,66.52,268.60,462.25,149.44" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>is [PERSON9] looking at [PERSON8]? A1. [PERSON9] is waiting for [PERSON8] to hand him some money A2. He is curious about what he's writing down A3. [PERSON8] has said something that has caught his interest A4. [PERSON1] is waiting on [PERSON8] to replace the tire on his truck is a light on in the warhouse near [PERSON1]? A1. They are waiting for it to light up so [PERSON2] can play the game. A2. It is dark outside. A3. The candle they had went out. A4. Criminals are hiding in the warehouse, and [PERSON1] is going to confront them.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Qualitative case analysis of VCR validation example where the base model (VILLA) succeeded, but PINT failed. Incorrect PINT predictions are marked with a red "X" and correct answers are in bold.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 7 :Figure 8 :</head><label>78</label><figDesc>Figure 7: Normalized center position of the bounding box for the person depicted in the question. Red and yellow dots denote samples in the original and contrast examples on VCR-CS.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 10 :</head><label>10</label><figDesc>Figure 10: Accuracy on original and contrasting examples of VCR-CS for UNITER and VILLA with varying volumes of data. The x-axis represents the cumulative number of VCR-CS pairs on a logarithmic scale.</figDesc><graphic coords="13,307.23,87.87,216.08,131.90" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 11 :</head><label>11</label><figDesc>Figure 11: Instructions for VCR-CS data validation HIT</figDesc><graphic coords="14,155.76,239.99,285.26,125.70" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2</head><label>2</label><figDesc></figDesc><table><row><cell>Effortless Success of Humans on VCR-CS To</cell></row><row><cell>ensure that the contrast examples are not more dif-</cell></row><row><cell>ficult or noisy than the original examples, we evalu-</cell></row><row><cell>ate whether humans will fail at them. We selected a</cell></row><row><cell>set of 40 pairs from VCR-CS and measured human</cell></row><row><cell>performance for the examples with AMT workers.</cell></row><row><cell>presents the eval-</cell></row><row><cell>uation results for the model. The baseline models</cell></row><row><cell>exhibited a low performance. Consistency changes</cell></row></table><note><p>the ranking between existing VCR models, as the models with significant accuracy gap on VCR validation set (e.g., VILLA and MERLOT-Reserve) have small performance gap in Consistency and Sensitivity. The accuracy of MERLOT-Reserve, which achieved the highest performance in VCR test and validation sets, decreased significantly from 69.18% to 39.62% after [PERSON#] perturbation, thereby showing a tendency similar to that of the other baseline models.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Table 2 presents the effective-Effect of the suggested person-centric pre-training tasks, IPTM and PMLM, compared to the original tasks, ITM and MLM. Performance in consistency and sensitivity metrics is enhanced by both IPTM and PMLM.</figDesc><table><row><cell></cell><cell></cell><cell cols="2">VCR-CS</cell><cell></cell><cell>VCR</cell></row><row><cell>Tasks</cell><cell></cell><cell cols="2">Consistency Sensitivity</cell><cell cols="3">Q→A QA→R Q→AR</cell></row><row><cell cols="2">VCR + ITM + MLM</cell><cell>19.08</cell><cell>46.03</cell><cell>73.72</cell><cell>76.64</cell><cell>56.68</cell></row><row><cell cols="2">VCR + IPTM + PMLM</cell><cell>24.34</cell><cell>57.81</cell><cell>73.53</cell><cell>76.51</cell><cell>56.49</cell></row><row><cell cols="2">VCR + IPTM + MLM</cell><cell>18.42</cell><cell>45.9</cell><cell>73.87</cell><cell>76.54</cell><cell>56.94</cell></row><row><cell cols="2">VCR + IPTM + PMLM (ours.)</cell><cell>25.66</cell><cell>58.21</cell><cell>73.97</cell><cell>76.71</cell><cell>56.82</cell></row><row><cell></cell><cell cols="2">VCR-CS</cell><cell>soning.</cell><cell></cell><cell></cell></row><row><cell>Methods</cell><cell cols="2">Consistency Sensitivity</cell><cell></cell><cell></cell><cell></cell></row><row><cell>VILLA</cell><cell>20.39</cell><cell>47.69</cell><cell cols="4">Attribution Visualization of PINT training</cell></row><row><cell>w / Add person embeddings</cell><cell>21.71</cell><cell>54.1</cell><cell cols="4">Training using PINT enhanced the models' abil-</cell></row><row><cell>w / Draw person boxes</cell><cell>22.37</cell><cell>51.52</cell><cell cols="4">ity to reason about different individuals on a sin-</cell></row><row><cell>w / PINT (ours.)</cell><cell>25.66</cell><cell>58.21</cell><cell cols="4">gle image. Figure 4 presents a visualization of</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="4">the Grad-CAM (Selvaraju et al., 2017) weights</cell></row><row><cell cols="3">Table 4: Effect of the different grounding methods on</cell><cell cols="4">for VILLA trained without PINT (w/o PINT), and</cell></row><row><cell cols="3">VCR-CS dataset. While the two methods that inject grounding information into the model input show a slight performance improvement, PINT that learns to focus on the grounding information achieved the highest performance gain.</cell><cell cols="4">VILLA trained using PINT (w/ PINT). The brighter the area of the image, the more the model referred to the region when reasoning. For the given origi-nal question in the first row, "What is [PERSON3]</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="4">doing?," a model trained without PINT focuses</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="4">more on irrelevant visual reasons, such as the [PER-</cell></row><row><cell cols="3">ness of the proposed scheme (PINT). PINT shows</cell><cell cols="4">SON6]. In contrast, given the person-perturbed</cell></row><row><cell cols="3">the lowest performance degradation from the origi-</cell><cell cols="4">question in the second row, "What is [PERSON6]</cell></row><row><cell cols="3">nal to contrast examples in VCR-CS. It gains the</cell><cell cols="4">doing?," a model trained with PINT focuses highly</cell></row><row><cell cols="3">performance by up to 5.27% and 10.52% on the</cell><cell cols="4">on the [PERSON6]-relevant regions and less on</cell></row><row><cell cols="3">two metrics: Consistency and Sensitivity. These</cell><cell cols="4">other objects. The visualization shows that PINT,</cell></row><row><cell cols="3">results indicate that PINT, as a training strategy,</cell><cell cols="4">when applied as a training strategy, effectively al-</cell></row><row><cell cols="3">improves the model's reasoning ability based on</cell><cell cols="4">lows the model to focus more on the person de-</cell></row><row><cell cols="3">person grounding. However, compared to human</cell><cell cols="3">scribed in the question.</cell></row><row><cell cols="3">performance, there is still room for improvement.</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">Effectiveness of the person-centric tasks IPTM</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">and PMLM are more challenging and enhanced</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">versions of ITM and MLM, respectively. They gen-</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">erate training examples by focusing on person refer-</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">ences, thereby allowing the model to learn person-</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">grounded reasoning. In contrast, ITM and MLM</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">randomly generate training instances. Specifically,</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">we train the model by replacing IPTM with ITM</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">or PMLM with MLM. In Table 3, we show that</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">IPTM-ITM and PMLM-MLM variants performed</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">inferiorly in terms of both Consistency and Sen-</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">sitivity than PINT. This suggests that training on</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">both ITM and PMLM tasks is effective for reason-</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">ing tasks that rely on person grounding. The re-</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">sults reveal the importance of training sophisticated</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">person-centric tasks to improve a model's ability</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">in consistent person-grounded commonsense rea-</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Main ablative experiments of PINT on VCR-CS and original VCR validation sets. The performances in all VCR-CS metrics are improved by both IPTM and PMLM, with a slight decrease in VCR validation set.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>Dataset statistics for VCR-CS compared to VCR validation set (VCR val.).</figDesc><table><row><cell></cell><cell></cell><cell cols="2">VCR-CS VCR val.</cell></row><row><cell cols="2">Number of questions</cell><cell>159</cell><cell>26534</cell></row><row><cell cols="2">Number of images</cell><cell>143</cell><cell>9929</cell></row><row><cell cols="2">Number of movies covered</cell><cell>16</cell><cell>244</cell></row><row><cell cols="2">Average question length</cell><cell>6.38</cell><cell>6.63</cell></row><row><cell cols="2">Average answer length</cell><cell>7.08</cell><cell>7.65</cell></row><row><cell cols="2">Average # of objects mentioned</cell><cell>1.88</cell><cell>1.85</cell></row><row><cell cols="2">Question versus Image ratio</cell><cell>1.11</cell><cell>2.67</cell></row><row><cell>1.0</cell><cell></cell><cell></cell></row><row><cell>0.8</cell><cell></cell><cell></cell></row><row><cell>0.6</cell><cell></cell><cell></cell></row><row><cell>0.4</cell><cell></cell><cell></cell></row><row><cell>0.2</cell><cell></cell><cell></cell></row><row><cell>0.0 0.0</cell><cell cols="2">0.2 Fraction of cumulative question 0.4 0.6 0.8</cell><cell>1.0</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Dataset Analysis</head><p>In this section, we offer dataset statistics and an analysis of question frequency, inference types, and bounding boxes of persons depicted in VCR-CS questions. The high-level dataset statistics are presented in Table <ref type="table">6</ref>. The average question length, answer length, and number of objects mentioned in VCR-CS and VCR validation sets are similar. The question of the over-image ratio denotes how different images are used for the questions. The results revealed that VCR-CS uses various questions from different images. The cumulative distribution   We set a batch size of 32 data points, and searched learning rate between 6e-5, 5e-5 and 4e-5. We optimized the model employing the RecAdam <ref type="bibr">(Chen et al., 2020a)</ref> optimizer, with a setting of k = 0.1 and t 0 = 1000. The training step was searched between 8000, 12000, 16000 and 24000.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Words aren&apos;t enough, their order matters: On the robustness of grounding visual referring expressions</title>
+		<author>
+			<persName><forename type="first">Arjun</forename><surname>Akula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Spandana</forename><surname>Gella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaser</forename><surname>Al-Onaizan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song-Chun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.586</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6555" to="6565" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Recall and learn: Fine-tuning deep pretrained language models with less forgetting</title>
+		<author>
+			<persName><forename type="first">Sanyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutai</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangzhan</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7870" to="7881" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">UNITER: Universal image-text representation learning</title>
+		<author>
+			<persName><forename type="first">Yen-Chun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Licheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><forename type="middle">El</forename><surname>Kholy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingjing</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-030-58577-8_7</idno>
+	</analytic>
+	<monogr>
+		<title level="m">European Conference on Computer Vision</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="104" to="120" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Unifying vision-and-language tasks via text generation</title>
+		<author>
+			<persName><forename type="first">Jaemin</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1931" to="1942" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">ELECTRA: Pretraining text encoders as discriminators rather than generators</title>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Who&apos;s waldo? linking people across text and images</title>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Apoorv</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Snavely</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hadar</forename><surname>Averbuch-Elor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF International Conference on Computer Vision</title>
+		<meeting>the IEEE/CVF International Conference on Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1374" to="1384" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting>the Conference of the North American Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Dodge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Ilharco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roy</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2002.06305</idno>
+		<title level="m">Fine-tuning pretrained language models: Weight initializations, data orders, and early stopping</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Premise-based multimodal reasoning: Conditional inference on joint textual and visual clues</title>
+		<author>
+			<persName><forename type="first">Qingxiu</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziwei</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heming</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tian</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shoujie</forename><surname>Tong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongyu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weidong</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baobao</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhifang</forename><surname>Sui</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.66</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the</title>
+		<meeting>the 60th Annual Meeting of the</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="932" to="946" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">An Image is Worth 16x16 Words: Transformers for image recognition at Scale</title>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Dosovitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dirk</forename><surname>Weissenborn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaohua</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Minderer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georg</forename><surname>Heigold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Gelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Houlsby</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Measuring nominal scale agreement among many raters</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Fleiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Psychological Bulletin</title>
+		<imprint>
+			<biblScope unit="volume">76</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="378" to="782" />
+			<date type="published" when="1971">1971</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Large-scale adversarial training for vision-and-language representation learning</title>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yen-Chun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingjing</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="6616" to="6628" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Evaluating models&apos; local decision boundaries via contrast sets</title>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victoria</forename><surname>Basmov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Bogin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sihao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pradeep</forename><surname>Dasigi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dheeru</forename><surname>Dua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanai</forename><surname>Elazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ananth</forename><surname>Gottumukkala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitish</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Ilharco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Khashabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangming</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.117</idno>
+		<editor>F. Liu, Phoebe Mulcaire, Qiang Ning, Sameer Singh, Noah A. Smith, Sanjay Subramanian, Reut Tsarfaty, Eric Wallace, Ally Zhang, and Ben Zhou</editor>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1307" to="1323" />
+		</imprint>
+	</monogr>
+	<note>In Findings of the Association for Computational Linguistics: EMNLP 2020</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Train no evil: Selective masking for task-guided pre-training</title>
+		<author>
+			<persName><forename type="first">Yuxian</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengyan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaozhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.566</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6966" to="6974" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Don&apos;t stop pretraining: Adapt language models to domains and tasks</title>
+		<author>
+			<persName><forename type="first">Suchin</forename><surname>Gururangan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Marasović</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swabha</forename><surname>Swayamdipta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doug</forename><surname>Downey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.740</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8342" to="8360" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Noise stability regularization for improving bert fine-tuning</title>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingjian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dejing</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng-Zhong</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiebo</forename><surname>Luo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the North American Chapter</title>
+		<meeting>the Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Human Language Technologies</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3229" to="3241" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">CARETS: A consistency and robustness evaluative test suite for VQA</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olga</forename><surname>Russakovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.443</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6392" to="6405" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Is bert really robust? a strong baseline for natural language attack on text classification and entailment</title>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijing</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joey</forename><forename type="middle">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Szolovits</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v34i05.6311</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8018" to="8025" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">What is more likely to happen next? videoand-language future event prediction</title>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Licheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tamara</forename><surname>Berg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.706</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8769" to="8784" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Liunian</forename><surname>Harold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Yatskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cho-Jui</forename><surname>Da Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Chang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1908.03557</idno>
+		<title level="m">VisualBERT: A simple and performant baseline for vision and language</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">RoBERTa: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">ViLBERT: Pretraining task-agnostic visiolinguistic representations for vision-and-language tasks</title>
+		<author>
+			<persName><forename type="first">Jiasen</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dhruv</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devi</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="13" to="23" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Visual-COMET: Reasoning about the dynamic context of a still image</title>
+		<author>
+			<persName><forename type="first">Jae Sung</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandra</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roozbeh</forename><surname>Mottaghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-030-58558-7_30</idno>
+	</analytic>
+	<monogr>
+		<title level="m">European Conference on Computer Vision</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="508" to="524" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">CoDA: Contrast-enhanced and diversity-promoting data augmentation for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Yanru</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dinghan</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandra</forename><surname>Sajeev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Faster r-cnn: Towards real-time object detection with region proposal networks</title>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>Shaoqing Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ross</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Girshick</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="91" to="99" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Grad-cam: Visual explanations from deep networks via gradient-based localization</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Ramprasaath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Selvaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Cogswell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramakrishna</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devi</forename><surname>Vedantam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dhruv</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Batra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Computer Vision</title>
+		<meeting>the IEEE International Conference on Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="618" to="626" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Certified robustness to word substitution attack with differential privacy</title>
+		<author>
+			<persName><forename type="first">Wenjie</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Xiong</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.87</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter</title>
+		<meeting>the 2021 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Human Language Technologies</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1102" to="1112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A case study of the shortcut effects in visual commonsense reasoning</title>
+		<author>
+			<persName><forename type="first">Keren</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adriana</forename><surname>Kovashka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3181" to="3189" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Broaden the vision: Geodiverse visual commonsense reasoning</title>
+		<author>
+			<persName><forename type="first">Liunian</forename><surname>Da Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziniu</forename><surname>Harold Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nanyun</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2115" to="2129" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Find someone who: Visual commonsense understanding in human-centric grounding</title>
+		<author>
+			<persName><forename type="first">Haoxuan</forename><surname>You</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhecan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shih-Fu</forename><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2022</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="5444" to="5454" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">ERNIE-ViL: Knowledge enhanced vision-language representations through scene graphs</title>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiji</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weichong</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hua</forename><surname>Hao Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haifeng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3208" to="3216" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">HyPe: Better pre-trained language model fine-tuning with hidden representation perturbation</title>
+		<author>
+			<persName><forename type="first">Hongyi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuanqi</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songfang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="3246" to="3264" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">From Recognition to Cognition: Visual Commonsense Reasoning</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6720" to="6731" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">MERLOT reserve: Neural script knowledge through vision and language and Sound</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiasen</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ximing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youngjae</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanpeng</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammadreza</forename><surname>Salehi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Kusupati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Hessel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="16375" to="16387" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">MERLOT: Multimodal neural script knowledge models</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ximing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Hessel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youngjae</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jae</forename><forename type="middle">Sung</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jize</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="23634" to="23651" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Evaluating commonsense in pretrained language models</title>
+		<author>
+			<persName><forename type="first">Xuhui</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leyang</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dandan</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9733" to="9740" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Self Data Augmentation for Out-of-Scope Detection in Dialogues</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Chunpeng</forename><surname>Ma</surname></persName>
+							<email>ma.chunpeng@megagon.ai</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Megagon Labs</orgName>
+								<address>
+									<addrLine>LTD. 1-9-2 Marunouchi Chiyoda-ku</addrLine>
+									<postCode>100-6640</postCode>
+									<settlement>Tokyo, Tokyo</settlement>
+									<region>Recruit Co</region>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Takuya</forename><surname>Makino</surname></persName>
+							<email>makino@megagon.ai</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Megagon Labs</orgName>
+								<address>
+									<addrLine>LTD. 1-9-2 Marunouchi Chiyoda-ku</addrLine>
+									<postCode>100-6640</postCode>
+									<settlement>Tokyo, Tokyo</settlement>
+									<region>Recruit Co</region>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Self Data Augmentation for Out-of-Scope Detection in Dialogues</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2DD32C4882D2E7D59054DDE379255140</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:11+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Detecting out-of-scope (OOS) utterances is crucial in task-oriented dialogue systems, but obtaining enough annotated OOS dialogues to train a binary classifier directly is difficult in practice. Existing data augmentation methods generate OOS dialogues automatically, but their performance usually depends on an external corpus. This dependence not only induces uncertainty, but also reduces the quality of generated dialogues. Specifically, all of them are out-of-domain (OOD).</p><p>Herein we propose SILVER, a self data augmentation method that does not use external data. It addresses issues of previous research and improves the accuracy of OOS detection (false positive rate: 90.5% → 47.4%). Furthermore, SILVER successfully generates highquality in-domain (IND) OOS dialogues in terms of naturalness (percentage: 8% → 68%) and OOS correctness (percentage: 74% → 88%), as evaluated by human workers.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Task-oriented dialogue systems are ubiquitous <ref type="bibr" target="#b1">(Budzianowski et al., 2018;</ref><ref type="bibr" target="#b4">Chiu et al., 2022)</ref>. However, they require human operators to deal with complicated intentions that are beyond their capacities. Thus, out-of-scope (OOS) detection remains a serious issue.</p><p>Due to the lack of OOS annotations in openworld settings, previous research usually detects OOS samples indirectly such as resorting to inscope (INS) samples. Recently, data augmentation methods <ref type="bibr" target="#b21">(Ng et al., 2020;</ref><ref type="bibr" target="#b25">Razumovskaia et al., 2022)</ref> have made it possible to detect OOS directly using a binary classifier.</p><p>One such method is GOLD <ref type="bibr" target="#b2">(Chen and Yu, 2021)</ref>. GOLD uses simple rules to replace utterances in known OOS dialogues with sentences selected from a large pool, making it possible to train a binary classifier to decide OOS dialogues directly. dialogues are generated, GOLD elects from a large candidate list. <ref type="foot" target="#foot_1">2</ref> A large candidate list is a tradeoff with the performance due to the existence of low-quality dialogues.</p><p>To overcome these issues, we propose a method called Self Iterative OOS Labeling via Ensembling Trees (SILVER). SILVER consists of solutions <ref type="bibr">([S1]</ref>  2) Detect OOS using an ensemble of decision trees <ref type="bibr" target="#b19">(Mason et al., 1999)</ref>. • [S3] (ref. <ref type="bibr">§4</ref>.3) Generate OOS dialogues iteratively.</p><p>Figure <ref type="figure" target="#fig_0">1</ref> compares dialogues generated by GOLD and SILVER. The effectiveness of each solution is verified in Section 5, and follow-up experiments (Section 6) deepen the understanding of SILVER's behavior.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.1">Preliminary: Domain and Scope</head><p>Throughout this paper, we distinguish two concepts: domain and scope. We define them as follows.</p><p>Definition 1 (domain). Domain is the subject or topic of a dialogue. Given a set of predefined domains, if the domain of a dialogue belongs to this set, then the dialogue is in-domain (IND). Otherwise, the dialogue is out-of-domain (OOD).</p><p>Definition 2 (scope). Scope is the capability of a chatbot system. Given a chatbot system, if a dialogue can be understood by this chatbot, then the dialogue is in-score (INS). Otherwise, the dialogue is out-of-scope (OOS).</p><p>To clarify their distinction, the following keypoints should be emphasized.</p><p>First, domains (e.g., movie, finance, travel, etc.) reflect the characteristics of dialogues, while scopes (e.g., hotel reservation is beyond the scope of bank chatbot) reflect the characteristics of chatbots.</p><p>Second, when we say a dialogue is OOD or OOS, we consider the dialogue as a whole. This means that even if a dialogue is OOD or OOS, it is possible that the first few utterances are IND or INS.</p><p>Third, the relationships of  <ref type="figure" target="#fig_0">1</ref>).</p><p>2 Related Works</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">OOS detection</head><p>Different natural language processing (NLP) tasks employ OOS detection. Examples include text classification <ref type="bibr" target="#b10">(Fumera et al., 2003;</ref><ref type="bibr" target="#b26">Tan et al., 2019)</ref> and question answering <ref type="bibr" target="#b24">(Rajpurkar et al., 2018;</ref><ref type="bibr" target="#b15">Kamath et al., 2020)</ref>. Various methods have been proposed to detect OOS such as extrapolating to OOS samples <ref type="bibr" target="#b6">(Daumé III, 2007;</ref><ref type="bibr" target="#b30">Yogatama et al., 2019)</ref>, deciding whether to predict or abstain on test examples <ref type="bibr" target="#b8">(Dong et al., 2018;</ref><ref type="bibr" target="#b9">Feng et al., 2019)</ref>, etc. Below, three methods, which are the building blocks of both GOLD and SILVER, are reviewed.</p><p>(1) MaxProb <ref type="bibr" target="#b13">(Hendrycks and Gimpel, 2017)</ref>. A supporting model for a classification task (e.g., intent classification) is trained in advance. If the maximum value of the output probability distribution is below a predetermined threshold, then the input is classified as OOS.</p><p>(2) BertEmbed <ref type="bibr">(Podolskiy et al., 2021)</ref>. For each category, embeddings of all its samples are calculated by fine-tuned BERT <ref type="bibr" target="#b7">(Devlin et al., 2019)</ref>. If an input's embedding is sufficiently far (measured by cosine distance), then the input is classified as OOS.</p><p>(3) Dropout <ref type="bibr" target="#b11">(Gal and Ghahramani, 2016)</ref>. If the predictions of models whose nodes are dropped out randomly agree with each other, then the input is classified as INS. SILVER builds a strong classifier by combining these methods to accurately detect OOS dialogues.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Data augmentation</head><p>Typical data augmentation methods in NLP modify training data by perturbing text directly <ref type="bibr" target="#b28">(Wei and Zou, 2019)</ref>, perturbing latent embedding space <ref type="bibr" target="#b17">(Liu et al., 2019)</ref>, or paraphrasing <ref type="bibr" target="#b32">(Zhang et al., 2019)</ref>.</p><p>In the context of dialogue, data augmentation methods have been proposed for natural language understanding <ref type="bibr" target="#b14">(Hou et al., 2018)</ref> or intent detection <ref type="bibr" target="#b22">(Niu and Bansal, 2019)</ref>. New dialogues are created by utilizing neural networks such as generative adversarial networks <ref type="bibr" target="#b18">(Marek et al., 2021)</ref> or designing training strategies <ref type="bibr" target="#b5">(Cubuk et al., 2018)</ref>.</p><p>Unlike typical methods above, SILVER generates OOS samples via ensemble learning. Its implementation is straightforward with the help of off-the-shelf libraries, while the diverse features for classification provide a flexible architecture.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">GOLD: Generating Out-of-scope Labels</head><p>with Data Augmentation GOLD <ref type="bibr" target="#b2">(Chen and Yu, 2021)</ref> is the data augmentation method most closely related to this work. Given a small set of annotated OOS dialogues (1% of the size of INS), GOLD replaces utterances with sentences selected from an external pool to generate new OOS dialogues. Selected sentences should be in the neighborhood of the original utterances.</p><p>Then GOLD defers to the methods described in Section 2.1 to filter the generated OOS. Majority voting combines predictions of different methods.</p><p>Filtered OOS dialogues are concatenated with the original annotated OOS dialogues and are used to train a binary classifier. GOLD has a practical appeal. Labor-intensive data collection and annotation of OOS are unnecessary, and the data augmentation method is orthogonal to the classification improvements. Both advantages extend its applicability to real scenarios. However, the issues detailed in the next section limit its performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Empirical Investigation of GOLD</head><p>Experiments in this section are conducted on the STAR dataset <ref type="bibr" target="#b20">(Mosig et al., 2020)</ref>. To ensure comparability with Chen and Yu (2021), we followed their configurations and used the same split for train/dev/test.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Issue 1: Dependence on an external pool</head><p>Although an external pool of utterances is an essential component of GOLD, it is not always available for real applications. For example, to make a dialogue system of low-resource languages, collecting enough utterances from native speakers is difficult, let alone generating good dialogues.</p><p>Even assuming the accessibility of external pool of utterance, as reported by Chen and Yu (2021), GOLD's performance largely depends on the choice of the external pool. We argue that there is a second issue: the generated dialogues are all OOD in general. They differ significantly from the IND OOS dialogues in the original training data (see Figure <ref type="figure" target="#fig_0">1</ref> for an example). This deviation limits the effect of generated dialogues on improving the classifier's performance.</p><p>To verify this argument quantitatively, we asked 3 human workers to evaluate 50 randomly sampled dialogues generated by GOLD to decide (1) whether the generated dialogue is really an OOS and (2) whether the generated dialogue is natural enough for comprehension. The first row of Table <ref type="table" target="#tab_1">1</ref> shows the evaluation results. Although most generated dialogues (&gt; 50%) are OOS, only a small number are natural.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Issue 2: Simple election rules</head><p>Election, the stage where OOS dialogues are selected and INS dialogues are removed, is a core component of GOLD. If an INS dialogue mistakenly remains and is used to train the classifier, then it is no surprise that the classification fails.</p><p>Election in GOLD is built upon the three methods introduced in Section 2.1.<ref type="foot" target="#foot_2">3</ref> These methods are too simple to detect OOS dialogues accurately.</p><p>For simplicity, let's consider only MaxProb and BertEmbed. We collect (1) the maximum values from the output probability distributions generated by the supporting model, and (2) the minimum cosine distances of the embeddings between each dialogue and all dialogues from other categories. Figure <ref type="figure" target="#fig_2">2</ref> shows these distributions. The distributions of the first value are similar for both INS and OOS dialogues. Specifically, the modes are both in the interval "0.95-," which is consistent with observations in previous research <ref type="bibr" target="#b29">(Yilmaz and Toraman, 2022)</ref>. For the second value, the distributions for INS and OOS dialogues differ. However, 2 1 2 2 2 3 2 4 2 5 2 6 2 7 2 8 2 9 2 10 0 1,500 there is a large overlap region between the two distributions.</p><p>To summarize, it is impossible to accurately separate INS and OOS for both MaxProb and BertEmbed, regardless of the set threshold value. Consequently, employing simple rules for election introduces a large amount of noise in the generated data, degrading the classification performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Issue 3: Low quality of generated data</head><p>GOLD must enlarge the candidate list size to generate enough dialogues. However, this strategy inevitably introduces a large amount of noise (i.e., INS dialogues) into the generated training data (Figure <ref type="figure">3</ref>), which is intolerable for classifier training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">SILVER: Methodology</head><p>SILVER is proposed to overcome the aforementioned issues of GOLD. Figure <ref type="figure" target="#fig_5">5</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Self candidate generation</head><p>Candidates are generated by swapping utterances in seed OOS dialogues with those in the pool. To achieve this, two questions must be answered.</p><p>How should the utterance pool be built? All utterances of INS dialogues in the training data are used to build the utterance pool because we aim to generate candidates without using external corpora. Furthermore, for a task-oriented dialogue system, we assume that utterances from the user and system are in different clusters. Hence, two pools are built:</p><p>(1) one for system utterances and (2) one for user utterances.</p><p>How should an appropriate utterance be selected? Two criteria are considered to determine appropriate utterances: (1) high similarity to the original utterance and (2) high divergence between each other. Figure <ref type="figure" target="#fig_4">4</ref> illustrates their trade-off. (1) High similarity: By selecting utterances similar to the original one, the naturalness of the original OOS dialogue is kept. This means that the blue points in Figure <ref type="figure" target="#fig_4">4</ref>, which were selected by GOLD, will not be selected by SILVER.</p><p>(2) High divergence: Dialogues generated by simply modifying some words in the original utterances do not improve the classification performance. We hope the generated dialogues differ from each other. This means that selecting the black points in Figure <ref type="figure" target="#fig_4">4</ref> should be avoided.</p><p>Therefore, only appropriate utterances in the sense of high similarity and high divergence (i.e., green points in Figure <ref type="figure" target="#fig_4">4</ref>) should be selected. In practice, utterances are selected from the set N (16) -N (4), where N (k) is the set of k-nearest utterances from the original utterance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Tree ensemble</head><p>Ideally, SILVER should be simple yet flexible, and orthogonal to other studies on OOS detection. Therefore, rather than learning from scratch, we combine the outputs of weak models and build a classifier above them by ensemble learning.</p><p>We observed that each simple rule can be abstracted as a decision tree. For example, given the output probability distribution of supporting model [p 1 , . . . , p l ], MaxProb can be decomposed as a decision tree with nodes "p i &gt; p j ? p i : p j " and leaves "p m &gt; θ ? INS : OOS" (represented in the format of the ternary conditional operator), where m ∈ [1, l] is the index of the maximum value.</p><p>This inspired us to build a strong classifier via tree ensemble methods <ref type="bibr" target="#b19">(Mason et al., 1999)</ref>. Specifically, we adopted the gradient tree boosting algorithm <ref type="bibr" target="#b3">(Chen and Guestrin, 2016)</ref> to assemble simple rules (decision trees). The feature sets consist of three parts, which correspond to the OOS detection methods introduced in Section 2.1.</p><p>(1) Probability-based feature. An intent classifier is trained as the supporting model. Then, given a dialogue d, the supporting model outputs the probability distribution over all intent labels: [p 1 (d), . . . , p l (d)], where l is the number of possible intent labels, and ∀i ∈ [1, l], 0 ≤ p i (d) ≤ 1. Based on this probability distribution, the probability-based feature is calculated as:</p><formula xml:id="formula_0">X prob (d) = [σ -1 (p 1 (d)), . . . , σ -1 (p l (d))], (1)</formula><p>where σ(•) is the standard logistic function.</p><p>(2) Distance-based feature. Given a dialogue d, the distance-based feature is calculated as below:</p><formula xml:id="formula_1">X dist (d) = [Dist(h BERT (d), h BERT (D 1 )), . . . , Dist(h BERT (d), h BERT (D l ))],<label>(2)</label></formula><p>where Dist(•, •) is the cosine distance between two vectors, and h BERT (d) is the representation of the last hidden layer given input d. D i is the collection of all dialogues with intent label i, and h BERT (D i ) is the average of their representations.</p><p>(3) Ensemble-based feature. This is the average of the output probability distributions of three different runs by randomly dropping out different nodes of the baseline intent classifier, which is given as:</p><formula xml:id="formula_2">X drop (d) = 1 3 3 k=1 σ -1 (p k 1 (d)), . . . , 1 3 3 k=1 σ -1 (p k l (d)) ,<label>(3)</label></formula><p>where p k i (d) is the probability of intent label i at the k-th run given dialogue d, after dropping out some nodes of the neural network. The dropout percentage is 10%.</p><p>The final feature set is the concatenation of X prob , X dist and X drop . It is trained on sampled training data. Thus, no extra annotation is needed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Iterative data augmentation</head><p>To make sure enough OOS dialogues are generated, SILVER augments data in an iterative manner. After each iteration, newly generated dialogues are aggregated and considered known OOS dialogues. Then these are used to generate more dialogues in the next iteration. This iterative process generates high-quality dialogues with high efficiency. Modules STAR FLOW ROSTD Pool Elect Iter. AUROC AUPR FPR@.95 FPR@.90 AUROC AUPR FPR@.95 FPR@.90 AUROC AUPR FPR@.95 FPR@.90  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Datasets and configurations</head><p>Besides STAR used in Section 3, we also conducted experiments on FLOW <ref type="bibr" target="#b0">(Andreas et al., 2020)</ref> and ROSTD <ref type="bibr" target="#b12">(Gangal et al., 2020)</ref> data, with the same split for train/dev/test as Chen and Yu (2021).</p><p>The supporting model was a classifier finetuned on the task of intent classification, consisting of a pretrained BERT model 4 , with two feed-forward 4 https://huggingface.co/bert-base-uncased layers above. The model inputs were the first 256 words of the dialogues. The model was optimized using the Adam algorithm (Kingma and Ba, 2014).</p><p>We forced the size of seed OOS dialogues to be 1% of INS, and the target number of generated OOS dialogues was 24 times the seed size.</p><p>Experiment results were evaluated using the following metrics: (1) AUROC, area under receiver operating characteristic curve, (2) AUPR, area under precision-recall curve, and (3) FPR@θ, false positive rate with threshold θ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Results on OOS detection</head><p>Table <ref type="table" target="#tab_4">2</ref> shows the key experiment results of SIL-VER for OOS detection. To verify the effectiveness of the three key components of SILVER corresponding to §4.1 to §4.3, we modified or removed some of these components. The effectiveness of each component is summarized below.</p><p>Effectiveness of self candidate generation. The performance of SILVER depends on the characteristics of the dataset. Hence, it performed differently on the three datasets.</p><p>For STAR, "Int." and "Ext." performed similarly.</p><p>As noted by <ref type="bibr" target="#b2">Chen and Yu (2021)</ref>, PersonaChat is particularly suitable for OOS detection of STAR data because it is a rich source of OOS dialogues. For FLOW, "Int." performed better, indicating that PersonaChat is not well suited to build utterance pools. By building pools and generating candidates from training data, SILVER consistently performed well.</p><p>For ROSTD, "Ext." performed better. This is because all dialogues in ROSTD contained only one utterance. By replacing this utterance with utterances selected from the INS samples in the training data, the generated dialogues contained only INS dialogues and were filtered during the election. For the case of 'Int. + Rnd.," the generated INS dialogues were randomly labeled as OOS, importing a large amount of noise into training data, which significantly decreased the classification performance. For cases of "Int. + MV" and "Int. + TE," almost no new OOS dialogues were generated. In contrast, for the case of "Ext.," OOS dialogues were generated successfully, improving the classification performance.</p><p>Effectiveness of tree ensemble. Tree ensembles outperformed majority voting, and both outperformed random selection. This was verified by empirical investigations in Section 3.2. Although three kinds of features provided sufficient information for classification, the simple rules adopted by GOLD are too coarse to elect OOS dialogues accurately, even with majority voting. However, tree ensembles are an ideal substitute.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Effectiveness of iterative data augmentation.</head><p>In all cases, iterative data augmentation improved the performance of OOS detection. Note that for cases without iterative data augmentation, we enlarged the candidate list to ensure enough OOS dialogues were generated. Hence, the performance gain was due to the improvement of quality, rather than quantity of the candidate lists.</p><p>In summary, except for special cases (e.g., length-1 dialogues in ROSTD), combining all three components of SILVER achieves the best performance for OOS detection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Evaluation of data quality</head><p>Next, we analyzed the quality of the generated data. It should be emphasized that the quality of generated dialogues is evaluated intrinsically not extrinsically. Specifically, we focus on evaluating (1) the quality of the generated dialogue itself and</p><p>(2) the generated data as a whole. Herein the gain of the classification performance contributed by generated data is not considered. Although intrinsic high-quality does not necessarily contribute to extrinsic tasks directly, it is indispensable in real applications.</p><p>To evaluate the quality of generated dialogue itself, we evaluate whether the generated dialogues are (1) OOS and (2) natural. The second row of Table <ref type="table" target="#tab_1">1</ref> shows the human evaluation results of dialogues generated by SILVER. Compared with the first row, SILVER outperformed GOLD on both evaluation metrics.</p><p>To evaluate the quality of generated data as a whole, we compared the generated data of GOLD and SILVER with the original data. This resulted in the following observations: SILVER-generated data has a larger diversity. It is possible that one utterance was selected twice during generation. This reduces the diversity of the generated data. Table <ref type="table" target="#tab_5">3</ref> shows the numbers of unique utterances in the generated data and the utterance pools. Although SILVER utilized a much smaller pool (built on training data), the generated data contains more unique utterances, indicating a larger diversity.</p><p>SILVER generated IND OOS data. An advantage of SILVER is its ability to generate INS OOS dialogues. We calculated the representations of the original OOS dialogues and the dialogues generated by GOLD or SILVER using vanilla RoBERTa <ref type="bibr" target="#b17">(Liu et al., 2019)</ref>. Figure <ref type="figure" target="#fig_6">6</ref> shows the 2-dim t-SNE visualization (Van der Maaten and Hinton, 2008) of these representations along with the average Mahalanobis distances between clusters. The OOS dialogues generated by GOLD differed from the original ones, indicating that these dialogues are OOD. In contrast, the overlap between the original OOS and SILVER-generated dialogues is large, implying that SILVER generates IND data. Int.</p><p>Figure <ref type="figure">7</ref>: Number of generated dialogues after one iteration. To control the size of the utterance pool, a different number of utterances is randomly selected.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion and Analysis</head><p>We conducted follow-up experiments to demonstrate the necessity of the components in SILVER and to deepen the understanding of its behavior.</p><p>Stability on small utterance pools. It is possible that SILVER fails when there is insufficient training data to build the utterance pool. We claim that SILVER performs stably even when the pool contains only a few utterances. Figure <ref type="figure">7</ref> shows the number of generated dialogues after one iteration with different pool sizes. Given only 2 5 utterances in the pool, SILVER successfully generated a reasonable number of OOS dialogues no matter how the pools are built.   Using these generated dialogues to train a classifier for OOS detection, we obtain results shown in Table <ref type="table" target="#tab_7">4</ref>. With only 2 5 internal utterances, OOS detection performs sufficiently well. Surprisingly, increasing pool sizes is not necessarily beneficial to OOS detection, due to the increment of the possibility of bringing in noise.</p><p>Trade-off of similarity and divergence for candidate generation. Table <ref type="table" target="#tab_8">5</ref> highlights the requirement for two criteria to select the appropriate utterances during the candidate generation introduced in Section 4.1. Because utterances in N (4) are almost the same as those in the training data, the generated dialogues do not improve the classification performance. Meanwhile, N (16) provides more choices for candidate generation, and removing utterances from N (4) further improves the performance.</p><p>Feature set for tree ensemble. Tree ensembles use three types of features. To verify their necessities, we evaluated them in terms of three metrics.  • Overall F1. This is a total evaluation of the ensemble classifier that considers the issue of data unbalance.</p><p>Table <ref type="table">6</ref> shows the results of these metrics for different feature sets. Precision on INS is equally good for all three feature sets, indicating the feasibility of learning a classifier using these features. <ref type="foot" target="#foot_3">5</ref>Combining all feature sets slightly increased both precision on INS and recall on OOS due to the power of the tree ensemble algorithm.</p><p>High-efficiency iterative data augmentation. As introduced in Section 4.3, an advantage of iterative data augmentation is high efficiency, which means that sufficient data can be obtained quickly. Table <ref type="table" target="#tab_10">7</ref> verifies this advantage. Initially (Iteration 0), there is only a small seed of OOS dialogues. However, the number of OOS dialogues exceeded the goal after two epochs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We proposed SILVER to generate OOS dialogues without using external data. The components in SILVER are designed to overcome issues and realize the full potential of state-of-the-art augmentation methods. Using only training data, SILVER successfully generated high-quality IND OOS dialogues, which not only contributed to the improved performance of extrinsic tasks such as OOS detection, but are also natural enough intrinsically, indicating the potential for future applications.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Follow-up experiments to investigate situations where SILVER fails were conducted to demonstrate the limitations of the proposed method. SILVER failed on the ROSTD data using utterance pools built on training data (ref. <ref type="table" target="#tab_4">Table 2</ref>). Thus, we investigated the characteristics of the target data (e.g., ROSTD), which may hinder SILVER's success.</p><p>Figure <ref type="figure" target="#fig_7">8</ref> investigates the dialogue length distribution of the target data. SILVER tends to filter out short dialogues while keeping long dialogues. This is within our expectations. A generated dialogue of length 3 contains 1 3 ≈ 33% utterances selected from the INS part in the training data. In contrast, this is reduced to 1 9 ≈ 11% for a dialogue of length 9. The limiting case has only 1 utterance in each dialogue. Consequently, all generated dialogues contain 100% INS utterances. This is exactly the case for the ROSTD data. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>The proposed method aims to generate dialogues to aid in training a classifier for OOS detection. Instead of generating dialogues from scratch, utterances are extracted from existing benchmark datasets, including STAR, FLOW, ROSTD, and PersonaChat. To our knowledge, these datasets have been collected in a legal manner and do not contain sentences with ethics issues. They are widely used in previous studies in the area of NLP. Therefore, our proposed method is unable to generate data that can be used for unethical or illegal purposes. We comply with the ACL Ethics Policy.  identification of individuals impossible. We randomly sampled 100 dialogues, and asked human workers to check these dialogues. We found that these dialogues do not contain any information that names or uniquely identifies individual people, and do not contain offensive content.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Details of Experiments</head><p>We have reported key configurations in Section 5.1.</p><p>In this section, we report more details of experiments to reproduce reported results. All experiments were conducted on Google Cloud Platform. 6 The instance used for experiments contains one GPU (Nvidia T4).</p><p>For data augmentation, we implement the tree ensemble module using XGBoost library. 7 Grid search is used for searching the best hyperparameters for tree ensemble. For STAR dataset, if we use all three types of features, it takes about 70 minutes for tree ensemble.</p><p>After data augmentation, we train a binary classifier to detect OOS dialogues. The classifier consists of a bert-base-uncased model (109 million parameters), and two feed-forward layers (231 thousand parameters). We resort to libraries (e.g., pytorchlightning, 8 transformers, 9 etc.) to simplify implementation. For STAR dataset, it takes about 10 minutes for each epoch. We stop training after 13 epochs, and select the model with the largest AUROC on the development data as the final model.</p><p>For evaluation, we resort to scikit-learn library. 10 Specifically, we use roc_auc_score and average_precision_score functions to calculate AUROC and AUPR, respectively. Calculation of FPR@θ is implemented by ourselves, by simply combining roc_curve function with binary search.</p><p>6 https://console.cloud.google.com/ 7 https://xgboost.ai 8 https://www.pytorchlightning.ai 9 https://github.com/huggingface/transformers 10 https://scikit-learn.org/</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Details of Human Annotation</head><p>To evaluate the quality of automatically generated dialogues, we randomly sampled 50 dialogues and ask human workers to check them manually. Human evaluation results have been reported in Table <ref type="table" target="#tab_1">1</ref>. In this section, we report more details of human annotation.</p><p>Figure <ref type="figure" target="#fig_8">9</ref> is the screenshot of user-interface for annotators. We aimed at evaluating the quality in two aspects: OOS correctness and dialogue naturalness.</p><p>For OOS correctness, we gave annotators the following instruction.</p><p>Is this dialogue really out-of-scope? For example, the chatbot can only deal with hotel reservation, but the customer asks today's weather. Another example is that the customer becomes angry because the chatbot cannot understand his/her intention.</p><p>For naturalness, we gave annotators the following instruction. Does the replaced utterance make the whole dialogue strange? Specifically, if the dialogue remains to be natural after replacing by the new utterance, then label this dialogue as "natural," otherwise, label this dialogue as "unnatural." All annotators are full-time employees affiliated in the same team as the authors. They all have high levels of English proficiency, and are able to annotate dialogues correctly. Annotation was done in an in-house environment, and all dialogues are used only for the purpose of research. After annotation, no ethics issues were reported. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Comparison of GOLD and SILVER. To automatically generate an OOS dialogue, SILVER replaces the first utterance with an IND utterance, while GOLD replaces the third utterance with an OOD utterance, making the dialogue become OOD and incomprehensible.</figDesc><graphic coords="1,306.14,212.60,218.26,200.51" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>to [S3]), which correspond to [I1] to [I3], respectively. • [S1] (ref. §4.1) Build pools from training data and elect candidates in a novel way. • [S2] (ref. §4.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Left: Distribution of the maximum value of probabilities generated by supporting model. Right: Distribution of the minimum value of the cosine distances of the embeddings between each dialogue and all dialogues from other categories. INS and OOS dialogues are calculated separately.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>outlines the framework. First, we sample a small set of dialogues from the training data. These dialogues are known OOS. Then candidates are generated by randomly choosing one utterance from seed OOS dialogues and swapping it with an utterance extracted from INS (ref. §4.1). After generating numerous candidates, an ensemble classifier is used for election (ref. §4.2). Selected dialogues are concatenated to seed OOS samples, increasing the number of available OOS dialogues. Iterating this process several times provides sufficient data to train a binary classifier for OOS detection (ref. §4.3).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Trade-off between similarity and divergence when selecting appropriate utterances from an utterance pool.</figDesc><graphic coords="5,70.87,70.86,218.27,86.65" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Framework of SILVER.</figDesc><graphic coords="6,127.56,70.86,340.16,125.91" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Visualization of the original and generated OOS dialogues.</figDesc><graphic coords="8,70.87,70.87,218.26,205.59" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 8 :</head><label>8</label><figDesc>Figure8: Distributions of dialogue length (i.e., number of utterances). Compared with short dialogues, long dialogues tend to be elected.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Screenshot of user-interface for annotators. Replaced utterances are marked in red.</figDesc><graphic coords="13,70.87,291.32,453.54,237.32" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Human evaluation results of 50 dialogues generated by GOLD and SILVER. Numbers are the percentages of real OOS/natural dialogues.</figDesc><table><row><cell cols="3">Method OOS Naturalness</cell></row><row><cell>GOLD</cell><cell>74%</cell><cell>8%</cell></row><row><cell cols="2">SILVER 88%</cell><cell>68%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Candidate list must be enlarged to reach the target number. Dialogues tend to be real OOS in a small candidate list, but may be INS in a large candidate list. Bold utterances are from the pool.</figDesc><table><row><cell>5,232</cell></row><row><cell>4,500</cell></row><row><cell>3,000</cell></row></table><note><p>[U] I'm Ben, I would like to organize a surprise party [S] what is the venue name, day, start time, and Number of guests Ben? [U] indeed , that topic will keep you busy . you'll be at it all weekend ? [U] i took the wrong bus and got totally lost [S] departure and arrival location, departure time [U] i live in nevada , not near the beach at all target number Size of candidate list (log scale) Number of generated dialogues Figure 3:</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table><row><cell>High quality. The candidate list is kept small,</cell></row><row><cell>and contains only appropriate (i.e., high similar-</cell></row><row><cell>ity &amp; divergence) dialogues, which are rarely INS</cell></row><row><cell>dialogues. When combined with a powerful en-</cell></row><row><cell>semble classifier, the generated dialogues have a</cell></row><row><cell>satisfactory quality.</cell></row><row><cell>High efficiency. Because INS dialogues rarely</cell></row><row><cell>exist in the candidate list, many generated dia-</cell></row><row><cell>logues remain after election. Consequently, the</cell></row><row><cell>number of available OOS dialogues increases</cell></row><row><cell>rapidly, reaching the target number in only a few</cell></row><row><cell>iterations.</cell></row></table><note><p><p><p><p><p>Results of OOS detection. Column "Pool" means whether external (Ext.) data (PersonaChat</p><ref type="bibr" target="#b31">(Zhang et al., 2018)</ref></p>) or internal (Int.) data (i.e., training data) is used to generate utterance pool. Column "Elect" gives different election methods: random selection (Rnd.), majority voting (MV), or tree ensemble (TE). Column "Iter." indicates whether dialogues are generated iteratively (✓) or not (✗). Therefore, Int. + TE + ✓means all components of SILVER are applied. Best and runner-up of different configurations are denoted by bold and underlined texts, respectively. Last line is copied from</p><ref type="bibr" target="#b2">Chen and Yu (2021)</ref></p>.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Numbers of unique utterances.</figDesc><table><row><cell></cell><cell cols="2"># Unique utterances #Unique utterances</cell></row><row><cell></cell><cell>in generated data</cell><cell>in utterance pool</cell></row><row><cell>GOLD</cell><cell>4, 153</cell><cell>93, 472</cell></row><row><cell>SILVER</cell><cell>5, 289</cell><cell>32, 320</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head></head><label></label><figDesc>Source Pool size AUROC AUPR FPR@.95 FPR@.90</figDesc><table><row><cell>Ext.</cell><cell>2 5</cell><cell>0.8960 0.4334</cell><cell>39.9%</cell><cell>28.6%</cell></row><row><cell>Ext.</cell><cell>2 15</cell><cell>0.8716 0.3867</cell><cell>59.2%</cell><cell>39.8%</cell></row><row><cell>Int.</cell><cell>2 5</cell><cell>0.8634 0.3504</cell><cell>57.1%</cell><cell>36.2%</cell></row><row><cell>Int.</cell><cell>2 15</cell><cell>0.8762 0.3823</cell><cell>52.5%</cell><cell>32.4%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 4 :</head><label>4</label><figDesc>Performances of OOS detection on development data of STAR with different pool sizes. Tree ensemble and iterative data augmentation are applied. For each case, experiments are repeated five times, and the average results are used to remove fluctuations.</figDesc><table><row><cell cols="4">Utterance source AUROC AUPR FPR@.95 FPR@.90</cell></row><row><cell>N (4)</cell><cell>0.8222 0.2535</cell><cell>68.8%</cell><cell>48.0%</cell></row><row><cell>N (16)</cell><cell>0.8705 0.3099</cell><cell>57.7%</cell><cell>37.2%</cell></row><row><cell>N (16) -N (4)</cell><cell>0.8743 0.4215</cell><cell>50.3%</cell><cell>35.4%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 5 :</head><label>5</label><figDesc>Classification results on the development data of STAR. Utterance sources differ for self candidate generation. N (k) is the set of k-nearest utterances from the original utterance.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 7 :</head><label>7</label><figDesc>Number of OOS dialogues after each iteration.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 8 :</head><label>8</label><figDesc>Numbers of INS/OOS dialogues in each dataset.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>See below for the discussion about "scope" and "domain."</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Each utterance corresponds to 1, 024 candidates in official implementation: https://github.com/asappresearch/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>To be precise, GOLD also considered Mahalanobis distances of representations calculated by RoBERTa. However, our discussions here are valid for both cases.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>Recall that a single feature set (e.g., probability-based feature) consists of many components (e.g., the probability distribution over all possible categories). Thus, the tree ensemble algorithm still works.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Details of Datasets</head><p>Throughout this paper, we conducted experiments on three datasets: STAR <ref type="bibr" target="#b20">(Mosig et al., 2020)</ref>, FLOW <ref type="bibr" target="#b0">(Andreas et al., 2020)</ref> and ROSTD <ref type="bibr" target="#b12">(Gangal et al., 2020)</ref>. Statistics of each dataset is shown in Table <ref type="table">8</ref>. All these datasets consist of task-oriented dialogues. Each dialogue consists of one or several utterances between human and chatbot/human. All utterances are in English.</p><p>All these datasets follow the MIT license. Copyrights belong to their creators. Our use of these datasets was consistent with their intended use, i.e., for the research on dialogues of natural languages. All datasets are sufficiently anonymized to make</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Task-Oriented Dialogue as Dataflow Synthesis</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Bufe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Burkett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josh</forename><surname>Clausman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Crawford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kate</forename><surname>Crim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Deloach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leah</forename><surname>Dorner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristin</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kellie</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diana</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wendy</forename><surname>Iwaszuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Smriti</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Theo</forename><surname>Lanman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">H</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Lintsbakh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Mcgovern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Rusak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beth</forename><surname>Short</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Div</forename><surname>Slomin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Snyder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephon</forename><surname>Striplin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Tellman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Vorobev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izabela</forename><surname>Witoszko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wolfe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abby</forename><surname>Wray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Zotov</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00333</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="556" to="571" />
+			<pubPlace>Adam Pauls, Dmitrij Petters, Brent Read, Dan Roth, Subhro Roy,</pubPlace>
+		</imprint>
+	</monogr>
+	<note>Aleksandr Nisnevich. Transactions of the Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">MultiWOZ -a largescale multi-domain Wizard-of-Oz dataset for taskoriented dialogue modelling</title>
+		<author>
+			<persName><forename type="first">Paweł</forename><surname>Budzianowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tsung-Hsien</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo-Hsiang</forename><surname>Tseng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Casanueva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Ultes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milica</forename><surname>Osman Ramadan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gašić</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1547</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="5016" to="5026" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">GOLD: Improving out-of-scope detection in dialogues using data augmentation</title>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhou</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.35</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Dominican Republic. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="429" to="442" />
+		</imprint>
+		<respStmt>
+			<orgName>Online and Punta Cana</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Xgboost: A scalable tree boosting system</title>
+		<author>
+			<persName><forename type="first">Tianqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd acm sigkdd international conference on knowledge discovery and data mining</title>
+		<meeting>the 22nd acm sigkdd international conference on knowledge discovery and data mining</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="785" to="794" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">SalesBot: Transitioning from chit-chat to task-oriented dialogues</title>
+		<author>
+			<persName><forename type="first">Ssu</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maolin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yen-Ting</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun-Nung</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.425</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="6143" to="6158" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Ekin D Cubuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dandelion</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vijay</forename><surname>Mane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc V</forename><surname>Vasudevan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Le</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1805.09501</idno>
+		<title level="m">Autoaugment: Learning augmentation policies from data</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Frustratingly easy domain adaptation</title>
+		<author>
+			<persName><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iii</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the Association of Computational Linguistics</title>
+		<meeting>the 45th Annual Meeting of the Association of Computational Linguistics<address><addrLine>Prague, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007">2007</date>
+			<biblScope unit="page" from="256" to="263" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Confidence modeling for neural semantic parsing</title>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1069</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="743" to="753" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Selective prediction-set models with coverage guarantees</title>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arjun</forename><surname>Sondhi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jessica</forename><surname>Perry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Simon</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.05473</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Classification with reject option in text categorisation systems</title>
+		<author>
+			<persName><forename type="first">Giorgio</forename><surname>Fumera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ignazio</forename><surname>Pillai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Roli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">12th International Conference on Image Analysis and Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2003">2003. 2003</date>
+			<biblScope unit="page" from="582" to="587" />
+		</imprint>
+	</monogr>
+	<note>Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Dropout as a bayesian approximation: Representing model uncertainty in deep learning</title>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">international conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="1050" to="1059" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Likelihood ratios and generative classifiers for unsupervised out-of-domain detection in task oriented dialog</title>
+		<author>
+			<persName><forename type="first">Varun</forename><surname>Gangal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arash</forename><surname>Einolghozati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonal</forename><surname>Gupta</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v34i05.6280</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="7764" to="7771" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">A baseline for detecting misclassified and out-of-distribution examples in neural networks</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of International Conference on Learning Representations</title>
+		<meeting>International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Sequence-to-sequence data augmentation for dialogue language understanding</title>
+		<author>
+			<persName><forename type="first">Yutai</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijia</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th International Conference on Computational Linguistics</title>
+		<meeting>the 27th International Conference on Computational Linguistics<address><addrLine>Santa Fe, New Mexico, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1234" to="1245" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Selective question answering under domain shift</title>
+		<author>
+			<persName><forename type="first">Amita</forename><surname>Kamath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.503</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5684" to="5696" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.11692</idno>
+		<title level="m">Roberta: A robustly optimized bert pretraining approach</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Oodgan: Generative adversarial network for out-of-domain data generation</title>
+		<author>
+			<persName><forename type="first">Petr</forename><surname>Marek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ishwar</forename><surname>Vishal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Naik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anuj</forename><surname>Auvray</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Goyal</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2104.02484</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Boosting algorithms as gradient descent</title>
+		<author>
+			<persName><forename type="first">Llew</forename><surname>Mason</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Baxter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Bartlett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcus</forename><surname>Frean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="page">12</biblScope>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Star: A schema-guided dialog dataset for transfer learning</title>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">M</forename><surname>Johannes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shikib</forename><surname>Mosig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Mehri</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kober</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.11853</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">SSMBA: Self-supervised manifold based data augmentation for improving out-of-domain robustness</title>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marzyeh</forename><surname>Ghassemi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.97</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1268" to="1283" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Automatically learning data augmentation policies for dialogue tasks</title>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1132</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1317" to="1323" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Ekaterina Artemova, and Irina Piontkovskaya. 2021. Revisiting mahalanobis distance for transformer-based out-of-domain detection</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Podolskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Lipin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrey</forename><surname>Bout</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="13675" to="13682" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Know what you don&apos;t know: Unanswerable questions for SQuAD</title>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-2124</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="784" to="789" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Data augmentation and learned layer aggregation for improved multilingual language understanding in dialogue</title>
+		<author>
+			<persName><forename type="first">Evgeniia</forename><surname>Razumovskaia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.160</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2017" to="2033" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Out-ofdomain detection for low-resource text classification tasks</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dakuo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saloni</forename><surname>Potdar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyu</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mo</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1364</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3566" to="3572" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Visualizing data using t-sne</title>
+		<author>
+			<persName><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">EDA: Easy data augmentation techniques for boosting performance on text classification tasks</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Zou</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1670</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6382" to="6388" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">D2U: Distanceto-uniform learning for out-of-scope detection</title>
+		<author>
+			<persName><forename type="first">Eyup</forename><surname>Yilmaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cagri</forename><surname>Toraman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.152</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Seattle, United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2093" to="2108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cyprien</forename><surname>De Masson D'autume</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerome</forename><surname>Connor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Kocisky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Chrzanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angeliki</forename><surname>Lazaridou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1901.11373</idno>
+		<title level="m">Learning and evaluating general linguistic intelligence</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Personalizing dialogue agents: I have a dog, do you have pets too?</title>
+		<author>
+			<persName><forename type="first">Saizheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Urbanek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Szlam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1205</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2204" to="2213" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">PAWS: Paraphrase adversaries from word scrambling</title>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Baldridge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1131</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1298" to="1308" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

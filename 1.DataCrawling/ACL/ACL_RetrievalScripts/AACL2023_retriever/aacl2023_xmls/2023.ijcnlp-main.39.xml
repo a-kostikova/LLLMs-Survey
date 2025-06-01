@@ -1,0 +1,1370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">ProMap: Effective Bilingual Lexicon Induction via Language Model Prompting</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Abdellah</forename><surname>El Mekki</surname></persName>
+							<email>abdellah.elmekki@um6p.ma</email>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computing</orgName>
+								<orgName type="institution">Mohammed VI Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Muhammad</forename><surname>Abdul-Mageed</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Deep Learning &amp; Natural Language Processing Group</orgName>
+								<orgName type="institution">The University of British</orgName>
+								<address>
+									<settlement>Columbia</settlement>
+								</address>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="department">Department of Natural Language Processing &amp; Department of Machine Learning</orgName>
+								<address>
+									<settlement>MBZUAI</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">El</forename><surname>Moatez</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Billah</forename><surname>Nagoudi</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Deep Learning &amp; Natural Language Processing Group</orgName>
+								<orgName type="institution">The University of British</orgName>
+								<address>
+									<settlement>Columbia</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ismail</forename><surname>Berrada</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computing</orgName>
+								<orgName type="institution">Mohammed VI Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ahmed</forename><surname>Khoumsi</surname></persName>
+							<affiliation key="aff3">
+								<orgName type="department">Department of Electrical &amp; Computer Engineering</orgName>
+								<orgName type="institution">University of Sherbrooke</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><surname>Mor-Msa</surname></persName>
+						</author>
+						<title level="a" type="main">ProMap: Effective Bilingual Lexicon Induction via Language Model Prompting</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">CC2469259AADE7CEE31A0293C8D932CE</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:03+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Bilingual Lexicon Induction (BLI), where words are translated between two languages, is an important NLP task. While noticeable progress on BLI in rich resource languages using static word embeddings has been achieved. The word translation performance can be further improved by incorporating information from contextualized word embeddings. In this paper, we introduce ProMap, a novel approach for BLI that leverages the power of prompting pretrained multilingual and multidialectal language models to address these challenges. To overcome the employment of subword tokens in these models, ProMap relies on an effective padded prompting of language models with a seed dictionary that achieves good performance when used independently. We also demonstrate the effectiveness of ProMap in re-ranking results from other BLI methods such as with aligned static word embeddings. When evaluated on both rich-resource and low-resource languages, ProMap consistently achieves stateof-the-art results. Furthermore, ProMap enables strong performance in few-shot scenarios (even with less than 10 training examples), making it a valuable tool for low-resource language translation. Overall, we believe our method offers both exciting and promising direction for BLI in general and low-resource languages in particular. ProMap code and data are available at https://github.com/4mekki4/promap.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Bilingual Lexicon Induction (BLI) is the task of automatically constructing a bilingual lexicon or a list of word translations between two different languages <ref type="bibr" target="#b23">(Mikolov et al., 2013;</ref><ref type="bibr">Artetxe et al., 2018b;</ref><ref type="bibr" target="#b16">Lample et al., 2018;</ref><ref type="bibr">Patra et al., 2019;</ref><ref type="bibr" target="#b32">Shi et al., 2021)</ref>. BLI has a wide range of uses, including in Natural Language Processing (NLP) tasks such as machine translation, and multilingual information retrieval, as well as in language learning and serious games. It is also vital in building systems for low-resource languages. The majority of recent BLI research focuses on using linear <ref type="bibr" target="#b23">(Mikolov et al., 2013;</ref><ref type="bibr" target="#b36">Xing et al., 2015;</ref><ref type="bibr">Artetxe et al., 2016;</ref><ref type="bibr" target="#b34">Smith et al., 2017)</ref> and non-linear <ref type="bibr" target="#b24">(Mohiuddin et al., 2020)</ref> mapping-based methods to align between two languages. The standard inputs to these methods are: 1) static word embeddings (WEs) of a source language L1 and a target language L2 and 2) a seed dictionary that covers a few thousand translation pairs.</p><p>Traditionally, static WEs are used to achieve state-of-the-art results in BLI. These embeddings are generated by training a language model on large amounts of monolingual texts and representing vocabulary words as points in a continuous vector space. For good BLI performance, the monolingual texts used to train these embeddings should have similar distributions and come from the same domain across the source and target languages. To force this constraint, recent BLI research <ref type="bibr">(Artetxe et al., 2018b;</ref><ref type="bibr" target="#b9">Glavaš et al., 2019;</ref><ref type="bibr" target="#b14">Karan et al., 2020)</ref> exploits Wikipedia dumps to train static WEs for these languages.</p><p>Regardless, ensuring good performance in NLP tasks when resources are limited is still a known challenge. This is especially true for BLI where researchers have been criticized for studying this task using down-sampled corpora of high-resource languages <ref type="bibr" target="#b3">(Artetxe et al., 2020)</ref> that may not be representative of real low-resource languages. For example, real low-resource languages are characterized by scripting differences, domain shifts, and a lack of sufficient bitext, resulting in less isomorphic embedding spaces and thus a decrease in BLI performance <ref type="bibr">(Søgaard et al., 2018;</ref><ref type="bibr" target="#b25">Nakashole and Flauger, 2018;</ref><ref type="bibr" target="#b26">Ormazabal et al., 2019;</ref><ref type="bibr" target="#b9">Glavaš et al., 2019;</ref><ref type="bibr" target="#b35">Vulić et al., 2019;</ref><ref type="bibr">Patra et al., 2019;</ref><ref type="bibr" target="#b21">Marchisio et al., 2020)</ref>. Arabic, a collection of diverse languages and dialect varieties, is a case in point where it is hard to find resources to build good embeddings for mapping-based BLI methods. This makes BLI even more challenging, especially for Arabic dialects.</p><p>Recently, BLI performance has been improved by using contextualized word embeddings <ref type="bibr" target="#b36">(Zhang et al., 2021;</ref><ref type="bibr" target="#b18">Li et al., 2022)</ref>, generated from multilingual Pretrained Language Models (mPLMs), like mBERT <ref type="bibr" target="#b5">(Devlin et al., 2019)</ref> and XLM-R <ref type="bibr" target="#b15">(Lample and Conneau, 2019)</ref>. Furthermore, advancements in multilingual language modeling have led to the development of multi-dialectal models <ref type="bibr" target="#b0">(Abdul-Mageed et al., 2021;</ref><ref type="bibr" target="#b11">Inoue et al., 2021)</ref>, which are designed to handle multiple dialects within a single Arabic language model. However, finetuning these PLMs on low-resource tasks can suffer from overfitting. To address this issue, prompt-based PLMs finetuning has been applied to enable few-shot learning <ref type="bibr">(Gao et al., 2021)</ref>.</p><p>In this paper, we introduce ProMap, a new approach of BLI that incorporates multilingual and multdialectal PLMs using padded prompt-based finetuning. ProMap boosts the performance of word translation tasks and comes in two variants:</p><p>(i) ProMap G (G for Generation): This variant is particularly applicable when working with low-resource languages where it is difficult to acquire isomorphic static WEs. It directly generates the translation of a source word, assuming the availability of a Pretrained Language Model (PLM) that can handle both the source and target languages. This variant shows promising results in few-shot scenarios even with less than 10 training pairs.</p><p>(ii) ProMap S (S for Selection): This variant leverages an existing static WEs mapping method such as Vecamp <ref type="bibr">(Artetxe et al., 2018a)</ref>, to select the correct translation from K candidate translations proposed by this mapping.</p><p>The main contributions of this paper can thus be summarized as follows:</p><p>1. Introduction of ProMap, a novel approach for BLI leveraging the power of pretrained multilingual and multidialectal language models. To the best of our knowledge, no prior work has tackled the BLI task using prompt-based finetuning of mPLMs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">Extensive evaluation of ProMap through: (i)</head><p>Word translation on a standard multilingual BLI benchmark <ref type="bibr" target="#b9">(Glavaš et al., 2019)</ref>, (ii) Multilingual word translation using few-shot learning, and (iii) Word translation for lowresource languages. We evaluate word translation between Arabic dialects using four Arabic dialectal pairs following <ref type="bibr" target="#b7">Erdmann et al. (2018)</ref> and from ten Arabic dialects to Modern Standard Arabic (MSA) exploiting a lexicon from <ref type="bibr" target="#b10">Bouamor et al. (2018)</ref>. We show that ProMap outperforms state-of-the-art methods in the majority of experiments.</p><p>The rest of the paper is organized as follows: Section 2 presents related work. In Section 3, we introduce our method ProMap. In Section 4, we present our experiments and results. Section 5 is a discussion of our results. In Section 6, we conclude the paper and draw the limitations of our work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Bilingual Language Modeling. In recent years, there has been a significant increase in research on BLI with a variety of solutions proposed (e.g. <ref type="bibr">Artetxe et al., 2016;</ref><ref type="bibr">Zhang et al., 2017a,b;</ref><ref type="bibr">Søgaard et al., 2018;</ref><ref type="bibr">Patra et al., 2019;</ref><ref type="bibr" target="#b12">Jawanpuria et al., 2019;</ref><ref type="bibr" target="#b9">Glavaš and Vulić, 2020)</ref>. On the one hand, some of these solutions, such as Procrustes-based methods, assume that the embedding spaces are roughly isomorphic. However, other researchers have argued that this assumption may not hold true <ref type="bibr">(Patra et al., 2019;</ref><ref type="bibr" target="#b24">Mohiuddin et al., 2020)</ref>, particularly for low-resource languages where it may be difficult to obtain sufficient data to construct isomorphic word embeddings <ref type="bibr" target="#b8">(Feng et al., 2022;</ref><ref type="bibr" target="#b22">Marchisio et al., 2022)</ref>. On the other hand, other studies have attempted to use BLI for translation between Arabic variants <ref type="bibr" target="#b7">(Erdmann et al., 2018;</ref><ref type="bibr" target="#b6">El Mekki et al., 2021)</ref>, which are considered to be very low-resource and non-standard languages <ref type="bibr" target="#b29">(Salloum and Habash, 2014;</ref><ref type="bibr" target="#b10">Habash et al., 2018)</ref>. Nevertheless, many approaches have focused solely on high-resource languages for evaluation, which may limit advancements in the field <ref type="bibr" target="#b3">(Artetxe et al., 2020)</ref>. Recently, there has been a trend towards combining contextualized and static word embeddings to improve alignment and boost BLI performance <ref type="bibr" target="#b36">(Zhang et al., 2021;</ref><ref type="bibr" target="#b18">Li et al., 2022)</ref>.</p><p>Prompting Pretrained Language Models. In the recent past, more and more research has focused on the use of prompt-based finetuning methods for language models. These studies primarily focus on identifying the most effective prompting templates <ref type="bibr">(Schick et al., 2020;</ref><ref type="bibr" target="#b33">Shin et al., 2020)</ref> and investigating the use of prompting to address fewshot learning tasks <ref type="bibr">(Schick and Schütze, 2021a,b;</ref><ref type="bibr">Gao et al., 2021)</ref>. Our work in this paper continues in this vein, but with particular emphasis on the task of BLI with minimal to large supervision.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>In this paper, we assume the availability of an mPLM trained on multiple languages or dialects. Although some languages or dialects may be lowresource in terms of non-noisy and task-specific data, we presume the availability of unlabeled data from various resources, such as social networks (e.g., Facebook, Twitter). An example of this approach is seen in MARBERT <ref type="bibr" target="#b0">(Abdul-Mageed et al., 2021)</ref>, which was primarily trained on 1B Arabic tweets (covering more than 20 Arab countries).</p><p>The intuitive idea of our approach for the BLI task is to finetune an mPLM by prompting it to translate a source word w s of the language L1 to a target word w t of the language L2. Although mPLMs are known for their smaller vocabulary size compared to static WEs, they tokenize words into sub-tokens. This leads to the issue of the pairs w s and w t being represented by multiple sub-tokens. To solve this problem, we introduce a padded prompting-based finetuning approach of mPLMs for word mapping/translation, namely ProMap. In summary, ProMap can be used in two variants:</p><p>(i) ProMap G : This variant is effective when there is no access to comparable static WEs while there is access to an mPLM with a reasonable vocabulary coverage. In this case, it translates w s to w t using solely the promptbased finetuned mPLM to generate the subtokens that form the translation word.</p><p>(ii) ProMap S : This variant assumes the availability of both comparable static WEs and an mPLM. It uses the mPLM to re-rank the top K predictions from an already existing robust alignment method between the comparable static WEs. Figure <ref type="figure" target="#fig_0">1</ref> summarizes an example of the use of ProMap for the translation from the word "draws" in English to the word "dessine" in French. The figure presents uses of both of our method's variants. In the remainder of this paper, we will refer to our method using three notations: ProMap, ProMap G and ProMap S . We will also assume access to a training dictionary, denoted as D train , and a testing dictionary denoted as D test , respectively. These encompass the training and testing word pairs, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">ProMap</head><p>The basic idea of ProMap is to perform a promptbased finetuning of the PLM, where we model the BLI task as a natural language template (more details about the prompt-based finetuning are presented in Appendix A). We might design our mPLM prompting template for a pair (w s , w t ) as follows:</p><formula xml:id="formula_0">x p = [CLS] The translation of the word w s is [M ASK]</formula><p>(1) The masked token [M ASK] can be predicted using the MLM classification head of the PLM. The probability that the word w t from the PLM vocabulary V will be predicted as a translation to the word w s using the template x p is:</p><formula xml:id="formula_1">p (w t | w s ) = p ([M ASK] = w t | x p ) = sof tmax W wt • h [M ASK] = exp W wt • h [M ASK] w i ∈V exp W w i • h [M ASK]</formula><p>Where W w * and h [M ASK] refer to the hidden vectors of the target word w t and the [M ASK], respectively. The prompt-based finetuning utilizes the mPLM pretrained weights without adding any additional parameters, making it more efficient than standard finetuning. Thus, we can train the system by feeding all the pairs (w s i , w t i ) ∈ D train to the mPLM model using the template x p of equation ( <ref type="formula">1</ref>), and then optimizing the cross-entropy loss between the predicted [M ASK] value and the ground truth w t i . One challenge, however, is that in x p we assume that the majority of words w s i and w t i are represented by a single sub-token. This assumption can be valid for PLMs that cover one (e.g. English variant of BERT) or two (e.g. GigaBERT <ref type="bibr" target="#b17">(Lan et al., 2020)</ref> that covers MSA and English) languages, but for PLMs that encode a large number of languages (mPLMs) (e.g. mBERT, XLM, XLM-R), the maximum vocabulary size does not cover all words from all languages as individual sub-token each. To tackle this issue, we adapt our method to non-autoregressively predict multiple sub-tokens using padded MLM.</p><p>Padded Prompting. A PLM model in its original form only considers one token to be masked and infilled when using the [M ASK] token. To predict a span of sub-tokens of a fixed-length n instead of a single token, we follow the approach of <ref type="bibr" target="#b19">(Mallinson et al., 2020;</ref><ref type="bibr" target="#b20">Malmi et al., 2020)</ref> in using a nonautoregressive padded MLM. This approach masks a fixed-length span of n tokens within a sentence and the PLM is trained to predict them while also predicting a [P AD] token for masked positions that should not be infilled. In ProMap, we first design BLI training data for this model by converting all words w s and w t in our dictionaries D train and D test into spans of n sub-tokens, padded with the token P AD for words that have less than n subtokens (the source words are also padded to unify the structure of the template over all the training examples). Then, we model our new prompt template based on the template in equation (1). For example, if n = 4 and for the translation pair (w s , w t ), where the sub-tokens of w s are {w s 0 , w s 1 , w s 2 , w s 3 }, the prompt is modeled as follows:</p><p>x p = [CLS] The translation of the word</p><formula xml:id="formula_2">w s 0 w s 1 w s 2 w s 3 is [M ASK] [M ASK] [M ASK] [M ASK] (2)</formula><p>The targets to be predicted for the 4 [M ASK] tokens are the sub-tokens of the target word w t padded with [P AD] to match the fixed length n = 4. For the training step, we follow <ref type="bibr" target="#b20">Malmi et al. (2020)</ref> in computing the pseudo-likelihood of the original sub-tokens of w t denoted as W i:j = w t 0 , w t 1 , w t 2 , w t 3 as follows:</p><formula xml:id="formula_3">L (W i:j | x p ; Θ) = j c=i P MLM (w c | x p ; Θ)</formula><p>Where i and j denote the range of the masked sub-tokens in x p , P MLM (w c | x p ; Θ) refers to the probability that the c-th token in x p takes the value w c (even a word sub-token or [P AD]) and Θ denotes the training data. The training of the model proceeds by finetuning the mPLM with the above formula.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">ProMap G : Generation of Translation Sub-Tokens</head><p>The first variant of ProMap, namely ProMap G , predicts the translation of the source word w s based only on the mPLM model. It uses ProMap to independently generate the sub-tokens that form the predicted translation. To get the translation of an input word w s , we first pass the word through the template in equation ( <ref type="formula">2</ref>), then we decode the nonautoregressively predicted sub-tokens and concatenate them to form the prediction word.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">ProMap S : Selection from K Candidates</head><p>The second variant ProMap S relies on re-ranking the predictions extracted from an existing static WEs alignment method. It uses the same finetuned ProMap model defined in section 3.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.1">Static WEs Alignment</head><p>The objective of this step is to align the static WEs of languages L1 and L2. This is achieved by mapping both WEs into a shared embedding space through the use of dual linear mapping. This operation involves the use of two linear transformation matrices. As reported in <ref type="bibr">Artetxe et al. (2018a)</ref>, a self-training process is conducted after each mapping iteration such that the training dictionary is expanded and the mapping performance is improved.</p><p>In ProMap S , we follow the method outlined in <ref type="bibr" target="#b18">Li et al. (2022)</ref>, namely CLC1, which involves utilizing contrastive learning (CL) optimization in conjunction with self-training at each mapping iteration.</p><p>From the shared embedding space and for every source word w s , we extract the top K word translation candidates P = [p 1 , p 2 , ..., p k ] and their corresponding similarity scores * S = [s 1 , s 2 , ..., s k ] between every word vector p i ∈ P and x s (the static word vector of the w s ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.2">Re-ranking K Candidates</head><p>In this step, we use the set of candidates P and the finetuned ProMap model from Section 3.1 to re-rank and select the correct translation of a source word w s . First, we convert the cosine similarity score vector S to probability weights using sof tmax with a standard temperature T, as follows:</p><formula xml:id="formula_4">SW i = sof tmax(s i ) = e s i /T k j=1 e s j /T</formula><p>Where SW i denotes the softmax score for each cosine similarity score s i . Then, we compute the loss of x s as L P LM = [l plm 1 , l plm 2 , ..., l plm k ], such as l plm i denotes the average cross-entropy loss (L ce ) when the word p i is fed to the ProMap as translation of x s . It is expressed as:</p><formula xml:id="formula_5">l plm i = 1 m m j=0 L ce (pt j , t j )</formula><p>Where:</p><p>• m is the number of valid sub-tokens in p i (subtokens different from [P AD]).</p><p>• pt j and t j represent the j-th sub-token predicted by the MLM classifier and the j-th subtoken from the word p i , respectively.</p><p>Then, we compute S P LM †</p><formula xml:id="formula_6">S P LM = [s plm 1 , s plm 2 , ..., s plm K ]</formula><p>where:</p><formula xml:id="formula_7">s plm i = SW i . 1 log (1 + l plm i )</formula><p>The selected translation is p c ∈ P where:</p><formula xml:id="formula_8">c = arg max i (s plm i )</formula><p>This score refers to the best token in P chosen by ProMap S .</p><p>* We use cosine similarity to compute the similarity between word vectors.</p><p>† In order to ensure that the scale and direction of losses are consistent with the softmax probabilities, we apply a logarithmic transformation and inverse function to the losses.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We evaluate the performance of ProMap variants on two different scenarios: 1) language pairs that have access to both static WEs and mPLM, and 2) language pairs that only have access to mPLM. We use P@1 to compare our results with the baselines.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data</head><p>In the first scenario, we adopt the same BLI setup from previous studies, specifically those described in <ref type="bibr">Artetxe et al. (2018b)</ref>; <ref type="bibr" target="#b9">Glavaš et al. (2019)</ref>; <ref type="bibr" target="#b14">Karan et al. (2020)</ref>. We utilize the dataset and monolingual static WEs proposed by <ref type="bibr" target="#b9">Glavaš et al. (2019)</ref> which comprise both closely related and distant languages. In addition, we use the XLM-17 <ref type="bibr" target="#b15">(Lample and Conneau, 2019)</ref> mPLM which covers 17 languages with a vocabulary covering 200K tokens. However, as XLM-17 does not cover all the language pairs in the described dataset, our evaluation is performed on 15 language pairs covered by this mPLM, including English (EN), French (FR), German (DE), Turkish (TR), Italian (IT), and Russian (RU). For the translation pairs, we use 5K training pairs for every language pair, and 2K pairs for testing.</p><p>In the second scenario, we evaluate the word translation between Arabic variants using ProMap G in two cases. The first case involves translation between Arabic dialects, for which we adopt the methodology of <ref type="bibr" target="#b7">Erdmann et al. (2018)</ref>; El <ref type="bibr" target="#b6">Mekki et al. (2021)</ref> by utilizing four Arabic dialects, namely, Maghrebin (MAG), Egyptian (EGY), Gulf (GLF), and Levantine (LEV). We utilize the dictionaries proposed by <ref type="bibr" target="#b7">Erdmann et al. (2018)</ref> in this case. In the second case, we evaluate word translation between Arabic dialects and Modern Standard Arabic (MSA). To achieve this, we construct 10 new dictionaries between Arabic dialects and MSA utilizing the MADAR Lexicon <ref type="bibr" target="#b10">(Bouamor et al., 2018)</ref> which covers 10 Arabic variants. We split these dictionaries into Train and Test sets. The sizes of these splits are reported in table 8 in Appendix 2.1.4. We employ MAR-BERT <ref type="bibr" target="#b0">(Abdul-Mageed et al., 2021)</ref> as an mPLM since it has been shown to achieve SOTA results on many NLU tasks for Arabic dialects. Also, it has a sizeable vocabulary of 100K tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Baseline Systems</head><p>For the first scenario, we compare ProMap variants to 6 strong baselines, namely, RCSLS <ref type="bibr" target="#b13">(Joulin et al., 2018)</ref>, Vecmap <ref type="bibr">(Artetxe et al., 2018a)</ref>, LNMap <ref type="bibr" target="#b24">(Mohiuddin et al., 2020)</ref>, FIPP <ref type="bibr" target="#b28">(Sachidananda et al., 2021)</ref>, CLC1 <ref type="bibr" target="#b18">(Li et al., 2022)</ref> and CLC2 <ref type="bibr" target="#b18">(Li et al., 2022)</ref>. The first 5 approaches only deal with static WEs, while the last one combines static WEs with contextualized WEs. For the second scenario ‡ , we compare our results to 4 competitive approaches that have performed BLI work on Arabic dialects. These approaches are all based on Vecmap with several enhancements using orthographic features. A summary of each baseline system is reported in Appendix 2.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Implementation Details</head><p>In this work, we used Pytorch as the primary framework for building and training our models. We utilized the Huggingface library to load the pretrained models with no modifications. Since the ProMap training requires a validation set to choose the best number of epochs, and the best hyper-parameters, we could not find a validation set for our BLI approach since the used BLI datasets lack such a set. To tackle this issue, we randomly used the language pair (EN, FR) to learn the best hyper-parameters and used them for all other language pair experiments. We conducted experiments with different learning rates ranging from 1e-4 to 5e-6 and found that a learning rate of 2e-5 provides the best results. The batch size was fixed to 64 for all experiments and the models were trained for 5 epochs. For the first scenario, we set the maximum length for the padded MLM to n = 4, the number of selected translation candidates from static WEs BLI in all experiments to K = 10, and the temperature T to 0.1. For the second scenario, we choose n = 1. This indicates that the PLM will predict the translation word directly rather than multiple sub-tokens.</p><p>Table <ref type="table" target="#tab_8">6</ref> in the appendix 2.1.1 presents the number of trainable parameters for each mPLM used in our paper.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Main Results</head><p>Table <ref type="table">1</ref> summarizes the main results of the multilingual experiments. For the majority of language pairs, ProMap achieves significant improvements compared to the previous SOTA methods. ProMap S outperforms the best static-based WEs BLI method (CLC1) by an average of 3.7 P@1 points while outperforming the SOTA method that combines static and contextualized WEs (CLC2) by an average of 1.12 P@1 points. It is worth mentioning that ProMap S improves the overall performance for both the same script (e.g. DE-FR) and different script (e.g. EN-RU) language pairs. The CLC2 baseline performs slightly better than ProMap S in the (DE-IT), (IT-FR), and (DE-TR) language pairs, but ProMap S still performs competitively in these cases. Also, ProMap G predicts accurate translations with the non-autoregressive generation of sub-tokens that form a whole word. It achieves 41.51 P@1 between Italian and French words. Despite ProMap G demonstrating suboptimal performance relative to the baseline models within this context, the empirical results nonetheless indicate its effectiveness in specific applications. In particular, ProMap G exhibits proficient functionality during re-ranking processes, as demonstrated by ProMap S .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Analyses</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.1">ProMap G vs. Static WEs Mapping</head><p>To demonstrate the effectiveness of ProMap G , we conduct a fair comparison with other static WEs mapping approaches. To ensure the fairness of the experiments, we use the same dictionaries for training and evaluation for both ProMap G and the other approaches. Specifically, we only select word pairs that were covered by both the multilingual PLM vocabulary and the static WEs (both ProMap G and the baselines are trained on the same training pairs). The new sizes of the Train and Test dictionaries after this selection are reported in Table <ref type="table" target="#tab_1">2</ref>. The results, presented in Table <ref type="table" target="#tab_1">2</ref>, show that ProMap G significantly outperforms the other static WEs approaches across all 15 language pairs with an average improvement of 10.55 P@1 points. This is achieved for both close language pairs such as English-German, where ProMap G outperforms the best static WEs alignment method, namely CLC1, by 14.01 P@1 points. Additionally, for distant language pairs, ProMap G shows large performance gains. This is true even for language pairs that do not share the same script, such as the Turkish-Russian pair where the performance increases from 24.66 P@1 using the CLC1 approach to 32.88 P@1 using ProMap G , with a gain of 8.22 P@1 points.</p><p>The impact of ProMap G on an mPLM is illustrated in in Appendix 3.6. The t-SNE plot (van der <ref type="bibr">Maaten and Hinton, 2008)</ref>   before and after ProMap G . Before finetuning, the plot shows a clear separation of the language subspaces by the mPLM, which explains why it is challenging to directly extract translations without finetuning. After ProMap G , the shapes of the sub-spaces shift towards a shared sub-space where every token translation in the source language is projected towards its corresponding translation in the target language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.2">Few-shot BLI with ProMap G</head><p>Prompt-based finetuning of PLMs has been found effective in few-shot learning tasks. sizes of training data between 1 and 512 samples.</p><p>We use the same data as in Section 4.5.1. For each experiment, we randomly sample N pairs from D train and use them to train ProMap G . We then report the result achieved on the Test dictionary.  creases with the number of training samples. Additionally, ProMap G demonstrates promising results for word translation with minimal training examples for both closely and distantly related language pairs (such as EN-FR and RU-IT, respectively). For instance, when using only N = 1 training example, ProMap G attains a P@1 score of 20.67 for the EN-FR pair, and a score of 9.70 for the RU-IT pair. Furthermore, with only 10 training examples, the P@1 score for the EN-FR pair increases to 66.03. In our experiments employing VecMap, we found that the performance was consistently 0.0 P@1 for all few-shot scenarios where N is less than 256 training examples. This suggests that while mPLMs effectively align words with their corresponding translations across languages, even when presented with a minimal number of training examples, static word embedding alignment methods such as VecMap train their embeddings independently and require substantial data to achieve comparable accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Evaluation on Arabic Variants</head><p>We test the effectiveness of ProMap G on Arabic variants which are considered low-resource languages. With the limited availability of lexicons and mPLMs that cover these variants, it is hard to afford static WEs for every country-level Arabic variant. Table <ref type="table">4</ref> presents the results achieved for the word translation between Arabic variants. The results show that ProMap G largely outperforms the baseline models by 6.90 P@1 points on average. It is worth highlighting that we only rely on the translations directly generated using ProMap G without involving any static WEs. Also, our model outperforms the results achieved by <ref type="bibr" target="#b27">(Riley and Gildea, 2018;</ref><ref type="bibr" target="#b6">El Mekki et al., 2021)</ref> which takes the orthographic similarities between Arabic variants into consideration when predicting the translation word.</p><p>Furthermore, for the case of word translation between Arabic dialects and MSA (both directions), Table <ref type="table">5</ref> displays a subset of the results (full results are in Table <ref type="table" target="#tab_17">13</ref>, Appendix 3.4). The Table presents the P@1, P@5, P@10, and P@50 scores achieved for the different pairs. On average, the performance of word translation from Arabic dialects to MSA is 58.99 and 77.69 for P@1 and P@5, respectively. This indicates a potential for increased transfer learning between dialects and MSA. However, the performance of word translation from MSA to dialects is lower: it has an average P@1 and P@5 scores of 40.32 and 60.27, respectively. This discrepancy can be attributed to the wide diversity in the dialects as the model branches out to N dialects while attempting to map an MSA word to a dialectal word from the wide selection. That is, while this seems to be a oneto-one mapping between a word from MSA and a dialectal word, the model seems to be trying to learn a dialect path (from many) while selecting the target word. Table 5: Subset of results of ProMap G for word translation between Arabic dialects and MSA using MAR-BERT on the MADAR Lexicon. In the table, one country from every Arab region was selected. Table <ref type="table" target="#tab_17">13</ref> in Appendix 3.4 presents the full results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion</head><p>Our experimental results indicate that ProMap outperforms previous BLI approaches and can generate high-quality translation pairs using both richand low-resource languages in both the generation and selection settings. By utilizing only the pairs covered by both the static WEs vocabulary and the mPLM vocabulary, ProMap G is able to generate largely superior results without the need to make use of, or depend on, any other approach. In our analysis, we find that variations in the prompting template do not have a significant effect on BLI performance (Appendix 3.3), although slightly better results are achieved when using a template written in the source language. Also, we find that injecting the source and target language information in the template does not affect the performance. Additionally, experiments show that ProMap G can learn word translation with only one training example. In addition, promising results are possible across some pairs with just ten examples.</p><p>Furthermore, regarding the diminished performance of ProMap G , it is more pronounced in scenarios with multiple sub-tokens (when n &gt; 1). We identify two primary reasons for this. First, the multiple sub-tokens scenario can be likened to a multi-label classification task where the model is tasked with assigning multiple tags to different segments of the output. For an accurate translation in our context, all these decisions must be precise. Second, the complexity of the multiple sub-tokens scenario is exacerbated by the morphological richness of certain languages (e.g., Arabic), leading to significant variation in sub-token choices, For instance, if ProMap G employs CAMELBERT to generate the word " ", it must predict three sub-tokens: " ", " ", and " ". Similarly, for the word " ", the model must to predict " ", " ", and " ". A mistake in predicting even a single sub-token can compromise the entire target translation. To mitigate this challenge, we have considered expanding the vocabulary of mPLMs by incorporating non-covered words and initializing their embedding weights by averaging the weights of their sub-token embeddings. Nevertheless, this method produced a performance inferior to that of generating multiple sub-tokens with ProMap G .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this work, we introduced a new method dubbed ProMap for translating words between languages using multilingual pretrained language models. ProMap demonstrates strong performance in both rich-resource and low-resource languages. It is also able to achieve good results even with limited amounts of training data. Overall, we believe ProMap comprises an exciting advancement in bilingual lexicon induction and holds promise for improving translation in low-resource languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>While the proposed ProMap model has demonstrated promising performance, it is important to highlight the following potential limitations:</p><p>• The ProMap G model struggles to generate words of multiple sub-tokens, particularly when n &gt; 1. This limitation is primarily due to the complexity of word combinations that can be generated from multiple masked tokens. In cases of languages with rich morphology such as Arabic, this situation is even more challenging due to the vast number of possible combinations a word can have.</p><p>• The performance of ProMap S heavily depends on the P@K performance achieved by the static WEs alignment method, and therefore, in the case of the few-shot learning, it is hard to achieve better results using this variant.</p><p>• Finetuning large PLMs is a time-consuming process, making the task of finding optimal hyperparameters labor-intensive. Additionally, finetuning large PLMs poses a significant challenge in reproducing results, requiring multiple runs to achieve consistent results.</p><p>• We evaluate our approach for multilingual scenarios using the XLM-17 mPLM, which currently supports 17 languages. However, it should be noted that not all languages in the dictionaries dataset we used are covered by XLM-17. It is also worth experimenting with language models with larger vocabularies and fewer languages as a way to alleviate challenges compounded by the curse of multilinguality caused by mPLMs where per-language performance drops as with the increase of languages in the mPLM <ref type="bibr" target="#b4">(Conneau et al., 2020)</ref>. lexical disparities between languages, groups, and cultures. The focus is on bilingual lexicon induction, a vital aspect in cross-lingual NLP with implications for machine translation and other tasks.</p><p>The study includes various language families and all Arabic dialects, which are spoken by ∼ 450M people. The goal is to expand NLP methods to lower-resource and under-represented languages using few-shot techniques. Ultimately, our work seeks to increase access to technology by serving diverse populations. The data used in our work, word translation pairs, is publicly accessible and in our view poses no risks. For any real-world use, we strongly suggest extensive evaluations and analyses be made before deployment. We also encourage use of our work in pro-social contexts such as health and language education.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendices</head><p>We provide an overview of the Appendix below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>I Method (Appendix A).</head><p>This section provides more details about the prompting-based finetuning of BERT-like PLMs.</p><p>II Experiment Settings (Appendix 2.1).</p><p>This section gives additional information about the considered experiment environments.</p><p>• We provide implementation details in Appendix 2.1.1. This section presents the various baseline systems against which we compared our results.</p><p>IV Analyses (Appendix C).</p><p>Finally, we provide additional experiments and results, including: </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Prompt-based Finetuning Method</head><p>Prompt-based finetuning involves using natural language templates to represent input statements and treating text classification tasks as cloze-style tasks. For example, in sentence classification, if we need to classify the sentence "The Moroccan team made it to the world cup semi-final" as either y 1 = P OLIT ICS or y 2 = SP ORT , the template might look like this:</p><formula xml:id="formula_9">x p = [CLS] x, a [MASK] topic</formula><p>With x = {x 1 , ..., x l } is the input sentence of l tokens. Using masked language modeling as the finetuning task, the [M ASK] token in x p will have a predicted token v p ∈ V = {v 1 , ..., v r } where V is the vocabulary covered by the PLM with size r. Then, the value v p should be mapped to the final label (i.e. POLITICS or SPORT for the example of sentence x). The objective is to extract the token v p from V that can have the maximal probability to be filled in</p><formula xml:id="formula_10">[M ASK]. It can be noted as p ([MASK] = v p ∈ V |x p ).</formula><p>To finetune a PLM using this prompt-based method for a classification task, all input sentences should first be designed as a unique template (such as x p ) when the ground truth label is replaced by the masked token [M ASK], and then train the model to infill the masked token with the class-token.  To construct the dictionaries for word translation between Dialectal Arabic and MSA experiments, we utilized the MADAR lexicon, which encompasses 25 Arab cities. This lexicon provides an MSA translation for every Dialectal Arabic word. We grouped the words from cities within the same country to create a country-level dictionary. This resulted in dictionaries of 10 Arab countries. We then performed a random split to divide the data into training and testing sets. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Settings</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.1">Implementation Details</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.5">Datasets Links</head><p>Multilingual Scenario:</p><p>• XLING bilingual dictionaries</p><p>Multi-dialectal Scenario:</p><p>• MADAR lexicon</p><p>• Arabic dialect to Arabic dialect lexicon</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Baseline Systems</head><p>In the first scenario, when evaluating the multilingual setting, we compare the performance of ProMap variants to the following baseline systems:</p><p>• RCSLS <ref type="bibr" target="#b13">(Joulin et al., 2018</ref>) optimizes a convex relaxation of CSLS loss during training, and therefore it learns a non-orthogonal mapping and improves the supervised BLI performance.</p><p>• Vecmap <ref type="bibr">(Artetxe et al., 2018a)</ref> follows multiple steps to perform word translation between two languages. The steps are whitening, orthogonal mapping, re-weighting, dewhitening, and dimensionality reduction.</p><p>• LNMap <ref type="bibr" target="#b24">(Mohiuddin et al., 2020)</ref> uses nonlinear autoencoders to learn a non-linear mapping of the static WEs of two languages into two latent spaces. It then uses these latent spaces to learn another non-linear mapping between them.</p><p>• FIPP <ref type="bibr" target="#b28">(Sachidananda et al., 2021)</ref> finds the common geometric structure between both languages' embeddings, then using the common structure, it aligns the Gram matrices of these embeddings.</p><p>• CLC1 <ref type="bibr" target="#b18">(Li et al., 2022)</ref> refines the linear Vecmap framework via CL objective iterations.</p><p>• CLC2 <ref type="bibr" target="#b18">(Li et al., 2022)</ref> combines the embeddings generated by CL1 and a multilingual PLM (optimized using a contrastive learning objective on the seed dictionary) aligned to the CLC1 embeddings.</p><p>For the word translation between Arabic variants, we compare our results to the following approaches that have demonstrated good performance on the same task:</p><p>• Erdmann et al. ( <ref type="formula">2018</ref>) presents the first version of the Vecamp framework, which uses a linear mapping to align the static word embeddings (WEs) of two languages, L1 and L2. This method employs the orthogonal Procrustes problem to learn the mapping.</p><p>• <ref type="bibr">Artetxe et al. (2016)</ref> uses the same Vecmap version as <ref type="bibr" target="#b7">(Erdmann et al., 2018)</ref> to align the static WEs of L1 and L2. In addition, it uses self-training iterations to allow the model to learn from a larger dictionary at each iteration.</p><p>• <ref type="bibr" target="#b27">Riley and Gildea (2018)</ref> extends the static WEs of L1 and L2 by incorporating orthographic features of the covered words. The Vecmap mapping is then applied to these extended WEs.</p><p>• El <ref type="bibr" target="#b6">Mekki et al. (2021)</ref> uses Canonical Correlation Analysis (CCA) to align the orthographic features in a shared space before extending the static WEs, as in <ref type="bibr" target="#b27">(Riley and Gildea, 2018)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Analyses</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Examples of Translations by ProMap</head><p>Table <ref type="table" target="#tab_12">9</ref> presents examples of translations predicted by ProMap variants and CLC1 for various language pairs. The table illustrates both instances when ProMap variants accurately predict translations and instances when it fails. Additionally, the table displays the sub-tokens generated by the ProMap G variant. As demonstrated by the provided examples, ProMap variants are capable to predict correct translations, even for distant languages such as Turkish-Italian, where both ProMap variants were able to correctly predict translations while the CLC1 model failed. Additionally, there are cases where only ProMap G predicts the correct translations even if it contains more than one subtoken. This indicates that the non-autoregressive word translation method for the mPLM can independently generate correct sub-tokens that form the correct word translation. Furthermore, ProMap S demonstrated in some cases to be the only successful model, highlighting the power of the re-ranking mechanism implemented in our approach.</p><p>In the same vein, Table <ref type="table" target="#tab_14">10</ref> presents examples of predictions generated ProMap G applied on MAR-BERT. These examples demonstrate the ability of this model to handle word translation between different Arabic dialects and MSA. Also, the table illustrates that in most cases, the correct predictions can be found within the top-5 predictions. However, the model appears to have difficulties in translating from MSA to dialectal Arabic in some instances, in contrast to the translation from dialectal Arabic to MSA which is accurate in the majority of examples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Comparison Between Dialectal Arabic PLMs</head><p>We evaluate the performance of ProMap G for word translation between different Arabic dialects and MSA using two dialectal Arabic PLMs: MAR-BERT and CAMELBERT (the mix variant). The re-sults, summarized in  <ref type="table" target="#tab_15">11</ref> because the latter table evaluates the overlapped dictionary pairs between the two PLMs vocabularies, while the results reported in the paper were based on pairs covered by MARBERT vocabulary only.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">The Effect of the Prompt Template</head><p>One of the challenges in prompt-based finetuning is constructing the template, particularly in the context of a cross-lingual task. We had to choose whether the template should be in the source language, the target language, a random language, or include special tokens. To address this question, we conduct several experiments where we apply prompt-based finetuning to all language pairs using four different templates: a template written in the source language, a template written in the target language, a template written in English, a template composed of random tokens from various languages, and a template made from special tokens added to the PLM vocabulary. The results presented in table <ref type="table" target="#tab_16">12</ref> show that the performance gap between the different templates is not significant, but the templates expressed in the source and target languages yielded the best and most stable results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Results of ProMap G on the MADAR Lexicon</head><p>Table <ref type="table" target="#tab_17">13</ref> presents the results achieved on the different Arabic variants covered by the MADAR lexicon (11 pairs). P@1, P@5, P@10 and P@50 scores are reported.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">ProMap G Few-shot Results</head><p>Tables <ref type="table" target="#tab_19">15</ref> and<ref type="table" target="#tab_8">16</ref> show the results of few-shot experiments on ProMap G for 15 different language pairs. The scores reported are the average of 25 runs with 5 different random samplings of N examples and 5 random seeds. The standard deviation is also reported and it is observed that it is large for many experiments. This is likely due to the choice of training samples for the ProMap G model. To further investigate this, Table <ref type="table" target="#tab_18">14</ref> presents examples of training samples for the one-shot scenario (where N = 1) and shows how the chosen sample can greatly impact the performance on the test set. For example, when using the sample "jurisdiction" -"juridiction" for the English-French language pair, the P@1 score is 52.35, while the sample "ideal" -"idéal" results in a P@1 score of 8.59. In some cases, the chosen training sample can prevent the model from converging at all. This can be seen in the Turkish-Italian pair, where the sample "mineral" -"minerale" results in a P@1 score of 0.00, while the sample "olasılık" -"possibilità" results in a P@1 score of 6.51. It is also observed that when the chosen example is exclusive to the language pair, the performance is better than when the example is shared with other language pairs.            </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.6">Visualisations of the</head></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Overview of ProMap, depicting the workflow for translating the word "draws" from English to French. The figure illustrates the use of ProMap G for generating the translation sub-tokens and ProMap S for re-ranking Contrastive Vecamp predictions</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Scatter plot of cross-lingual word embeddings for Test sets generated by the multilingual XLM model. The embeddings are represented in two dimensions using t-SNE (van der Maaten and Hinton, 2008) and depict the difference in performance before and after promptbased finetuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :Figure 4 :Figure 5 :</head><label>345</label><figDesc>Figure 3: A t-SNE visualization of word embeddings generated from the mPLM for words in the DE-FR pair test set, before and after the prompt-based finetuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 6 :Figure 7 :Figure 8 :Figure 9 :</head><label>6789</label><figDesc>Figure 6: A t-SNE visualization of word embeddings generated from the mPLM for words in the EN-FR pair test set, before and after the prompt-based finetuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 11 :</head><label>11</label><figDesc>Figure 11: A t-SNE visualization of word embeddings generated from the mPLM for words in the RU-FR pair test set, before and after the prompt-based finetuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 13 :</head><label>13</label><figDesc>Figure 13: A t-SNE visualization of word embeddings generated from the mPLM for words in the TR-FR pair test set, before and after the prompt-based finetuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 14 :</head><label>14</label><figDesc>Figure 14: A t-SNE visualization of word embeddings generated from the mPLM for words in the TR-IT pair test set, before and after the prompt-based finetuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 15 :</head><label>15</label><figDesc>Figure 15: A t-SNE visualization of word embeddings generated from the mPLM for words in the TR-RU pair test set, before and after the prompt-based finetuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>demonstrates the embeddings generated for each word in the Test sets</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">Baselines</cell><cell></cell><cell></cell><cell>Ours</cell><cell></cell></row><row><cell>Pairs</cell><cell cols="8">RCSLS VecMap LNMap FIPP CLC1 CLC2 ProMap G ProMap S</cell></row><row><cell>DE → FR</cell><cell>52.74</cell><cell>50.44</cell><cell>48.46</cell><cell cols="3">50.44 53.78 55.56</cell><cell>31.47</cell><cell>56.40</cell></row><row><cell>DE → IT</cell><cell>52.63</cell><cell>50.55</cell><cell>47.94</cell><cell cols="3">49.97 52.79 54.77</cell><cell>28.19</cell><cell>54.44</cell></row><row><cell>DE → RU</cell><cell>42.41</cell><cell>34.38</cell><cell>37.92</cell><cell cols="3">37.09 44.29 46.79</cell><cell>15.64</cell><cell>48.50</cell></row><row><cell>DE → TR</cell><cell>30.99</cell><cell>27.18</cell><cell>29.16</cell><cell cols="3">27.65 34.69 38.86</cell><cell>10.67</cell><cell>37.36</cell></row><row><cell>EN → DE</cell><cell>57.60</cell><cell>51.00</cell><cell>47.95</cell><cell>51.85</cell><cell>54.9</cell><cell>57.75</cell><cell>24.28</cell><cell>59.89</cell></row><row><cell>EN → FR</cell><cell>66.55</cell><cell>63.10</cell><cell>62.10</cell><cell cols="3">63.25 65.05 67.20</cell><cell>46.42</cell><cell>69.38</cell></row><row><cell>EN → IT</cell><cell>64.05</cell><cell>60.40</cell><cell>59.05</cell><cell cols="3">59.75 63.45 65.60</cell><cell>41.79</cell><cell>68.42</cell></row><row><cell>EN → RU</cell><cell>49.40</cell><cell>39.65</cell><cell>41.10</cell><cell cols="3">42.00 49.15 50.50</cell><cell>19.57</cell><cell>54.98</cell></row><row><cell>EN → TR</cell><cell>39.05</cell><cell>32.05</cell><cell>32.85</cell><cell cols="3">32.40 41.35 44.75</cell><cell>12.67</cell><cell>45.21</cell></row><row><cell>IT → FR</cell><cell>66.51</cell><cell>65.89</cell><cell>64.60</cell><cell cols="3">65.32 66.51 67.86</cell><cell>41.51</cell><cell>67.13</cell></row><row><cell>RU → FR</cell><cell>47.67</cell><cell>47.51</cell><cell>43.64</cell><cell cols="3">47.15 50.55 52.70</cell><cell>30.70</cell><cell>54.06</cell></row><row><cell>RU → IT</cell><cell>46.57</cell><cell>46.78</cell><cell>43.74</cell><cell cols="3">45.89 49.66 51.96</cell><cell>26.89</cell><cell>53.02</cell></row><row><cell>TR → FR</cell><cell>36.10</cell><cell>36.58</cell><cell>34.08</cell><cell cols="3">34.40 40.63 43.88</cell><cell>21.23</cell><cell>43.91</cell></row><row><cell>TR → IT</cell><cell>34.56</cell><cell>34.24</cell><cell>32.00</cell><cell cols="3">33.44 38.98 42.17</cell><cell>19.31</cell><cell>43.49</cell></row><row><cell>TR → RU</cell><cell>28.06</cell><cell>26.20</cell><cell>26.20</cell><cell cols="3">26.36 32.00 36.16</cell><cell>11.27</cell><cell>37.17</cell></row><row><cell>Avg.</cell><cell>47.66</cell><cell>44.40</cell><cell>43.39</cell><cell cols="3">44.46 49.19 51.77</cell><cell>25.44</cell><cell>52.89</cell></row></table><note><p><p><p>Table</p>1</p>: P@1 scores on the multilingual BLI benchmark using 5K translation pairs. The highest scores among all approaches are highlighted in bold.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>In the following experiments, we train ProMap G with different Comparison of P@1 scores between our approach for generating word translation and static word embeddings-based alignment approaches. All models are trained on the shared pairs by the static word embeddings and the mPLM vocabularies. The highest scores among all approaches are highlighted in bold.</figDesc><table><row><cell>Pairs</cell><cell cols="4">Data Size (Train/Test) VecMap CLC1 ProMap G</cell></row><row><cell>DE → FR</cell><cell>2,189/385</cell><cell>51.08</cell><cell>57.53</cell><cell>60.75</cell></row><row><cell>DE → IT</cell><cell>2,084/368</cell><cell>46.18</cell><cell>50.99</cell><cell>57.51</cell></row><row><cell>DE → RU</cell><cell>1,256/172</cell><cell>35.37</cell><cell>37.20</cell><cell>50.00</cell></row><row><cell>DE → TR</cell><cell>1,458/248</cell><cell>27.50</cell><cell>37.50</cell><cell>54.17</cell></row><row><cell>EN → DE</cell><cell>2,180/257</cell><cell>58.75</cell><cell>63.42</cell><cell>77.43</cell></row><row><cell>EN → FR</cell><cell>2,984/361</cell><cell>64.82</cell><cell>66.20</cell><cell>78.67</cell></row><row><cell>EN → IT</cell><cell>2,797/327</cell><cell>61.47</cell><cell>63.61</cell><cell>79.82</cell></row><row><cell>EN → RU</cell><cell>1,561/131</cell><cell>24.43</cell><cell>35.88</cell><cell>53.44</cell></row><row><cell>EN → TR</cell><cell>1,871/210</cell><cell>36.67</cell><cell>46.67</cell><cell>59.05</cell></row><row><cell>IT → FR</cell><cell>2,993/586</cell><cell>67.08</cell><cell>68.31</cell><cell>72.54</cell></row><row><cell>RU → FR</cell><cell>1,651/242</cell><cell>41.18</cell><cell>46.64</cell><cell>54.20</cell></row><row><cell>RU → IT</cell><cell>1,584/231</cell><cell>37.84</cell><cell>40.54</cell><cell>50.00</cell></row><row><cell>TR → FR</cell><cell>1,894/319</cell><cell>27.52</cell><cell>36.58</cell><cell>45.30</cell></row><row><cell>TR → IT</cell><cell>1,819/311</cell><cell>29.45</cell><cell>35.62</cell><cell>43.84</cell></row><row><cell>TR → RU</cell><cell>1,086/151</cell><cell>19.86</cell><cell>24.66</cell><cell>32.88</cell></row><row><cell>Avg.</cell><cell>-</cell><cell>41.95</cell><cell>47.42</cell><cell>57.97</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Table 3 presents a subset of the results (the full results are in Table 15 in Appendix 3.5). The results show that the BLI performance using ProMap G in-</figDesc><table><row><cell>Pairs</cell><cell>DE → IT</cell><cell>EN → FR</cell><cell>EN → TR</cell><cell>IT → FR</cell><cell>RU → IT</cell></row><row><cell>N=1</cell><cell>5.34 (2.86)</cell><cell cols="2">20.67 (15.58) 8.09 (7.05)</cell><cell cols="2">13.05 (10.88) 9.70 (7.99)</cell></row><row><cell>N=3</cell><cell>14.99 (6.27)</cell><cell>39.89 (8.92)</cell><cell>16.80 (9.14)</cell><cell>38.87 (7.81)</cell><cell>22.40 (1.93)</cell></row><row><cell>N=5</cell><cell>29.40 (4.33)</cell><cell cols="2">48.08 (16.50) 22.48 (6.71)</cell><cell>48.24 (8.64)</cell><cell>25.29 (2.37)</cell></row><row><cell>N=10</cell><cell cols="2">25.27 (13.35) 66.03 (6.50)</cell><cell cols="2">28.55 (11.40) 52.25 (4.36)</cell><cell>30.93 (0.94)</cell></row><row><cell>N=16</cell><cell>18.74 (6.69)</cell><cell>65.40 (5.96)</cell><cell>34.60 (7.35)</cell><cell cols="2">39.57 (11.49) 33.10 (1.85)</cell></row><row><cell>N=32</cell><cell>34.01 (1.37)</cell><cell>59.45 (9.21)</cell><cell>37.68 (5.81)</cell><cell>46.11 (6.37)</cell><cell>36.29 (0.61)</cell></row><row><cell>N=64</cell><cell>38.34 (4.35)</cell><cell cols="3">59.80 (10.21) 41.40 (11.40) 55.57 (6.67)</cell><cell>38.40 (2.42)</cell></row><row><cell cols="2">N=128 45.95 (2.13)</cell><cell>70.44 (3.48)</cell><cell>42.85 (4.34)</cell><cell>59.06 (9.14)</cell><cell>42.81 (2.25)</cell></row><row><cell cols="2">N=256 50.82 (2.44)</cell><cell>74.37 (1.98)</cell><cell>48.94 (2.62)</cell><cell>68.74 (2.25)</cell><cell>45.37 (2.11)</cell></row><row><cell cols="2">N=512 51.33 (6.86)</cell><cell>74.21 (4.48)</cell><cell>57.17 (7.06)</cell><cell>66.11 (8.81)</cell><cell>47.20 (2.21)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Comparison of P@1 Scores of ProMap G Using N-Shot training example pairs. Every value in the table presents the average (and standard deviation) of 25 runs (corresponding to 5 random samples x 5 random seeds). The full results table, Table15, is in Appendix 3.5.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head></head><label></label><figDesc>Table6presents the number of trainable parameters for each mPLM used in our paper.</figDesc><table><row><cell>Model</cell><cell># of trainable parameters</cell></row><row><cell>XLM-MLM-17-1280</cell><cell>571,696,960</cell></row><row><cell>MARBERT</cell><cell>162,942,880</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 6 :</head><label>6</label><figDesc>The number of trainable parameters for each mPLM used for ProMap.</figDesc><table><row><cell>2.1.2 Computing Infrastructure</cell></row><row><cell>We conducted our experiments utilizing a worksta-</cell></row><row><cell>tion equipped with an Intel(R) Xeon(R) Silver 4216</cell></row><row><cell>CPU operating at 2.10GHz and a single Nvidia</cell></row><row><cell>Tesla V100 GPU with 32GB of RAM.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 :</head><label>7</label><figDesc>Average training runtime of the ProMap and CLC1 methods. The runtime of ProMap S includes both the finetuning of ProMap and the re-ranking.</figDesc><table><row><cell>2.1.3 Average Runtimes</cell></row><row><cell>2.1.4 Insights about the Dialectal Arabic to</cell></row><row><cell>MSA Data</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 8 :</head><label>8</label><figDesc>Table 8 presents the train and test sizes for each country-level Arabic dialect to MSA dictionary. Sizes of train and test datasets constructed from the MADAR lexicon for the case of country-level dialectal Arabic to MSA word translation.</figDesc><table><row><cell>Arabic variants pairs</cell><cell cols="2"># of training pairs # of testing pairs</cell></row><row><cell>Moroccan (MAR) → MSA</cell><cell>740</cell><cell>193</cell></row><row><cell>Algerian (ALG) → MSA</cell><cell>638</cell><cell>161</cell></row><row><cell>Tunisian (TUN) → MSA</cell><cell>844</cell><cell>209</cell></row><row><cell>Libyan (LBY) → MSA</cell><cell>879</cell><cell>217</cell></row><row><cell>Egyptian (EGY) → MSA</cell><cell>1,077</cell><cell>282</cell></row><row><cell>Sudanese → MSA</cell><cell>1,322</cell><cell>341</cell></row><row><cell>Leventine (LEV) → MSA</cell><cell>1,111</cell><cell>298</cell></row><row><cell>Iraqi (IRQ) → MSA</cell><cell>1,027</cell><cell>255</cell></row><row><cell>Gulf (GLF) → MSA</cell><cell>2,051</cell><cell>526</cell></row><row><cell>Yemeni (YEM) → MSA</cell><cell>1,466</cell><cell>350</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head></head><label></label><figDesc>Table 11, indicate that MAR-BERT outperformed CAMELBERT in the majority of experiments. Additionally, it is worth noting that CAMELBERT has a vocabulary of 30k tokens, while MARBERT has a vocabulary of 100k tokens. These factors led us to adopt MARBERT for our results in the paper. It should also be noted that the results presented in Table 2 in the paper differ from those in Table</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 9 :</head><label>9</label><figDesc>Translation Examples in the Multilingual Setting. The table displays the language pairs, source words, corresponding target words, and translations predicted by the CLC1, ProMap G , and ProMap S models, as well as the sub-tokens generated by the ProMap G model. A green background indicates a correct prediction, while a red background indicates an incorrect prediction.</figDesc><table><row><cell>Pair</cell><cell>Source Word</cell><cell cols="2">True Translation CLC1</cell><cell>ProMap G sub-tokens</cell><cell>ProMap G</cell><cell>ProMap S</cell></row><row><cell cols="2">DE-FR animationen</cell><cell>animations</cell><cell>animées</cell><cell>anim, ations, [PAD], [PAD]</cell><cell>animations</cell><cell>animations</cell></row><row><cell cols="3">DE-FR infinitesimalrechnung calcul</cell><cell>infinitésimal</cell><cell>calcul, [PAD], [PAD], [PAD]</cell><cell>calcul</cell><cell>infinitésimal</cell></row><row><cell cols="2">DE-FR erniedrigung</cell><cell>humiliation</cell><cell>privation</cell><cell>humili, ation, [PAD], [PAD]</cell><cell>humiliation</cell><cell>humiliation</cell></row><row><cell cols="2">EN-IT grille</cell><cell>griglia</cell><cell>calandra</cell><cell>gr, iglia, [PAD], [PAD]</cell><cell>griglia</cell><cell>calandra</cell></row><row><cell cols="2">EN-IT selector</cell><cell>selettore</cell><cell cols="2">selezionatore selet, tore, [PAD], [PAD]</cell><cell>selettore</cell><cell>selettore</cell></row><row><cell cols="2">EN-IT consulate</cell><cell>consolato</cell><cell>ambasciata</cell><cell>consul, ato, [PAD], [PAD]</cell><cell>consulato</cell><cell>consolato</cell></row><row><cell cols="2">TR-IT hatırlatır</cell><cell>ricorda</cell><cell>rammenta</cell><cell>ricorda, [PAD], [PAD], [PAD]</cell><cell>ricorda</cell><cell>ricorda</cell></row><row><cell cols="2">TR-IT gezi</cell><cell>escursione</cell><cell>passeggiata</cell><cell>escur, aggio, [PAD], [PAD]</cell><cell>escuraggio</cell><cell>escursione</cell></row><row><cell cols="2">TR-IT fosforilasyon</cell><cell>fosforilazione</cell><cell>pathway</cell><cell>fosfor, dazione, [PAD], [PAD]</cell><cell>fosfordazione</cell><cell>fosforilazione</cell></row><row><cell cols="2">TR-IT aldatma</cell><cell>inganno</cell><cell>inganno</cell><cell cols="2">donazione, [PAD], [PAD], [PAD] donazione</cell><cell>seduzione</cell></row><row><cell cols="2">EN-FR abbreviation</cell><cell>abréviation</cell><cell>abréviation</cell><cell>sigle, [PAD], [PAD], [PAD]</cell><cell>sigle</cell><cell>sigle</cell></row><row><cell cols="2">EN-FR presumed</cell><cell>présumé</cell><cell>présumé</cell><cell>sup, posé, [PAD], [PAD]</cell><cell>supposé</cell><cell>supposé</cell></row><row><cell cols="2">TR-FR acımasızlık</cell><cell>cruauté</cell><cell>cruauté</cell><cell>mé, ence, [PAD], [PAD]</cell><cell>méence</cell><cell>cruauté</cell></row><row><cell cols="2">DE-IT abkürzungen</cell><cell>abbreviazioni</cell><cell cols="2">abbreviazioni abbrevi, zioni, [PAD], [PAD]</cell><cell>abbrevizioni</cell><cell>abbreviazioni</cell></row><row><cell cols="2">DE-IT antibiotika</cell><cell>antibiotici</cell><cell>antibiotici</cell><cell>antibi, oti, ici, [PAD]</cell><cell>antibiotiici</cell><cell>antibiotici</cell></row><row><cell cols="2">DE-IT bruderschaft</cell><cell>fratellanza</cell><cell cols="2">confraternita confratern, fratern, fratern, .</cell><cell cols="2">confraternfraternfratern. confraternita</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head>Table 10 :</head><label>10</label><figDesc>Examples of word translations between Arabic dialects and MSA generated by ProMap G with MARBERT. The table presents several Arabic variant pairs and the top 5 predictions for each query. The top 5 predictions are presented from right to left direction.</figDesc><table><row><cell></cell><cell cols="2">MAR-MSA</cell><cell cols="2">ALG-MSA</cell><cell cols="2">TUN-MSA</cell><cell cols="2">LBY-MSA</cell><cell cols="2">EGY-MSA</cell><cell cols="2">SDN-MSA</cell><cell cols="2">LEV-MSA</cell><cell cols="2">IRQ-MSA</cell><cell cols="2">GLF-MSA</cell><cell cols="2">YEM-MSA</cell></row><row><cell></cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell><cell>→</cell><cell>←</cell></row><row><cell></cell><cell cols="20">P@1 60.71 50.36 65.06 54.08 63.03 56.43 68.99 56.49 62.34 51.40 57.71 44.17 58.33 50.24 73.01 61.58 50.85 32.71 60.21 52.22</cell></row><row><cell>CAMELBERT</cell><cell cols="20">P@5 70.54 61.31 77.11 65.31 73.95 65.00 83.72 75.32 80.52 69.83 82.86 60.19 76.04 65.88 85.28 75.71 70.94 51.88 81.15 68.97 P@10 76.79 65.69 80.72 69.39 78.15 68.57 88.37 79.87 84.42 75.42 85.71 65.53 81.25 73.93 87.73 79.66 79.91 57.14 83.25 74.38</cell></row><row><cell></cell><cell cols="20">P@50 83.04 73.72 89.16 78.57 85.71 77.86 92.25 85.71 91.56 85.47 91.43 79.61 91.15 81.52 92.64 86.44 88.46 77.44 88.48 85.71</cell></row><row><cell></cell><cell cols="20">P@1 59.82 50.36 65.06 53.06 65.55 54.29 72.09 58.44 66.88 51.40 65.14 47.09 62.50 45.97 79.14 51.41 61.54 30.45 63.35 49.75</cell></row><row><cell>MARBERT</cell><cell cols="20">P@5 69.64 61.31 78.31 67.35 78.15 66.43 86.82 74.68 81.17 68.16 84.57 61.65 82.29 67.77 87.73 61.02 80.77 49.62 84.29 67.49 P@10 76.79 62.77 79.52 69.39 81.51 70.71 87.60 79.87 85.71 73.74 87.43 67.48 84.90 72.51 91.41 63.28 85.04 58.27 88.48 75.37</cell></row><row><cell></cell><cell cols="20">P@50 85.71 69.34 87.95 75.51 88.24 78.57 93.02 87.01 92.86 87.15 94.86 85.92 91.67 84.83 93.87 70.62 93.16 74.06 93.19 84.24</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 11 :</head><label>11</label><figDesc>A comparison of P@1 for ProMap G using CAMELBERT and MARBERT as Arabic PLMs between Arabic dialects and MSA.</figDesc><table><row><cell>Pairs</cell><cell cols="5">English template Source language template Target language template Random language template Special Tokens</cell></row><row><cell>DE → FR</cell><cell>58.07 (1.37)</cell><cell>59.08 (1.02)</cell><cell>59.14 (1.22)</cell><cell>57.47 (0.58)</cell><cell>58.98 (1.48)</cell></row><row><cell>DE → IT</cell><cell>55.67 (0.29)</cell><cell>56.94 (0.85)</cell><cell>56.30 (1.14)</cell><cell>56.83 (0.47)</cell><cell>55.75 (2.38)</cell></row><row><cell>DE → RU</cell><cell>44.82 (3.47)</cell><cell>45.73 (6.05)</cell><cell>48.90 (1.32)</cell><cell>48.17 (1.49)</cell><cell>48.29 (1.80)</cell></row><row><cell>DE → TR</cell><cell>51.25 (1.41)</cell><cell>53.42 (1.12)</cell><cell>53.92 (1.83)</cell><cell>52.17 (0.75)</cell><cell>52.92 (2.48)</cell></row><row><cell>EN → DE</cell><cell>-</cell><cell>74.55 (2.25)</cell><cell>72.06 (2.16)</cell><cell>73.31 (2.25)</cell><cell>73.62 (1.01)</cell></row><row><cell>EN → FR</cell><cell>-</cell><cell>79.83 (0.91)</cell><cell>80.44 (1.28)</cell><cell>80.17 (0.58)</cell><cell>79.67 (0.89)</cell></row><row><cell>EN → IT</cell><cell>-</cell><cell>77.61 (1.36)</cell><cell>76.70 (1.13)</cell><cell>72.54 (7.97)</cell><cell>75.41 (0.71)</cell></row><row><cell>EN → RU</cell><cell>-</cell><cell>55.73 (5.78)</cell><cell>59.16 (2.53)</cell><cell>57.25 (3.70)</cell><cell>56.79 (2.98)</cell></row><row><cell>EN → TR</cell><cell>-</cell><cell>58.93 (2.65)</cell><cell>57.33 (1.74)</cell><cell>58.00 (0.85)</cell><cell>57.33 (1.92)</cell></row><row><cell>IT → FR</cell><cell>72.47 (1.78)</cell><cell>73.55 (1.45)</cell><cell>72.54 (2.30)</cell><cell>72.50 (2.48)</cell><cell>72.96 (1.18)</cell></row><row><cell>RU → FR</cell><cell>49.66 (3.58)</cell><cell>51.26 (2.12)</cell><cell>52.18 (1.13)</cell><cell>52.94 (1.22)</cell><cell>52.44 (1.50)</cell></row><row><cell>RU → IT</cell><cell>48.20 (3.01)</cell><cell>(1.81)</cell><cell>48.11 (4.30)</cell><cell>52.25 (1.01)</cell><cell>51.91 (2.28)</cell></row><row><cell>TR → FR</cell><cell>46.11 (1.25)</cell><cell>49.87 (0.70)</cell><cell>47.32 (1.36)</cell><cell>48.15 (2.98)</cell><cell>48.52 (0.90)</cell></row><row><cell>TR → IT</cell><cell>46.92 (1.88)</cell><cell>51.44 (1.54)</cell><cell>46.78 (0.79)</cell><cell>49.04 (2.60)</cell><cell>48.08 (1.62)</cell></row><row><cell>TR → RU</cell><cell>30.31 (2.59)</cell><cell>37.95 (2.30)</cell><cell>34.52 (1.50)</cell><cell>32.88 (2.17)</cell><cell>35.62 (3.40)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_16"><head>Table 12 :</head><label>12</label><figDesc>Comparison of P@1 Scores of ProMap G using different prompting templates. Every value in the table presents the average (and standard deviation) of 5 runs, corresponding to 5 random seeds.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_17"><head>Table 13 :</head><label>13</label><figDesc>Results of ProMap G for word translation between Arabic dialects and MSA using MARBERT on the MADAR Lexicon.</figDesc><table><row><cell>Pair</cell><cell>Training example</cell><cell>P@1</cell></row><row><cell>DE-FR</cell><cell>zahlung -paiement system -système</cell><cell>15.05 2.15</cell></row><row><cell>DE-IT</cell><cell cols="2">expedition -spedizione 2.55 fenster -finestra 4.88</cell></row><row><cell></cell><cell cols="2">jurisdiction -juridiction 52.35</cell></row><row><cell>EN-FR</cell><cell>ideal -idéal</cell><cell>8.59</cell></row><row><cell></cell><cell cols="2">orientation -orientation 0.83</cell></row><row><cell>EN-IT</cell><cell>weight -peso rice -riso</cell><cell>15.90 1.53</cell></row><row><cell></cell><cell>league -lig</cell><cell>31.90</cell></row><row><cell>EN-TR</cell><cell>agreement -anlaşma</cell><cell>3.81</cell></row><row><cell></cell><cell>influence -etki</cell><cell>0.00</cell></row><row><cell>TR-IT</cell><cell>olasılık -possibilità mineral -minerale</cell><cell>6.51 0.00</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_18"><head>Table 14 :</head><label>14</label><figDesc>The effect on the selected training example for the few-shot scenario when N = 1. The table shows examples of the selected training example for several pairs and the corresponding P@1 score of ProMap G on the test set.</figDesc><table><row><cell>Pairs</cell><cell>DE → FR</cell><cell>DE → IT</cell><cell>DE → RU</cell><cell>DE → TR</cell><cell>EN → DE</cell><cell>EN → FR</cell><cell>EN → IT</cell><cell>EN → RU</cell><cell>EN → TR</cell><cell>IT → FR</cell><cell>RU → FR</cell><cell>RU → IT</cell><cell>TR → FR</cell><cell>TR → IT</cell><cell>TR → RU</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_19"><head>Table 15 :</head><label>15</label><figDesc>Comparison of P@1 scores of ProMap G using different sizes of training example pairs. Every value in the table presents the average (and standard deviation) of 25 runs, corresponding to 5 random samplings with 5 random seeds.</figDesc><table><row><cell>Pairs</cell><cell>DE → FR</cell><cell>DE → IT</cell><cell>DE → RU</cell><cell>DE → TR</cell><cell>EN → DE</cell><cell>EN → FR</cell><cell>EN → IT</cell><cell>EN → RU</cell><cell>EN → TR</cell><cell>IT → FR</cell><cell>RU → FR</cell><cell>RU → IT</cell><cell>TR → FR</cell><cell>TR → IT</cell><cell>TR → RU</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>‡  In the second case, we did not report any baselines due to unavailability of static WEs for the country-level Arabic variants.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>This research aims to improve language technology for under-resourced languages by addressing</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Learning principled bilingual mappings of word embeddings while preserving monolingual invariance</title>
+		<author>
+			<persName><forename type="first">Muhammad</forename><surname>Abdul-Mageed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahim</forename><surname>Elmadany</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">El</forename><surname>Moatez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Billah</forename><surname>Nagoudi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D16-1250</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2021. 2016</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2289" to="2294" />
+		</imprint>
+		<respStmt>
+			<orgName>Mikel Artetxe, Gorka Labaka, and Eneko Agirre</orgName>
+		</respStmt>
+	</monogr>
+	<note>Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Generalizing and improving bilingual word embedding mappings with a multi-step framework of linear transformations</title>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gorka</forename><surname>Labaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v32i1.11992</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A robust self-learning method for fully unsupervised cross-lingual mappings of word embeddings</title>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gorka</forename><surname>Labaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1073</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="789" to="798" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A call for more rigor in unsupervised cross-lingual learning</title>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gorka</forename><surname>Labaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.658</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)</title>
+		<editor>
+			<persName><forename type="first">Houda</forename><surname>Bouamor</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Mohammad</forename><surname>Salameh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Wajdi</forename><surname>Zaghouani</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Owen</forename><surname>Rambow</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Dana</forename><surname>Abdulrahim</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ossama</forename><surname>Obeid</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Salam</forename><surname>Khalifa</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Fadhl</forename><surname>Eryani</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Alexander</forename><surname>Erdmann</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Kemal</forename><surname>Oflazer</surname></persName>
+		</editor>
+		<meeting>the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)<address><addrLine>Miyazaki, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2020. 2018</date>
+			<biblScope unit="page" from="7375" to="7388" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics. European Language Resources Association (ELRA</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Unsupervised cross-lingual representation learning at scale</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartikay</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.747</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8440" to="8451" />
+		</imprint>
+	</monogr>
+	<note>Online. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">On the Role of Orthographic Variations in Building Multidialectal Arabic Word Embeddings</title>
+		<author>
+			<persName><forename type="first">Abdellah</forename><forename type="middle">El</forename><surname>Mekki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelkader</forename><forename type="middle">El</forename><surname>Mahdaouy</surname></persName>
+		</author>
+		<ptr target="Https://caiac.pubpub.org/pub/pdf9jqoh" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Canadian Conference on Artificial Intelligence</title>
+		<meeting>the Canadian Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>Ismail Berrada, and Ahmed Khoumsi</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Addressing noise in multidialectal word embeddings</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Erdmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nasser</forename><surname>Zalmout</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-2089</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="558" to="565" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Cross-lingual feature extraction from monolingual corpora for low-resource unsupervised bilingual lexicon induction</title>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hailong</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiejun</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weixuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.295</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing<address><addrLine>Gyeongju; Adam Fisch,</addrLine></address></meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2022. 2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3816" to="3830" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 29th International Conference on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">How to (properly) evaluate crosslingual word embeddings: On strong baselines, com-parative analyses, and some misconceptions</title>
+		<author>
+			<persName><forename type="first">Goran</forename><surname>Glavaš</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Litschko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.675</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019. 2020</date>
+			<biblScope unit="page" from="7548" to="7555" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics. Online. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Unified guidelines and resources for Arabic dialect orthography</title>
+		<author>
+			<persName><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fadhl</forename><surname>Eryani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salam</forename><surname>Khalifa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Owen</forename><surname>Rambow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dana</forename><surname>Abdulrahim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Erdmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reem</forename><surname>Faraj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wajdi</forename><surname>Zaghouani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Houda</forename><surname>Bouamor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nasser</forename><surname>Zalmout</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sara</forename><surname>Hassan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Al-Shargi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sakhar</forename><surname>Alkhereyf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Basma</forename><surname>Abdulkareem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramy</forename><surname>Eskander</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Salameh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hind</forename><surname>Saddiki</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)</title>
+		<meeting>the Eleventh International Conference on Language Resources and Evaluation (LREC 2018)<address><addrLine>Miyazaki, Japan</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">The interplay of variant, size, and task type in Arabic pre-trained language models</title>
+		<author>
+			<persName><forename type="first">Go</forename><surname>Inoue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bashar</forename><surname>Alhafni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nurpeiis</forename><surname>Baimukan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Houda</forename><surname>Bouamor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Sixth Arabic Natural Language Processing Workshop</title>
+		<meeting>the Sixth Arabic Natural Language Processing Workshop<address><addrLine>Kyiv, Ukraine</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="92" to="104" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning multilingual word embeddings in latent metric space: A geometric approach</title>
+		<author>
+			<persName><forename type="first">Pratik</forename><surname>Jawanpuria</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arjun</forename><surname>Balgovind</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anoop</forename><surname>Kunchukuttan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bamdev</forename><surname>Mishra</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00257</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="107" to="120" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Loss in translation: Learning bilingual word mapping with a retrieval criterion</title>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hervé</forename><surname>Jégou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D18-1330</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2979" to="2984" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Classification-based self-learning for weakly supervised bilingual lexicon induction</title>
+		<author>
+			<persName><forename type="first">Mladen</forename><surname>Karan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Goran</forename><surname>Glavaš</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.618</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6915" to="6922" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Crosslingual language model pretraining</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NeurIPS)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Word translation without parallel data</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc'aurelio</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludovic</forename><surname>Denoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hervé</forename><surname>Jégou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">An empirical study of pre-trained transformers for Arabic information extraction</title>
+		<author>
+			<persName><forename type="first">Wuwei</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Ritter</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.382</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4727" to="4734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Improving word translation via two-stage contrastive learning</title>
+		<author>
+			<persName><forename type="first">Yaoyiran</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nigel</forename><surname>Collier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.299</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4353" to="4374" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">FELIX: Flexible text editing through tagging and insertion</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Mallinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aliaksei</forename><surname>Severyn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Malmi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillermo</forename><surname>Garrido</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.findings-emnlp.111</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2020</title>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1244" to="1255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Unsupervised text style transfer with padded masked language models</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Malmi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aliaksei</forename><surname>Severyn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sascha</forename><surname>Rothe</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.699</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8671" to="8680" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">When does unsupervised machine translation work?</title>
+		<author>
+			<persName><forename type="first">Kelly</forename><surname>Marchisio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifth Conference on Machine Translation</title>
+		<meeting>the Fifth Conference on Machine Translation</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="571" to="583" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Bilingual lexicon induction for low-resource languages using graph matching via optimal transport</title>
+		<author>
+			<persName><forename type="first">Kelly</forename><surname>Marchisio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Saad-Eldin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carey</forename><surname>Priebe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2210.14378</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Exploiting similarities among languages for machine translation</title>
+		<author>
+			<persName><forename type="first">Tomás</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno>CoRR, abs/1309.4168</idno>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">LNMap: Departures from isomorphic assumption in bilingual lexicon induction through non-linear mapping in latent space</title>
+		<author>
+			<persName><forename type="first">Tasnim</forename><surname>Mohiuddin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Saiful</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bari</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shafiq</forename><surname>Joty</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.215</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2712" to="2723" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Characterizing departures from linearity in word translation</title>
+		<author>
+			<persName><forename type="first">Ndapa</forename><surname>Nakashole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raphael</forename><surname>Flauger</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-2036</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="221" to="227" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Bilingual lexicon induction with semi-supervision in non-isometric embedding spaces</title>
+		<author>
+			<persName><forename type="first">Aitor</forename><surname>Ormazabal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikel</forename><surname>Artetxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gorka</forename><surname>Labaka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aitor</forename><surname>Soroa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<editor>
+			<persName><forename type="first">Barun</forename><surname>Patra</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Joel</forename><surname>Ruben</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Antony</forename><surname>Moniz</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sarthak</forename><surname>Garg</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Matthew</forename><forename type="middle">R</forename><surname>Gormley</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</editor>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy; Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019. 2019</date>
+			<biblScope unit="page" from="184" to="193" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Orthographic features for bilingual lexicon induction</title>
+		<author>
+			<persName><forename type="first">Parker</forename><surname>Riley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-2062</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="390" to="394" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Filtered inner product projection for crosslingual embedding alignment</title>
+		<author>
+			<persName><forename type="first">Vin</forename><surname>Sachidananda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenguang</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Automatically identifying words that can serve as labels for few-shot text classification</title>
+		<author>
+			<persName><forename type="first">Wael</forename><surname>Salloum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.coling-main.488</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014">2014. 2020</date>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="page" from="5569" to="5578" />
+		</imprint>
+		<respStmt>
+			<orgName>Journal of King Saud University -Computer and Information Sciences</orgName>
+		</respStmt>
+	</monogr>
+	<note>Special Issue on Arabic NLP. Timo Schick, Helmut Schmid, and Hinrich Schütze. International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Exploiting cloze-questions for few-shot text classification and natural language inference</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.20</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="255" to="269" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">2021b. It&apos;s not just size that matters: Small language models are also fewshot learners</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.185</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="2339" to="2352" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Bilingual lexicon induction via unsupervised bitext construction and word alignment</title>
+		<author>
+			<persName><forename type="first">Haoyue</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sida</forename><forename type="middle">I</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.67</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="813" to="826" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">AutoPrompt: Eliciting Knowledge from Language Models with Automatically Generated Prompts</title>
+		<author>
+			<persName><forename type="first">Taylor</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasaman</forename><surname>Razeghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><forename type="middle">L</forename><surname>Logan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><forename type="middle">V</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.346</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4222" to="4235" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Offline bilingual word vectors, orthogonal transformations and the inverted softmax</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">P</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Turban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nils</forename><forename type="middle">Y</forename><surname>Hamblin</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hammerla</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-1072</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations. Anders Søgaard, Sebastian Ruder, and Ivan Vulić</title>
+		<meeting><address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Laurens van der Maaten and Geoffrey Hinton</publisher>
+			<date type="published" when="2008">2017. 2018. 2008</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2579" to="2605" />
+		</imprint>
+	</monogr>
+	<note>Visualizing data using t-sne</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Do we really need fully unsupervised cross-lingual embeddings?</title>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Goran</forename><surname>Glavaš</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roi</forename><surname>Reichart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1449</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4407" to="4418" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Combining static word embeddings and contextual representations for bilingual lexicon induction</title>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Xing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiye</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">; Jinpeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baijun</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nini</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyu</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangbin</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihua</forename><surname>Luo</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.findings-acl.260</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Denver, Colorado</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015">2015. 2021</date>
+			<biblScope unit="page" from="2943" to="2955" />
+		</imprint>
+	</monogr>
+	<note>Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Adversarial training for unsupervised bilingual lexicon induction</title>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huanbo</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1179</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1959" to="1970" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huanbo</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="1934" to="1945" />
+			<pubPlace>Copenhagen, Denmark</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Comparison of P@5 scores of ProMap G using different sizes of training example pairs. Every value in the table presents the average (and standard deviation) of 25 runs</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+		</imprint>
+	</monogr>
+	<note>corresponding to 5 random samplings with 5 random seeds</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

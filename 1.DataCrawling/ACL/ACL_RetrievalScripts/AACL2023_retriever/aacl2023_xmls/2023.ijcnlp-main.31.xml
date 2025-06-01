@@ -1,0 +1,1993 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Interactive-Chain-Prompting: Ambiguity Resolution for Crosslingual Conditional Generation with Interaction</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jonathan</forename><surname>Pilault</surname></persName>
+							<email>pilaultj@mila.quebec</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Google Research</orgName>
+								<orgName type="institution" key="instit2">XGen Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xavier</forename><surname>Garcia</surname></persName>
+							<email>xgarcia@deepmind.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Google Research</orgName>
+								<orgName type="institution" key="instit2">XGen Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Arthur</forename><surname>Bražinskas</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Google Research</orgName>
+								<orgName type="institution" key="instit2">XGen Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+							<email>orhanf@deepmind.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Google Research</orgName>
+								<orgName type="institution" key="instit2">XGen Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Google</forename><surname>Deepmind</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Google Research</orgName>
+								<orgName type="institution" key="instit2">XGen Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Polytechnique</forename><surname>Montreal</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Google Research</orgName>
+								<orgName type="institution" key="instit2">XGen Team</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Interactive-Chain-Prompting: Ambiguity Resolution for Crosslingual Conditional Generation with Interaction</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">D089042E70068CA110868674C6898696</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:34+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Crosslingual conditional generation (e.g., machine translation) has long enjoyed the benefits of scaling. Nonetheless, there are still issues that scale alone may not overcome. A source query in one language, for instance, may yield several translation options in another language without any extra context. Only one translation could be acceptable however, depending on the translator's preferences and goals. Choosing the incorrect option might significantly affect translation usefulness and quality. We propose a novel method interactive-chain prompting -a series of question, answering and generation intermediate steps between a Translator model and a User model -that reduces translations into a list of subproblems addressing ambiguities and then resolving such subproblems before producing the final text to be translated. To check ambiguity resolution capabilities and evaluate translation quality, we create a dataset exhibiting different linguistic phenomena which leads to ambiguities at inference for four languages. To encourage further exploration in this direction, we release all datasets. We note that interactive-chain prompting, using eight interactions as exemplars, consistently surpasses prompt-based methods with direct access to background information to resolve ambiguities.</p><p>'\ nU : " about " means approximately .\ nA : aproximadamente , cerca de , alrededor de , casi , mas o menos ',</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Transformer Language Models <ref type="bibr">(LM, Vaswani et al. 2017)</ref> pretrained on large corpora have achieved outstanding results in a variety of NLP benchmarks <ref type="bibr" target="#b8">(Devlin et al., 2019;</ref><ref type="bibr" target="#b6">Brown et al., 2020)</ref>. Scaling the number of parameters, the size of the pretraining dataset, and the amount of computing budget gives Language Models better sample efficiency and ability to generalize for many tasks <ref type="bibr" target="#b18">(Kaplan et al., 2020;</ref><ref type="bibr" target="#b6">Brown et al., 2020;</ref><ref type="bibr" target="#b15">Henighan et al., 2020;</ref><ref type="bibr" target="#b16">Hernandez et al., 2021;</ref><ref type="bibr" target="#b23">Lepikhin et al., 2021</ref>; * Work done during an internship at Google Deepmind (formerly Google Brain).  <ref type="bibr">Wei et al., 2022a)</ref>. However, for tasks such as commonsense and symbolic reasoning, where the solution requires multistep computation, or crosslingual conditional generation such as Neural Machine Translation (NMT), where there could be more than one plausible prediction for a given source sequence, scale alone may not be sufficient to achieve high accuracy <ref type="bibr">(Rae et al., 2021;</ref><ref type="bibr" target="#b13">Ghorbani et al., 2022)</ref>.</p><p>Chain-of-thought <ref type="bibr">(Wei et al., 2022b)</ref> and leastto-most <ref type="bibr" target="#b43">(Zhou et al., 2022)</ref> methods have demonstrated, by prompting a (large-)LM such as PaLM <ref type="bibr">(Chowdhery et al., 2022)</ref>, that breaking down a task into subproblems that are solved sequentially greatly improves the quality of the final prediction. Such methods demonstrate that producing intermediate sub-results that address specific aspects of a bigger problem significantly improves performance on tasks like arithmetic, math word problems, and symbolic manipulation.While studies have investigated the translation capabilities of PaLM with various prompting strategies <ref type="bibr">(Vilar et al., 2022;</ref><ref type="bibr" target="#b42">Zhang et al., 2023)</ref>, prompting large and general purpose LMs such as PaLM to identify and solve subproblems in crosslingual conditional generation tasks such as NMT has not yet been fully explored.</p><p>Our approach, Interactive-Chain-Prompting (INTERCPT), sequentially solves translation subproblems before generating a final translation prediction. As shown in Figure <ref type="figure" target="#fig_0">1</ref>, we first detect ambiguities in translation queries, then we resolve these ambiguities via question-answer interactions, and finally we generate translations. INTERCPT departs from other prompt-based techniques that sequentially solve subproblems in two fundamental ways: (1) the subproblems are related but considerably different to the main task and (2) the solutions to subproblems requires interaction with another LLM. In this paper, we will look at how intermediate computation steps and interaction might overcome a typical problem in automated systems when a user's ambiguous query leads to a large number of viable and potentially inaccurate answers. In translation, for example, selecting the incorrect prediction has a significant impact on translation quality as illustrated in Fig. <ref type="figure">2</ref>.</p><p>INTERCPT has several advantages. First, the LM is able to identify and ask questions about translation query ambiguities with only a few incontext exemplars and no finetuning. This is crucial since large corpora with specific target ambiguities, labels to classify each ambiguity subtypes (i.e. feminine/masculine for gender or formal/informal for formality) and context are not common and are typically low-resource. Then, without readily available context, we rely on the User to disambiguate translation queries. In the absence of additional background information or context, there are limited options to solve ambiguities. Interaction with the User stands as a logical way to collect clarifying information. This interaction also benefits from multiple computation steps where ambiguity resolution leads to a more precise final prediction. Finally, the question-answer-translation interaction improves transparency and makes it easier to debug translation systems since we can assess the reasoning chain that led to an error <ref type="bibr">(Wu et al., 2022a)</ref>. For NMT, there are two main questions to consider to make the most of out of intermediate computation steps:</p><p>A) What subproblem are we trying to solve? Multistep reasoning tasks can often be explicitly decomposed into subproblems: ambiguity detection, disambiguation via Q&amp;A and translation. For NMT, decomposing the translation task is not trivial. We assume in this work that our subprob-lems are ambiguities which arise when translating. As seen in Fig. <ref type="figure" target="#fig_0">1</ref>, the first step in INTERCPT is to discover and resolve the translation ambiguity subproblem. We study five types of ambiguities: polysemous words, pronoun resolution, formality, gender-neutral names and neutral professions. Since datasets that cover multiple translation ambiguities and language pairs while providing context are rare, we create our own datasets (see Table <ref type="table">5</ref> in Section E for an overview of other publicly available datasets).</p><p>Figure <ref type="figure">2</ref>: Translation queries with multiple possible predictions. Correctly solving subproblems around ambiguities with you and it greatly affects the BLEU <ref type="bibr" target="#b29">(Papineni et al., 2002)</ref> translation metric.</p><p>B) Where do answers to subquestions come from? When we apply least-to-most prompting to math word problems for example, the answers to subquestions can often be derived from the problem's text. It is not necessarily the case for NMT where the query may not contain enough context to resolve ambiguities. As seen in Fig. <ref type="figure">2</ref>, English sentence 'S' does not contain enough information about "you" and "it". The incorrect prediction made by a model leads to large variations in translation quality scores. With more context, the model may have the necessary information to narrow down possible predictions. However, in industrial applications, translation queries are often too short <ref type="bibr" target="#b2">(Badeka, 2016)</ref> or additional context is not existent. In this work, we automate interaction between a PaLM Translator model, that detects ambiguities, asks clarifying questions and translates, and a PaLM User model, that has access to context and answers questions. Both models engage in a multiturn dialog to zero-in on a narrower set of predictions. We argue that a type of question-answer interaction with a "user" is necessary to resolve ambiguous queries, especially when a user (1) is unfamiliar with the main task and may not possess the skills to choose from many model prediction options; (2) knows how to answer simple pointed questions about a query but may not be able or willing to decide and add appropriate context on the fly.</p><p>This work marks Large-LM's potential to learn, with a few in-context examples, how to use natural language answers to deliver results closer to a user's intent. Our contributions are the following: 1. We propose INTERCPT, a new way to design crosslingual conditional generation systems that disambiguate queries via interaction (Section 2). 2. We release AMBIGMT, a new dataset with five specific types of ambiguities covering four languages (Section 3). 3. We show that INTERCPT achieves better translation performance and ambiguity resolution (Section 5) and improved generalization on zero-shot ambiguities (Section 6) over strong baselines. 4. We provide analysis on interactions and evidence that INTERCPT abilities emerge with scale (Section 6).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Interactive-Chain-Prompting (INTERCPT)</head><p>When interacting with a model, a user may have some well-conceived query in mind that is inadvertently under-specified. For example, a monolingual English speaker may be unaware that the pronoun "you" in a sentence can lead to formal or informal constructs in other languages and may therefore not provide additional information on the level of formality needed to adequately translate the text. A human translator, when asked to translate queries with "you", may want to first probe the user's latent context about the query by asking clarifying questions. In doing so, the human translator can use the answers to better align the translation to a User's request and context. Our method endows language models (LMs) with the ability to generate a similar chain of interactions between a Translator LM and a User LM as seen in Fig. <ref type="figure" target="#fig_0">1</ref>. In real applications, it is expected that a human replaces the User LM. INTERCPT uses in-context exemplars to resolve ambiguities before completing the crosslingual conditional generation task that the model is originally asked to do.</p><p>The three step reasoning chain (see Fig. <ref type="figure" target="#fig_0">1</ref>):</p><p>1. The first step is for identifying ambiguities.</p><p>The prompt in this step always contains the same constant exemplars, showing multiple queries to translate and questions about each query's ambiguities. During inference, the Translator LM uses the prompt to generate a pointed question that identifies the specific ambiguity. 2. The second step is for resolving ambiguities.</p><p>The prompt in this step contains exemplars answering the question to the ambiguity subproblems in step one. The User LM answers each question using additional information from the provided context. In real life applications, we assume that a real user has similar background information about the text to be translated. 3. The third step is for translating. Generated questions and answers are appended to the prompt in step 1 before the final translation is produced. Constant prompts in this step demonstrate how to translate in the specified target language using only details provided by the User LM and no-context. During inference, the Translator LM uses the prompt to generate the translation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset en Query Context</head><p>x Target ∆ B</p><p>"it" resolution</p><p>He has read it to me so many times that I've learnt it by heart.</p><p>-I remember when the postcard came, Ernesto was so pleased. -He said:</p><p>"Look what my Rosetta has written to me".</p><p>Me la sé de memoria de tanto leerla.</p><p>-44</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Polysemy head</head><p>If you don't feel well, head home.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>先 -100</head><p>Formality The closer you can get to him, the better.</p><p>-I'm aware of the risks, Master Jedi, but I know you can regain Clovis' trust.</p><p>Plus vous serez proche de lui, mieux cela sera.</p><p>-58</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Gender neutral names</head><p>Blair should be wrapping up [pr] breakfast with Beatrice.</p><p>-I have her doorman on retainer. -There's a fine line between surveillance and stalking.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Blair sollte ihr</head><p>Frühstück mit Beatrice haben.</p><p>-40</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Neutral professions</head><p>[pr] worked previously as a businesswoman, accountant, and bank executive.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Margaret</head><p>Mhango Mwanakatwe is a Zambian politician <ref type="bibr">[...]</ref>. She was the director for business development <ref type="bibr">[...]</ref> Previamente, trabajó como empresaria, contadora y ejecutiva bancaria.</p><p>-70</p><p>Table <ref type="table">1</ref>: AMBIGMT examples for each ambiguity for target language x. ∆ B is the BLEU performance drop from 100 if the highlighted ambiguity is not resolved.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Ambiguity MT Datasets (AMBIGMT)</head><p>In this section, we introduce AMBIGMT, a dataset that covers four language pairs, for translations from English into French (en-fr), German (en-de), Spanish (en-es) or Japanese (en-ja) -18 sub-tasks in total. The code and datasets are released here. The parallel translation corpora contain five types of ambiguities: "it" resolution, formality, polysemy, gender<ref type="foot" target="#foot_0">1</ref> neutral names, neutral professions. Unless otherwise specified, all datasets include 1000 diverse samples for each {en-fr, en-de, en-es, en-ja} language pair extracted from Opensubtitles corpora <ref type="bibr" target="#b24">(Lison and Tiedemann, 2016)</ref>. In Section E of the Appendix, we provide more details on datasets and describe the heuristics to identify ambiguities in each language. "it" resolution data contains English sentences where the pronoun "it" does not clearly refer to a noun within the query. In English, the pronoun "it" is a singular, neuter and impersonal pronoun. In other languages, "it" may translate into gender specific pronouns (either feminine or masculine) or get dropped entirely from the sentence. The choice depends on what the pronoun refers to. To correctly translate, the model must first determine what "it" is. In the first example of table 1 where the target language x is Spanish, knowing that "it" is a postcard, or una tarjeta postal in Spanish, disambiguates gender in the translation. While the gender affects two words in the target sentence, the wrong gender choice is not only qualitatively inappropriate but also decreases quality metrics (44 BLEU score drop from 100). Polysemy is a dataset that contains words that have multiple meanings and the query is insufficiently informative to zero-in on a specific sense. The context uses the word within a sentence to provide the necessary background information. In the second example of Table <ref type="table">1</ref> where the target language x is Japanese, the context shows that "head" is a verb. In conjunction with the noun "home", we disambiguate "head" as "to move in the direction of". In the absence of such context, "head" has various senses such as "upper part of the body", "side of a coin", "end of a hammer or tool", "a toilet on a boat", "to hit the ball with the head", "to lead". Formality is a dataset where English queries contain the pronoun "you". In the target languages studied, "you" can be formal or informal. As seen in the third example of table 1 where the target language x is French, the speaker addresses the listener "you" as "Master Jedi" in the context, a title implying a formal style of politeness. The formality is ambiguous without the context and may impact the generated translation quality. Indeed, an incorrect choice in formality level changes "vous serez" to "tu seras" and "cela" to "c ¸a", decreasing BLEU scores by 58 points from 100. Gender Neutral Names data includes queries where the name is gender neutral and ambiguous. The fourth example in table 1 shows a query where the name "Blair" is gender neutral. In this dataset, we replace gendered pronouns in the English query by the token <ref type="bibr">[pr]</ref> to remove hints about gender type. From the context, the speaker employs "her" and we can infer that a feminine pronoun "ihr" should be used in the translated German text. Neutral Professions has 600 unique samples for two language pairs. This dataset is derived from the Translated Wikipedia Biographies dataset<ref type="foot" target="#foot_1">2</ref> that covers {en-de, en-es}. In this dataset, the gender of typically gender-neutral professional designations is not clear from the English query alone. In the fifth example of table 1, the context provides additional hints that the query is talking about "Margeret", also designated by the feminine pronoun "she". Resolving gender allows the model to correctly translate the list of professions in the query and potentially limiting the 70 points drop in BLEU scores from 100.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Related Works</head><p>Prompting for Cross-Lingual Generation using Large LMs is a technique that has garnered increasing attention of late. Works on <ref type="bibr">GPT-3 (Vaswani et al., 2017)</ref> and PaLM <ref type="bibr">(Chowdhery et al., 2022)</ref> show competitive n-shot BLEU translation results on WMT. The prompt demonstrations are populated with n random sentence pairs taken from the WMT training corpora and evaluated on the test corpora at inference. Orthogonal to our work, POMP <ref type="bibr">(Vilar et al., 2022)</ref> improves upon this PaLM-based prompting technique by explicitly optimizing for the selection of n demonstration sentence pairs and obtaining results competitive with the stateof-the-art. More recent work <ref type="bibr" target="#b12">(Garcia and Firat, 2022)</ref> using mT5 <ref type="bibr">(Xue et al., 2021</ref>) investigated adding prompt-based natural language specifications to influence translated text properties such as formality level or dialect type. Experiments show that prepending textual artifacts such as "your majesty" to the English query conditions mT5 to generate translations in a formal tone. Our work prompts PaLM with n random translation pair exemplars as well. Different from previous research, we prompt with exemplars to interactively discover background knowledge or clarify ambiguities before translating.</p><p>Resolving ambiguities by asking for clarifications has been a recent topic of research, for QA and conversational search systems <ref type="bibr" target="#b22">(Lee et al., 2019;</ref><ref type="bibr" target="#b0">Aliannejadi et al., 2019;</ref><ref type="bibr" target="#b41">Zamani et al., 2020;</ref><ref type="bibr" target="#b9">Dhole, 2020;</ref><ref type="bibr" target="#b33">Wang and Li, 2021;</ref><ref type="bibr">Wu et al., 2022b)</ref>. Departing from such methods, INTERCPT does not produce sentences from a preset list of questions but is generated from a large LM without constrain. Concurrently to our work, <ref type="bibr" target="#b21">Krasheninnikov et al. (2022)</ref> explored finetuning GPT-3 to generate clarifying questions and provide answers using human generated data from AmbigQA <ref type="bibr" target="#b26">(Min et al., 2020)</ref> for open-domain QA. Another GPT-3 model simulates the user and generates answers while conditioned on ground-truth clarification questions. In contrast, our prompt-based method only needs fewshot demonstrations. Further, our simulated user does not rely on ground-truth clarification questions to provide an answer, which could be more realistic for a number of applications (including QA, text simplication, code generation).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Setup and Results</head><p>In this section, we present the main cross-lingual generation results of INTERCPT for formality, "it" resolution and polysemy ambiguity resolution subtasks.</p><p>Setup. We use PaLM <ref type="bibr">(Chowdhery et al., 2022)</ref>, a 540B-parameter decoder-only LM pretrained on primarily English-centric data with ∼20% of the data obtained from non-parallel multilingual corpora. The generalist prompt template is composed of two formality, three polysemy and three "it" resolution exemplars. All prompt-based methods are 8-shot with the same source sentences S to translate and corresponding translated sentences A in the target language. Each target language has it's own prompt template since A differs with every language. The simulated LM user is based on a single English-only 8-shot prompt template for all target languages. Example 5.1 shows the structure of an LM user prompt exemplars for polysemy. A complete overview of all prompts and exemplars used in experiments can be found in Sections F.1 for the User LM and Sections F.2 for the generalist Translator LM.</p><p>Example 5.1. Given a Context (C), provide an Answer (A) to the Question (Q): S: about C: About 2% of the households are enumerated using the canvasser method. Q: Is "about" an adverb that means approximately, near or a preposition that means regarding, over, surrounding? A: "about" means approximately.</p><p>Baselines. Our main baselines were chosen to compare the cross-lingual generation abilities of large multipurpose LMs given interaction, context or no additional information. Please note that, to the best of our knowledge, there are no other baselines that (1) explore large multipurpose LM's capability on contextualized (or interactive) multilingual translation; (2) do not require finetuning on large datasets.</p><p>LLMWCXT is the only PaLM-based prompt method that benefits from having all of the background information required to resolve ambiguities. Since this baseline has access to all information and the same in-context translation examples, it is strongest possible baseline to compare against for ambiguity resolution. LLMWCXT has a prompt with exemplars formulated as the one in example 5.2. In the example, references to you and it are directly accessible in context C.</p><p>LLMNOEXTRA is a PaLM-based prompt method that does not receive additional information to resolve ambiguities. This baseline is not only of interest for performance comparison and to evaluate model bias but also it can provide insights on the usefulness of additional background information to disambiguate queries. The structure of a LLMNOEXTRA exemplar is similar to example 5.2 without the context C. The model must translate the source sentence S in the target language without knowing details about "i" or the level of formality to employ for "you".</p><p>GTRANSLATE is a commercially available multilingual and multipurpose baseline queried using the Google Cloud Translation v2 model<ref type="foot" target="#foot_2">3</ref> . This baseline allows us to set performance expectations that LLMNOEXTRA model should reach. Table <ref type="table">2</ref>: Translation results using an 8-shot generalist template that contains exemplars for formality, "it" resolution and polysemy ambiguity types. F-Acc = formality accuracy, G-Acc = gender accuracy, B@n = BLEURT@n. BLEU and BLEURT results for INTERCPT labelled with † are significantly better than all other systems based on pair-wise significance testing <ref type="bibr" target="#b19">(Koehn, 2004)</ref> with p = 0.05.</p><p>in the mirror, she asked her friend Isabelle. A: Es-tu certaine qu'il est beau?</p><p>To evaluate the impact of context or interaction, we also run LLMNOEXTRA, prompting without any additional information. The structure of a LLMNOEXTRA exemplar is simlar to example 5.2 without the context C. The model must translate the source sentence S in the target language without knowing details about "it" or the level of formality to employ for "you". The baseline is not only of interest for performance comparison and to evaluate model bias but also it can provide insights on the usefulness of additional background information to disambiguate queries. Finally, we test our datasets with a multilingual and general purpose Neural Translation Model using the GTRANSLATE API. This baseline allows us to set performance expectations that our LLMNOEXTRA model should reach.</p><p>Metrics. Our evaluation includes the standard BLEU and BLEURT <ref type="bibr">(Sellam et al., 2020)</ref> automatic translation quality metrics as well as additional measures that assess specific ambiguity resolution capabilities. For formality, we use a rule-based classifier to quantify generated sentence formality levels <ref type="bibr">(F-Acc)</ref> in the target language. We discuss details of the heuristics in Appendix G. Note that the formality classifier is based on the formality data creation scripts that allowed us to automatically identify formal and informal sentences in the source corpus. For "it resolution", we found that the PaLM 62B-parameter model was surprisingly accurate at identifying translated sentence genders (G-Acc). As seen in Table <ref type="table">7</ref> of Appendix G, PaLM 62B achieves 97% and 93% accuracy in classifying samples of generated translations for Spanish and French respectively. For polysemy, we found that exact match metrics did not fully describe the performance of models. Whenever the model generated a synonym of the ground truth, the exact match metric would not consider the prediction correct. The LLMNOEXTRA polysemy exemplars are a comma-separated list of synonyms. Our hit@n measures whether the ground truth exists in the first n generated words. For example, if the model outputs the list of Spanish words ["aproximadamente", "cerca de", "alrededor de", "casi", "más o menos"], for n = 3, hit@3 would return a match for a ground truth target "cerca de" and no-match for a ground truth target "casi". To supplement the hit@n metric, we also report results of a new metric that we call BLEURT@n (B@n) which returns the highest BLEURT score of the first n generated word phrases. Since BLEURT captures the non-trivial semantic similarities between words using its contextual representations from BERT, we found that the metric better measures if correct synonyms were generated by the model. Note that we did not report the GTRANSLATE hit@n or B@n numbers since the API only provides single word outputs.</p><p>Discussion. Our test results for en-es, en-fr, ende and en-ja are summarized in Table <ref type="table">2</ref>. We first notice that INTERCPT surpasses all other baselines. Surprisingly, LLMWCXT, even with all the necessary background to resolve ambiguities, signifi-cantly lags behind INTERCPT on F-Acc. for formality, G-Acc. for "it resolution" and both hit@3 and B@3 for polysemy. This results suggests that the multistep computation approach of fist resolving the ambiguity subproblems and then generating text has an advantage over other baselines. BLEU scores are also 2-3 points higher while BLEURT scores are only slightly higher. This suggest that INTERCPT generates sentences syntactically much closer to the ground truth while conserving the correct semantics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Analysis</head><p>Pair Method  In this section, we analyse interesting behaviors about our approach such as ambiguity generalization in Subsection 6.1, the importance of ambiguity resolution specialization in Subsection 6.2, the effects of scale for both the Translator LM in Subsection 6.3 and User LM in Subsection 6.4, an error analysis in Subsection 6.6 and bias in generated outputs in Subsection 6.5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">How does interaction generalize?</head><p>In Table <ref type="table" target="#tab_2">3</ref>, we provide translation test results on two held-out datasets that are described in Section 3: (1) Gender Neutral Names and (2) Neutral Professions. We use the same generalist prompt template as in Section 5 with exemplars that cover only formality, "it" resolution and polysemy. Specifically, our exemplars for both the Translator LM and the User LM do not contain exemplars to resolve the gender for a person's name or profession. We observe that on the Gender Neutral Names dataset INTERCPT performs best on BLEU and BLEURT and is much more able to resolve ambiguities with 6 to 10 points G-Acc improvements over LLMWCXT. On the Neutral Professions data, where test samples are taken from a different domain (Wikipedia biographies instead movie scripts), LLMWCXT and INTERCPT have similar performances. It is possible that LLMWCXT benefits from additional sentences in the context to better determine the style of the output. Nonetheless, INTERCPT provides a 1-2 point increase on G-Acc.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Are specialist better than generalist?</head><p>So far, we have studied a generalist 8-shot template covering three different types of ambiguities with at most three exemplars per ambiguity. In Fig. <ref type="figure">4</ref>, we present results of specialist template that only covers one type ambiguity at the time (either all formality or all polysemy). Interestingly, specialization does not seem to provide much additional benefit in resolving ambiguities as evidenced by F-Acc, Hit@3 and B@3 results that are on par and often lower than the generalist approach. However, the specialist template does have a higher BLEU score, implying greater syntactic alignment with the target translation when more ambiguity-specific exemplars are added.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Are interactive generation abilities emergent at scale?</head><p>We show in Fig. <ref type="figure">3</ref> for each prompt template the effects of scaling PaLM parameters on the performance of formality, "it" resolution and polysemy for Spanish (ES), French (FR), German (DE) and Japanese (JA) target languages. Please note that while we vary the parameter count (8B, 62B and 540B) of the Translator LM, the User LM is a 540B parameters PaLM model for all experiments. The plots provide interesting insights. First, at the 8B parameter scale, LLMNOEXTRA performs best across all languages for Formality and "it" resolution across all language pairs. Neither context or interaction seem to provide benefits to translation. Second, at the 62B parameter scale, the LLMWCXT and INTERCPT methods  <ref type="bibr">(Wei et al., 2022a)</ref>. We conjecture that the emergent behavior of INTERCPT is due to a better ability to ask questions and incorporate answers before generating final prediction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">How important is User LM scale?</head><p>While the User LM allows us to automate the evaluation of interactivity for cross-lingual generation, it is not clear if the quality of the answer to the Translator LM questions impact performance. We hypothesize that a larger User LM model would provide higher quality answers and allow the Trans- lator LM to better generate translated text. Fig. <ref type="figure" target="#fig_2">5</ref> shows that, when the Translator LM is a 62B PaLM model, a higher parameter User LM improve overall performance. It is therefore possible that answer quality has a significant impact on translation quality and that human-generated answers can further improve overall performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.5">Can interaction help solve bias issues?</head><p>Gender bias is a common phenomenon in automated NMT systems <ref type="bibr" target="#b5">(Borkan et al., 2019;</ref><ref type="bibr">Stanovsky et al., 2019;</ref><ref type="bibr">Saunders and Byrne, 2020)</ref>.</p><p>Even when there are explicit gender pronouns in the input query or in the context, NMT systems generated text tends to be masculine when translated into languages with grammatical gender <ref type="bibr">(Stanovsky et al., 2019;</ref><ref type="bibr">Saunders and Byrne, 2020;</ref><ref type="bibr">Stafanovičs et al., 2020;</ref><ref type="bibr" target="#b34">Wang et al., 2022)</ref>.</p><p>To measure gender bias, all generated translations are passed through the gender classifier for the "it" resolution balanced dataset. Similarly, to measure formality bias, generated translations are passed through the formality classifier for the formality balanced dataset. NMT systems can also suffer from formality bias <ref type="bibr" target="#b31">(Rippeth et al., 2022)</ref>.</p><p>However, we notice that INTERCPT is much closer to evenly producing masculine and feminine sentences. Our results shows that interactive ambiguity resolution via multistep computation better addresses gender and formality biases.  6.6 When is context better than interaction?</p><p>In this section, we provide analysis that describes common areas of improvement for generalist interactive-chain prompting. We first isolated test samples for French and Spanish for four ambiguities (formality, "it" resolution, neutral professions and gender neutral names) where the BLEURT scores were less than or equal to LLMWCXT scores. We then randomly sampled 50 interactions and manually analysed the interaction chains (query, question, context, answer, translation).  This led us to five types of errors: (1) wrong question, when the Translator LM asked a question not related to the ambiguity; (2) wrong answer, when the User LM did not provide correctly disambiguate; (3) many ambiguities, when the query had multiple unresolved ambiguities or the User LM answer also contained ambiguities; (4) limited context, when the context was not sufficiently informative to resolve ambiguities; (5) style or other, when generated translated text had discernible differences with the ground truth. Fig. <ref type="figure" target="#fig_4">7</ref> shows that the majority of errors are from wrong User LM answers for formality and "it" resolution. This partially confirms our hypothesis in Subsection 6.4.</p><p>For tasks involving unseen ambiguities, the majority of errors come from the Translator LM with 68% to 78% of sample chains having the wrong question or noticeable differences in generated translated text style or form. We provide examples of interaction chains for each type of error in Table <ref type="table" target="#tab_6">4</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We propose interactive-chain prompting (INTERCPT), a prompt-based interactive multistep computation technique that first resolves cross-lingual ambiguities in the input queries and then performs conditional text generation. We have created and released a new datasets that covers five ambiguities: formality, "it" resolution, polysemy, gender neutral names and neutral professions for four different language pairs. Empirical results show that INTERCPT outperforms other prompt-based techniques that have access to all background information and context to directly resolve ambiguities. We find that INTERCPT MT is an emergent property of parameter scale that allows Large LMs to perform interactive generation tasks while other prompt-based techniques exhibit flattening scaling curves. INTERCPT can be considered a step forward more effectively interacting with machine learning systems. The appendix contains more information on IN-TERCPT. We examine limitations of our work in Section A. In Section B, we further link the specific prompts to each interactive step in Figure <ref type="figure" target="#fig_0">1</ref>. In Section C, we discuss the link between INTER-CPT and methods such as Chain-of-Thought and Least-to-Most prompting. We discuss other meaningful related work in Section D. In Section E, we provide details on the datasets that we have created such as (1) data statistics and (2) tools, process and pseudocode to create the data. Finally, in Section F, we list all of the pseudocodes for prompting PaLM for both the User LM and the Translator LM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Limitations</head><p>Our work is about solving query ambiguities in translation which is a relatively unexplored area. Solving unambiguous sentences in Translation is a topic that is most traditionally researched in Translation. During initial experimentation, PaLM was able to correctly detect ambiguous and unambiguous queries in 98% of examples (with a 1,000 sample size and a balanced split between ambiguous/unambiguous labels). Nonetheless, we have not fully explored performance on unambiguous queries and this could be a possible limitation.</p><p>It must be noted however that our method is orthogonal to contemporaneous context-less or interaction-less translation work such as Prompting PaLM for Translation (POMP) <ref type="bibr">(Vilar et al., 2022)</ref> in which prompts, exemplars and instructions are optimized to reach state-of-the-art translation BLEU/BLEURT scores on common WMT benchmarks with unambiguous text (see Related Works Section 4 for more details). INTERCPT without context is equivalent to the LLMNOEXTRA baseline since it uses the same prompt exemplars and the same model without context and without answers from the simulated user (see Section 5).</p><p>Our paper tackles the issue of user query ambiguities where we assume that the user has background information. For example, if a user wants to translate "are you sure it is pretty?", the user should know what "it" is and who "you" is. If the user refuses to answer questions, we can default translations to LLMNOEXTRA which is the same as INTERCPT without context or interaction.</p><p>While we have covered more ambiguities across more languages than other prior work, there is still ambiguities and languages that we have not yet tested. This could be another limitation for am-biguities that are significantly different than the ambiguities discussed in our paper. It must be noted that we have chosen common sentence-level ambiguities and that we have left paragraph-level ambiguities for future work. For example, "lexical cohesion" is an ambiguity type that is more common at the paragraph level and INTERCPT may not detect such ambiguities.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B More details on INTERCPT interactive steps and links to prompts</head><p>To make link between interaction steps in Figure <ref type="figure" target="#fig_0">1</ref>, the process overview in Section 2, the appendix code and templates, we add the following:</p><p>Step 1: The Translation LM asks a question on ambiguity using language specific methods in Apppendix F.2. It takes as input the English text to Translate en text and outputs the question Q. For example, if we want to translate English to Spanish with a generalist template, we can use spanish generalist translator interactive(...).</p><p>Step 2: The User LM answers the question Q generated in step 1 using any method in Appendix F.1. It takes as input en text and the context C (ctx in the code) and outputs the answer U .</p><p>Step 3: If no other ambiguity is detected, the Translation LM translates using language specific methods in Appendix F.2. It takes as input the English text to Translate en text, the question Q, and the answer U and outputs the translation A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Link with Chain-of-Thought and Least-to-Most prompting</head><p>In this section, we add a few more words on the link between INTERCPT and Chain-of-Thought (CoT) or Least-to-Most (L2M) prompting. CoT performs better than the baseline that has access to the whole information in the problem statement (similar to having context). The behavior is attributed to the sequential solving of subproblems (in our case ambiguity) and a multistep computation (in our case interaction). LLMWCXT has access to more information but does not involve multiple computation steps to solve a subproblem. This is how INTER-CPT is most similar to CoT since INTERCPT uses multistep computation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D More on Related Works</head><p>Interactive Machine <ref type="bibr">Learning (Ware et al., 2001;</ref><ref type="bibr" target="#b10">Fails and Olsen, 2003;</ref><ref type="bibr" target="#b1">Amershi et al., 2014</ref>) is an approach where information is interactively and iteratively supplied to a learning system. In prior interactive translation work, machine interactivity has assisted translators in writing translations by displaying automated word suggestions that update incrementally <ref type="bibr" target="#b14">(Green et al., 2014;</ref><ref type="bibr" target="#b32">Santy et al., 2019)</ref>. The approach however is limited by dropdown menu options and requires a certain level of sophistication from the user in the target language. Our approach discovers preferences and background knowledge about an input query in the source language and more flexibly adapts translations according to a user's natural language response. The interaction is similar to Conversational AI systems where user utterances influence generated outputs. Task or goal oriented conversational AI systems <ref type="bibr" target="#b20">(Konstantinova and Orasan, 2013;</ref><ref type="bibr" target="#b11">Gao et al., 2018;</ref><ref type="bibr" target="#b17">Hussain et al., 2019)</ref> are typically deployed to answer knowledge-based questions, seek information or solve basic queries (e.g. making reservations, purchase an item). To our knowledge, our work is the first to explore conversational interaction in cross-lingual generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E More details on AMBIGMT ambiguity datasets</head><p>In this section, we provide additional information on what the datasets contain and how they were created. As mentioned in Section 1, we did not find datasets that covered multiple ambiguities for multiple language pairs. We provide an overview of publicly available datasets in Table <ref type="table">5</ref>. Upon manual inspection of samples from other public datasets, we found that translation queries were often (&gt; 50%) unambiguous since the translation query contained enough information and did not need to rely on the provided context. We inspected 200 samples from AMBIGMT and found that only ∼3% of queries did not need context to disambiguate the linguistic phenomena.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.1 Dataset statistics</head><p>We present in Table <ref type="table">6</ref> the data statistics for AM-BIGMT. For polysemy, the total senses per word is the number of different definitions or meanings found for a specific source English word. Each ambiguity is well balanced across classes formal/informal or feminine/masculine. The Neutral Professions dataset is derived from the Translated Wikipedia Biographies dataset<ref type="foot" target="#foot_3">4</ref> that only covers {en-es, en-de} language pairs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2 AMBIGMT data creation tools, process and heuristics</head><p>In this section, we present the steps, tools and heuristics used to detect ambiguities. For polysemy, formality, "it" resolution, gender neutral names, we extract the data from OpenSubtitles corpora and neutral professions from Translated Wikipedia Biographies. The source data that was used consists of parallel sentence level pairs. We first detect a sentence that has a specific ambiguity and extract the context by taking three to five preceding English sentences, depending on sentence size. For Polysemy, the context is an English sentence that contains the polysemous word that will be translated. The code and datasets are released here.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2.1 Polysemy</head><p>We provide the following list of steps to create the polysemy dataset for all languages: 1. Extract polysemous words from Wordnet. <ref type="bibr" target="#b25">(Miller, 1994)</ref> using the NLTK toolkit <ref type="bibr" target="#b4">(Bird and Loper, 2004)</ref> <ref type="foot" target="#foot_4">5</ref> .</p><p>• Create a list of English words.</p><p>• Compute the number of definitions per word without counting definitions with synonym overlap. • Extract polysemous words (w e ) with more than three definitions and a word length greater than four.</p><p>2. For each Polysemous English word w e , extract a list l x = {w x1 , . . . , w xN } of possible word translations using the Google Cloud Translation v2 API, where x ∈ {es, fr, de, ja} is the target language. 3. For each Polysemous English word w e and each target language x ∈ {es, fr, de, ja}:</p><p>• Find a sentence that contains the word w e in the OpenSubtitle dataset. • If the parallel sentence contains one of the translated word w xi ∈ l x from step 2 and no other translated word, keep the English sentence as context.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2.2 Formality</head><p>Each language has specific formality rules.</p><p>For Japanese, we direct the reader to our public code: https://github.com/jpilaul/ FALSE):</p><p>• If "!" not in sentence and one of the pronouns is in ["Sie","Ihr", "Ihre", "Ihren", "Ihrem", "Ihrer", "Ihres"], then is pronoun formal = TRUE. • If one of the pronouns is in ["du","dein", "deine", "deinen", "deinem", "deiner", "deines", "dich"], then is pronoun formal = TRUE.</p><p>• If "!" in sentence one of the pronouns is in ["er","sie", "es", "ihr"], then is pronoun formal = TRUE. • is informal = is pronoun informal.</p><p>• is formal = is pronoun formal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">Keep samples if is formal != is informal, use</head><p>'formal' label if is formal or 'informal' label if is informal. 7. For each sample, create context by keeping the preceding three to five English sentences, depending if word count is above 20.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2.3 "it" resolution</head><p>We provide the following list of steps to create the "it" resolution dataset. The steps apply to all languages: 1. For each English sentence in the OpenSubtitle dataset, keep sentences where the word"it" exists.</p><p>• Using a dependency parser, if "it" is expletive 6 , skip sample. • In the parallel Spanish, French, German or Japanese sentence, if the sentence does not contain a verb and a gendered pronouns, skip sample. • Keep gender label.</p><p>2. For each sample, create context by keeping the preceding three to five English sentences, depending if word count is above 20.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2.4 Gender Neutral Names</head><p>We provide the following list of steps to create the gender neutral names dataset. Please note that for simplicity we used binary genders. Genders beyond female and male will be left for future work.</p><p>The steps apply to all languages: 1. Compile a list L gnn of gender neutral (unisex) names</p><p>• Collect a list of names with gender statistic 6 The spaCy dependency parser can be used to find expletive "it". such as the percentage of people with the name who identify as female or male 7 . • Keep the names that are used in approximately equal proportions (unisex) with at least a female or male proportion above 40%.</p><p>2. For each gender neutral name ∈ L gnn , find a sentence that contains the name in the English sentence and keep the corresponding parallel sentence in Spanish, French, German or Japanese. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Prompt templates used in experiments</head><p>In this section, we discuss the main prompt templates used in experiments. This includes IN-TERCPT Translator generalist and specialist templates to ask questions about ambiguities and exemplars to translate in French, Spanish, German or Japanese. It also includes INTERCPT User generalist and specialist templates to answer questions given a context. We also provide the prompt templates for the PaLM-with-Context experiments where we use context and the same exemplars to translate in French, Spanish, German or Japanese.</p><p>Please note that we have normalized special characters for simplicity. The German and Japanese templates as well as Spanish and French templates with special characters can be found in our public code and data repository. In the python methods listed below, en text is the input query, ctx is the context, question is the question from the Translator model and anwer is the answer from the User 7 Names with gender statistics were compiled and combined using a Japanese names database <ref type="bibr" target="#b28">(Ogihara, 2020)</ref> and a English names database that originates from the United States Social Security Administration.</p><p><ref type="foot" target="#foot_7">8</ref> Language specific spaCy models could be used. model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.1 INTERCPT Simulated User Prompts</head><p>The 8-shot generalist Simulated User prompt template is the same for all languages and is provided in code block listing 1.</p><p>1 def generalist_simulated_user_context ( en_text , question , ctx ):</p><p>2 """ Generalist Simulated user has access to context and answers the question . """</p><formula xml:id="formula_0">3 4 templated_input = 5 f """ [ web ] Given a Context (C) , provide</formula><p>an Answer (A) to the Question (Q):</p><p>6 7 S : about 8 C : About 2% of the households are enumerated using the canvasser method . 9 Q : Is " about " an adverb that means approximately , near or a preposition that means regarding , over , surrounding ? 10 A : " about " means approximately .</p><p>11 12 13 S : rent 14 C : Many single women cannot live independently because they cannot ( afford to ) own or rent housing 15 Q : Is " rent " a tenant 's regular payment for a property or to pay someone for the use of something ? 16 A : " rent " is to pay someone for the use of something .  19 S : abstract 20 C : For the international community is not an abstract concept , it consists of us ourselves . 21 Q : Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ? 22 A : " abstract " is an adjective that modifies " concept " in the phrase " abstract concept ". The 8-shot polysemy specialist Simulated User prompt template is the same for all languages and is provided in code block listing 3.</p><p>1 def polysemy_simulated_user_context ( en_text , question , ctx ):</p><p>2 """ Polysemy simulated user has access to context and answers the question . """</p><formula xml:id="formula_1">3 4 templated_input = 5 f """ [ web ] Given a Context (C) , provide</formula><p>an Answer (A) to the Question (Q ):</p><p>12 13 S : abstract 14 C : We need to abstract the data from various studies . 15 Q : Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ? 16 A : " abstract " means to extract something .  19 S : about 20 C : About 2% of the households are enumerated using the canvasser method . 21 Q : Is " about " an adverb that means approximately , near or a preposition that means regarding , over , surrounding ? 22 A : " about " means approximately . The story is about soldier returning home after the war . 27 Q : Is " about " an adverb that means approximately , near or a preposition that means regarding , over , surrounding ? 28 A : " about " means regarding . the edge of a river , a set or series of similar things or the cushion of a pool ? 34 A : " bank " is a financial institution . independently because they cannot ( afford to ) own or rent housing 39 Q : Is " rent " a tenant 's regular payment for a property or to pay someone for the use of something ? 40 A : " rent " is to pay someone for the use of something . -This is the bike that I learned to ride on . -I just didn 't know my mom kept it . -It used to have these training wheels on the back with lights that would flash every time you pedaled . -Then one day , my mom took them off and said it was time to be a big girl . 19 T : You can imagine the princess -sized tantrum that followed . 20 A : Tu peux imaginer la colere de princesse qui a suivi . </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Interactive-Chain-Prompting (INTERCPT).</figDesc><graphic coords="1,306.43,214.96,217.70,163.51" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :Figure 4 :</head><label>34</label><figDesc>Figure 3: INTERCPT enables large LMs to solve ambiguity subproblems in cross-lingual generation. The multistep disambiguate-translate capability is an emergent ability that is reached at higher parameter scales (interactive = INTERCPT).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Scaling Simulated User LM improves the performance of a 62B Translator LM model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Bias in generated translations for French and Spanish on "it" resolution (left) and formality (right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Error analysis. rez = "it" resolution, Prof. = Neutral profession, Names = Gender Neutral Names</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>17</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>18</head><label>18</label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>17</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>18</head><label>18</label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head></head><label></label><figDesc>32 C : The online banking application does not work . I tried a few times and I could not transfer the funds . I went to the bank . 33 Q : Is " bank " a financial institution ,</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head></head><label></label><figDesc>38 C : Many single women cannot live</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Are you sure that it is pretty? C: She was trying on a new hat. Looking at herself</figDesc><table><row><cell>Example 5.2. Given context (C), Translate (S) from English to French: "it" resolution Polysemy BLEU BLEURT F-Acc. BLEU BLEURT G-Acc. Hit@3 Hit@10 B@3 B@10 Formality 36.3  † 77.9  † 67% 33.6  † 78.9  † 77% 46% 48% 54.6  † 56.8  † 34.7 77.1 64% 30.8 77.2 68% 40% 46% 46.9 55.1 LLMNOEXTRA 34.6 Method INTERCPT LLMWCXT 77.0 62% 29.6 75.9 63% 33% 40% 44.9 51.0 GTRANSLATE 31.4 75.3 50% 27.5 73.0 54% ----INTERCPT 39.1  † 70.6 72% 35.3  † 71.7  † 73% 46% 48% 46.9  † 48.5  † LLMWCXT 36.4 69.9 65% 33.5 68.4 68% 36% 40% 40.1 44.7 LLMNOEXTRA 35.7 69.2 63% 32.3 66.7 66% 33% 37% 38.1 41.8 GTRANSLATE 30.7 67.4 58% 29.1 65.4 61% ----INTERCPT 35.8  † 75.0 69% 24.0  † 76.0 75% 43% 45% 45.1  † 47.6  † LLMWCXT 33.6 74.6 61% 22.4 75.0 69% 35% 39% 36.1 44.9 LLMNOEXTRA 32.5 74.4 62% 22.8 73.2 63% 32% 35% 36.7 41.3 GTRANSLATE 27.5 72.3 53% 22.1 73.0 59% ----INTERCPT 28.6  † 69.7  † 67% 23.1  † 72.4  † 74% 41% 44% 44.7  † 47.0  † LLMWCXT 26.3 68.0 60% 21.4 70.8 67% 34% 38% 35.8 43.8 LLMNOEXTRA 25.9 67.4 61% 21.2 70.3 61% 30% 33% 34.6 37.0 S: Lang. Pairs en→es en→fr en→de en→ja GTRANSLATE 23.5 66.7 50% 19.9 68.6 52% ----</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Translation</figDesc><table /><note><p>results on unseen ambiguity subproblems using the Gender Neutral Names data and with added unseen domain using the Neutral Professions data. INTERCPT results labelled with † are significantly better with p = 0.05.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 4 :</head><label>4</label><figDesc>Examples of interaction chain errors.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head></head><label></label><figDesc>Danielle Saunders and Bill Byrne. 2020. Reducing gender bias in neural machine translation as a domain adaptation problem. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 7724-7736, Online. Association for Computational Linguistics.</figDesc><table><row><cell>Thibault Sellam, Dipanjan Das, and Ankur Parikh. 2020.</cell></row><row><cell>BLEURT: Learning robust metrics for text genera-</cell></row><row><cell>tion. In Proceedings of the 58th Annual Meeting of</cell></row><row><cell>the Association for Computational Linguistics, pages</cell></row><row><cell>7881-7892, Online. Association for Computational</cell></row><row><cell>Linguistics.</cell></row><row><cell>Artūrs Stafanovičs, Toms Bergmanis, and Mārcis Pinnis.</cell></row><row><cell>2020. Mitigating gender bias in machine translation</cell></row><row><cell>with target gender annotations. In Proceedings of</cell></row><row><cell>the Fifth Conference on Machine Translation, pages</cell></row><row><cell>629-638, Online. Association for Computational Lin-</cell></row><row><cell>guistics.</cell></row><row><cell>Gabriel Stanovsky, Noah A. Smith, and Luke Zettle-</cell></row><row><cell>moyer. 2019. Evaluating gender bias in machine</cell></row><row><cell>translation. In Proceedings of the 57th Annual Meet-</cell></row><row><cell>ing of the Association for Computational Linguistics,</cell></row><row><cell>pages 1679-1684, Florence, Italy. Association for</cell></row><row><cell>Computational Linguistics.</cell></row><row><cell>David Vilar, Markus Freitag, Colin Cherry, Jiaming Luo,</cell></row><row><cell>Viresh Ratnakar, and George Foster. 2022. Prompt-</cell></row><row><cell>ing palm for translation: Assessing strategies and</cell></row><row><cell>performance.</cell></row><row><cell>Elena Voita, Rico Sennrich, and Ivan Titov. 2019. When</cell></row><row><cell>a good translation is wrong in context: Context-aware</cell></row><row><cell>machine translation improves on deixis, ellipsis, and</cell></row><row><cell>lexical cohesion. In Proceedings of the 57th An-</cell></row><row><cell>nual Meeting of the Association for Computational</cell></row><row><cell>Linguistics, pages 1198-1212, Florence, Italy. Asso-</cell></row><row><cell>ciation for Computational Linguistics.</cell></row></table><note><p>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Ł ukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In Advances in Neural Information Processing Systems, volume 30. Curran Associates, Inc.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head></head><label></label><figDesc>At the very least , get them to hold their fire . -Captain , the transporters are off -line . The docking port hasn 't been hit yet . 33 Q: " you " can be neutral , formal , informal . Who does " you " refer to ? 34 A: " you " is ' formal ' since " you " refers to a Captain and the speaker will typically use a polite form . Tell me , why do they have to tilt it ? 50 C: -Frog is wrong . -I see here that you play the harp . 51 Q: What does " it " refer to ? 52 A: " it " is an umbrella .</figDesc><table><row><cell>10 A : " you " is \' formal \' since " you "</cell><cell cols="2">38 C: Generations of Daleks just woke up</cell></row><row><cell>refers to a customer or tourist that</cell><cell></cell><cell>very cross , and they 're coming up</cell></row><row><cell>Freya Carlson is greeting with the</cell><cell></cell><cell>the pipes . -Or to put it another</cell></row><row><cell>polite form " Mr .".</cell><cell></cell><cell>way ... bye ! -Doctor , you must help</cell></row><row><cell>11</cell><cell></cell><cell>me .</cell></row><row><cell>12</cell><cell cols="2">39 Q: " you " can be neutral , formal ,</cell></row><row><cell>13 S : -i can gladly help you .</cell><cell></cell><cell>informal . Who does " you " refer to in</cell></row><row><cell>14 C : I will go to town to fetch the</cell><cell>35</cell><cell>(S)?</cell></row><row><cell>materials . Once I return , we can</cell><cell cols="2">36 40 A: " you " is \' formal \' since " you "</cell></row><row><cell>repair your majesty 's royal carriage</cell><cell cols="2">37 S: You know where it begins , you never refers to a " Doctor " that the</cell></row><row><cell>.</cell><cell></cell><cell>know where it ends ... speaker just met .</cell></row><row><cell>15 Q : " you " can be formal or informal . Who</cell><cell cols="2">38 C: Someone once told me we always are 41</cell></row><row><cell>does " you " refer to ?</cell><cell>42</cell><cell>where we 're supposed to be . -Now I</cell></row><row><cell>16 A : " you " is \' formal \' since " you "</cell><cell cols="2">believe it . -Life is a journey . 43 S: You know where it begins , you never</cell></row><row><cell>refers to " your majesty ".</cell><cell cols="2">39 Q: " you " can be neutral , formal , know where it ends ...</cell></row><row><cell>17</cell><cell cols="2">informal . Who does " you " refer to in 44 C: Someone once told me we always are</cell></row><row><cell>18</cell><cell></cell><cell>(S)? where we 're supposed to be . -Now I</cell></row><row><cell>19 S : You know what I mean .</cell><cell cols="2">40 A: " you " is \' neutral \' because it is a believe it . -Life is a journey .</cell></row><row><cell>20 C : Elizabeth , will you bring the</cell><cell cols="2">generic " you " that refers to people 45 Q: " you " can be neutral , formal ,</cell></row><row><cell>binoculars ? -[ Elizabeth ] Mm , the</cell><cell></cell><cell>in general on their journey through informal . Who does " you " refer to in</cell></row><row><cell>stench is horrible . [ John ] Here ,</cell><cell></cell><cell>life . (S)?</cell></row><row><cell>take a hold of this . -[ Elizabeth ]</cell><cell cols="2">41 46 A: " you " is \' neutral \' because it is a</cell></row><row><cell>Is it dead ?</cell><cell>42</cell><cell>generic " you " that refers to people</cell></row><row><cell>21 Q : " you " can be neutral , formal ,</cell><cell cols="2">43 S: it is also very pretty . in general on their journey through</cell></row><row><cell>informal . Who does " you " refer to in</cell><cell cols="2">44 C: Even when it is pouring outside , this life .</cell></row><row><cell>( S ) ?</cell><cell>47</cell><cell>umbrella is both practical and</cell></row><row><cell>22 A : " you " is \' informal \' since the</cell><cell>48</cell><cell>elegant .</cell></row><row><cell>listener " John " has familiarity with</cell><cell cols="2">45 Q: What does " it " refer to ? 49 S: City policemen questioned many of you</cell></row><row><cell>the speaker and uses the first name</cell><cell cols="2">46 A: " it " is a harp . this week .</cell></row><row><cell>" Elizabeth ".</cell><cell cols="2">47 50 C: Lying on his belly , he was carried</cell></row><row><cell>23</cell><cell>48</cell><cell>home on a makeshift stretcher . -</cell></row><row><cell>24 25 S : You think you can make it through that kind of stuff , you think you can make it through anything . 26 C : Well , transitions are hard . -Been together ever since college . -Been</cell><cell cols="2">Next Sunday , after the service , the Baron asked the pastor to let him speak . 51 Q: " you " can be neutral , formal , informal . Who does \" you \" refer to 49 S: 53 in (S)?</cell></row><row><cell>through a lot . -You know , us coming</cell><cell cols="2">54 52 A: " you " is \' formal \' since the speaker</cell></row><row><cell>out to her family , and her brother</cell><cell cols="2">55 S: { en_text . strip () } directly addresses several people</cell></row><row><cell>dying .</cell><cell cols="2">56 C: { ctx . strip () } or " many of you ", the plural form of</cell></row><row><cell>27 Q : " you " can be neutral , formal ,</cell><cell cols="2">57 Q: { question } " you ".</cell></row><row><cell>informal . Who does " you " refer to in</cell><cell cols="2">58 A: """ 53</cell></row><row><cell>( S ) ?</cell><cell>59 54</cell><cell>return templated_input</cell></row><row><cell>28 A : " you " is \' neutral \' because it is a generic " you " that refers to people in general going through a difficult</cell><cell cols="2">55 S: { en_text . strip () } Listing 1: INTERCPT Generalist Simulated User 56 C: { ctx . strip () } Prompt Template 57 Q: { question }</cell></row><row><cell>moment .</cell><cell cols="2">58 A: """</cell></row><row><cell>29</cell><cell>59</cell><cell>The 8-shot formality specialist Simulated User return templated_input</cell></row><row><cell>23 30 31 S : You can imagine the princess -sized tantrum that followed .</cell><cell></cell><cell>prompt template is the same for all languages and is provided in code block listing 2. Listing 2: INTERCPT Formality Specialist Simulated User Prompt Template</cell></row><row><cell>24 32 Q : " you " can be neutral , formal ,</cell><cell cols="2">1 def formality_simulated_user_context (</cell></row><row><cell>25 S : What do you mean ? informal . Who does " you " refer to in</cell><cell></cell><cell>en_text , question , ctx ):</cell></row><row><cell>26 C : Daria , I just think that your field ( S ) ?</cell><cell>2</cell><cell>""" Formality simulated user has</cell></row><row><cell>of vision could really be enhanced 33 C : This is the bike that I learned to</cell><cell></cell><cell>access to context and answers the</cell></row><row><cell>... -Come on , Mom . -It 's not my ride on . -I just didn 't know my mom</cell><cell></cell><cell>question . """</cell></row><row><cell>field of vision you want to enhance . kept it . -It used to have these</cell><cell>3</cell><cell></cell></row><row><cell>27 Q : " you " can be neutral , formal , training wheels on the back with</cell><cell>4</cell><cell>templated_input =</cell></row><row><cell>informal . Who does " you " refer to ? lights that would flash every time</cell><cell cols="2">5 f """ [ web ] Given a Context (C) , provide</cell></row><row><cell>28 A : " you " is ' informal ' since the you pedaled . -Then one day , my mom</cell><cell></cell><cell>an Answer (A) to the Question (Q )</cell></row><row><cell>listener is the speaker 's " mom ", it took them off and said it was time</cell><cell></cell><cell>about Sentence (S):</cell></row><row><cell>implies a familiarity with the to be a big girl .</cell><cell></cell><cell></cell></row><row><cell>listener " you ". 34 A : " you " is \' informal \' since the</cell><cell></cell><cell></cell></row><row><cell>speaker is talking about a funny</cell><cell></cell><cell></cell></row><row><cell>childhood memory which implies a</cell><cell></cell><cell></cell></row><row><cell>familiarity with the listener " you ".</cell><cell></cell><cell></cell></row><row><cell>35</cell><cell></cell><cell></cell></row><row><cell>36</cell><cell></cell><cell></cell></row><row><cell>37 S : Can I just say , it 's been an absolute</cell><cell></cell><cell></cell></row><row><cell>pleasure to finally meet you ?</cell><cell></cell><cell></cell></row></table><note><p>29 30 31 S : This will accelerate your metabolic functions --help you make the transition . 32 C :</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head></head><label></label><figDesc>PaLM-with Context French generalist prompt template is the same for all test ambiguity data and is provided in code block listing 11. You know where it begins , you never know where it ends ... 33 A: On sait ou cela commence , mais on ne sait jamais ou cela se termine ... Listing 12: PaLM-with-Context Spanish Formality Specialist Prompt Template The PaLM-with Context Spanish Polysemy specialist prompt template is the same for all test ambi-guity data and is provided in code block listing 13. Listing 13: PaLM-with-Context Spanish Polysemy Specialist Prompt Template The PaLM-with Context French Formality specialist prompt template is the same for all test ambiguity data and is provided in code block listing 14. Freya Carlson , your Tourist Bureau contact . -These are for you . Street maps , places of interest . 7 T : This is for you , too . 8 A : Ceci est pour vous . 9 10 C : I believe ! --Who else knows ? --I don 't know . -Jerry , names ! -I don ' t want to dance ! 11 T : To whom have you been talking ? 12 A : A qui as -tu parle ? 13 14 C : It 's like the city 's changed her . -Well , transitions are hard . -Been together ever since college . -Been through a lot . -You know , us coming out to her family , and her brother dying . 15 T : You know where it begins , you never know where it ends ... 16 A : On sait ou cela commence , mais on ne sait jamais ou cela se termine ... You know , if you 're gonna go for a spin , I suggest you get your helmet .</figDesc><table><row><cell cols="4">50 Q: { question } 51 A: """ 52 return templated_input Listing 3: INTERCPT Polysemy Specialist Simulated User Prompt Template F.2 INTERCPT Generalist Prompt Templates for each target language The 8-shot Spanish generalist Translator prompt template is the same for all test ambiguity data and is provided in code block listing 4. 1 def spanish_generalist_translator_interactive ( en_text , question = None , answer = None ): 2 """ Translation model asks questions and uses answers to translate """ 3 if answer == None : 4 # Ask questions 5 instructions = "[ web ] Given sentence 'S ' to translate to Spanish , ask clarifying questions 'Q ' to clarify ambiguities or multiple senses :" 6 else : 7 # Translate given answer 8 instructions = "[ web ] Given answer 'U ' to question 'Q ', provide the Spanish translation 'A ' of sentence 'S '. Provide the best answer :" 9 10 templated_input = 11 """ 12 13 S: about 14 Q: Is " about " an adverb that means approximately , near or a preposition that means regarding , over , surrounding ?% s 15 16 17 S: rent 18 Q: Is " rent " a tenant 's regular payment for a property or to pay someone for the use of something ?% s 19 templated_input = """ 11 12 S: about 13 Q: Is " about " an adverb that means approximately , near or a preposition that means regarding , over , surrounding ?% s 14 15 16 S: rent 17 Q: Is " rent " a tenant 's regular payment for a property or to pay someone for the use of something ?% s 18 19 20 S: abstract 21 Q: Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ?% s 22 23 templated_input = """ 11 12 S: This will accelerate your metabolic functions --help you make the transition . 13 Q: " you " can be neutral , formal , informal . Who does " you " refer to ?% s 14 15 16 S: Poor baby ... here 's yours ! 17 Q: " you " can be neutral , formal , informal . Who does " you " refer to ?% s 18 19 20 S: They could wait ' till you 're on the beach , then cut loose , or start firing right away . 21 Q: " you " can be neutral , formal , informal . Who does " you " refer to ?% s 22 23 24 S: You think if I get contacts I 'll suddenly turn into the homecoming queen . 25 Q: " you " can be neutral , formal , informal . Who does " you " refer to ?% s 26 27 28 S: For centuries , we have watched you , listened to your radio signals and learned your speech and your culture . templated_input = """ 11 12 S: abstract 13 Q: Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ?% s 14 15 16 S: abstract 17 Q: Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ?% s 18 19 20 S: about 21 Q: Is " about " an adverb that means approximately , near or a preposition that means regarding , over , surrounding ?% s 22 23 24 S: bank 25 Q: Is " bank " to tilt sideways , or a financial institution , the edge of a river , a set or series of similar things or the cushion of a pool ?% s 26 27 28 S: rent 29 Q: Is " rent " a tenant 's regular payment for a property or to pay someone for the use of something ?% s 30 31 32 """ 33 34 if answer is None : 35 templated_input = templated_input % ( '', '', '', '', ' ') 36 templated_input = f"{ 34 35 36 """ 37 38 if answer is None : 39 templated_input = templated_input % ( '', '', '', '', ' ', '') 40 templated_input = f"{ instructions }\ n" + templated_input + f"S: { en_text }\ nQ :" 41 else : 42 templated_input = templated_input % ( 43 '\ nU : \ nA : Ceci est pour vous . ' , 44 '\ nU : \ nA : A qui as -tu parle ? ' , 45 '\ nU : \ nA : On sait ou cela commence , mais on ne sait jamais ou cela se termine ... ', 46 '\ nU : \ nA : Tu peux imaginer la colere de princesse qui a suivi . ', 47 '\ nU : \ nA : Les gendarmes sont venus interroger nombre d\' entre vous . ', 48 '\ nU : \ nA : On pense que quand on arrive a traverser ce genre de chose , on peut traverser n\' importe quoi . ' 49 ) 50 templated_input = f"{ instructions }\ n " + templated_input + f"S: { en_text }\ nQ : { question }\ nU : { answer }\ nA : " 51 return templated_input Listing 8: INTERCPT French Formality Specialist Translator Prompt Template The French polysemy specialist Translator prompt template is the same for all test ambigu-ity data and is provided in code block listing 9. Please note that the instructions for the translation step is different than the generalist or the formality specialist template. 1 def french_polysemy_translator_interactive ( en_text , question = None , answer = None ): 2 """ Translation model asks questions """ Translation model uses context to translate . """ 3 4 templated_input = f """ [ web ] Given context 'C ', Translate 'T ' from English to Spanish : 5 6 C: About 2% of the households are enumerated using the canvasser method . 7 T: about 8 A: aproximadamente , cerca de , alrededor de , casi , mas o menos 9 10 11 C: Many single women cannot live independently because they cannot ( afford to ) own or rent housing 12 T: rent 13 A: alquilar , arrendar , rentar 14 15 16 C: For the international community is not an abstract concept , it consists of us ourselves . 17 T: abstract 18 A: abstraccion , abstracto 19 20 21 C: Daria , I just think that your field of vision could really be enhanced ... -Come on , Mom . -It 's not my field of vision you want to enhance . -What do you mean ? 22 T: You think if I get contacts I 'll suddenly turn into the homecoming queen . 23 A: Tu piensas que si uso lentes de contacto de repente me convertire en french_baseline_generalist_translator_context 33 S : They could wait ' till you 're on the 31 32 beach , then cut loose , or start firing right away . 34 Q : " you " can be neutral , formal , informal . Who does " you " refer to ?% s 35 36 37 S : can 't they just build it on an angle ? 38 Q : What does " it " refer to ?% s 39 40 41 S : It is also very pretty . 42 Q : What does " it " refer to ?% s 43 44 45 """ templated_input = """ 11 12 S : This is for you , too . 13 Q : " you " can be neutral , formal , informal . Who does " you " refer to ?% s 14 15 16 S : To whom have you been talking ? 17 Q : " you " can be neutral , formal , informal . Who does " you " refer to ?% s 18 19 20 S : You know where it begins , you never know where it ends ... 21 Q : " you " can be neutral , formal , informal . Who does " you " refer to ?% s 13 Q : Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ?% s 14 15 16 S : abstract 17 Q : Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ?% s 18 19 20 S : about 21 Q : Is " about " an adverb that means approximately , near or a preposition that means regarding , over , surrounding ?% s 22 23 24 S : bank 25 Q : Is " bank " to tilt sideways , or a financial institution , the edge of a river , a set or series of similar things or the cushion of a pool ?% s 26 27 28 S : rent 29 Q : Is " rent " a tenant 's regular payment for a property or to pay someone for the use of something ?% s 30 31 32 """ 33 34 if answer is None : 35 templated_input = templated_input % ( '', '', '', '', ' ') 36 templated_input = f"{ instructions }\ n" + templated_input + f " S : { en_text }\ nQ : " 32 T : They could wait ' till you 're on the beach , then cut loose , or start firing right away . 33 A : Podian aguardar a que uno estuviera en la playa y atacar o comenzar a disparar . 34 35 36 C : Even when it is pouring outside , this umbrella is both practical and elegant . 37 T : It is also very pretty . 38 A : Es muy bonita tambien . 39 40 41 C : -Frog is wrong . -I see here that you play the harp . -Tell me , why do they have to tilt it ? 42 T : can 't they just build it on an angle ? 43 A : no pueden hacerla en angulo ? 44 45 46 C : { ctx } 47 T : { en_text } 48 A : """ 49 return templated_input Listing 10: PaLM-with-Context Spanish Generalist Prompt Template The 8-shot 1 def ( en_text , ctx ): 2 """ Translation model uses context to translate . """ 3 4 templated_input = f """ [ web ] Given context 'C ', Translate 'T ' from English to French : 5 6 C : About 2% of the households are enumerated using the canvasser method . 7 T : about 8 A : environ , presque , quelque , a peu pres , approximativement 9 23 A: A qui as -tu parle ? 24 25 26 C: I 'm Freya . -Welcome to Denmark , Mr . Helm . -You always greet people like this ? -I 'm Freya Carlson , your Tourist Bureau contact . -These are for you . Street maps , places of interest . 27 T: This is for you , too . 28 A: Ceci est pour vous . 29 30 31 C: It 's like the city 's changed her . -Well , transitions are hard . -Been together ever since college . -Been through a lot . -You know , us coming out to her family , and her brother dying . 32 T: 34 35 36 C: Even when it is pouring outside , this umbrella is both practical and elegant . 39 40 41 C: Okay , you don 't smash the cherry on that . Just plop it in at the end . 42 T: Try to keep it in the top of the glass . verre . 44 45 46 C: { ctx } 47 T: { en_text } 48 A: """ 49 return templated_input Listing 11: PaLM-with-Context French Generalist Prompt Template F.5 PaLM-with-Context Specialist Prompt 25 Templates for each target language 21 35 return templated_input Hemos aprendido su idioma y cultura . 34 A: """ escuchado sus senales de radio . 33 T: { en_text } 24 A : Durante siglos , los hemos observado , 32 C: { ctx } . 31 learned speech and your culture 30 listened to your radio signals and 29 A: abstraccion , abstracto 23 T : For centuries , we have watched you , 28 T: abstract become man . of us ourselves . primeval slime of your seas to not an abstract concept , it consists first creature crawled out of the 27 C: For the international community is known your planet earth since the 26 give you this warning . -We have 25 22 C : Men of earth , we of the planet Mars 24 A: murcielago 43 A: Essaie de la garder dans le haut du 7 T : This will accelerate your metabolic functions --help you make the transition . 8 A : Esto acelerara sus funciones metabolicas . Lo ayudara a hacer la transicion . 9 10 C : Who ? -Me ! -I think I 've got a cold . -" Hey buddy , give me a Magic Hug will you !" -Magic Hug ! -And me ? -Shut up Swami 11 T : Poor baby ... here 's yours ! 12 A : Pobre bebe ... aqui esta el tuyo ! 13 14 C : Some of the guys got a little sick . -They were scared ; I was scared . -I don 't think we had any reason to be otherwise . 15 T : They could wait ' till you 're on the beach , then cut loose , or start firing right away . 16 A : Podian aguardar a que uno estuviera en la playa y atacar o comenzar a disparar . 17 23 T: bat la nueva reina del colegio . to its cave . contacto de repente me convertire en 22 C: The bat flew over the forest and back 20 A : Tu piensas que si uso lentes de 21 queen . 20 suddenly turn into the homecoming de , casi , mas o menos 19 T : You think if I get contacts I 'll 19 A: aproximadamente , cerca de , alrededor -What do you mean ? 18 T: about field of vision you want to enhance . method . ... -Come on , Mom . -It 's not my enumerated using the canvasser of vision could really be enhanced 17 C: About 2% of the households are 18 C : Daria , I just think that your field 1 def spanish_baseline_polysemy_translator_context ( en_text , ctx ): 2 """ Translation model uses context to translate . """ 3 4 templated_input = f """ [ web ] Given context 'C ', Translate 'T ' from English to Spanish : 5 6 7 C: Many single women cannot live independently because they cannot ( afford to ) own or rent housing 8 T: rent 9 A: alquilar , arrendar , rentar 10 11 12 C: We need to abstract the data from various studies . 13 T: abstract 14 A: abstraer this ? -I 'm 17 15 16 18 C :</cell></row><row><cell cols="2">22 23 26 C : Pull over here . This is the spot . -I 10 11 C : Many single women cannot live guess you run into a lot of dead</cell><cell cols="2">20 21 S: abstract 24 S: You know where it begins , you never know where it ends ... 29 Q: " you " can be neutral , formal , informal . Who does " you " refer to ?% s instructions }\ n" + templated_input + f"S: { en_text }\ nQ : " and uses answers to translate """ 3 if answer == None : la nueva reina del colegio . 24 The PaLM-with Context Spanish Formality special-</cell></row><row><cell cols="2">24 S : You can imagine the princess -sized tantrum that followed . 25 Q : " you " can be neutral , formal , independently because they cannot ( afford to ) own or rent housing 12 T : rent bodies in your line of work . -You get used to it . 27 T : I never have . I 'm not sure you 're</cell><cell cols="2">22 Q: Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ?% s 25 Q: " you " can be neutral , formal , informal . Who does " you " refer to ?% s 26 30 31 32 S: I never have . I 'm not sure you 're 37 else : 38 templated_input = templated_input % ( 4 # Ask questions 5 instructions = "[ web ] Given an English word 'S ' to translate to 25 26 C: At the very least , get them to hold their fire . -Captain , the ist prompt template is the same for all test ambigu-ity data and is provided in code block listing 12.</cell></row><row><cell cols="2">informal . Who does " you " refer to ?% s 13 A : louer supposed to .</cell><cell>23 27 39 1 def</cell><cell>supposed to . '\ nU : " abstract " is an adjective French , to clarify ambiguities and transporters are off -line . -The</cell></row><row><cell cols="2">26 14 28 A : Yo no . No creo que uno deba</cell><cell cols="2">24 28 S: This is for you , too . 33 Q: " you " can be neutral , formal , that modifies " concept " in the understand multiple senses ask docking port hasn 't been hit yet . spanish_baseline_formality_translator_context</cell></row><row><cell>27 15</cell><cell>acostumbrarse .</cell><cell cols="2">25 S: You think if I get contacts I 'll 29 Q: " you " can be neutral , formal , informal . Who does " you " refer to ?% s phrase " abstract concept ".\ nA : questions 'Q ':" 27 T: This will accelerate your metabolic ( en_text , ctx ): 1 def</cell></row><row><cell cols="2">41 28 S : City policemen questioned many of you 16 C : For the international community is 29</cell><cell>34 6 2</cell><cell>suddenly turn into the homecoming informal . Who does " you " refer to ?% s abstraccion , abstracto ', else : functions --help you make the """ Translation model uses context to french_baseline_formality_translator_context</cell></row><row><cell cols="2">42 30 C : { ctx } this week . not an abstract concept , it consists</cell><cell>30 35 40 7</cell><cell>queen . '\ nU : " abstract " means to # Translate given answer transition . translate . """ ( en_text , ctx ):</cell></row><row><cell cols="2">43 S : bat 29 Q : " you " can be neutral , formal , of us ourselves . 31 T : { en_text }</cell><cell cols="2">26 Q: " you " can be neutral , formal , 31 36 """ extract something .\ nA : abstraer ', 8 instructions = "[ web ] Given 28 A: Esto acelerara sus funciones 3 2 """ Translation model uses context to</cell></row><row><cell cols="2">44 C : The bat flew over the forest and back informal . Who does " you " refer to ?% s 17 T : abstract 32 A : """</cell><cell cols="2">informal . Who does " you " refer to ?% s 32 S: You know where it begins , you never 37 answer 'U ' to question 'Q ', metabolicas . Lo ayudara a hacer la 4 templated_input = f """ [ web ] Given translate . """</cell></row><row><cell cols="2">to its cave . 18 A : abstraction , abstrait 30 33 return templated_input</cell><cell>27 38 3</cell><cell>know where it ends ... if answer is None : Translate word 'S ' into French and transicion context 'C ', Translate 'T ' from</cell></row><row><cell cols="2">45 Q : Is " bat " an animal or a sports 31 19</cell><cell cols="2">28 33 Q: " you " can be neutral , formal , 39 templated_input = provide unique and non -repeating 29 English to Spanish : 4 templated_input = f """ [ web ] Given</cell></row><row><cell cols="2">equipment ? 32 S : You think you can make it through 20</cell><cell cols="2">29 S: This will accelerate your metabolic informal . Who does " you " refer to ?% s templated_input % ( '', '', '', '', ' synonyms in 'A ':" 30 context 'C ', Translate 'T ' from</cell></row><row><cell cols="2">46 A : " bat " is an animal . that kind of stuff , you think you 21 C : I believe ! --Who else knows ? --I</cell><cell cols="2">functions --help you make the ', '') '\ nU : " bank " is a financial 31 C: Some of the guys got a little sick . -34 English to French :</cell></row><row><cell>47</cell><cell>can make it through anything . don 't know . -Jerry , names ! -I don '</cell><cell>35 40</cell><cell>transition . templated_input = f"{ institution .\ nA : banco ', templated_input = """ They were scared ; I was scared . -I</cell></row><row><cell cols="2">48 33 Q : " you " can be neutral , formal , t want to dance !</cell><cell cols="2">30 Q: " you " can be neutral , formal , 36 S: I 'll help you find it before [ pr ] instructions }\ n" + templated_input + don 't think we had any reason to be</cell></row><row><cell cols="2">49 C : { ctx } informal . Who does " you " refer to ?% s 22 T : To whom have you been talking ?</cell><cell></cell><cell>informal . Who does " you " refer to ?% s does . f"S: { en_text }\ nQ :" otherwise .</cell></row><row><cell></cell><cell></cell><cell>474</cell><cell></cell></row></table><note><p><p>37  </p>T: it is also very pretty . 38 A: il est aussi tres beau .</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head></head><label></label><figDesc>He was in a state of shock , unable to walk . -Lying on his belly he was carried home on a makeshift stretcher . -Next Sunday , after the service , the Baron asked the pastor to let him speak . 23 T : City policemen questioned many of you this week . 24 A : Les gendarmes sont venus interroger nombre d\' entre vous . 25 26 C : I tried to explain ... He might have gotten hurt ! -I was actually doing him a favour . -Someone once told me we always are where we 're supposed to be . -Now I believe it . -Life is a journey . 27 T : You think you can make it through that kind of stuff , you think you can make it through anything . 28 A : On pense que quand on arrive a traverser ce genre de chose , on peut traverser n\' importe quoi . Listing 14: PaLM-with-Context French Formality Specialist Prompt TemplateThe PaLM-with Context French Polysemy specialist prompt template is the same for all test ambiguity data and is provided in code block listing 15. PaLM 62B model with 8shot in-demonstration exemplars. We provide below the exemplars that were used to classify gender of French in code block listing 16 and Spanish sentences in code block listing 17. Note that we added exemplars until we had a satisfactory score on our</figDesc><table><row><cell>21 22 C : 1 def 2 3 4 5 6 C: Consequently a strategy has been french_baseline_polysemy_translator_context ( en_text , ctx ): """ Translation model uses context to translate . """ templated_input = f """ [ web ] Given context 'C ', Translate 'T ' from English to French : defined that allows departments to approach its implementation in a step -wise manner . 7 T: approach 8 A: s ' approcher , aborder , contacter , s ' adresser 9 10 C: We need to abstract the data from various studies . 11 T: abstract 12 A: abstraire , extraire 13 14 C: About 2% of the households are enumerated using the canvasser method . 15 T: about 16 A: environ , presque , quelque , a peu pres , approximativement 17 18 C: The bat flew over the forest and back to its cave . 19 T: bat 20 A: chauve -souris 21 22 C: For the international community is not an abstract concept , it consists of us ourselves . 23 T: abstract 24 A: abstraction , abstrait 25 26 C: { ctx } 27 T: { en_text } 28 A: """ 29 return templated_input Listing 15: PaLM-with-Context French Polysemy Specialist Prompt Template G More details on gender and formality classifier The classifiers fall into 2 categories: (1) heuristic based classification, that use the same language rules from section E.2; (2) neural network based Listing 16: PaLM prompt template for gender classification of French sentences 1 def spanish_gender_it_classifier_template ( en_text , es_text ): 2 """ Classify a Spanish sentence as feminine or masculine . 8-shot examples """ 3 4 templated_input = 5 6 f """ [ web ] Given Spanish sentence 'F ', provide the gender in 'A ' and explain in 'E '. Gender 'A ' must be either ' feminine ' or ' masculine ': 7 8 F: nos habriamos pasado el dia mirandola . 9 A: feminine 10 E: It is ' feminine ' since " la " and verb " mirandola " refer to a feminine object . 11 12 13 F: -los peruanos no podian pronunciarlo . 14 A: masculine 15 E: It is ' masculine ' since " lo " in verb " pronunciarlo " refers to a masculine object . 16 17 18 F: Quiero decir , me encantaria volver a verlo . 19 A: masculine 20 E: It is ' masculine ' since " lo " in verb " verlo " refers to a masculine object . 21 22 23 F: debemos ponerla de vuelta ? 24 A: feminine 25 E: It is ' feminine ' since " la " in verb " ponerla " refers to a feminine object . 26 27 28 F: -tiene que bebersela o tirarla . 29 A: feminine 30 E: It is ' feminine ' since " la " in verbs " bebersela " and " tirarla " refer to a classification, using a return templated_input feminine object .</cell></row></table><note><p>29 30 C : { ctx } 31 T : { en_text } 32 A : """ 33 return templated_input 31 32 33 F: Guardalo para el proximo barco . 34 A: masculine 35 E: It is ' masculine ' since " lo " in verb " Guardalo " refers to a masculine object . 36</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Please note that due to the lack of large translation corpora with various genders and the complexity in creating non-binary gender datasets, our data is limited to feminine and masculine.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://ai.googleblog.com/2021/06/a-dataset-forstudying-gender-bias-in.html</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://translate.google.ca/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://ai.googleblog.com/2021/06/a-dataset-forstudying-gender-bias-in.html</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>See example in https://www.nltk.org/howto/wsd. html</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p></p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>S: This is for you , too .</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_7"><p>C: I 'm Freya . -Welcome to Denmark , Mr . Helm . -You always greet people like this ? -I 'm Freya Carlson , your Tourist Bureau contact .</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_8"><p>Q: " you " can be neutral , formal , informal . Who does " you " refer to in (S)?</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_9"><p></p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_10"><p>S: abstract</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_11"><p>C: For the international community is not an abstract concept , it consists of us ourselves .</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_12"><p>Q : Is " abstract " to consider theoretically , to extract something , or a summary , or an adjective ?</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="10" xml:id="foot_13"><p>A : " abstract " is an adjective that modifies the word " concept ".</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_14"><p>'\ nU : " rent " is to pay someone for the use of something .\ nA :</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="12" xml:id="foot_15"><p>S: abstract</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_16"><p></p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_17"><p>C: At the very least , get them to hold their fire . -Captain , the transporters are off -line . -The docking port hasn 't been hit yet .</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_18"><p>C: I 'm Freya . -Welcome to Denmark , Mr . Helm . -You always greet people like</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>For all the useful comments, we thank <rs type="person">George Foster</rs>, <rs type="person">Colin Cherry</rs>, <rs type="person">Rick Genter</rs>, <rs type="person">Patrick Fernandes</rs> and <rs type="person">Jason Wei. For</rs> feedback on German and Japanese translation examplars, we thank <rs type="person">Julia Kreutzer</rs>, <rs type="person">Anja Austermann</rs> and <rs type="person">Mikio Hirabayashi</rs>.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>(3) neutral professions, (4) polysemy, (5) formality en→ja Table <ref type="table">5</ref>: Other MT datasets that contain specific linguistic phenomena and provide context. en = English, de = German, fr = French, ru = Russian, zh = Mandarin Chinese, ja = Japanese. • If all verbs finish by "s", "ste" or "os", then is verb informal = TRUE. • If any pronouns is "usted", then is pronoun formal = TRUE. • If any pronouns is in ["tú","tu","te", "vos", "vosotros"], then is pronoun informal = TRUE. • If any determinants is "su", then is determinant formal = TRUE. • If any determinants is in ["tu","vosotros", "vosotras"] then is determinant informal = TRUE.</p><p>• is informal = is verb informal and is pronoun informal and is determinant informal.</p><p>• is formal = is pronoun formal and is determinant formal.</p><p>4. If x == fr, check the following in parallel French sentence (all checks are initialized to FALSE):</p><p>• If any verbs finish by "x", "s" or "ons", then is verb informal = TRUE. '\ nU : " rent " is to pay someone for the use of something .\ nA : alquilar , arrendar , rentar ',</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>53</head><p>'\ nU : " abstract " is an adjective that modifies " concept " in the phrase " abstract concept ".\ nA : abstraccion , abstracto ', 54 '\ nU : " you " is \' informal \' since the is the speaker \'s " mom " , it implies a familiarity with the listener " you ".\ nA : Tu piensas que si uso lentes de contacto de repente me convertire en la nueva reina del colegio . ',</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>55</head><p>'\ nU : " you " is \' formal \' since " you " refers to a Captain and the speaker will typically use a polite form .\ nA : Esto acelerara sus funciones metabolicas . Lo ayudara a hacer la transicion . ', 56 '\ nU : " you " is \' neutral \' because it is a generic " you " that refers to people in general and not someone specific .\ nA : Podian aguardar a que uno estuviera en la playa y atacar o comenzar a disparar . ' , 57 '\ nU : " it " is a harp .\ nA : no pueden hacerla en angulo ? ', 58 '\ nU : " it " is an umbrella .\ nA : Es muy bonita tambien . ',</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>59</head><p>) We have added the classification heuristics and other classification templates to our public data and code repository. </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Asking clarifying questions in open-domain information-seeking conversations</title>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Aliannejadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamed</forename><surname>Zamani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Crestani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">Bruce</forename><surname>Croft</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3331184.3331265</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR&apos;19</title>
+		<meeting>the 42nd International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR&apos;19<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="475" to="484" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Power to the people: The role of humans in interactive machine learning</title>
+		<author>
+			<persName><forename type="first">Saleema</forename><surname>Amershi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maya</forename><surname>Cakmak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Bradley Knox</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Kulesza</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aimag.v35i4.2513</idno>
+	</analytic>
+	<monogr>
+		<title level="j">AI Magazine</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="105" to="120" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tatyana</forename><surname>Badeka</surname></persName>
+		</author>
+		<title level="m">Machine translation: Search queries at ebay</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Evaluating discourse phenomena in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Rachel</forename><surname>Bawden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N18-1118</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Long Papers; New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1304" to="1313" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">NLTK: The natural language toolkit</title>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Bird</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Loper</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Interactive Poster and Demonstration Sessions</title>
+		<meeting>the ACL Interactive Poster and Demonstration Sessions<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="214" to="217" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Nuanced metrics for measuring unintended bias with real data for text classification</title>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Borkan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Sorensen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nithum</forename><surname>Thain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><surname>Vasserman</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3308560.3317593</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Companion Proceedings of The 2019 World Wide Web Conference, WWW &apos;19</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="491" to="500" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Alec Radford, Ilya Sutskever, and Dario Amodei</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+	<note>Language models are few-shot learners</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Aakanksha</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaurav</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Barham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyung</forename><forename type="middle">Won</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Parker</forename><surname>Schuh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kensen</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sasha</forename><surname>Tsvyashchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Maynez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Parker</forename><surname>Barnes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Vinodkumar Prabhakaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Reif</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reiner</forename><surname>Hutchinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Pope</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Isard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>Gur-Ari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Toju</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anselm</forename><surname>Duke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjay</forename><surname>Levskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunipa</forename><surname>Ghemawat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henryk</forename><surname>Dev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Michalewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vedant</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liam</forename><surname>Robinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Fedus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daphne</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ippolito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyeontaek</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Spiridonov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Sepassi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shivani</forename><surname>Dohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Omernick ; Oleksandr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Polozov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zongwei</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brennan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Saeta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orhan</forename><surname>Diaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Catasta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathy</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Meier-Hellstern</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Eck</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2204.02311</idno>
+		<editor>M. Dai, Thanumalayan Sankaranarayana Pillai, Marie Pellat, Aitor Lewkowycz, Erica Moreira, Rewon Child,</editor>
+		<imprint>
+			<pubPlace>Jeff Dean, Slav Petrov</pubPlace>
+		</imprint>
+	</monogr>
+	<note>and Noah Fiedel. 2022. Palm: Scaling language modeling with pathways</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT: Pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/N19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Minneapolis, Minnesota</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4171" to="4186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Resolving intent ambiguities by retrieving discriminative clarifying questions</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kaustubh</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Dhole</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2008.07559</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Interactive machine learning</title>
+		<author>
+			<persName><forename type="first">Jerry</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Fails</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><forename type="middle">R</forename><surname>Olsen</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/604045.604056</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Conference on Intelligent User Interfaces, IUI &apos;03</title>
+		<meeting>the 8th International Conference on Intelligent User Interfaces, IUI &apos;03<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="39" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Neural approaches to conversational AI</title>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P18-5002</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics: Tutorial Abstracts</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics: Tutorial Abstracts<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2" to="7" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Using natural language prompts for machine translation</title>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2202.11822</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Scaling laws for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Behrooz</forename><surname>Ghorbani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Bapna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxim</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Cherry</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Predictive translation memory: A mixed-initiative system for human language translation</title>
+		<author>
+			<persName><forename type="first">Spence</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Heer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACM User Interface Software &amp; Technology (UIST)</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Scaling laws for autoregressive generative modeling</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mor</forename><surname>Katz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Jackson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><forename type="middle">B</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hallacy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">M</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<idno>CoRR, abs/2010.14701</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Scaling laws for transfer</title>
+		<author>
+			<persName><forename type="first">Danny</forename><surname>Hernandez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<idno>CoRR, abs/2102.01293</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A survey on conversational agents/chatbots classification and design techniques</title>
+		<author>
+			<persName><forename type="first">Shafquat</forename><surname>Hussain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omid</forename><surname>Ameri Sianaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nedal</forename><surname>Ababneh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AINA Workshops</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Scaling laws for neural language models</title>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><forename type="middle">B</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<idno>CoRR, abs/2001.08361</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Statistical significance tests for machine translation evaluation</title>
+		<author>
+			<persName><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2004 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2004 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="388" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Interactive Question Answering</title>
+		<author>
+			<persName><forename type="first">Natalia</forename><surname>Konstantinova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Constantin</forename><surname>Orasan</surname></persName>
+		</author>
+		<idno type="DOI">10.4018/978-1-4666-2169-5.ch007</idno>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page">149</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Assistance with large language models</title>
+		<author>
+			<persName><forename type="first">Dmitrii</forename><surname>Krasheninnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Egor</forename><surname>Krasheninnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Krueger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPS ML Safety Workshop</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Latent retrieval for weakly supervised open domain question answering</title>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1612</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6086" to="6096" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">{GS}hard: Scaling giant models with conditional computation and automatic sharding</title>
+		<author>
+			<persName><forename type="first">Dmitry</forename><surname>Lepikhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyoukjoong</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhong</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dehao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanping</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxim</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">OpenSubtitles2016: Extracting large parallel corpora from movie and TV subtitles</title>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Lison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)</title>
+		<meeting>the Tenth International Conference on Language Resources and Evaluation (LREC&apos;16)<address><addrLine>Portorož, Slovenia</addrLine></address></meeting>
+		<imprint>
+			<publisher>European Language Resources Association (ELRA)</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="923" to="929" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">WordNet: A lexical database for English</title>
+		<author>
+			<persName><forename type="first">George</forename><forename type="middle">A</forename><surname>Miller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technology: Proceedings of a Workshop</title>
+		<meeting><address><addrLine>Plainsboro, New Jersey</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1994-03-08">1994. March 8-11, 1994</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">AmbigQA: Answering ambiguous open-domain questions</title>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.466</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5783" to="5797" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">A large-scale test set for the evaluation of context-aware pronoun translation in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Mathias</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Annette</forename><surname>Rios</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Voita</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/W18-6307</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Conference on Machine Translation: Research Papers</title>
+		<meeting>the Third Conference on Machine Translation: Research Papers<address><addrLine>Brussels, Belgium</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="61" to="72" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Baby names in japan, 2004-2018: common writings and their readings</title>
+		<author>
+			<persName><forename type="first">Yuji</forename><surname>Ogihara</surname></persName>
+		</author>
+		<idno type="DOI">10.1186/s13104-020-05409-3</idno>
+	</analytic>
+	<monogr>
+		<title level="j">BMC Research Notes</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>Publisher Copyright: © 2020, The Author(s)</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Jing</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.3115/1073083.1073135</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Philadelphia, Pennsylvania, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2002">2002</date>
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Jack</forename><forename type="middle">W</forename><surname>Rae</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katie</forename><surname>Millican</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><surname>Hoffmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">Francis</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Aslanides</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roman</forename><surname>Ring</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Susannah</forename><surname>Young</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eliza</forename><surname>Rutherford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Hennigan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Menick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albin</forename><surname>Cassirer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Powell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Van Den Driessche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lisa</forename><forename type="middle">Anne</forename><surname>Hendricks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maribeth</forename><surname>Rauh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Po-Sen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amelia</forename><surname>Glaese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Welbl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sumanth</forename><surname>Dathathri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saffron</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Uesato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Mellor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Irina</forename><surname>Higgins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonia</forename><surname>Creswell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nat</forename><surname>Mcaleese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erich</forename><surname>Elsen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Siddhant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Jayakumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Buchatskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esme</forename><surname>Budden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Sutherland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michela</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Paganini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lena</forename><surname>Sifre</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Martens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lorraine</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adhiguna</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aida</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Nematzadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Domenic</forename><surname>Gribovskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angeliki</forename><surname>Donato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Lazaridou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean-Baptiste</forename><surname>Mensch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lespiau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolai</forename><surname>Tsimpoukelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doug</forename><surname>Grigorev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Fritz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mantas</forename><surname>Sottiaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Toby</forename><surname>Pajarskas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhitao</forename><surname>Pohlen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cyprien</forename><surname>Toyama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>De Masson D'autume</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tayfun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Terzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Mikulik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><surname>Babuschkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><surname>De Las</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurelia</forename><surname>Casas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Guy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blake</forename><forename type="middle">A</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Hechtman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iason</forename><surname>Weidinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">S</forename><surname>Gabriel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Isaac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Lockhart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Osindero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Rimell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kareem</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Ayoub</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lorrayne</forename><surname>Stanway</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bennett</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>Demis Hassabis, Koray Kavukcuoglu, and Geoffrey Irving. 2021. Scaling language models: Methods, analysis &amp; insights from training gopher. CoRR, abs/2112.11446</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Controlling translation formality using pretrained multilingual language models</title>
+		<author>
+			<persName><forename type="first">Elijah</forename><surname>Rippeth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sweta</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marine</forename><surname>Carpuat</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.iwslt-1.30</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Conference on Spoken Language Translation (IWSLT 2022)</title>
+		<meeting>the 19th International Conference on Spoken Language Translation (IWSLT 2022)<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="327" to="340" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">INMT: Interactive neural machine translation prediction</title>
+		<author>
+			<persName><forename type="first">Sebastin</forename><surname>Santy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandipan</forename><surname>Dandapat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Monojit</forename><surname>Choudhury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalika</forename><surname>Bali</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-3018</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP): System Demonstrations</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP): System Demonstrations<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="103" to="108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Template-guided clarifying question generation for web search clarification</title>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenjie</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3459637.3482199</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th ACM International Conference on Information; Knowledge Management, CIKM &apos;21</title>
+		<meeting>the 30th ACM International Conference on Information; Knowledge Management, CIKM &apos;21<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3468" to="3472" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Measuring and mitigating name biases in neural machine translation</title>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Rubinstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.184</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2576" to="2590" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Interactive machine learning: letting users build classifiers</title>
+		<author>
+			<persName><forename type="first">Eibe</forename><surname>Malcolm Ware</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Frank</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Holmes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><forename type="middle">H</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Witten</surname></persName>
+		</author>
+		<idno type="DOI">10.1006/ijhc.2001.0499</idno>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Human-Computer Studies</title>
+		<imprint>
+			<biblScope unit="volume">55</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="281" to="292" />
+			<date type="published" when="2001">2001</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">2022a. Emergent abilities of large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishi</forename><surname>Bommasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Fedus</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint/>
+	</monogr>
+	<note>Survey Certification</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Chain of thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Quoc V Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">a. Ai chains: Transparent and controllable human-ai interaction by chaining large language model prompts</title>
+		<author>
+			<persName><forename type="first">Tongshuang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Terry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carrie</forename></persName>
+		</author>
+		<idno type="DOI">10.1145/3491102.3517582</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 CHI Conference on Human Factors in Computing Systems, CHI &apos;22</title>
+		<meeting>the 2022 CHI Conference on Human Factors in Computing Systems, CHI &apos;22<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2022-06">Jun Cai. 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zeqiu</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryu</forename><surname>Parish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2207.00746</idno>
+		<title level="m">Prithviraj Ammanabrolu, Mari Ostendorf, and Hannaneh Hajishirzi. 2022b. Inscit: Information-seeking conversations with mixed-initiative interactions</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Aditya Barua, and Colin Raffel. 2021. mT5: A massively multilingual pre-trained text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.41</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="483" to="498" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">MIM-ICS: A large-scale data collection for search clarification</title>
+		<author>
+			<persName><forename type="first">Hamed</forename><surname>Zamani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gord</forename><surname>Lueck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Everest</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rodolfo</forename><surname>Quispe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Flint</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Craswell</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006">2020. 2006.10174</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Prompting large language model for machine translation: A case study</title>
+		<author>
+			<persName><forename type="first">Biao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">Least-to-most prompting enables complex reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Schärli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Scales</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Bousquet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2205.10625</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title level="m" type="main">Given French sentence &apos;F &apos;, provide the gender of &quot; it &quot; in English sentence &apos;T &apos; and explain in &apos;E &apos;. Gender in &apos;A &apos; must be &apos; feminine</title>
+		<imprint/>
+	</monogr>
+	<note>] must have forced it somehow . 41 Q : What does &quot; it &quot; refer to ?% s 42 43 44</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">T : lily and marshall decided to sell it for one simple reason</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">F : lyly et marshall l\&apos; avaient mise en vente pour une seule raison</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">It is &apos; feminine &apos; since &quot; mise &quot; refers to a feminine object</title>
+		<author>
+			<persName><forename type="first">E</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m">maybe you need to shake it up</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">F : -peut -etre qu &apos;il faut le secouer . 16 A : masculine 17 E : It is &apos; &apos; since &quot; le &quot; refers to a masculine object</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<title level="m">19 20 T : i want you to get it for me</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">Je veux que tu me la rapportes</title>
+		<author>
+			<persName><forename type="first">F</forename></persName>
+		</author>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<title level="m" type="main">It is &apos; feminine &apos; since &quot; la &quot; refers to a feminine object</title>
+		<author>
+			<persName><forename type="first">E</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<title level="m" type="main">25 26 T : put it back</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title level="m" type="main">It is &apos; masculine &apos; since &quot; le &quot; refers to a masculine object</title>
+		<author>
+			<persName><forename type="first">E</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">T : I &apos;m afraid i won &apos;t be able to get it for you</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<title level="m" type="main">Je crains de ne pas pouvoir te l &apos; obtenir . 34 A : neutral 35 E : It is &apos; neutral &apos; since we cannot determine gender with &quot;l \</title>
+		<idno>only . 36</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<monogr>
+		<title level="m" type="main">38 T : that view is even more beautiful when you have someone to share it with</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<monogr>
+		<title level="m" type="main">F : elle est encore plus belle si on n &apos; est pas seul</title>
+		<imprint>
+			<biblScope unit="volume">40</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<monogr>
+		<title level="m" type="main">It is &apos; feminine &apos; since &quot; it &quot; refers to &quot; view &quot; in English and &quot; vue</title>
+		<author>
+			<persName><forename type="first">E</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>in French which is feminine</note>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<monogr>
+		<title level="m">T : where &apos;s it going ? 45 F : ou va -t -il ? 46 A : masculine</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<monogr>
+		<title level="m" type="main">It is &apos; masculine &apos; since &quot; it &quot; refers to &quot; il</title>
+		<author>
+			<persName><forename type="first">E</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>in French which is masculine</note>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<monogr>
+		<title level="m" type="main">49 50 T: { en_text } 51 F: { fr_text } 52 A</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

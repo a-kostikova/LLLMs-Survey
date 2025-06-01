@@ -1,0 +1,1563 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">ConDA: Contrastive Domain Adaptation for AI-generated Text Detection</title>
+				<funder ref="#_PpBC3mc">
+					<orgName type="full">Office of Naval Research</orgName>
+				</funder>
+				<funder ref="#_fP4Aw3d">
+					<orgName type="full">DARPA</orgName>
+				</funder>
+				<funder ref="#_MS54m7V">
+					<orgName type="full">Army Research Lab</orgName>
+				</funder>
+				<funder ref="#_QPAX57z">
+					<orgName type="full">Army Research Office</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Amrita</forename><surname>Bhattacharjee</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and AI</orgName>
+								<orgName type="institution">Arizona State University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Tharindu</forename><surname>Kumarage</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and AI</orgName>
+								<orgName type="institution">Arizona State University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Raha</forename><surname>Moraffah</surname></persName>
+							<email>rmoraffa@asu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and AI</orgName>
+								<orgName type="institution">Arizona State University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+							<email>huanliu@asu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and AI</orgName>
+								<orgName type="institution">Arizona State University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">ConDA: Contrastive Domain Adaptation for AI-generated Text Detection</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">E6ACCC1186617DA08C4B1AEB53ACF7A8</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:48+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language models (LLMs) are increasingly being used for generating text in a variety of use cases, including journalistic news articles. Given the potential malicious nature in which these LLMs can be used to generate disinformation at scale, it is important to build effective detectors for such AI-generated text. Given the surge in development of new LLMs, acquiring labeled training data for supervised detectors is a bottleneck. However, there might be plenty of unlabeled text data available, without information on which generator it came from. In this work we tackle this data problem, in detecting AI-generated news text, and frame the problem as an unsupervised domain adaptation task. Here the domains are the different text generators, i.e. LLMs, and we assume we have access to only the labeled source data and unlabeled target data. We develop a Contrastive Domain Adaptation framework, called ConDA, that blends standard domain adaptation techniques with the representation power of contrastive learning to learn domain invariant representations that are effective for the final unsupervised detection task. Our experiments demonstrate the effectiveness of our framework, resulting in average performance gains of 31.7% from the best performing baselines, and within 0.8% margin of a fully supervised detector. All our code and data is available here.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In recent years there have been significant improvements in the area of large language models that are capable of generating human-like text. Several variants of such language models are designed for specific tasks such as summarization, translation, paraphrasing, etc. Recent advancements in conversational language models such as ChatGPT and <ref type="bibr">GPT-4 (OpenAI, 2023)</ref> have demonstrated how these language models can generate incredibly human-like text, along with serving as an AI assis- tant for several use cases such as creative writing, explanation of ideas and concepts, code generation and correction, solving mathematical proofs etc. <ref type="bibr" target="#b5">(Bubeck et al., 2023)</ref>. However, along with improved progress in machine generation of text, there is also a growing concern about how these technologies may be misused and abused by malicious actors. Given how convincing some of these machine-generated texts are, malicious actors may use these models to propagate misinformation/disinformation <ref type="bibr" target="#b50">(Zellers et al., 2019)</ref>, propaganda <ref type="bibr" target="#b47">(Varol et al., 2017)</ref>, or even spam/scams. With the accessibility and ease of use of newer language models that have public-facing APIs, the risk of these technologies being used for generating disinformation or misleading information at scale has increased significantly <ref type="bibr" target="#b9">(De Angelis et al., 2023)</ref> and hence has prompted researchers to worry about detection and mitigation strategies <ref type="bibr" target="#b53">(Zhou et al., 2023)</ref>. For example, recently, there have been concerns about misleading news websites hosting fully AI-generated news articles 1 . Such unprecedented improvement in language generation capabilities hence naturally necessitates the development of detectors that can accurately and reliably classify such generated text. Motivated by this, we focus on the sub-problem of AI-generated news detection.</p><p>A major issue surrounding building a supervised classifier for AI-generated text is the sheer variety of large language models that are available for use. Prior work <ref type="bibr" target="#b18">(Jawahar et al., 2020)</ref> has demonstrated that detectors built to identify text generated by a particular generator struggle with text from other generators. Furthermore, for newer generators, it might even be impossible to collect and curate labeled training datasets, since access to such models might be limited or even forbidden. Given this data problem, in this paper, we consider the situation where we have access to text from a generator but we do not know which generator it came from. However, we do have labeled data from some generators. In this context, we propose a framework for AI-generated text detection that can perform well on target data in the absence of labels. We frame this problem as an unsupervised domain adaptation problem, assuming we have labeled data from a source generator and unlabeled data from (perhaps newer) target generators. Our framework also uses a contrastive loss component that acts as a regularizer and helps the model learn invariant features and avoid overfitting to the particular generator it was trained on, hence improving performance on the unknown generator (Figure <ref type="figure" target="#fig_0">1</ref>). For news text, our model achieves performance with a 0.8% margin of a fully supervised detector. Our main contributions in this paper are:</p><p>1. We propose a novel AI-generated text detection framework, ConDA, that uses unsupervised domain adaptation and self-supervised contrastive learning to effectively leverage labeled source domain and unlabeled target domain data.</p><p>2. Through extensive evaluations on benchmark human/AI-generated news datasets, spanning a variety of LLMs, we show that ConDA effectively solves the problem of label scarcity, and achieves state-of-the-art performance for unsupervised detection.</p><p>3. Furthermore, we create our own ChatGPTgenerated data and via a case study, show the efficacy of our model on text generated using new conversational language models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Generated Text Detection The burgeoning progress in the generation capabilities of large language models has led to a corresponding increase in research and development efforts in the field of detection. Several recent efforts look at methods, varying from simple feature-based classifiers to fine-tuned language model-based detectors, in order to classify whether a piece of input text is human-written or AI-generated <ref type="bibr" target="#b17">(Ippolito et al., 2019;</ref><ref type="bibr" target="#b12">Gehrmann et al., 2019;</ref><ref type="bibr" target="#b26">Mitchell et al., 2023)</ref>, along with methods that specifically focus on AI-generated news <ref type="bibr" target="#b50">(Zellers et al., 2019;</ref><ref type="bibr" target="#b2">Bogaert et al., 2022;</ref><ref type="bibr" target="#b1">Bhattacharjee and Liu, 2023;</ref><ref type="bibr" target="#b23">Kumarage et al., 2023)</ref>. A related direction of work is that of authorship attribution (AA). While older AA methods focused on human authors, more recent efforts <ref type="bibr" target="#b45">(Uchendu et al., 2020;</ref><ref type="bibr" target="#b27">Munir et al., 2021)</ref> build models to identify the generator for a particular input text. Recent work also shows how AI-generated text can deceive state-of-the-art AA models <ref type="bibr" target="#b20">(Jones et al., 2022)</ref>, thus making the task of detecting such text even more important.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Contrastive Learning for Text Classification</head><p>Following the success of contrastive representation learning in the computer vision domain, several recent works in natural language have used contrastive learning for text classification, often for benefits such as robustness <ref type="bibr" target="#b52">(Zhang et al., 2022;</ref><ref type="bibr" target="#b13">Ghosh and Lan, 2021;</ref><ref type="bibr" target="#b31">Pan et al., 2022)</ref>, generalizability <ref type="bibr" target="#b41">(Tan et al., 2020;</ref><ref type="bibr" target="#b22">Kim et al., 2022)</ref> and also in few-shot scenarios <ref type="bibr" target="#b19">(Jian et al., 2022;</ref><ref type="bibr" target="#b51">Zhang et al., 2021;</ref><ref type="bibr">Chen et al., 2022a)</ref>. Authors in <ref type="bibr" target="#b33">(Qian et al., 2022;</ref><ref type="bibr">Chen et al., 2022b</ref>) also use ideas from contrastive learning to leverage label information to learn better representations for the classification task.</p><p>Domain Adaptation for Text Classification Domain adaptation (DA) is a paradigm that aims to tackle the distribution shift between training and testing distributions, by learning a discriminative classifier, that is invariant to domain-specific features <ref type="bibr" target="#b39">(Sener et al., 2016)</ref>. Along with labeled source data, DA methods may use either unlabeled target data (unsupervised DA) or a few labeled target samples (semi-supervised DA). In our work, we consider the unsupervised DA setting <ref type="bibr" target="#b11">(Ganin et al., 2016)</ref>. In the domain of language, unsupervised domain adaptation has been used in a variety of tasks <ref type="bibr" target="#b37">(Ramponi and Plank, 2020)</ref>, such as senti- ment classification <ref type="bibr" target="#b14">(Glorot et al., 2011;</ref><ref type="bibr" target="#b44">Trung et al., 2022)</ref>, question answering <ref type="bibr" target="#b49">(Yue et al., 2021)</ref>, event detection <ref type="bibr" target="#b44">(Trung et al., 2022)</ref>, sequence tagging or labeling <ref type="bibr" target="#b16">(Han and Eisenstein, 2019)</ref>, etc.</p><p>In this work, we frame the problem of detecting AI-generated news text from multiple generators as an unsupervised domain adaptation task, where the different generators are the different data domains. Our proposed framework combines the representational power of self-supervised contrastive learning and a principled method for unsupervised domain adaptation to solve the AI-generated text detection problem. To the best of our knowledge, we are the first to propose this kind of a formulation for AI-generated text detection, along with a novel framework for this task. In the following section, we describe our framework in detail, along with our training objective.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Model</head><p>In this work, we consider a setting where we have labeled data from the source generator and only unlabeled samples from the target generator<ref type="foot" target="#foot_1">2</ref> . More formally, the source domain dataset is denoted by S = {(x S i , y S i )} N S i=1 where y S i ∈ {0, 1} corresponding to 'human-written' or 'AI-generated' labels, and N S is the number of source domain samples. The target domain is denoted by</p><formula xml:id="formula_0">T = {(x T i )} N T i=1</formula><p>, where N T is the number of target domain samples. Note that all domains share the same label space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">ConDA Framework</head><p>We show our framework in Figure <ref type="figure" target="#fig_1">2</ref>. For the detector, we use a pre-trained RoBERTa model (roberta-base) from Huggingface<ref type="foot" target="#foot_2">3</ref> , with a classifier head on top of it. As the input, we have two articles: x S i from the source and x T i from the target. We perform a text transformation τ on this text whereby we get the transformed samples x S j and x T j . In order to input both the original and the transformed (also referred to as 'perturbed' throughout this paper), we use a Siamese network <ref type="bibr" target="#b3">(Bromley et al., 1993;</ref><ref type="bibr" target="#b28">Neculoiu et al., 2016;</ref><ref type="bibr" target="#b38">Reimers and Gurevych, 2019)</ref> where the RoBERTa model weights are shared across the two branches. For the two input texts, we take the hidden layer representation of the [CLS] token:</p><formula xml:id="formula_1">h S i[CLS] and h S j[CLS]</formula><p>. Following the methodology in <ref type="bibr" target="#b8">(Chen et al., 2020)</ref>, we pass these embeddings through a projection layer that consists of a multilayer perceptron (MLP) with one hidden layer and compute a contrastive loss in the lower dimensional projection space. The MLP can be represented as a function g(•) : R d h → R dp , where d h is the size of the hidden layer embedding: 768 for roberta-base, and we set d p as 300, following <ref type="bibr" target="#b31">(Pan et al., 2022)</ref>. For the source domain, we also compute the cross-entropy losses for binary classification of both the original and transformed text. Furthermore, we have a domain discrepancy component between the projected representations of the source and target text. We elaborate on the losses and related design choices in the following section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Training Objective</head><p>Source Classification Loss: We leverage the availability of the source labels and compute the binary cross-entropy (CE) losses for the original and the perturbed text:</p><formula xml:id="formula_2">L S CE = - 1 b b i=1 [y i log p(y i |h S i[CLS] )+ (1 -y i ) log(1 -p(y i |h S i[CLS] ))]<label>(1)</label></formula><p>L S CE denotes the CE loss for the original text, b denotes the batch size. Similarly, we compute L S ′ CE for the perturbed text, and we skip the equation for brevity. Inspired by the training objective in <ref type="bibr" target="#b31">(Pan et al., 2022)</ref>, we use CE losses for both the original and perturbed samples in the final training objective. The transformation performed on the original text (i.e. synonym replacement in our experiments) preserves the semantics of the text and hence is label-preserving. In such a case we would want a classifier to be able to detect text with such minor, semantic-preserving perturbations as well. Not only is this supposed to improve the robustness of the classifier, but in turn also the generalizability of the detector <ref type="bibr" target="#b48">(Xu and Mannor, 2012)</ref>, which is essential for our use-case.</p><p>Contrastive Loss: To learn a better representation of the input text, we use contrastive losses, for both the source and target texts (Figure <ref type="figure" target="#fig_1">2</ref>). We use a loss similar to the one in <ref type="bibr" target="#b8">(Chen et al., 2020)</ref>: the only difference is that, instead of computing the loss between two transformed views of the text, we use the transformed text and the original anchor text. For our transformation, we use synonym replacement (more details regarding implementation are in the Appendix). The contrastive loss for the source is denoted by:</p><formula xml:id="formula_3">L S ctr = -(i,j)∈b log exp(sim(z S i ,z S j )/t) 2|b| k=1 1 [k̸ =i] exp(sim(z S i ,z S k )/t)<label>(2)</label></formula><p>z S i and z S j denote the projection layer embeddings for the original (anchor) and the transformed text, t is the temperature, b is the current mini-batch, sim(•, •) is a similarity metric which is cosine similarity in our case. Similar to <ref type="bibr" target="#b8">(Chen et al., 2020)</ref>, we do not sample or mine negatives explicitly, we simply consider the remaining 2(|b| -1) samples in the mini-batch b as negatives. We have a similar contrastive loss for the target domain, denoted by L T ctr , and we skip the equation here for brevity. The objective of these contrastive losses is to bring the positive pairs, i.e. anchor and the transformed sample, closer in the representation space, and well separated from the negative samples.</p><p>Since the performance of contrastive learning depends significantly on the transformation used to generate the positive sample <ref type="bibr" target="#b42">(Tian et al., 2020)</ref>, we take a principled approach to choosing a transformation out of several possible ones <ref type="bibr" target="#b0">(Bhattacharjee et al., 2022)</ref>. To choose one transformation for the main experiments, we evaluate a simple detection model (only one domain) over different choices of transformations and choose the one that gives the best performance, and therefore, is the most discriminative. In the input space, we use random swap, random crop, and synonym replacement as the choices. In the latent space, we have paraphrasing and summarization as the choices. Based on detection performance, we finally choose synonym replacement as the transformation that we use throughout the remainder of the paper.</p><p>Maximum Mean Discrepancy(MMD): Maximum Mean Discrepancy (MMD) <ref type="bibr" target="#b15">(Gretton et al., 2012)</ref> is a metric to measure the distance between two distributions, which in our case refers to two different generators. Formally, let S = {x S 1 , x S 2 , ..., x S N S } and T = {y T 1 , y T 2 , ..., y T N T } be two sets of samples drawn from distribution S and T , respectively. The MMD distance between the distributions S and T is defined as the distance between means of two samples mapped to the Reproducing Kernel Hilbert Space (RKHS) <ref type="bibr" target="#b40">(Steinwart, 2001)</ref>. Following past work <ref type="bibr" target="#b32">(Pan et al., 2010;</ref><ref type="bibr" target="#b25">Long et al., 2015)</ref>, we compute the MMD between text embeddings in a lower dimensional space, i.e. between z S i and z T i . Formally,</p><formula xml:id="formula_4">M M D(S, T ) = ∥ 1 N S N S i=1 ϕ(z S i ) -1 N T N T i=1 ϕ(z T i )∥ H ,<label>(3)</label></formula><p>where ϕ : S → H and H represents the RKHS space.</p><p>The final training objective for our main framework is:</p><formula xml:id="formula_5">L = (1 -λ 1 ) 2 [L S CE + L S ′ CE ]+ λ 1 2 [L S ctr + L T ctr ] + λ 2 M M D(S, T )<label>(4)</label></formula><p>where λ 1 and λ 2 are hyper-parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Settings</head><p>In this section we describe the datasets, baselines and the training details we use for our experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset</head><p>Since our task requires news text from multiple generators, we use the publicly available Turing-Bench<ref type="foot" target="#foot_3">4</ref> dataset <ref type="bibr" target="#b46">(Uchendu et al., 2021)</ref>, which contains human-written and machine-generated news articles from 19 generators, spanning over 10 different language model architectures (including different sizes for some of the generators). For a full list of labels, check Appendix B.1. Out of the 10 different architectures available in the dataset, we  <ref type="bibr" target="#b34">(Radford et al., 2018)</ref>, with further modifications. GPT-3 <ref type="bibr" target="#b4">(Brown et al., 2020)</ref> is the successor of the GPT-2 model, and is the largest model we use in our evaluation, with a size of 175B parameters. GROVER_mega <ref type="bibr" target="#b50">(Zellers et al., 2019)</ref> is the largest version of the GROVER model, which is a transformer-based model, similar in architecture to GPT-2, but trained to conditionally generate news articles. XLM <ref type="bibr" target="#b24">(Lample and Conneau, 2019)</ref> is also a transformer-based language model designed for cross-lingual tasks.</p><formula xml:id="formula_6">602 Model # of Parameters Shorthand used CTRL 1.5B C FAIR_wmt19 656M F19 GPT-2_xl 1.5B G2X GPT-3 175B G3 GROVER_mega 1.5B GM XLM 550M X</formula><p>Furthermore, given the challenge of detecting text from the more recent conversational language models, we augment the TuringBench dataset with ChatGPT news articles. Following a similar data generation procedure as in <ref type="bibr" target="#b46">(Uchendu et al., 2021)</ref>, we use a subset of around 9, 000 news articles from The Washington Post and CNN (more details in Appendix B.2), and use the headlines to generate articles using ChatGPT. For this paper, we used the OpenAI API with the gpt-3.5-turbo model (version as on March 14, 2023). After experimenting with a few different prompt types, we finally used the following prompt for each news headline: "Generate a news article with the headline '&lt;headline&gt;'." Finally, we have a balanced dataset of approximately 9k human-written articles, and 9k articles generated using ChatGPT (after accounting for null values and API request errors). For simplicity, we name this dataset Chat-GPT News and we use this dataset for a case study on ChatGPT generated news articles, in Section 6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Baselines</head><p>For a fair comparison, we compare our method with baselines that do not require labeled data. We use two open-source AI-generated text detectors, namely GLTR <ref type="bibr" target="#b12">(Gehrmann et al., 2019)</ref> and the more recent DetectGPT <ref type="bibr" target="#b26">(Mitchell et al., 2023)</ref>, as our unsupervised baseline models.</p><p>GLTR utilizes a proxy language model to calculate the token-wise log probability of the input text. It employs four statistical tests: (i) log probabilities (log p(x)), (ii) average token rank (Rank), (iii) token log-rank (LogRank), and (iv) predictive entropy (Entropy). The first test assumes that a higher average log probability in the input text indicates AI generation. The second and third tests follow a similar assumption, where input texts with lower average rank are more likely to be generated by AI. The last test is based on the hypothesis that AI-generated texts tend to exhibit less diversity and surprises, resulting in low entropy.</p><p>DetectGPT also utilizes a proxy language model to calculate the token-wise log probability. However, its decision function is based on comparing the log probability of the original input text with the log probability of a set of n perturbed versions of the input text. These perturbations are generated using the mask-filling language model T5(T5base) <ref type="bibr" target="#b36">(Raffel et al., 2020)</ref>. The decision function assumes that if the log probability difference between the input text and the perturbed text is positive with high probability, then the input text is likely to be AI-generated.</p><p>In addition to these zero-shot baselines, we include the off-the-shelf OpenAI-GPT2 detector as one of the baselines in our study. The OpenAI-GPT2 detector is a RoBERTa model fine-tuned specifically for detecting GPT2-generated text. It was trained on a GPT-2-output dataset<ref type="foot" target="#foot_4">5</ref> comprising </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>To understand and investigate the effectiveness of our model, we try to answer the following research questions:</p><p>-RQ1: Does ConDA perform well on unknown target domains in comparison to a source-only model (Table <ref type="table">2</ref>) and a supervised model fine-tuned on the target (Table <ref type="table" target="#tab_2">3</ref>)? -RQ2: How well does ConDA perform in com-parison to unsupervised-baselines (Table <ref type="table" target="#tab_4">4</ref>)? -RQ3: Are each of the loss components beneficial in training (Table <ref type="table" target="#tab_5">5</ref>)?</p><p>All results are reported as an average over 3 training runs with 3 different random seeds.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Performance of ConDA on unlabeled target data</head><p>To evaluate the performance of ConDA on each of the target domains, i.e. generators, we first look at how our model improves over a sourceonly model. Table <ref type="table">2</ref> shows the results for this experiment, grouped by target domain. We report F1 scores for the ConDA framework and a source-only model, along with scores averaged over sources, for each target. The source-only model is a pretrained RoBERTa (roberta-base) fine-tuned only on the source domain S. The source-only scores provide an estimate of how well a model trained just on the source transfers to the target domain.</p><p>Although a few of the source-only models have satisfactory performance on the target, using our ConDA framework, we achieve performance gains over the source-only model in almost all tasks (rows with positive ∆F1 values). Particularly interesting are the cases where we use a smaller generator as the source, a larger one as the target, and still get high performance gains: 58 F1 points for FAIR_wmt19 (656M)→ GROVER_mega (1.5B), and 41 F1 points for FAIR_wmt19 (656M)→ GPT-3 (175B). This may suggest that, with our ConDA framework, even having unlabeled data from newer and possibly larger generators can improve performance if we use a suitable generator as the source.</p><p>Next, we compare the performance of our model with a fully-supervised detector trained on the target domain in Table <ref type="table" target="#tab_2">3</ref>. For ConDA, we show the test performance for all target-source pairs. For the supervised model, we use a pre-trained RoBERTa (roberta-base) fine-tuned on the target data. We then evaluate the model on the test set of the same target domain, and essentially this is our upper bound performance. ConDA achieves test performance comparable to fully-supervised models. In particular, for targets CTRL and XLM, ConDA (with GROVER_mega as source) achieves upper bound performance. For targets GROVER_mega and GPT-2_xl, ConDA performs within 3 and 6 F1 points of the fully-supervised model.</p><p>Interestingly, for target generator GPT-3, all the ConDA models perform better than the fully- supervised performance, with the best F1 (from ConDA with source FAIR_wmt19) being 27 points higher than the supervised performance. Furthermore, when GPT-3 is used as the source domain, we get mediocre performance for all target domains. We suspect that this might be due to the following reason: The GPT-3 data in TuringBench might be noisy and therefore lack good quality, discriminative signals that can guide the detector. The performance improvement that occurs when ConDA is evaluated on GPT-3 as target, with any other domain as source, is possibly due to the effective transfer of discriminative signals from the labeled source data, hence improving the performance on GPT-3 data even in the absence of labels.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Performance compared to unsupervised baselines</head><p>We compare our ConDA framework with relevant unsupervised baselines and report results in Table 4. Out of the four GLTR measures (log p(x), Rank, Log Rank, and Entropy), the first three fare quite well for detecting CTRL-generated text, but performance on other generators is quite poor. De-tectGPT, which is the most recent method we evaluate, performs poorly on almost all generators, with some satisfactory performance on CTRL and XLM. Surprisingly, the OpenAI GPT-2 Detector performs poorly on the GPT-2_xl data from TuringBench, although it can be considered supervised for this particular target. Finally, we see ConDA outperforms all the baselines in terms of maximum AUROC, and all but one in terms of average AUROC. Interestingly, we see that ConDA models trained with GROVER_mega as the source perform very well for several target domains. This might be because GROVER <ref type="bibr" target="#b50">(Zellers et al., 2019)</ref> was designed and trained in order to generate news articles. Since our task here is to specifically detect human vs. AI written news articles, training models on data generated using GROVER_mega is useful and this data possibly has good discriminative signals.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Ablation: Effectiveness of loss components</head><p>We evaluate variants of the ConDA model, by removing one component at a time and compare these in Table <ref type="table" target="#tab_5">5</ref>. ConDA \CEs removes the two cross-entropy losses, i.e. no supervision even for the source. ConDA \contrast removes the contrastive loss components for both source and target. ConDA \MMD removes the MMD loss between source and target. Hence the only component that makes use of the unlabeled target domain data is the target contrastive loss. Finally, ConDA is the full model. We see that the full model outperforms all the variants, implying that all three types of components are essential for detection performance in this problem setting. Combined with source supervision, the contrastive losses and the MMD objective effectively tie the power of self-supervised learning and unsupervised domain adaptation resulting in superior performance across target domains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">A Case Study on ChatGPT</head><p>Given recent concerns surrounding OpenAI's Chat-GPT and <ref type="bibr">GPT-4 (OpenAI, 2023)</ref>, it is important to create detectors for text generated by these conversational language models. With the incredible fluency and writing quality these language models possess, not only can such text easily fool humans <ref type="bibr" target="#b10">(Else, 2023)</ref> but can also be extremely difficult for detectors to identify. Even OpenAI's detector struggles to detect AI-generated text reliably<ref type="foot" target="#foot_5">6</ref> . Hence in this case study, we are interested   in evaluating our ConDA framework on ChatGPTgenerated news articles, in an unsupervised manner. Since there is no existing dataset of ChatGPTgenerated vs. human-written text or news, we create our own dataset as explained in Section 4.1. We assign ChatGPT as the unlabeled target domain and assume that we have labeled data from the 6 other generators (Table <ref type="table" target="#tab_0">1</ref>). Therefore we emulate a real-world scenario where labeled data from older generators may be available, but it might be hard to find labeled samples for newer LLMs. We sample 4k articles from our ChatGPT News dataset and evaluate the same 3 unsupervised models as in Section 4.2 (upper row block in </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion &amp; Future Work</head><p>In this work, we address the problem of AIgenerated text detection in the absence of labeled target data. We propose a contrastive domain adaptation framework that leverages the power of both unsupervised domain adaptation and selfsupervised representation learning, in order to tackle the task of AI-generated text detection. Our experiments focus on news text, and show the effectiveness of the framework, as well as superior performance when compared to unsupervised baselines. We also perform a case study to evaluate our framework on our dataset of ChatGPT-generated news articles and achieve satisfactory performance. Our framework can be easily extended to other forms of text beyond news and our results suggest that such a framework may be effectively used for detection of AI-generated text when labels are unavailable, such as in the case of newly emerging generators. Future work can investigate more challenging variations of this problem, such as domain adaptation across multiple unlabeled target generators, generalization to fully unseen generators, etc., along with exploring other types of text such as scientific articles, medical literature, etc.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Limitations</head><p>Problem Formulation &amp; Model: Despite the impressive performance of our ConDA model, there are several limitations that we go over in this section. First, our model and evaluations only focus on news text and performance may vary widely across other types of text such as creative writing, scientific articles, blog-style articles, etc. Second, our model simply tries to detect whether an input news article is generated by an LLM or not. AI generation does not necessarily imply malice. A dimension that our model does not consider is that of factuality: not all AI-generated news is factually inaccurate, and not all human-written news is factually correct. Incorporating factuality, perhaps in the form of a fact-checking module, could possibly improve the usefulness of our model. Third, our model, along with most other AI-generated text detectors, is not explainable. The discrete input space of natural language also makes it difficult to identify specific features that result in detection. Furthermore, given the black-box nature of LLMs, any detector that uses some LLM as the backbone, trade off explainability for performance gains.</p><p>ChatGPT Case Study: As we elaborated in Section 4.1, we create our own ChatGPT-generated news article dataset, following a procedure similar to <ref type="bibr" target="#b46">(Uchendu et al., 2021)</ref>. However, the data we generated is conditioned on the sample of humanwritten news articles we randomly selected. We suppose the performance of our model on this Chat-GPT data hence is dependent on this sample. The high performance scores for ChatGPT-generated articles could also stem from the inherent structure of news articles; our data is specifically constrained to the style of journalistic news articles. Therefore, good performance on our news article dataset for ChatGPT does not necessarily imply similar performance across text from other areas. For this, more thorough evaluation is needed, which would be an interesting direction for future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Ethical Considerations</head><p>We go over some of the ethical considerations surrounding this work and similar directions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9.1">Potential to Penalize Benign Use of LLMs</head><p>Recent articles have demonstrated how the newer language models including ChatGPT, GPT-4 (Ope-nAI, 2023), Bing Chat<ref type="foot" target="#foot_6">7</ref> , etc. can be used to improve productivity, spur creative thinking, help with writing essays or cover letters or even explain concepts and help in homework. As these LLMs become more pervasive, standard use of these as writing or brain-storming assistants may become commonplace. In such a case, we may encounter an increasing amount of text generated by these LLMs online. Such text, if used for benign purposes such as the ones mentioned above, should not be penalized by a detector such as ours. This brings another dimension to this already challenging problem: the issue of intent. Flagging AI-generated content without characterizing the intent behind that could wrongfully penalize users of LLMs. Therefore, the nuances surrounding this need to be considered while using such a detector.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9.2">Danger of Misuse in High Stakes Areas</head><p>We discuss the issue of model misuse, by taking education as an example. Given the accessibility of ChatGPT and other recent AI-text generators, educators have expressed concerns <ref type="bibr" target="#b43">(Tlili et al., 2023)</ref> over students cheating or plagiarising via these new technologies. There are already commercial detectors for AI-generated content such as GPTZero<ref type="foot" target="#foot_7">8</ref> and one from Copyleaks<ref type="foot" target="#foot_8">9</ref> that educators may use. However, similar to our model, there is always a margin of error on such detectors. Performing plagiarism checks and subsequently implementing punitive action based solely on such detectors may be detrimental in case of false positives. Legitimate work by a student may be misclassified by these detectors, and potentially impact their career. Eventually, this also diminishes trust in these detectors. Hence, before the widespread use of such AI-generated text detectors, thorough studies on error analysis and reliability need to be performed, along with policy changes to accommodate for the rapidly evolving landscape of AI technologies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Reproducibility</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Training Details &amp; Hyper-parameters Used</head><p>We perform all experiments using PyTorch, on a single NVIDIA A100 GPU. We use an Adam optimizer with a learning rate of 2 × 10 -5 . All models are trained for 5 epochs with early stopping, to avoid overfitting. We provide the full list of hyper-parameter values in Table <ref type="table" target="#tab_8">7</ref> to facilitate reproducibility.</p><p>For values of λ 1 and λ 2 in Equation 3, we use 0.5 and 1.0 respectively, after choosing these values from a small hyper-parameter search. We randomly choose 4 tasks: {F19 → G3, C → X, G2X → GM, and G2X → F19} and evaluate models with λ 1 = {0.2, 0.5, 0.8} and λ 2 = {0.2, 0.5, 1.0}. We finally choose λ 1 = 0.5 and λ 2 = 1.0 based on these evaluation performances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Synonym Replacement Implementation</head><p>In order to implement the synonym replacement transformation, we perturb 10% of the words in each sentence in an article by replacing these with their synonyms. Out of these words, we only perform synonym replacement for words that have a samples across 20 labels. These labels include 'human' and 19 different generators, which are: { Human, GPT-1, GPT-2_small, GPT-2_medium, GPT-2_large, GPT-2_xl, GPT-2_PyTorch, GPT-3, GROVER_base, GROVER_large, GROVER_mega, CTRL, XLM, XLNET_base, XL-NET_large, FAIR_wmt19, FAIR_wmt20, TRANS-FORMER_XL, PPLM_distil, PPLM_gpt2}.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Human-written Articles</head><p>Human-written news articles in TuringBench are from The Washington Post, CNN, and a Kaggle dataset with CNN news articles from 2014-2020 and The Washington Post news articles from 2019-2020. More details on the TuringBench data are in <ref type="bibr" target="#b46">(Uchendu et al., 2021)</ref>. For the human-written articles in our ChatGPT News dataset, we use a random sample from the dataset of CNN and Washington Post articles as used in TuringBench.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C ChatGPT Visualizations</head><p>Here, we visually explore embeddings from the ConDA model for instances in Table <ref type="table" target="#tab_6">6</ref>, in order to 610  understand the issues surrounding the detection of ChatGPT-generated news articles. Figure <ref type="figure" target="#fig_3">3</ref> shows the embeddings from all 6 ConDA models. In all the plots, we see that the human-written and ChatGPT-generated news articles in our ChatGPT News dataset are very closely clustered together, and are not separable. Therefore, even though our model achieves substantially high AUROC scores, there are possibly many false positives and/or false negatives, thus providing an intuition that better feature selection methods might be necessary here.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Text embeddings from (left) source-only model and (right) ConDA model on target domain CTRL with GROVER_mega as source. Each domain has both 'human' and 'AI' text. ConDA effectively removes domain-specific features while retaining taskspecific features, increasing the separability between 'human' and 'AI' text, and decreasing the separability between source and target domains.</figDesc><graphic coords="1,306.14,212.60,218.23,108.90" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Our ConDA framework. PLM refers to the pre-trained language model (here, RoBERTa); PLM and MLP weights are shared across all four instances.</figDesc><graphic coords="3,70.87,70.87,453.48,93.14" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: t-SNE plots showing text representations from our ConDA model, for each of the S → ChatGPT tasks, where S ∈ {CTRL, FAIR_wmt19, GPT-2_xl, GPT-3, GROVER_mega, XLM}, corresponding to plots (a-f), respectively.</figDesc><graphic coords="13,70.87,238.92,145.14,145.14" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>List of generators we used for our evaluation.</figDesc><table><row><cell>sample a representative set of 6 different genera-</cell></row><row><cell>tors, in order to evaluate our model (Table 1). For</cell></row><row><cell>most of the architectures, if there were multiple</cell></row><row><cell>parameter sizes available, we choose the largest</cell></row><row><cell>one, to make the detection task more challenging</cell></row><row><cell>for our model. We briefly go over the architectural</cell></row><row><cell>details of each of the generators used:</cell></row><row><cell>CTRL (Keskar et al., 2019) is a transformer-</cell></row><row><cell>based language model, that is developed for</cell></row><row><cell>controllable generation of text based on control</cell></row><row><cell>codes for style, content, and task-specific gener-</cell></row><row><cell>ation. The model is pre-trained on a variety of</cell></row><row><cell>text types, including web-text, news, question-</cell></row><row><cell>answering datasets, etc. FAIR_wmt19 (Ng et al.,</cell></row><row><cell>2019) is FAIR's model that was developed for</cell></row><row><cell>the WMT19 news translation task. Texts in Tur-</cell></row><row><cell>ingBench are from the English version of the</cell></row><row><cell>FAIR_wmt19 language model. GPT2-XL (Rad-</cell></row><row><cell>ford et al., 2019) is the 1.5B size version of GPT-2,</cell></row><row><cell>which is also a transformer-based language model</cell></row><row><cell>built upon the architecture of the original GPT</cell></row><row><cell>model</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Performance of our ConDA model on each of the target domains, with each of the other domains as source. Numbers in bold are the best performing ConDA models for each target domain, i.e. closest to fully supervised performance.</figDesc><table><row><cell></cell><cell></cell><cell>Supervised</cell><cell></cell><cell></cell><cell cols="3">ConDA model with Source as</cell><cell></cell></row><row><cell>Target</cell><cell cols="2">(Fine-tuned RoBERTa)</cell><cell>C</cell><cell>F19</cell><cell>G2X</cell><cell>G3</cell><cell cols="2">GM</cell><cell>X</cell><cell>Average</cell></row><row><cell></cell><cell>F1</cell><cell>AUROC</cell><cell cols="7">F1 AUROC F1 AUROC F1 AUROC F1 AUROC F1 AUROC F1 AUROC</cell><cell>F1</cell><cell>AUROC</cell></row><row><cell>C</cell><cell>98</cell><cell>1</cell><cell>-</cell><cell cols="4">96 0.998 81 0.949 69 0.783 99</cell><cell>1</cell><cell>78 0.991 84.6 0.9442</cell></row><row><cell cols="2">F19 98</cell><cell>0.999</cell><cell>73 0.894</cell><cell>-</cell><cell cols="5">83 0.966 63 0.607 27 0.826 28 0.766 54.8 0.8118</cell></row><row><cell cols="2">G2X 92</cell><cell>0.998</cell><cell cols="2">77 0.946 98 0.998</cell><cell>-</cell><cell cols="4">69 0.902 95 0.991 94 0.991 86.6 0.9656</cell></row><row><cell cols="2">G3 72</cell><cell>0.988</cell><cell cols="3">81 0.938 89 0.975 82 0.962</cell><cell>-</cell><cell cols="3">77 0.982 87 0.981 83.2 0.9676</cell></row><row><cell cols="2">GM 98</cell><cell>0.996</cell><cell cols="4">95 0.988 68 0.961 92 0.984 68 0.819</cell><cell>-</cell><cell></cell><cell>44</cell><cell>0.98</cell><cell>73.4 0.9464</cell></row><row><cell>X</cell><cell>99</cell><cell>1</cell><cell cols="6">94 0.985 95 0.999 94 0.988 69 0.683 99 0.999</cell><cell>-</cell><cell>90.2 0.9308</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Performance of ConDA in comparison to unsupervised baselines, as AUROC. For ConDA, we report the average AUROC over all sources (for each target) and also the maximum AUROC (across all sources), along with the corresponding source in parentheses. Bold shows superior performance across each target.</figDesc><table><row><cell></cell><cell></cell><cell cols="4">Target (avg. across Sources)</cell></row><row><cell>Model variant</cell><cell></cell><cell>C</cell><cell></cell><cell>F19</cell><cell></cell><cell>G2X</cell></row><row><cell></cell><cell cols="4">F1 AUROC F1 AUROC</cell><cell>F1</cell><cell>AUROC</cell></row><row><cell>ConDA \CEs</cell><cell cols="6">60.4 0.5268 41.6 0.4914 60.25 0.4822</cell></row><row><cell cols="2">ConDA\contrast 62.6</cell><cell>0.898</cell><cell>44.2</cell><cell>0.687</cell><cell>85.4</cell><cell>0.9594</cell></row><row><cell cols="5">ConDA\MMD 69.8 0.7826 39.8 0.6272</cell><cell>65</cell><cell>0.852</cell></row><row><cell>ConDA</cell><cell cols="4">84.6 0.9442 54.8 0.8118</cell><cell>86.6</cell><cell>0.9656</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Comparison of different model variants; bold shows best performance. We randomly chose 3 target domains to show in this table due to space constraints.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6</head><label>6</label><figDesc></figDesc><table><row><cell>), and our</cell></row><row><cell>ConDA framework over 6 source generators (lower</cell></row><row><cell>row block in Table 6) on this data. For GLTR, we</cell></row><row><cell>report the average over the 4 statistical measures.</cell></row><row><cell>Although we see satisfactory performance across</cell></row><row><cell>most methods, our ConDA framework with source</cell></row><row><cell>as FAIR_wmt19 and GPT2_xl has the best and the</cell></row><row><cell>second best performance, respectively. However,</cell></row><row><cell>we would like the reader to note that such good per-</cell></row><row><cell>formance on our ChatGPT News dataset does not</cell></row><row><cell>imply similar performance on any other type of text</cell></row><row><cell>generated by ChatGPT (see Section 8). For text</cell></row><row><cell>embedding visualizations from our ConDA model</cell></row><row><cell>for this ChatGPT case study, check Appendix C.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>Results on our ChatGPT News dataset using unsupervised baselines (upper row) and ConDA (lower row). Scores are AUROC. Bold shows best and underline shows second best performance.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc>Hyper-parameter values we used for all our experiments.NOUN, ADVERB, ADJECTIVE or VERB POS tag. Synonyms are based on WordNet Synsets from the nltk 10 package. If a word has multiple synonyms, we choose one from that list, uniformly at random.</figDesc><table><row><cell>Hyper-parameter</cell><cell>Description</cell><cell>Value</cell></row><row><cell></cell><cell>Weight for both source &amp;</cell><cell></cell></row><row><cell>λ 1</cell><cell>target contrastive losses in final</cell><cell>0.5</cell></row><row><cell></cell><cell>objective function (Eq. 3)</cell><cell></cell></row><row><cell>λ 2</cell><cell>Weight for MMD loss in final objective function (Eq. 3)</cell><cell>1</cell></row><row><cell>t</cell><cell>Temperature for contrastive loss in Eq 3</cell><cell>0.5</cell></row><row><cell>lr</cell><cell>Learning rate</cell><cell>2 × 10 -5</cell></row><row><cell>epochs</cell><cell>Number of epochs for training</cell><cell>5</cell></row><row><cell>max_seq_len</cell><cell>Maximum input sequence length</cell><cell>256</cell></row><row><cell>weight_decay</cell><cell>Weight decay for Adam optimizer</cell><cell>0</cell></row><row><cell>d p</cell><cell>Embedding size of the MLP projection space</cell><cell>300</cell></row><row><cell>|b|</cell><cell>Batch size for training the model</cell><cell>16</cell></row><row><cell cols="2">B TuringBench Details</cell><cell></cell></row><row><cell>B.1 Labels</cell><cell></cell><cell></cell></row><row><cell cols="3">TuringBench (Uchendu et al., 2021) has 200k</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://www.newsguardtech.com/specialreports/newsbots-ai-generated-news-websites-proliferating/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>We use the terms 'LLM' and 'generator' interchangeably.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://huggingface.co/roberta-base</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://turingbench.ist.psu.edu/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>https://github.com/openai/gpt-2-output-dataset</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>https://openai.com/blog/new-ai-classifier-for-indicatingai-written-text</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>https://www.bing.com/new</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_7"><p>https://gptzero.me/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_8"><p>https://copyleaks.com/ai-content-detector</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="10" xml:id="foot_9"><p>https://www.nltk.org/</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work is supported by the <rs type="funder">DARPA</rs> <rs type="projectName">SemaFor</rs> project (<rs type="grantNumber">HR001120C0123</rs>), <rs type="funder">Office of Naval Research</rs> (<rs type="grantNumber">N00014-21-1-4002</rs>), <rs type="funder">Army Research Office</rs> (<rs type="grantNumber">W911NF2110030</rs>) and <rs type="funder">Army Research Lab</rs> (<rs type="grantNumber">W911NF2020124</rs>). The views, opinions and/or findings expressed are those of the authors.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funded-project" xml:id="_fP4Aw3d">
+					<idno type="grant-number">HR001120C0123</idno>
+					<orgName type="project" subtype="full">SemaFor</orgName>
+				</org>
+				<org type="funding" xml:id="_PpBC3mc">
+					<idno type="grant-number">N00014-21-1-4002</idno>
+				</org>
+				<org type="funding" xml:id="_QPAX57z">
+					<idno type="grant-number">W911NF2110030</idno>
+				</org>
+				<org type="funding" xml:id="_MS54m7V">
+					<idno type="grant-number">W911NF2020124</idno>
+				</org>
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Text transformations in contrastive self-supervised learning: a review</title>
+		<author>
+			<persName><forename type="first">Amrita</forename><surname>Bhattacharjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mansooreh</forename><surname>Karami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.12000</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Amrita</forename><surname>Bhattacharjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.01284</idno>
+		<title level="m">Fighting fire with fire: Can chatgpt detect ai-generated text? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Automatic and manual detection of generated news: Case study, limitations and challenges</title>
+		<author>
+			<persName><forename type="first">Jérémie</forename><surname>Bogaert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Catherine</forename><surname>De Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonin</forename><surname>Descampe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francois-Xavier</forename><surname>Standaert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st International Workshop on Multimedia AI against Disinformation</title>
+		<meeting>the 1st International Workshop on Multimedia AI against Disinformation</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="18" to="26" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Signature verification using a&quot; siamese&quot; time delay neural network</title>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Bromley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Guyon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduard</forename><surname>Säckinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roopak</forename><surname>Shah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="1993">1993</date>
+			<biblScope unit="volume">6</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sébastien</forename><surname>Bubeck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varun</forename><surname>Chandrasekaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ronen</forename><surname>Eldan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Gehrke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Horvitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ece</forename><surname>Kamar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yin</forename><surname>Tat Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Lundberg</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.12712</idno>
+		<title level="m">Sparks of artificial general intelligence: Early experiments with gpt-4</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Contrastnet: A contrastive learning framework for few-shot text classification</title>
+		<author>
+			<persName><forename type="first">Junfan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongyi</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="10492" to="10500" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Qianben</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaowei</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongyi</forename><surname>Mao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2201.08702</idno>
+		<title level="m">Dual contrastive learning: Text classification via label-aware data augmentation</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A simple framework for contrastive learning of visual representations</title>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Kornblith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="j">In International conference on machine learning</title>
+		<imprint>
+			<biblScope unit="page" from="1597" to="1607" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Chatgpt and the rise of large language models: the new ai-driven infodemic threat in public health</title>
+		<author>
+			<persName><forename type="first">Luigi</forename><surname>De Angelis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Baglivo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guglielmo</forename><surname>Arzilli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierpaolo</forename><surname>Gaetano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paolo</forename><surname>Privitera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><forename type="middle">Eugenio</forename><surname>Ferragina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caterina</forename><surname>Tozzi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rizzo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers in Public Health</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page">1567</biblScope>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Abstracts written by chatgpt fool scientists</title>
+		<author>
+			<persName><forename type="first">Holly</forename><surname>Else</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<biblScope unit="volume">613</biblScope>
+			<biblScope unit="issue">7944</biblScope>
+			<biblScope unit="page" from="423" to="423" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Domain-adversarial training of neural networks</title>
+		<author>
+			<persName><forename type="first">Yaroslav</forename><surname>Ganin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evgeniya</forename><surname>Ustinova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hana</forename><surname>Ajakan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pascal</forename><surname>Germain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Larochelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">François</forename><surname>Laviolette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Marchand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Lempitsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="2096" to="2030" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Gltr: Statistical detection and visualization of generated text</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hendrik</forename><surname>Strobelt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.04043</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Contrastive learning improves model robustness under label noise</title>
+		<author>
+			<persName><forename type="first">Aritra</forename><surname>Ghosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Lan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2703" to="2708" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Domain adaptation for large-scale sentiment classification: A deep learning approach</title>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th international conference on machine learning (ICML-11)</title>
+		<meeting>the 28th international conference on machine learning (ICML-11)</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="513" to="520" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A kernel two-sample test</title>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Gretton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karsten</forename><forename type="middle">M</forename><surname>Borgwardt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Malte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Rasch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Smola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="723" to="773" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Unsupervised domain adaptation of contextualized embeddings for sequence labeling</title>
+		<author>
+			<persName><forename type="first">Xiaochuang</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Eisenstein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.02817</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Automatic detection of generated text is easiest when humans are fooled</title>
+		<author>
+			<persName><forename type="first">Daphne</forename><surname>Ippolito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Duckworth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1911.00650</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Automatic detection of machine generated text: A critical survey</title>
+		<author>
+			<persName><forename type="first">Ganesh</forename><surname>Jawahar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhammad</forename><surname>Abdul-Mageed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laks</forename><surname>Vs Lakshmanan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2011.01314</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Contrastive learning for prompt-based few-shot language learners</title>
+		<author>
+			<persName><forename type="first">Yiren</forename><surname>Jian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chongyang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soroush</forename><surname>Vosoughi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2205.01308</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Are you robert or roberta? deceiving online authorship attribution models using neural text generators</title>
+		<author>
+			<persName><forename type="first">Keenan</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><forename type="middle">Rc</forename><surname>Nurse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujun</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International AAAI Conference on Web and Social Media</title>
+		<meeting>the International AAAI Conference on Web and Social Media</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="page" from="429" to="440" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Nitish</forename><surname>Shirish Keskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Lav</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Varshney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Socher</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.05858</idno>
+		<title level="m">Ctrl: A conditional transformer language model for controllable generation</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Generalizable implicit hate speech detection using contrastive learning</title>
+		<author>
+			<persName><forename type="first">Youngwook</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shinwoo</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yo-Sub</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Computational Linguistics</title>
+		<meeting>the 29th International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6667" to="6679" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tharindu</forename><surname>Kumarage</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Garland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amrita</forename><surname>Bhattacharjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kirill</forename><surname>Trapeznikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Ruston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.03697</idno>
+		<title level="m">Stylometric detection of aigenerated text in twitter timelines</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1901.07291</idno>
+		<title level="m">Crosslingual language model pretraining</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Learning transferable features with deep adaptation networks</title>
+		<author>
+			<persName><forename type="first">Mingsheng</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianmin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Jordan</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="97" to="105" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Detectgpt: Zero-shot machine-generated text detection using probability curvature</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoonho</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Khazatsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2301.11305</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Through the looking glass: Learning to attribute synthetic text generated by language models</title>
+		<author>
+			<persName><forename type="first">Shaoor</forename><surname>Munir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brishna</forename><surname>Batool</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zubair</forename><surname>Shafiq</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Padmini</forename><surname>Srinivasan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fareed</forename><surname>Zaffar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1811" to="1822" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Learning text similarity with siamese recurrent networks</title>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Neculoiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Versteegh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihai</forename><surname>Rotaru</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Workshop on Representation Learning for NLP</title>
+		<meeting>the 1st Workshop on Representation Learning for NLP</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="148" to="157" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyra</forename><surname>Yee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexei</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.06616</idno>
+		<title level="m">Facebook fair&apos;s wmt19 news translation task submission</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<title level="m">Gpt-4 technical report</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Improved text classification via contrastive adversarial training</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chung-Wei</forename><surname>Hang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="11130" to="11138" />
+		</imprint>
+	</monogr>
+	<note>Avirup Sil, and Saloni Potdar</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Domain adaptation via transfer component analysis</title>
+		<author>
+			<persName><forename type="first">Ivor</forename><forename type="middle">W</forename><surname>Sinno Jialin Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><forename type="middle">T</forename><surname>Tsang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiang</forename><surname>Kwok</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="page" from="199" to="210" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Contrastive learning from label distribution: A case study on text classification</title>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meishan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guonian</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ping</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhua</forename><surname>Dai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neurocomputing</title>
+		<imprint>
+			<biblScope unit="volume">507</biblScope>
+			<biblScope unit="page" from="208" to="220" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Improving language understanding by generative pre-training</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Salimans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI blog</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="5485" to="5551" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Neural unsupervised domain adaptation in nlp-a survey</title>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Ramponi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barbara</forename><surname>Plank</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2006.00632</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1908.10084</idno>
+		<title level="m">Sentence-bert: Sentence embeddings using siamese bert-networks</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Learning transferrable representations for unsupervised domain adaptation. Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">Ozan</forename><surname>Sener</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyun</forename><forename type="middle">Oh</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashutosh</forename><surname>Saxena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silvio</forename><surname>Savarese</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page">29</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">On the influence of the kernel on the consistency of support vector machines</title>
+		<author>
+			<persName><forename type="first">Ingo</forename><surname>Steinwart</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="67" to="93" />
+			<date type="published" when="2001-11">2001. Nov</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">Reuben</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><forename type="middle">A</forename><surname>Plummer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kate</forename><surname>Saenko</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2009.07698</idno>
+		<title level="m">Detecting cross-modal inconsistency to defend against neural fake news</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">What makes for good views for contrastive learning? Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">Yonglong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Poole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilip</forename><surname>Krishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cordelia</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Isola</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="6827" to="6839" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">What if the devil is my guardian angel: Chatgpt as a case study of using chatbots in education</title>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Tlili</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boulus</forename><surname>Shehata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Agyemang</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aras</forename><surname>Adarkwah</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bozkurt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Daniel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ronghuai</forename><surname>Hickey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brighter</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Agyemang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Smart Learning Environments</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">15</biblScope>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Unsupervised domain adaptation for text classification via meta self-paced learning</title>
+		<author>
+			<persName><forename type="first">Nghia</forename><surname>Ngo Trung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linh</forename><forename type="middle">Ngo</forename><surname>Van</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thien Huu</forename><surname>Nguyen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Computational Linguistics</title>
+		<meeting>the 29th International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4741" to="4752" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Authorship attribution for neural text generation</title>
+		<author>
+			<persName><forename type="first">Adaku</forename><surname>Uchendu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thai</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongwon</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8384" to="8395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<author>
+			<persName><forename type="first">Adaku</forename><surname>Uchendu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thai</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongwon</forename><surname>Lee</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.13296</idno>
+		<title level="m">Turingbench: A benchmark environment for turing test in the age of neural text generation</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Online human-bot interactions: Detection, estimation, and characterization</title>
+		<author>
+			<persName><forename type="first">Onur</forename><surname>Varol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emilio</forename><surname>Ferrara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clayton</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Filippo</forename><surname>Menczer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Flammini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the international AAAI conference on web and social media</title>
+		<meeting>the international AAAI conference on web and social media</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="280" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Robustness and generalization</title>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shie</forename><surname>Mannor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine learning</title>
+		<imprint>
+			<biblScope unit="volume">86</biblScope>
+			<biblScope unit="page" from="391" to="423" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Contrastive domain adaptation for question answering using limited text corpora</title>
+		<author>
+			<persName><forename type="first">Zhenrui</forename><surname>Yue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Kratzwald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Feuerriegel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2108.13854</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Defending against neural fake news</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannah</forename><surname>Rashkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Franziska</forename><surname>Roesner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">Few-shot intent detection via contrastive pre-training and fine-tuning</title>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trung</forename><surname>Bui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seunghyun</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Congying</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hung</forename><surname>Quan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Walter</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.06349</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Nimit</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sohoni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Hongyang R Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Finn</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ré</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.01517</idno>
+		<title level="m">Correctn-contrast: A contrastive approach for improving robustness to spurious correlations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Synthetic lies: Understanding ai-generated misinformation and evaluating algorithmic and human solutions</title>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianni</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><forename type="middle">G</forename><surname>Parker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Munmun</forename><forename type="middle">De</forename><surname>Choudhury</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 CHI Conference on Human Factors in Computing Systems</title>
+		<meeting>the 2023 CHI Conference on Human Factors in Computing Systems</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="1" to="20" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

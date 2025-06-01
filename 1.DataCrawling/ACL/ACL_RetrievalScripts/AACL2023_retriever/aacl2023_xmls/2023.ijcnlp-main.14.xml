@@ -1,0 +1,1618 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Analysing Cross-Lingual Transfer in Low-Resourced African Named Entity Recognition</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Michael</forename><surname>Beukman</surname></persName>
+							<email>mcbeukman@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computer Science and Applied Mathematics</orgName>
+								<orgName type="institution">University of the Witwatersrand</orgName>
+								<address>
+									<settlement>Johannesburg</settlement>
+									<country key="ZA">South Africa</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Manuel</forename><surname>Fokam</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computer Science and Applied Mathematics</orgName>
+								<orgName type="institution">University of the Witwatersrand</orgName>
+								<address>
+									<settlement>Johannesburg</settlement>
+									<country key="ZA">South Africa</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Analysing Cross-Lingual Transfer in Low-Resourced African Named Entity Recognition</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">15DFCF60089EB5F9697B273323D7F4F2</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:09+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Transfer learning has led to large gains in performance for nearly all NLP tasks while making downstream models easier and faster to train. This has also been extended to lowresourced languages, with some success. We investigate the properties of cross-lingual transfer learning between ten low-resourced languages, from the perspective of a named entity recognition task. We specifically investigate how much adaptive fine-tuning and the choice of transfer language affect zero-shot transfer performance. We find that models that perform well on a single language often do so at the expense of generalising to others, while models with the best generalisation to other languages suffer in individual language performance. Furthermore, the amount of data overlap between the source and target datasets is a better predictor of transfer performance than either the geographical or genetic distance between the languages. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The technique of using a pre-trained Natural Language Processing (NLP) model and fine-tuning it on task-specific data has recently taken the NLP world by storm, achieving state-of-the-art scores in many different tasks <ref type="bibr" target="#b18">(Jiang et al., 2020;</ref><ref type="bibr" target="#b37">Raffel et al., 2020;</ref><ref type="bibr" target="#b16">Hendrycks et al., 2021)</ref>. Although much of the focus of pre-trained models is on English <ref type="bibr" target="#b36">(Radford et al., 2018;</ref><ref type="bibr" target="#b8">Devlin et al., 2019)</ref>, there are also monolingual models for other languages <ref type="bibr" target="#b6">(de Vries et al., 2019;</ref><ref type="bibr" target="#b4">Canete et al., 2020)</ref> and multilingual models that were trained on a large multilingual corpus <ref type="bibr" target="#b5">(Conneau et al., 2020;</ref><ref type="bibr" target="#b43">Xue et al., 2021)</ref>.</p><p>Generally, the training data of these models mostly consists of higher-resourced languages (i.e., those that have large amounts of available data, such as English and German). This can result in a large discrepancy between the performance of these models on higher-resourced and low-resourced languages (where data is scarce; e.g., many African languages <ref type="bibr" target="#b3">(Alabi et al., 2022))</ref>.</p><p>A common challenge that arises when working with these models is the lack of task-specific data for the target language <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>. Despite this, in many cases, we have access to data from other languages. This presents an opportunity to leverage cross-lingual transfer, training a model on the language that we have data for and using it to make predictions for the target language. This is a common scenario, especially for low-resourced languages <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>.</p><p>Given this opportunity for cross-lingual transfer and the prevalence of pre-trained models, research has begun investigating the properties of these models more deeply. Studies have looked into multilingualism <ref type="bibr" target="#b34">(Pires et al., 2019;</ref><ref type="bibr" target="#b19">K et al., 2020)</ref>, syntactic transfer <ref type="bibr" target="#b9">(Dhar and Bisazza, 2018)</ref>, and the effect of linguistic features <ref type="bibr" target="#b10">(Dolicki and Spanakis, 2021)</ref> and other attributes <ref type="bibr" target="#b22">(Lin et al., 2019)</ref> on transfer performance. Despite this, it is not always clear which language we should transfer from, or which factors affect transfer <ref type="bibr" target="#b22">(Lin et al., 2019)</ref>.</p><p>Inspired by this line of work, we focus on investigating cross-lingual transfer more deeply, specifically in a low-resourced setting. We achieve this by studying the effect of different training schemes and identifying features that are indicative of high transfer performance. We build upon the work of <ref type="bibr" target="#b0">Adelani et al. (2021)</ref>, who recently introduced a high-quality named entity recognition dataset for ten low-resourced African languages. They also performed some analysis into which pre-trained models perform best and preliminary work into the cross-lingual transfer capabilities of models.</p><p>Our results show that adaptively fine-tuning a multilingual model on unlabelled monolingual data can improve performance on the target language, while often diminishing transfer performance by overfitting to this language. This effect is exac-erbated if the monolingual dataset is large. Furthermore, we find that when the source and target dataset contain many shared tokens, then transfer performance is generally higher. In particular, the number of overlapping tokens between datasets is a stronger predictor of transfer performance than many other features, including the geographic distance between where the languages are spoken, and the genealogical distance between the languages.</p><p>2 Background and Related Work</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Named Entity Recognition (NER)</head><p>Named Entity Recognition is a token classification task in which the objective is to classify each token (or word) as one of a few classes, person, location, date, organisation, or no entity. NER is an impactful field <ref type="bibr" target="#b40">(Sang and Meulder, 2003;</ref><ref type="bibr" target="#b20">Lample et al., 2016)</ref> with many applications <ref type="bibr" target="#b27">(Marrero et al., 2013)</ref>, including information retrieval and spell-checking <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>. In NER, performance is predominantly measured using the F1 score <ref type="bibr" target="#b40">(Sang and Meulder, 2003;</ref><ref type="bibr" target="#b0">Adelani et al., 2021)</ref>, which balances precision and recall.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Transfer Learning</head><p>Transfer learning is a technique that is often used in NLP to improve performance while requiring less task-specific data <ref type="bibr" target="#b39">(Ruder et al., 2019)</ref>. In one common form of transfer, we start by training a large language model on a massive corpus of unlabelled data, using these learned weights as the starting point for a specific problem, and fine-tuning further on task-specific labelled data <ref type="bibr" target="#b38">(Ruder, 2021)</ref>. This approach has become the dominant paradigm in NLP, especially for low-resourced languages, due to its high performance when fine-tuning on small datasets <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>. The idea is that the pre-training process instills knowledge into the model about how language behaves on a general level, which then does not need to be learned from scratch using the smaller amount of task-specific data <ref type="bibr" target="#b36">(Radford et al., 2018;</ref><ref type="bibr" target="#b7">Devlin et al., 2018)</ref>.</p><p>If the pre-training data is in a substantially different domain from the target task, we often use adaptive fine-tuning. This fine-tunes the pre-trained model on unlabelled data in the domain of the target task using a (masked) language modelling loss <ref type="bibr" target="#b14">(Gururangan et al., 2020)</ref>. A related approach, language adaptive fine-tuning (LAFT), fine-tunes a pre-trained model on unlabelled data in the target language, which can result in improved perfor-mance on the target language <ref type="bibr" target="#b33">(Pfeiffer et al., 2020)</ref>.</p><p>Recent work has also explored learning different pre-trained base models, tailored to particular languages. For instance, <ref type="bibr" target="#b29">Ogueji et al. (2021)</ref> pretrain a BERT-style model on less than 1GB of text from African languages, and find that this performs well on downstream tasks, compared to massivelymultilingual models that were trained on much larger datasets. <ref type="bibr" target="#b30">Ogundepo et al. (2022)</ref> extend this by pre-training a T5-based model, expanding the applications to more general sequence-to-sequence tasks such as translation. Overall, these works contribute new, Africa-centric pre-trained models and provide initial benchmarks showing that these models can perform well on downstream tasks in the languages they pre-train on (after appropriate finetuning). While this is useful for advancing the field of low-resourced NLP, they generally do not deeply investigate cross-lingual transfer learning, which is the focus of our work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Analysis</head><p>While approaches such as fine-tuning and crosslingual transfer have been empirically shown to work well, there has been a recent trend that attempts to understand these techniques more deeply. For instance, <ref type="bibr" target="#b22">Lin et al. (2019)</ref> focus on finding a way to choose the best language to transfer from, and develop a model that takes in a wide range of features, such as linguistic distance, entity overlap, etc., and predicts the transfer performance. <ref type="bibr" target="#b10">Dolicki and Spanakis (2021)</ref> also consider features relevant to transfer and find that this depends on the taskno single feature can explain transfer performance well across tasks. <ref type="bibr" target="#b25">Malkin et al. (2022)</ref> instead focus on the effect of the pre-training language and find that some languages, called donors, transfer well to others, while others, denoted recipients, benefit from transfer. Other work investigates how finetuning a pre-trained model alters its representations of words <ref type="bibr" target="#b17">(Hsu et al., 2019)</ref>. For example, <ref type="bibr" target="#b44">Zhou and Srikumar (2022)</ref> study the effect that fine-tuning has on the representations of a multilingual model and find that this process often clusters together the representations that correspond to the same label, thereby making the classification task easier.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methodology</head><p>The primary goal of this paper is to gain a deeper understanding of transfer learning in low-resourced settings. To achieve this, we focus on language adaptive fine-tuning and cross-lingual transfer.</p><p>First, we investigate the effect of LAFT on transfer performance. Due to the cost of annotation, we often have more unlabelled data than labelled, task-specific data, making LAFT very applicable.</p><p>Secondly, we examine cross-lingual transfer in order to understand which languages transfer well to others and why. This is particularly relevant in cases where data is scarce in the target language but available in other languages, a common occurrence in low-resourced NLP. Knowing which features to consider when choosing a transfer language will be immensely useful to NLP practitioners faced with the choice of transfer language <ref type="bibr" target="#b22">(Lin et al., 2019)</ref>.</p><p>We therefore consider a low-resourced NER task, using the MasakhaNER dataset <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>. We fine-tune models on this dataset, and evaluate the effect of adding LAFT and transferring from different languages in Section 5.</p><p>Next, in Section 6 we investigate how much the transfer performance correlates with various language-and dataset-based features such as data overlap and linguistic distance. This helps us to understand which features should be considered when choosing a source language to transfer from.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Data</head><p>We consider all ten languages from the MasakhaNER dataset. We choose these languages for three reasons: firstly, they are all low-resourced compared to high-resourced languages such as English <ref type="bibr" target="#b5">(Conneau et al., 2020)</ref>, allowing us to study transfer learning in the important low-resourced setting. Secondly, there exists a high-quality dataset for these languages, in contrast to many other low-resourced languages. Finally, <ref type="bibr" target="#b0">Adelani et al. (2021)</ref> already performed extensive baseline analysis on this dataset.</p><p>Information about the languages, including family, the region where it is spoken and dataset size, is contained in Table <ref type="table" target="#tab_0">1</ref>, with additional details in Appendix A. We do note that all the languages use the Latin script, except Amharic, which uses the Fidel script. Igbo, Wolof and Yorùbá use diacritics, which are symbols attached to some letters (e.g. in "e . "), which affect the pronunciation of the word.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>Our experiments largely consist of fine-tuning pretrained language models on NER data and evalu-ating their cross-lingual transfer performance. We perform each experiment 5 times with different random seeds and report the mean performance. We note that the standard deviation across the different seeds is often quite large when performing transfer, i.e., when the fine-tuning and testing language are not the same. More details are in Appendix C.3.</p><p>We use the MasakhaNER implementation<ref type="foot" target="#foot_1">2</ref> and use the same hyperparameters and language codes as <ref type="bibr" target="#b0">Adelani et al. (2021)</ref>. All metrics reported are overall F1 scores on the test set (to compare against prior work), using the "begin" repair strategy as specified by <ref type="bibr" target="#b31">Palen-Michel et al. (2021)</ref>. More details regarding the training and evaluation procedures can be found in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Models</head><p>We mainly consider two types of models, the first being xlm-roberta-base, denoted as "base". Secondly, we consider LAFT models, obtained by finetuning xlm-roberta-base on unlabelled monolingual data from a specific language. We choose to use xlm-roberta-base as the base model due to its high performance and fast training <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>. This model was pre-trained on a large corpus consisting of data from 100 languages, including Amharic, Hausa and Swahili.</p><p>We then fine-tune these models on the NER data of a specific language. For clarity, we contract the training procedure of a model, for example, base → hau → wol is the xlm-roberta-base model that performed language-adaptive finetuning on Hausa, followed by NER fine-tuning on Wolof. More information about these models and the LAFT process is contained in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Cross-lingual Transfer</head><p>Here we investigate the zero-shot transfer performance of xlm-roberta-base and the languageadaptive models. For each pair of languages X, Y , we take the model fine-tuned on NER data from language X and evaluate its performance on language Y . To evaluate the effect of LAFT, we use both base and base → X (the latter model being obtained by performing LAFT on language X).</p><p>This experiment simulates the scenario where we do not have ample labelled data in the source language, but we possess task-specific data in a different language. Here, we must choose the best language to transfer from. This is a common setup in NLP, particularly for low-resourced languages <ref type="bibr" target="#b22">(Lin et al., 2019;</ref><ref type="bibr" target="#b33">Pfeiffer et al., 2020;</ref><ref type="bibr" target="#b0">Adelani et al., 2021)</ref>. Leveraging cross-lingual transfer can lead to useable models in a data-scarce setting, where no data is available for the target language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Results</head><p>These results are shown in Fig. <ref type="figure">1</ref>, with the y-axis representing the evaluation language, while the xaxis represents either the language we performed NER fine-tuning on (Fig. <ref type="figure">1a</ref>), or both the LAFT and NER fine-tuning language (Fig. <ref type="figure">1b</ref>). In Fig. <ref type="figure">1a</ref>, as expected, the diagonal is brighter than the offdiagonal elements, as fine-tuning on the same language one evaluates on improves scores significantly. The best zero-shot transfer language generally performs well, obtaining 10-20 F1 lower than training on the target language. When evaluating on Yorùbá, Igbo, Luo and Amharic, however, transfer performance is significantly lower. Igbo and Yorùbá's use of diacritics, or that Amharic has a different script, may be the cause of this. Luo's low performance could be because it has a large number of entities that occur only in its dataset. In addition, base did not train on any Luo data, and Luo is from a different family to all of the other languages. Furthermore, while Amharic transfers poorly on average, it transfers reasonably well to Swahili, Hausa and Nigerian Pidgin. The reason may be that Amharic, Swahili and Hausa were included in the base model's pre-training data, while Nigerian Pidgin shares many similarities with English, another pre-training language. Thus, the pre-trained model may have some link between its representations for Amharic and the other languages it jointly pre-trained on. Fine-tuning on Amharic changes these shared representations, leading to improved transfer results (see Appendix C.10 for details).</p><p>Observation: LAFT on the target language improves downstream performance Comparing the diagonals in Fig. <ref type="figure">1a</ref> and Fig. <ref type="figure">1b</ref>, we can see that the LAFT models usually perform much better than the base model after subsequent NER fine-tuning. Of particular interest is the large improvement we see in Yorùbá and Amharic, where the language adaptive models outperform the base models by +5 and +7 F1, respectively. This could be because Yorùbá contains diacritics, and Amharic does not use the Latin script, making the language adaptive fine-tuning phase crucial to adapt the model to the specific characteristics of these languages. On average, by using language adaptive fine-tuning on the target language, we can improve the F1 performance by approximately 3 F1 after subsequent NER fine-tuning.</p><p>Observation: Performing LAFT on a large dataset can diminish transfer performance While performing LAFT improves performance on the language we fine-tune on, transfer performance often shows a mixed result. For some language pairs, using a model that has been subject to language-adaptive fine-tuning on the same language as one fine-tunes on helps (e.g. the pcm column and kin row), but for others, this effect is minor, or even negative (e.g. yor transferring to lug). For some languages, notably Swahili and Hausa, using adaptively fine-tuned models (and then fine-tuning on NER data from the same language) significantly diminishes the transfer capabilities from these languages, possibly indicating overfitting. This is similar to what <ref type="bibr" target="#b33">Pfeiffer et al. (2020)</ref> found when performing adaptive fine-tuning on the source language -transfer performance generally decreased. We investigate this further (more details in Appendix C.1) and find that those languages with fewer sentences in the language adaptive datasets Adaptive &amp; NER fine-tuned on the same language (b) base → X-axis → X-axis</p><p>Figure <ref type="figure">1</ref>: Heatmaps indicating the average performance over 5 seeds of specific models on specific languages (yaxis) after being fine-tuned on another language's NER data (x-axis). avg indicates the average transfer performance per row or column, respectively. This calculates the average of the entire row or column excluding the diagonal.</p><p>transfer better on average after performing LAFT and NER fine-tuning. There is a statistically significant correlation, with Pearson's R = -0.82, between the number of sentences in the LAFT dataset and the average improvement in transfer performance when using a LAFT model compared to using the base model. This suggests that larger LAFT datasets result in more overfitting and less transfer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Recommendation</head><p>• Use LAFT on the target language prior to finetuning on NER data in the same language. • If transfer performance is the priority, however, LAFT on a large dataset in the NER fine-tuning language should be avoided.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Explaining Transfer Performance</head><p>To explain some of the results shown in the previous section, here we examine other dataset and language features, determining whether they have any correlation with the transfer performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Data Overlap</head><p>The first feature we consider is the word overlap between the different languages' datasets. We do so because in NER, a token classification task, a model would benefit greatly from previously encountering an entity. Thus, if languages X and Y share tokens, a model trained on X would perform well on the already-seen tokens in language Y .</p><p>We call a token overlapping when the same token is labelled as the same entity type in two different datasets (e.g. John[NAME] would overlap with John[NAME], but would not overlap with John[ORG] Deere <ref type="bibr">[ORG]</ref>). To calculate the overlap between source language X and target language Y , we find all of the named entities (i.e., all tokens that are not labelled as "Other") that occur in both datasets and count the total number of times each token occurred in either dataset (e.g. if John occurred twice in X and three times in Y , we count it five times). We do not distinguish between tokens that are at the beginning of an entity or in the middle thereof (i.e., we consider B-PER and I-PER to be the same for this experiment). We also consider the entire dataset, i.e., train + dev + test, to obtain a more representative sample.</p><p>There are alternative ways to calculate overlap, such as only taking into account unique entities (which we avoid as one entity overlapping multiple times is relevant), or determining the fraction of overlapping tokens instead of the absolute number <ref type="bibr" target="#b22">(Lin et al., 2019)</ref>. However, we find that these alternative methods generally produce similar results and lead to similar conclusions, so the specific calculation method does not have a significant impact. In Appendix C.5, we provide a more in-depth explanation of these methods and their results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1.1">Results</head><p>Fig. <ref type="figure" target="#fig_1">2a</ref> shows the overlap between each pair of languages, with the diagonal being proportional to the number of entities for each language. Wolof and Luo have much less data than the other languages, and thus much less overlap, potentially explaining why these two performed poorly in previous experiments. In particular, Wolof has around three times more sentences than Luo, but fewer entities, indicating that entities are sparsely distributed throughout its sentences. Moreover, Amharic, due to it being written in a different script than all of the other languages, does not have any lexical overlap. Finally, there seems to be a large amount of data overlap in general, e.g., Swahili and Hausa have around 33% of their tokens overlapping.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Observation: Data Overlap Strongly Correlates with Transfer Performance</head><p>We see a strong correlation (Pearson's R = 0.73) between how many tokens overlap and the performance in Fig. <ref type="figure" target="#fig_1">2b</ref>. The procedure here was simply to compute the correlation between the data overlap (as in Fig. <ref type="figure" target="#fig_1">2a</ref>) and the performance when fine-tuning on one language and evaluating on another, starting from the pre-trained base model (as in Fig. <ref type="figure">1a</ref>). We do not consider the diagonal elements, as they contain the performance of evaluating on language X after fine-tuning on language X and are thus not considered transfer learning.</p><p>These results do not imply a causal relationship, however, as previous work has shown that lexical overlap has a negligible impact on transfer performance, and word order, model depth and other attributes contribute more <ref type="bibr" target="#b34">(Pires et al., 2019;</ref><ref type="bibr" target="#b42">Tran and Bisazza, 2019;</ref><ref type="bibr" target="#b19">K et al., 2020)</ref>. This might be specific to the task under consideration, however, as other work still has shown that, for some tasks, the word and subword overlap between languages is a useful proxy for expected performance when performing cross-lingual transfer <ref type="bibr" target="#b22">(Lin et al., 2019)</ref>. Additionally, NER (and other token classification tasks) may be particularly sensitive to word overlap, as the classification happens on a per-word or a per-token basis. Finally, Amharic, due to its different script, has no overlap with any other language, while still displaying some transfer, indicating that more intricate mechanisms are at play.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Observation: Most of the overlap is in English</head><p>Having shown that data overlap has such a large correlation with transfer performance, we now in-vestigate this deeper, to see which types of entities overlap. To aid in this, we classify a token as "international" if it falls into one of the following categories: (1) place names, such as "Africa", "Washington", "Nairobi"; (2) numbers, such as those found in dates, e.g., 2016; (3) the names of people in English, e.g. Paul, Jean; (4) punctuation marks found in the middle of entities; and (5) common words/companies such as "December", "Christmas", "Monday" and "Google". All of these are written in English. See Appendix C.4 for more details about these categories. Over all of the entity tokens across all languages, around 35% of these correspond to international tokens. However, when only considering the overlapping tokens, international words are the majority, around 69%. This seems to indicate that instead of overlapping tokens representing shared words between languages, they often represent international entities written in English. This holds even when considering only the distribution of unique tokens (instead of taking into account the number of times each token occurs). In this case, international tokens make up 28% of all tokens compared to 64% of overlapping tokens. This could be a factor present mostly in news-based data such as MasakhaNER, however, as news articles often cover globally relevant topics, leading to these types of entities being shared across datasets. Our findings in this section may partially explain why Adelani et al. ( <ref type="formula">2021</ref>) obtained poor performance when transferring from Wikipedia. Finally, we note that the correlation results (Fig. <ref type="figure" target="#fig_1">2b</ref>) are similar when only considering the local or international tokens, see Appendix C.6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Additional Features</head><p>While we primarily focus on data overlap in this work, other features may also influence transfer performance between languages. We specifically consider the features used by <ref type="bibr" target="#b22">Lin et al. (2019)</ref>. This includes various language-based features, such as genetic and syntactic distance, dataset-based features, such as source dataset size, as well as the geographical distance between the countries where the languages are spoken.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2.1">Language-Based Features</head><p>The language-based features are largely based on the URIEL database of language properties <ref type="bibr" target="#b24">(Littell et al., 2017)</ref> </p><formula xml:id="formula_0">0 0 0 0 0 0 0 0 0 1.1e+04</formula><p>Data overlap for all Categories (a) Data Overlap. Row i, column j indicates the overlap if j was the source (i.e., fine-tuning language) and i was the target (i.e., evaluation language).  based on their language families. The other distances measure the cosine distance between vectors representing each language's syntax or phonology, derived from various linguistic databases <ref type="bibr" target="#b21">(Lewis, 2009;</ref><ref type="bibr" target="#b11">Dryer and Haspelmath, 2013)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2.2">Dataset-Based Features</head><p>The dataset-based features are Source Dataset Size, representing the number of sentences in the source dataset and; Source over Target Size Ratio, the number of sentences in the source dataset divided by the number of sentences in the target dataset. We add two similar features, the number of named entities in the source dataset, and the ratio between this and the number of entities in the target dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2.3">Geographical Distance</head><p>The geographic distance is calculated as a normalised distance between the geographic center of where the language's speakers reside <ref type="bibr" target="#b24">(Littell et al., 2017;</ref><ref type="bibr" target="#b15">Hammarström et al., 2018)</ref>. This, however, is potentially problematic, especially if a language is spoken in multiple countries and is somewhat spread out. For instance, Swahili is spoken across Kenya, Tanzania, and other countries, but the "geographic center" for Swahili is marked as a point in Southeastern Tanzania <ref type="bibr" target="#b15">(Hammarström et al., 2018)</ref>. As this may not be particularly accurate, we also experiment with a different approach of calculating the geographic distance between two languages, that of the shortest distance between all of the coun-tries where each language is spoken (obtained from <ref type="bibr" target="#b15">Hammarström et al. (2018)</ref>). If these countries share a border, the distance is zero. However, this new method results in distances that are closely correlated with those obtained previously and result in similar conclusions, so we do not consider it further. Finally, Featural Distance is the cosine distance between vectors consisting of the four languagebased features and the geographical distance.</p><p>Observation: Language-based features do not correlate strongly with transfer performance</p><p>Similarly to data overlap, we compute the correlation between these features and the transfer performance, with results in Table <ref type="table" target="#tab_3">2</ref> (see Appendix C.8 for plots). We find that most of these features exhibit a poor correlation with the transfer performance, and not all of the correlations are statistically significant. The genetic distance is the language-based feature with the highest correlation with transfer performance, at Pearson's R = -0.30 (i.e., closer languages tend to transfer better). This is still much weaker than the data overlap's correlation of R = 0.73. Overall, this suggests that the most important feature for transfer performance is the overlap between the source and target datasets, instead of how close the languages are. However, it may still be best to consider several different factors instead of any single one <ref type="bibr" target="#b22">(Lin et al., 2019)</ref>. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Recommendation</head><p>• Choosing a source language for NER based on its data overlap with the target is promising. • Other features have small correlations with transfer performance, much less than data overlap, and should not be used as a primary reason for choosing a specific language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>Our work follows a recent trend of analysing empirical results more deeply, attempting to better understand the underlying phenomena <ref type="bibr" target="#b22">(Lin et al., 2019;</ref><ref type="bibr" target="#b44">Zhou and Srikumar, 2022)</ref>. We specifically consider cross-lingual transfer for low-resourced languages, investigating the effect of LAFT, the choice of transfer language, and which features are indicative of high transfer performance.</p><p>In line with recent work, we find that LAFT can improve performance on downstream tasks <ref type="bibr" target="#b0">(Adelani et al., 2021;</ref><ref type="bibr" target="#b3">Alabi et al., 2022)</ref>. We also discover that performing this process on a large dataset can inhibit transfer performance. This motivates having more general models instead of overspecialised ones, which would ideally be more robust. The work of Alabi et al. ( <ref type="formula">2022</ref>) may be particularly relevant here, as they perform LAFT on multiple source languages, and encounter less of a loss in generalisation performance compared to our case of performing LAFT on only one language.</p><p>We further find that data overlap between the source and target languages correlates strongly with transfer performance, and that this may provide a way to choose a promising language to transfer from. Many other language-specific features have a much lower correlation with transfer performance. This suggests that, for token classification tasks such as NER, data overlap is potentially more important than language similarities. This may not always be the case, however. Performance in other tasks, such as machine translation, may be less influenced by the amount of data overlap. Furthermore, the MasakhaNER dataset largely consists of annotated news articles. This type of data may skew more towards discussing international entities than, say, local history or factbased text such as Wikipedia. In these cases, geographical or linguistic distance may contribute more to transfer than data overlap. Thus, while we highlight some important results, they may not necessarily apply to other tasks and domains. This should be investigated in future work.</p><p>One promising avenue of investigation for future work is to examine transfer performance when all international tokens are removed, to determine if this would diminish the correlation with data overlap, resulting in other features becoming more important for transfer. Using a more sophisticated strategy than only counting overlapping words when they exactly match would be promising, potentially resulting in the identification of similar, but slightly different, words between related languages. Finally, while we considered ten lowresourced African languages, it would be valuable to extend this study to other languages and regions to determine how well our conclusions generalise.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>In this paper, we conduct a thorough examination of transfer learning in low-resourced African languages, focusing on language-adaptive fine-tuning and cross-lingual transfer. We find that languageadaptive fine-tuning on a large dataset can lead to improved performance on the target language, but at the cost of reduced transfer performance.</p><p>We further demonstrate that data overlap between the source and target datasets is a powerful predictor of transfer performance in NER, surpassing other factors such as geographical or genealogical distance. This, however, does not necessarily imply that data overlap is the cause of transfer performance, as Amharic, without any overlap, still displays some transfer. We also find that English words make up the bulk of the overlapping tokens.</p><p>Ultimately, while more work is needed, we hope that our analysis could inform some of the experimental decisions and transfer considerations when dealing with lower-resourced languages, thereby improving the quality of NER models for these languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>While we believe that our work is valuable, it has several shortcomings that could be addressed in future work. First, our focus is solely on one task-NER. While this enables us to perform detailed experiments and analysis, the disadvantage is that our results may not be general to all NLP tasks. Furthermore, as mentioned in the discussion section, our overlap results may be quite particular to NER. Therefore, it would be particularly promising to extend our work to other tasks, such as machine translation, sentiment classification, text classification, etc.</p><p>Second, our work only focuses on a subset of ten African languages. While Africa exhibits a large amount of linguistic diversity, and has several low-resourced languages, our conclusions may not necessarily be applicable to all low-resourced languages, or languages in other regions, such as Asia, Latin America, etc. It would be beneficial to extend our work to other languages and regions by using some of the more recent datasets for lowresourced languages <ref type="bibr" target="#b35">(Prabhakar et al., 2022;</ref><ref type="bibr">Adelani et al., 2022a,b;</ref><ref type="bibr" target="#b13">Ebrahimi et al., 2022;</ref><ref type="bibr" target="#b32">Patil et al., 2022)</ref>. Relatedly, we only considered one dataset, MasakhaNER. While this dataset is of high quality, it is also relatively small. It would be valuable to investigate whether our results hold on lower-quality datasets, as low-resourced languages often lack high-quality datasets such as the one we considered in this work.</p><p>Finally, to isolate the training procedure, we focused only on one pre-trained model, xlm-roberta-base. Again, this enabled us to perform in-depth analysis, but it would be valuable to extend this work to other models, such as mBERT <ref type="bibr" target="#b8">(Devlin et al., 2019)</ref>, AfriBERTa <ref type="bibr" target="#b29">(Ogueji et al., 2021)</ref> and AfriTeVa <ref type="bibr" target="#b30">(Ogundepo et al., 2022)</ref>, to determine if our results generalise to other models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Hyperparameters and Reproducibility</head><p>We make our code available to reproduce our experiments. Table <ref type="table" target="#tab_6">4</ref> contains the hyperparameters that we used when training the models. We used the same hyperparameters and base code as <ref type="bibr" target="#b0">Adelani et al. (2021)</ref>. For all experiments, in total, we used around 1000 GPU hours, on an internal cluster. The model we use, xlm-roberta-base, has 270M parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Language Adaptive Fine-tuning Procedure</head><p>The language adaptive models, introduced by Adelani et al. ( <ref type="formula">2021</ref>), had the following procedure: Take the xlm-roberta-base model as a starting point and fine-tune this on unlabelled, monolingual data for one language (e.g. Swahili, Wolof, etc.) using a masked language modelling loss. This was done separately for each language, resulting in ten separate language-adaptive models. The data, including its source and the number of sentences, used for this process is described in   Amharic, Swahili and Hausa. The amount of data for these African languages is quite small, however, consisting of 68M tokens for Amharic, 275M for Swahili and 56M for Hausa, compared to e.g. 55B for English and 10B for French and German. Thus, while the model was trained on some African languages, they only make up a small fraction of the entire pre-training dataset.</p><p>Additionally, it is important to question whether XLM-Roberta was either pre-trained or adaptively fine-tuned on, for example, the test dataset for some of the languages. <ref type="bibr" target="#b0">Adelani et al. (2021)</ref> do not know this for certain. It is unlikely, however, as the data of XLM-Roberta was extracted from the Common-Crawl 2018 snapshot, whereas Adelani et al. ( <ref type="formula">2021</ref>) created and annotated the MasakhaNER dataset in 2020 and 2021 from current (at the time) news data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 NER and its evaluation</head><p>In Named Entity Recognition, we often have a distinction between the start of a multi-word entity, and the continuation of one. For instance, John Deere would be labelled as B-ORG I-ORG (denoting the beginning and inside of an entity). However, in some cases, the gold standard, "correct" labels often have invalid transitions, such as I-ORG being immediately after O, bypassing the required B-ORG label <ref type="bibr" target="#b31">(Palen-Michel et al., 2021)</ref>. Relat-edly, the output of a model may also contain some of these invalid transitions. This complicates evaluation, which has resulted in methods being developed to correct these problems. One common approach is the "begin" repair method, where any invalid "I-" is replaced by a "B-" <ref type="bibr" target="#b31">(Palen-Michel et al., 2021)</ref>. After the label sequence has been repaired, the standard evaluation procedure is then used, comparing the predicted output to the groundtruth annotations. We used this begin repair strategy in our experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Additional Results and Analysis</head><p>This section contains additional experiments and results. In particular, we consider the correlation between overfitting (i.e. transferring worse to other languages) after performing LAFT and the size of the LAFT corpus in Appendix C.1. Appendix C.2 contains more LAFT experiments, considering the effect of performing LAFT on a language other than the fine-tuning one. In Appendix C.3 we have additional transfer results, specifically considering the different NER categories in isolation, and expanding upon the increased variance we found when performing transfer. We next detail the process when classifying tokens as international in Appendix C.4. Appendix C.5 covers the various other overlap calculations we consider, confirming that they all lead to similar conclusions. Appendix C.6 considers correlation results when splitting the data and performance into international and local subsets. Appendix C.7 performs the correlation analysis between performance and data overlap without considering Amharic, which has no overlap with any other language. Appendix C.8 contains more in-depth definitions of the other features, besides data overlap, that we considered, as well as plots showing the correlation of each feature with transfer performance. In Appendix C.9 we consider the effect of training on a combination of datasets. Finally, in Appendix C.10 we consider the representations of the pre-trained models, how they are changed by fine-tuning and how this may explain some of our transfer results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Overfitting vs Dataset size</head><p>In this experiment, we evaluate the effect of the size of the language adaptive dataset on the transfer performance of a model trained on downstream data. To do this, we take the (a) base → X → X models, for each language X; i.e., those that performed language adaptive fine-tuning on language X and additional NER fine-tuning on the same language. We then evaluate these models on the 9 other languages. We do the same for the (b) base → X models (i.e. the models that took the base pre-trained model and performed NER finetuning on language X). We subtract the average transfer performance of the (b) models from the (a) ones, to obtain the performance gain (or loss) after performing language adaptive fine-tuning. We then plot this quantity against the number of sentences in the language adaptive fine-tuning datasets (obtained from Table <ref type="table" target="#tab_4">10</ref> in Adelani et al. ( <ref type="formula">2021</ref>)) in Fig. <ref type="figure" target="#fig_2">3</ref>. We see a strong negative correlation (Pearson's R = -0.82) that is statistically significant (p &lt; 0.05). This seems to indicate that the larger our language adaptive fine-tuning dataset is, the worse a downstream model will transfer.</p><p>Furthermore, we find that this result still holds if we omit the three languages included in xlm-roberta-base's pre-training dataset (Hausa, Swahili, Amharic), with R = -0.89, p &lt; 0.05. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1.1 Pre-training Size</head><p>In Fig. <ref type="figure">1b</ref>, we find that, on average, only Swahili and Nigerian Pidgin perform better as target languages after performing LAFT on the source language. Hausa, for instance, does not. One reason for this may be the size of the xlm-roberta-base pre-training dataset: Swahili had 275M tokens, English 55B (Nigerian Pidgin is an English creole), Amharic 68M and Hausa only 56M. Pre-training on a large dataset may make the model less susceptible to generalising worse after performing LAFT on another language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 Additional LAFT Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2.1 Experiment</head><p>For each language X, we compare four different models: base, base → Swahili, base → Hausa and base → X, where the latter three were subject to further language-adaptive fine-tuning on their respective languages. The base model acts as a baseline that does not perform adaptive fine-tuning at all, just fine-tuning on NER data. The base → X model shows the benefits of using adaptive finetuning on the target language. The base → Swahili and base → Hausa models provide information on how downstream performance is affected by language-adaptive fine-tuning on a different language. We chose Swahili as it was the language with the most speakers and the largest dataset out of the 10 available ones <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>, making it a promising language to transfer from. It is also spoken in Eastern Africa, like many of the other languages we consider. Hausa is chosen as a baseline, as another language with many speakers and a relatively large dataset. Hausa is predominantly spoken in Western Africa, in contrast to Swahili. We fine-tune each of these models on NER data and report the results when evaluated on the test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2.2 Results</head><p>We find that performing LAFT on Swahili outperforms the base model. When using Hausa as the LAFT language, however, we do not see any significant increase in performance compared to the base model when averaging over all languages. This may be due to the fact that the Hausa LAFT dataset is around 4 times smaller than the Swahili one. Besides Swahili and Hausa themselves, four languages have a significant (more than the standard deviation) difference in performance between the  <ref type="bibr" target="#b26">(Mann and Whitney, 1947)</ref> as some data failed a Shapiro Wilks normality test <ref type="bibr" target="#b41">(Shapiro and Wilk, 1965)</ref>. * indicates a statistically significant difference (p &lt; 0.05) between the base model and the one under consideration, bold implies * and being the maximum per language. The leftmost column shows the model we started with before fine-tuning on language-specific NER data, while the other columns indicate the NER fine-tuning and evaluation language. For example, base → X is the language adaptive model for each column. This suggests that the region of the source and target language has an impact on the effectiveness of LAFT.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 Additional Transfer Results</head><p>In Fig. <ref type="figure">5</ref>, we show more transfer results. The first row contains transfer performance when finetuning on the x-axis and evaluating on the y-axis. Figs. 5a and 5b were contained in the main text, and Fig. <ref type="figure">5c</ref> contains the results when using a base → swa language adaptive model. The second row shows the standard deviations of the F1 score over 5 seeds for each model in the first row. In particular, looking at Fig. <ref type="figure">5d</ref>, the results indicate that the standard deviation is generally higher when performing transfer (off-diagonal elements) compared to performing standard evaluation on the finetuned language (diagonal elements). This suggests that transfer exhibits a lack of robustness to random initialisations. This effect is more pronounced when fine-tuning on Luo, as it has significantly less data than the other languages. When transferring from other languages to Amharic, the spread is higher than average, likely due to Amharic's different script.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3.1 Performance varies wildly across the different entity types</head><p>We also consider the above results in slightly more detail by looking at each NER category individually, to see if any perform much better or worse than the others. These results are shown in Fig. <ref type="figure" target="#fig_3">4</ref>. We generally see that dates transfer poorly, over most languages, particularly for Luo. This could be caused by the differences in writing dates across these languages. Organisations transfer poorly for Amharic, possibly caused by its different script.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.4 International Tokens in Overlap</head><p>We have a few separate categories of international tokens, described shortly. The full data we use can be found in our source code base.</p><p>Names This contains a list of common English names and surnames.</p><p>Places This list contains continents such as Africa, countries such as Russia, cities such as London and states such as Texas. We additionally have the four cardinal directions (North, South, East, West) and the 10 000 cities with the largest population. <ref type="foot" target="#foot_3">4</ref> .</p><p>Companies A list of popular companies and organisations, such as Twitter, Youtube, Boeing, etc. We additionally use a list of the Fortune 1000 companies.</p><p>Numbers/Punctuation This category contains numbers and punctuation marks.</p><p>General English General English words, such as the names of the 12 months and the 7 days, words such as "International", "Hospital", "Christmas", etc. This category had the fewest occurrences on average, around 1% of tokens.</p><p>We generally find that places, names and numbers made up most of the overlapping tokens. Punctuation, the names of companies and general English words make up the smallest fraction, with less than 10% of the tokens.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.5 Alternate Overlap Calculations</head><p>While we used just a single method for calculating overlap in the main text, here we show the results when using other, reasonable techniques. Overall, we find that the conclusions are the same, with overlap correlating strongly with transfer performance.</p><p>In particular, the variations we consider are:</p><p>Unique Entities Only count the number of unique overlapping entities between the datasets.</p><p>Only Train Consider only the training dataset.</p><p>Source/Target/Sum When counting the number of times a token overlaps, use the number of occurrences in the source dataset, or the target dataset, or the sum of these two values.</p><p>Normalise Whether or not to normalise the overlap by dividing by either (1) the total number of entities, (2) the number of entities in the source, or (3) target language, etc.</p><p>Considering "O" Whether or not to consider the "Other" entities as well when calculating overlap, or just using the named entities.</p><p>Without Labels Whether to consider two entities overlapping if they have different labels.</p><p>Overall, we find that using the number of overlapping tokens as the number of occurrences in the source dataset has the lowest correlation, with R around 0.5. If we do not consider this approach of calculating overlap, then all correlation coefficients are at least 0.6, ranging up to 0.7. All correlations are statistically significant, with p &lt; 0.05.</p><p>This shows that regardless of the overlap method used, there is a strong correlation between the number of overlapping tokens and the transfer performance in NER. Some of the results for different calculation methods are shown in Fig. <ref type="figure" target="#fig_9">6</ref>. In particular, in the bottom row of this figure, we show results similar to those in the main text, but considering only the number of tokens present in the target dataset. We also calculate the fraction of overlapping tokens instead of the absolute number.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.6 Splitting Overlap into Local and International</head><p>See Fig. <ref type="figure">7</ref> for the overlap results (similar to Fig. <ref type="figure" target="#fig_1">2</ref>), split up into international and local tokens. The results here are similar to the ones in the main text (which was averaged over all tokens). The correlation is slightly lower for local tokens, but it is still positive and statically significant.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.7 Overlap Correlations without Amharic</head><p>Fig. <ref type="figure" target="#fig_10">8</ref> contains the correlation results when not considering Amharic.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.8 Additional Features</head><p>We additionally consider the other features from <ref type="bibr" target="#b22">Lin et al. (2019)</ref>. These results are shown in  In particular, we consider the following features:</p><p>Geographic distance The distance between where the different languages are spoken, based on data from Glottolog <ref type="bibr" target="#b15">(Hammarström et al., 2018)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Genetic distance</head><p>The genealogical distance between the languages based on the Glottolog language tree.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Inventory distance</head><p>The cosine distance between the feature vectors from the PHOIBLE database <ref type="bibr" target="#b28">(Moran et al., 2014)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Syntactic distance</head><p>The cosine distance between the feature vectors that represent the syntactic  1.3 0.7 1.4 3.6 1.9 3.1 2.8 1.4 5.6 1.7 2.5</p><p>3.4 0.9 1.2 1.1 2.3 5.8 2.7 1.6 1.2 1.9 2.4</p><p>3.3 0.6 0.3 1.2 1.5 5.8 1.5 2.2 4 4.4 2.7</p><p>7.8 2.8 1.4 0.4 2.1 3.2 2.6 1.5 1 2.1 2.7 0.7 1.6 1.4 1.8 0.7 4.9 0.9 1 1.6 4.4 2 1 1.1 1.8 0.8 0.7 1.3 0.8 0.8 1.8 1.2 1.1 1.7 1.2 1 0.9 1 1 0.6 1.1 2.9 1.5 1.4</p><p>1.6 1.1 1.1 0.9 2.1 2.6 1.2 0.7 1.8 2.2 1.6 5.7 1.3 2.3 0.7 3.7 5.2 1.9 1.8 0.6 3.3 2.9</p><p>4.4 1.2 2.4 3.4 5.2 7.9 0.6 2.9 1.7 1.1 3.3 1.7 1.6 2.5 3.5 2.4 4 0.8 2.6 4.2 2.7 2.7</p><p>1.5 0.8 1.4 1.6 1.8 3.8 1.8 0.8 2.5 2.5 2 3.6 0.6 0.3 3.2 2.2 3.6 1.1 3.1 6.3 5.5 3.2 2.7 1.3 1.9 0.4 2 2.9 1.1 1.2 5.1 5.6 2.7 1.7 0.9 1.9 3.6 0.5 3.4 1.2 1.2 3.9 3.3 2.3</p><p>1.8 0.8 1.7 3.1 1.2 1.2 1.6 1.8 4.6 1.9 2 1.6 1.4 3 5 4.3 2.5 0.5 1 4.5 5.5 3.2 2.2 2.4 1.8 3.4 2.4 1.6 0.7 1 3.5 4.9 2.6</p><p>2.6 1.3 1.6 1.2 1.3 3.6 1 0.7 0.6 6 2.1 3.9 1.2 2.5 4.3 1.6 5.8 3.6 2.4 3.4 0.8 3.2 1.3 1.8 3.2 2.9 1.8 1.8 1.7 1.8 4.2 1.4 2.3</p><p>3.9 0.8 0.6 2.5 1.1 2.3 1.2 1.7 2.5 3.1 2.1 2.2 1.8 1 2.9 1.1 1.9 1.1 0.7 6.3 3.3 2.4</p><p>4.6 1.2 1.6 0.2 1.6 3 1.4 1.5 5.1 3.4 2.6</p><p>1.8 0.8 1.1 0.7 0.8 3.3 0.8 0.8 3.9 4.3 1.9 0.7 1.4 1.4 0.8 0.6 1.4 1.2 0.8 4.6 3.3 1.7</p><p>1.6 1.1 1.1 0.2 1 1 0.5 1.9 4.5 3.7 1.8 0.9 1.7 1.3 0.9 0.8 1.8 0.9 1 3.5 4.1 1.8 6.5 1.5 2.9 4.2 4.6 2.2 1.8 1.7 0.6 4.1 3.  </p><formula xml:id="formula_1">-5 -3 2 -0 18 3 -2 -20 -19 -2 -1 3 0 -8 3 0 -2 -3 -11 7 -2 -0 3 -3 -6 -3 2 0 -3 -6 6 -1 1 11 -7 -10 -6 -2 4 1 -11 10 -1 0 23 -7 -10 -3 1 2 5 -12 3 -0 15 -2 4 -10 5 20 8 3 2 -15 3 2 -3 -2 -8 7 4 1 9 -12 8 -0 3 4 -2 -9 -1 6 3 -0 -13 0 -1 Results: (b) -(a)</formula><p>(g) Performance difference when adding language-adaptive fine-tuning.</p><p>Swahili and Hausa transfer worse on average, while Luo improves. </p><formula xml:id="formula_2">3 -4 -2 0 5 -2 -2 -24 -6 -3 2 1 -0 -3 1 12 4 1 -6 -3 1 1 4 0 -2 4 4 2 2 -14 6 1 5 -5 -3 -1 -1 11 1 0 -20 -10 -2 1 5 2 2 -1 8 -0 2 -11 2 1 8 11 9 10 8 3 8 7 -6 12 7 4 8 3 3 4 5 2 3 -11 12 3 1 8 2 0 1 3 0 1 -12 8 1 9 -4 -3 -15 -0 -5 -3 -6 2 -3 -3 -2 -9 -11 -12 -5 -2 -11 -11 -12 -2 -8 3 2 -0 -2 1 4 -0 -0 -13 2 -0 Results: (c) -(a)</formula><p>(h) Performance difference between using a Swahili adaptively fine-tuned model and no language-adaptive finetuning after subsequent fine-tuning on NER data. Hausa fine-tuning performs much worse when evaluated on Swahili.</p><p>Figure <ref type="figure">5</ref>: Heatmaps indicating the average performance over 5 seeds of specific models on specific languages (y-axis) after being fine-tuned on another language's NER data (x-axis). In general, we notice a large standard deviation, indicating that this process is unreliable. The bottom row shows the difference between one technique, and base, i.e. how much improvement this new model gives over using the base model. avg indicates the average transfer performance per row or column, respectively. Note that this calculates the average of the entire row or column excluding the diagonal, to be able to see the overall transfer performance at a glance.  The middle row also used all of the unlabelled data, but calculated |Es∩Et| |Es|+|Et| where E s and E t are the sets of unique entities for the source and transfer languages respectively <ref type="bibr" target="#b22">(Lin et al., 2019)</ref>   properties of the languages, from the WALS database <ref type="bibr" target="#b11">(Dryer and Haspelmath, 2013)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Phonological distance</head><p>The cosine distance between the phonological feature vectors obtained from WALS and Ethnologue databases <ref type="bibr" target="#b21">(Lewis, 2009)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Featural distance</head><p>The cosine distance between feature vectors consisting of the 5 above features.</p><p>Source language dataset size The number of sentences in the source language's dataset.</p><p>Source Over Target Size Ratio The size (in number of sentences) of the source dataset divided by the size of the target dataset.</p><p>Source language number of entities The number of named entities in the source language's dataset.</p><p>Source Over Target entity Ratio The number of entities in the source dataset divided by the number of entities in the target dataset.</p><p>Overall, we find that data overlap has the highest correlation with transfer performance, with many other features not having a statistically significant correlation or a very small positive or negative correlation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.9 Combining Datasets</head><p>As an additional experiment, we train models on a combination of datasets, to see if this has any effect. The two options we consider here are: (1) training on the concatenation of all of the datasets; and (2) training on the concatenation, excluding the target language. We consider (1), as it involves training a single model, and we would like to investigate how well this model performs across all languages. For (2), we measure the effect of transferring from the nine other languages, as opposed to only the single-language transfer we have considered in the towards categories -indicating that the model manages to transfer knowledge from Amharic to these other languages. The bottom row demonstrates a clear clustering around the random seed -indicating no real information is transferred.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.10.4 Summary</head><p>In summary, plotting the embeddings can shed some light on the representations learned by the model which, in many cases, provides some explanation for the results we obtained. Examining the embeddings can shed some light on this.        </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Correlation between data overlap and F1 performance when performing zero-shot transfer. 0.73 Pearson's correlation coefficient with p &lt; 0.05.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: (a) Data overlap and (b) its correlation with F1. R in (b) is similar without Amharic, see Appendix C.7.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure3: The correlation between the number of sentences in the LAFT sentences on the x-axis and the transfer performance delta of using this model compared to the base for fine-tuning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure4: Heatmaps for the language-adaptive fine-tuned model (Fig.5b), broken down by category.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>(c) base → swa → X-axis wol pcm yor hau ibo luo lug kin swa amh avg Fine</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 6 :</head><label>6</label><figDesc>Figure6: Overlap and correlation plots, for the (top) smallest and (middle) largest correlation coefficients, respectively. The bottom row contains the results when calculating overlap as the fraction of overlapping tokens in the target dataset, to contrast against the main text that used the absolute number. The top row used just the training dataset, counted overlap with respect to the number of occurrences in the source datasets, without considering labels. The middle row also used all of the unlabelled data, but calculated |Es∩Et| |Es|+|Et| where E s and E t are the sets of unique entities for the source and transfer languages respectively<ref type="bibr" target="#b22">(Lin et al., 2019)</ref> </figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 8 :</head><label>8</label><figDesc>Figure8: This shows the correlation between data overlap and performance for Amharic, as it has a different script and may thus be considered an outlier. The results are very similar to Fig.2b.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_13"><head></head><label></label><figDesc>Swahili embeddings from a Swahili fine-tuned model -with clear category clusters, although LOC and organisations are grouped close together.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_14"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Scatter plots of embeddings from different models, languages and categories. The shapes indicate different categories, whereas the colours indicate different starting points, i.e. seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_15"><head>Figure 10 :</head><label>10</label><figDesc>Figure 10: Embeddings of (a) multiple languages with one model and (b) Hausa embeddings from different models after performing PCA.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_16"><head>Figure 11 :</head><label>11</label><figDesc>Figure 11: Showing embeddings of various languages, obtained from base → amh.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_17"><head>Figure 21 :</head><label>21</label><figDesc>Figure 21: Geographic Distance</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Language details, partially reproduced from Adelani et al. (2021), with permission. The NER and LAFT Size columns contain the number of sentences in the NER training dataset and the unlabelled LAFT dataset, respectively.Country is the top one or two countries with the most speakers of the language, from<ref type="bibr" target="#b12">Eberhard et al. (2020)</ref>.</figDesc><table><row><cell>Language</cell><cell cols="2">Lang. Code Family</cell><cell>Country</cell><cell>Region</cell><cell cols="3">Speakers NER Size LAFT Size</cell></row><row><cell>Amharic</cell><cell>amh</cell><cell cols="2">Afro-Asiatic-Ethio-Semitic Ethiopia</cell><cell>East</cell><cell>33M</cell><cell>1,750</cell><cell>3.1M</cell></row><row><cell>Hausa</cell><cell>hau</cell><cell>Afro-Asiatic-Chadic</cell><cell>Nigeria, Niger</cell><cell>West</cell><cell>63M</cell><cell>1,903</cell><cell>3.1M</cell></row><row><cell>Igbo</cell><cell>ibo</cell><cell>Niger-Congo-Volta-Niger</cell><cell>Nigeria</cell><cell>West</cell><cell>27M</cell><cell>2,233</cell><cell>1.1M</cell></row><row><cell>Kinyarwanda</cell><cell>kin</cell><cell>Niger-Congo-Bantu</cell><cell cols="2">Rwanda, Uganda East</cell><cell>12M</cell><cell>2,110</cell><cell>726K</cell></row><row><cell>Luganda</cell><cell>lug</cell><cell>Niger-Congo-Bantu</cell><cell>Uganda</cell><cell>East</cell><cell>7M</cell><cell>2,003</cell><cell>506K</cell></row><row><cell>Luo Nilo</cell><cell>luo</cell><cell>Saharan</cell><cell>Kenya</cell><cell>East</cell><cell>4M</cell><cell>644</cell><cell>160K</cell></row><row><cell cols="2">Nigerian Pidgin pcm</cell><cell>English Creole</cell><cell>Nigeria</cell><cell>West</cell><cell>75M</cell><cell>2,100</cell><cell>207K</cell></row><row><cell>Swahili</cell><cell>swa</cell><cell>Niger-Congo-Bantu</cell><cell cols="2">Tanzania, Kenya Central &amp; East</cell><cell>98M</cell><cell>2,104</cell><cell>12.6M</cell></row><row><cell>Wolof</cell><cell>wol</cell><cell>Niger-Congo-Senegambia</cell><cell>Senegal</cell><cell>West &amp; NW</cell><cell>5M</cell><cell>1,871</cell><cell>42K</cell></row><row><cell>Yorùbá</cell><cell>yor</cell><cell>Niger-Congo-Volta-Niger</cell><cell>Nigeria</cell><cell>West</cell><cell>42M</cell><cell>2,124</cell><cell>910K</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Pearson's correlation coefficient and the corresponding p-value for features used by<ref type="bibr" target="#b22">Lin et al. (2019)</ref>. The data overlap row is the same as in Fig.2. The first five features are not statistically significant, as p ≥ 0.05.</figDesc><table><row><cell>Feature</cell><cell>Type</cell><cell>R</cell><cell>p</cell></row><row><cell>Featural Distance</cell><cell>Linguistic</cell><cell>-0.00</cell><cell>1</cell></row><row><cell>Phonological Distance</cell><cell>Linguistic</cell><cell>-0.02</cell><cell>0.84</cell></row><row><cell>Inventory Distance</cell><cell>Linguistic</cell><cell>-0.06</cell><cell>0.55</cell></row><row><cell>Source Over Target Size Ratio</cell><cell>Dataset</cell><cell>-0.20</cell><cell>0.056</cell></row><row><cell>Geographic Distance</cell><cell cols="2">Geographic -0.21</cell><cell>0.05</cell></row><row><cell>Source Dataset Size</cell><cell>Dataset</cell><cell>0.23</cell><cell>0.029</cell></row><row><cell>Syntactic Distance</cell><cell>Linguistic</cell><cell>-0.23</cell><cell>0.028</cell></row><row><cell>Source Number Of Entities</cell><cell>Dataset</cell><cell>0.29</cell><cell>0.0063</cell></row><row><cell cols="2">Source Over Target Entities Ratio Dataset</cell><cell>-0.30</cell><cell>0.0044</cell></row><row><cell>Genetic Distance</cell><cell>Linguistic</cell><cell>-0.30</cell><cell>0.0041</cell></row><row><cell>Data Overlap</cell><cell>Dataset</cell><cell cols="2">0.73 3.5 × 10 -16</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 10</head><label>10</label><figDesc></figDesc><table><row><cell>of</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Information about the different data sources and breakdowns of the NER data per language. Reproduced from Adelani et al. (2021), with permission.</figDesc><table><row><cell cols="2">Language Data Source</cell><cell cols="2">Train/ dev/ test #Anno</cell><cell cols="6">PER ORG LOC DATE % of Entities in Tokens #Tokens</cell></row><row><cell>Amharic</cell><cell>DW &amp; BBC</cell><cell>1750/ 250/ 500</cell><cell>4</cell><cell>730</cell><cell cols="2">403 1,420</cell><cell>580</cell><cell>15.13</cell><cell>37,032</cell></row><row><cell>Hausa</cell><cell>VOA Hausa</cell><cell>1903/ 272/ 545</cell><cell>3</cell><cell>1,490</cell><cell cols="2">766 2,779</cell><cell>922</cell><cell>12.17</cell><cell>80,152</cell></row><row><cell>Igbo</cell><cell>BBC Igbo</cell><cell>2233/ 319/ 638</cell><cell>6</cell><cell cols="3">1,603 1,292 1,677</cell><cell>690</cell><cell>13.15</cell><cell>61,668</cell></row><row><cell>Kinyarwanda</cell><cell>IGIHE news</cell><cell>2110/ 301/ 604</cell><cell>2</cell><cell cols="3">1,366 1,038 2,096</cell><cell>792</cell><cell>12.85</cell><cell>68,819</cell></row><row><cell>Luganda</cell><cell>BUKEDDE news</cell><cell>2003/ 200/ 401</cell><cell>3</cell><cell>1,868</cell><cell>838</cell><cell>943</cell><cell>574</cell><cell>14.81</cell><cell>46,615</cell></row><row><cell>Luo</cell><cell>Ramogi FM news</cell><cell>644/ 92/ 185</cell><cell>2</cell><cell>557</cell><cell>286</cell><cell>666</cell><cell>343</cell><cell>14.95</cell><cell>26,303</cell></row><row><cell cols="2">Nigerian Pidgin BBC Pidgin</cell><cell>2100/ 300/ 600</cell><cell>5</cell><cell cols="4">2,602 1,042 1,317 1,242</cell><cell>13.25</cell><cell>76,063</cell></row><row><cell>Swahili</cell><cell>VOA Swahili</cell><cell>2104/ 300/ 602</cell><cell>6</cell><cell>1,702</cell><cell cols="2">960 2,842</cell><cell>940</cell><cell>12.48</cell><cell>79,272</cell></row><row><cell>Wolof</cell><cell cols="2">Lu Defu Waxu &amp; Saabal 1871/ 267/ 536</cell><cell>2</cell><cell>731</cell><cell>245</cell><cell>836</cell><cell>206</cell><cell>6.02</cell><cell>52,872</cell></row><row><cell>Yorùbá</cell><cell>GV &amp; VON news</cell><cell>2124/ 303/ 608</cell><cell>5</cell><cell>1,039</cell><cell cols="2">835 1,627</cell><cell>853</cell><cell>11.57</cell><cell>83,285</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 4 :</head><label>4</label><figDesc>Hyperparameters for the fine-tuning experiments</figDesc><table><row><cell>Hyperparameter</cell><cell>Value</cell></row><row><cell>Number of Seeds</cell><cell>5</cell></row><row><cell>Fine-tuning Epochs</cell><cell>50</cell></row><row><cell>Maximum Sequence Length</cell><cell>200</cell></row><row><cell>Batch Size</cell><cell>32</cell></row><row><cell>Learning Rate</cell><cell>5e-5</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 5 :</head><label>5</label><figDesc>Performance of different models after fine-tuning and evaluating on NER data. We use a Mann-Whitney U test</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head></head><label></label><figDesc>Showing the correlation between overlap and performance when only considering (a) International and (b) Local tokens. Here, both the performance and overlap calculations only took these subsets of tokens into account, for instance, comparing the number of overlapping international tokens with the performance on international tokens.</figDesc><table><row><cell></cell><cell cols="6">Comparing F1 vs. Data overlap. R=0.71, p=8.0e-15</cell><cell cols="10">Comparing F1 vs. Data overlap. R=0.54, p=2.9e-08</cell></row><row><cell></cell><cell>80</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>70</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>60</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>60</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>50</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Source</cell><cell>Target</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Source</cell><cell></cell><cell cols="2">Target</cell></row><row><cell>F1</cell><cell>40</cell><cell></cell><cell></cell><cell>wol</cell><cell></cell><cell>wol</cell><cell>F1</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>wol</cell><cell></cell><cell>wol</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>pcm</cell><cell></cell><cell>pcm</cell><cell>40</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>pcm</cell><cell></cell><cell>pcm</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>yor</cell><cell></cell><cell>yor</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>yor</cell><cell></cell><cell>yor</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>hau</cell><cell></cell><cell>hau</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>hau</cell><cell></cell><cell>hau</cell></row><row><cell></cell><cell>20</cell><cell></cell><cell></cell><cell>ibo luo</cell><cell></cell><cell>ibo luo</cell><cell>30</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>ibo luo</cell><cell></cell><cell>ibo luo</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>lug</cell><cell></cell><cell>lug</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>lug</cell><cell></cell><cell>lug</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>kin</cell><cell></cell><cell>kin</cell><cell>20</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>kin</cell><cell></cell><cell>kin</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>swa</cell><cell></cell><cell>swa</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>swa</cell><cell></cell><cell>swa</cell></row><row><cell></cell><cell>0</cell><cell></cell><cell></cell><cell>amh</cell><cell></cell><cell>amh</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>amh</cell><cell></cell><cell>amh</cell></row><row><cell></cell><cell>0</cell><cell>1000</cell><cell>2000</cell><cell>3000</cell><cell>4000</cell><cell>5000</cell><cell>10</cell><cell>0</cell><cell>250</cell><cell>500</cell><cell>750</cell><cell>1000</cell><cell>1250</cell><cell>1500</cell><cell>1750</cell><cell>2000</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="3">Data Amount Overlapping</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="4">Data Amount Overlapping</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">(a) International</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">(b) Local</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="7">1000 Comparing F1 vs. Data overlap. R=0.71, p=2.8e-12 2000 3000 4000 5000 6000 7000 Source wol pcm yor hau ibo luo lug kin Target wol pcm yor hau ibo luo lug kin Figure 7: 0 30 40 50 60 70 F1 swa swa</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="4">Data Amount Overlapping</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>We publicly release our code and models at https://github. com/Michael-Beukman/NerTransfer.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://github.com/masakhane-io/masakhane-ner/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>Available at https://github.com/masakhane-io/ masakhane-ner</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://public.opendatasoft.com/explore/dataset/ geonames-all-cities-with-a-population-1000/download/</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>Computations were performed using High Performance Computing infrastructure provided by the <rs type="institution">Mathematical Sciences Support unit at the University of the Witwatersrand</rs>. We thank the reviewers for their helpful and insightful comments, which helped to strengthen the final version of this paper. Finally, thanks to <rs type="person">Devon Jarvis</rs>, <rs type="person">Jade Abbot</rs>, <rs type="person">Steven James</rs> and <rs type="person">Benjamin Rosman</rs> for useful input.</p></div>
+			</div>			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix A Dataset</head><p>As mentioned in the main text, we used the MasakhaNER dataset <ref type="bibr" target="#b0">(Adelani et al., 2021)</ref>. 3 Information about the dataset, including the number of sentences and data sources, broken down by language, is shown in Table <ref type="table">3</ref>. <ref type="bibr" target="#b0">Adelani et al. (2021)</ref> discuss the characteristics of the languages in more depth.</p><p>Most of the data was sourced from various news websites around the same time, with e.g. the Swahili and Hausa data both coming from the VOA website. While the authors of <ref type="bibr" target="#b0">Adelani et al. (2021)</ref> do not know for certain whether the Hausa and Swahili data are translations of each other, it is quite likely that the events covered are similar, as the data is from around the same period. rest of this paper. These results are shown in Table <ref type="table">6</ref>. Training on the target language, or on the concatenation of all languages performs quite well. The latter option also has the advantage of only being one model, whereas we need one model per language if we fine-tune only on data from one language. Fine-tuning the base model on the best transfer language performs worse than training on all of the datasets, excluding the target language. Finally, using a LAFT model for the target language and fine-tuning on all datasets except the target performs much better, and is the best transfer option we have considered. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.10 Representations</head><p>This additional experiment follows prior work by <ref type="bibr" target="#b17">Hsu et al. (2019)</ref> by investigating the contextual word embeddings from the different models, specifically looking into how these embeddings change as we perform different fine-tuning operations. We take the last 4 layers from the language model (i.e. not the dense final layer) and use the sum of these hidden states to obtain a word vector (of size 768).</p><p>We use the sentences from the dataset, and only extract the 4 different NER categories for computational reasons. We compute the mean vector per category, which we use in the following. To visualise the data, we show the results after performing PCA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.10.1 Variability</head><p>We found a large amount of variability when finetuning the models on different random seeds (see Figure <ref type="figure">1</ref> in the main text), so we next investigate the effect of different initialisations on the embeddings. Fig. <ref type="figure">9</ref> shows the results for a few languages pairs, and immediately we can see that Fig. <ref type="figure">9a</ref> has clusters corresponding to the different categories, even when using different seeds. Figs. 9b to 9d on the other hand cluster more toward seeds, so the cate-gories differ when using different seeds. This could indicate that the Swahili model is more consistent and robust to random initialisations, and learns roughly the same embeddings for each seed. On the other hand, when fine-tuning from Kinyarwanda, Luo or Wolof, there is no clear clustering of categories (despite a relatively large amount of data overlap between Kinyarwanda and Hausa), suggesting that these models cannot distinguish Hausa categories very well (possibly substantiated by the poorer results shown in the main text). Now, the above analysis is somewhat impacted by the final linear layers in the models -it is entirely possible that two models that have different embeddings also have different final layers and end up classifying examples exactly the same. We can, however, still use these experiments to extract some qualitative information about the embeddings of different languages. Furthermore, Figs. <ref type="figure">9e</ref> and<ref type="figure">9f</ref> -in which the language being investigated is the same as what the models trained on -contain results where the clustering is predominantly towards categories, bolstering the validity of this approach.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.10.2 Different Languages and Models</head><p>Here we consider the same model and analyse the differences in embeddings from different languages, and how this evolves. For example, in Fig. <ref type="figure">10a</ref> we see that for Nigerian Pidgin (which transferred well previously), the predominant clusters are again categories and not languages.</p><p>We next examine different models on the same language, specifically looking at what happens to these embeddings when a model is further finetuned. Fig. <ref type="figure">10b</ref> shows that performing fine-tuning on models does affect the embeddings quite significantly, although there does still seem to be a similar relative positioning between the categories -almost as if in PCA, one principal component was the model used, and another was the category.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.10.3 Transfer when fine-tuning on Amharic</head><p>In the main text, we observed that Amharic transferred quite well to Hausa, Swahili and Nigerian Pidgin. We now plot the embeddings of different languages, using base fine-tuned on Amharic in Fig. <ref type="figure">11</ref>. In the top row, we have Hausa, Swahili -languages that Amharic was jointly pre-trained with -and Nigerian Pidgin, which is similar to English. In the bottom row, we have three other languages, not contained in the pre-training dataset. Clearly, the top row is clustered significantly more</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Masakhaner: Named entity recognition for african languages</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ifeoluwa Adelani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jade</forename><forename type="middle">Z</forename><surname>Abbott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D'</forename><surname>Daniel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julia</forename><surname>Souza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Constantine</forename><surname>Kreutzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chester</forename><surname>Lignos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Happy</forename><surname>Palen-Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Buzaaba</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rijhwani</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00416</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">2022a. A few thousand translations go a long way! leveraging pretrained models for african news translation</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ifeoluwa Adelani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesujoba</forename><forename type="middle">O</forename><surname>Alabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julia</forename><surname>Kreutzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyu</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Machel</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dana</forename><surname>Ruiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dietrich</forename><surname>Klakow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Nabende</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ernie</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tajuddeen</forename><surname>Gwadabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Freshia</forename><surname>Sackey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">P</forename><surname>Bonaventure</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dossou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Emezue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Leong</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Beukman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hassan</forename><surname>Shamsuddeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guyo</forename><surname>Muhammad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oreen</forename><surname>Dub Jarso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andre</forename><surname>Yousuf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gilles</forename><surname>Niyongabo Rubungo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hacheme</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhammad</forename><forename type="middle">Umair</forename><surname>Peter Wairagala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Nasir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tunde</forename><surname>Ajibade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yvonne</forename><forename type="middle">Wambui</forename><surname>Ajayi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jade</forename><forename type="middle">Z</forename><surname>Gitau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Abbott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Millicent</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aremu</forename><surname>Ochieng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Perez</forename><surname>Anuoluwapo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Ogayo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mukiibi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.223</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Fatoumata Ouoba Kabore, Godson Kalipe, Derguene Mbaye, Allahsera Auguste Tapo</title>
+		<editor>
+			<persName><forename type="first">Edwin</forename><surname>Victoire Memdjokam Koagne</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Valencia</forename><surname>Munkoh-Buabeng</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Idris</forename><surname>Wagner</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ayodele</forename><surname>Abdulmumin</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Happy</forename><surname>Awokoya</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Blessing</forename><surname>Buzaaba</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Andiswa</forename><surname>Sibanda</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sam</forename><surname>Bukula</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Manthalu</surname></persName>
+		</editor>
+		<imprint>
+			<biblScope unit="page" from="3053" to="3070" />
+		</imprint>
+	</monogr>
+	<note>In Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ifeoluwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adelani</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Rijhwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Beukman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chester</forename><surname>Palen-Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Constantine</forename><surname>Lignos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesujoba</forename><forename type="middle">O</forename><surname>Alabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hassan</forename><surname>Shamsuddeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Muhammad</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nabende</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cheikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andiswa</forename><surname>Bamba Dione</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rooweither</forename><surname>Bukula</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mabuya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">P</forename><surname>Bonaventure</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blessing</forename><surname>Dossou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Happy</forename><surname>Sibanda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Buzaaba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Godson</forename><surname>Mukiibi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derguene</forename><surname>Kalipe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amelia</forename><surname>Mbaye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fatoumata</forename><surname>Taylor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Ouoba Kabore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aremu</forename><surname>Chinenye Emezue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Perez</forename><surname>Anuoluwapo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Catherine</forename><surname>Ogayo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edwin</forename><surname>Gitau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victoire</forename><surname>Munkoh-Buabeng</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Memdjokam Koagne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Auguste</forename><surname>Allahsera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tebogo</forename><surname>Tapo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vukosi</forename><surname>Macucwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elvis</forename><surname>Marivate</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tajuddeen</forename><surname>Mboning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tosin</forename><forename type="middle">P</forename><surname>Gwadabe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orevaoghene</forename><surname>Adewumi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joyce</forename><surname>Ahia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neo</forename><forename type="middle">L</forename><surname>Nakatumba-Nabende</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ignatius</forename><surname>Mokono</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chiamaka</forename><surname>Ezeani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mofetoluwa</forename><surname>Chukwuneke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gilles</forename><surname>Adeyemi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hacheme</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Idris Abdulmumin</title>
+		<imprint>
+			<biblScope unit="page" from="4488" to="4508" />
+		</imprint>
+		<respStmt>
+			<orgName>Odunayo Ogundepo, Oreen Yousuf</orgName>
+		</respStmt>
+	</monogr>
+	<note>Tatiana Moteu Ngoli, and Dietrich Klakow. 2022b. Masakhaner 2.0: Africa-centric transfer learning for named entity recognition</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Adapting pre-trained language models to african languages via multilingual adaptive fine-tuning</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Jesujoba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Alabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marius</forename><surname>Ifeoluwa Adelani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dietrich</forename><surname>Mosbach</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Klakow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Computational Linguistics, COLING 2022</title>
+		<meeting>the 29th International Conference on Computational Linguistics, COLING 2022<address><addrLine>Gyeongju</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-10-12">2022. October 12-17, 2022</date>
+			<biblScope unit="page" from="4336" to="4349" />
+		</imprint>
+	</monogr>
+	<note>Republic of Korea. International Committee on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Spanish pre-trained bert model and evaluation data</title>
+		<author>
+			<persName><forename type="first">José</forename><surname>Canete</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Chaperon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rodrigo</forename><surname>Fuentes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jou-Hui</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hojin</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jorge</forename><surname>Pérez</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>Pml4dc at iclr</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Unsupervised cross-lingual representation learning at scale</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartikay</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Wenzek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.747</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Wietse De Vries</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arianna</forename><surname>Van Cranenburgh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tommaso</forename><surname>Bisazza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gertjan</forename><surname>Caselli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malvina</forename><surname>Van Noord</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nissim</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1912.09582</idno>
+		<title level="m">BERTje: A Dutch BERT Model</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.04805</idno>
+		<title level="m">Bert: Pre-training of deep bidirectional transformers for language understanding</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">BERT: pre-training of deep bidirectional transformers for language understanding</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/n19-1423</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Does syntactic knowledge in multilingual language models transfer across languages?</title>
+		<author>
+			<persName><forename type="first">Prajit</forename><surname>Dhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arianna</forename><surname>Bisazza</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/w18-5453</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop: Analyzing and Interpreting Neural Networks for NLP, BlackboxNLP@EMNLP 2018, Brussels, Belgium</title>
+		<meeting>the Workshop: Analyzing and Interpreting Neural Networks for NLP, BlackboxNLP@EMNLP 2018, Brussels, Belgium</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018-11-01">2018. November 1, 2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Analysing the impact of linguistic features on crosslingual transfer</title>
+		<author>
+			<persName><forename type="first">Blazej</forename><surname>Dolicki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerasimos</forename><surname>Spanakis</surname></persName>
+		</author>
+		<idno>CoRR, abs/2105.05975</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">S</forename><surname>Dryer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Haspelmath</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<pubPlace>Leipzig</pubPlace>
+		</imprint>
+		<respStmt>
+			<orgName>WALS Online. Max Planck Institute for Evolutionary Anthropology</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">M</forename><surname>Eberhard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gary</forename><forename type="middle">F</forename><surname>Simons</surname></persName>
+		</author>
+		<ptr target="http://www.ethnologue.com" />
+		<title level="m">Ethnologue: Languages of the world. twenty-third edition</title>
+		<editor>
+			<persName><forename type="first">Charles</forename><forename type="middle">D</forename><surname>Fennig</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Americasnli: Evaluating zero-shot natural language understanding of pretrained multilingual models in truly low-resource languages</title>
+		<author>
+			<persName><forename type="first">Abteen</forename><surname>Ebrahimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuel</forename><surname>Mager</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arturo</forename><surname>Oncevay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishrav</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luis</forename><surname>Chiruzzo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">E</forename><surname>Ortega</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Ramos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Annette</forename><surname>Rios</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iván</forename><surname>Vladimir Meza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gustavo</forename><forename type="middle">Giménez</forename><surname>Ruíz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elisabeth</forename><surname>Lugo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Mager</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rolando</forename><forename type="middle">A Coto</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ngoc</forename><forename type="middle">Thang</forename><surname>Solano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katharina</forename><surname>Vu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kann</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.435</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2022-05-22">2022. May 22-27, 2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="6279" to="6299" />
+		</imprint>
+	</monogr>
+	<note>ACL 2022. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Don&apos;t stop pretraining: Adapt language models to domains and tasks</title>
+		<author>
+			<persName><forename type="first">Suchin</forename><surname>Gururangan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ana</forename><surname>Marasović</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swabha</forename><surname>Swayamdipta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doug</forename><surname>Downey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.740</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Glottolog 3.0. Max Planck Institute for the Science of Human History</title>
+		<author>
+			<persName><forename type="first">Harald</forename><surname>Hammarström</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Forkel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Haspelmath</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Measuring mathematical problem solving with the MATH dataset</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Collin</forename><surname>Burns</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurav</forename><surname>Kadavath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akul</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Basart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Steinhardt</surname></persName>
+		</author>
+		<idno>CoRR, abs/2103.03874</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Zero-shot reading comprehension by crosslingual transfer learning with multi-lingual language representation model</title>
+		<author>
+			<persName><forename type="first">Tsung-Yuan</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi-Liang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hung-Yi</forename><surname>Lee</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1607</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2019">2019. 2019</date>
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">SMART: robust and efficient fine-tuning for pretrained natural language models through principled regularized optimization</title>
+		<author>
+			<persName><forename type="first">Haoming</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tuo</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.197</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Cross-lingual ability of multilingual BERT: an empirical study</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Karthikeyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Mayhew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">8th International Conference on Learning Representations, ICLR 2020</title>
+		<meeting><address><addrLine>Addis Ababa, Ethiopia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-04-26">2020. April 26-30, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Neural architectures for named entity recognition</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kazuya</forename><surname>Kawakami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/n16-1030</idno>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL HLT 2016, The 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting><address><addrLine>San Diego California, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>The Association for Computational Linguistics</publisher>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Ethnologue: Languages of the world Sixteenth Edition</title>
+		<author>
+			<persName><forename type="first">Lewis</forename><surname>Paul</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+	<note>SIL international</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yu-Hsiang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chian-Yu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zirui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuyan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengzhou</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Rijhwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhisong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<title level="m">Antonios Anastasopoulos</title>
+		<imprint>
+			<publisher>Patrick Littell, and Graham Neubig</publisher>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Choosing transfer languages for cross-lingual learning</title>
+		<idno type="DOI">10.18653/v1/p19-1301</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Conference of the Association for Computational Linguistics, ACL 2019</title>
+		<meeting>the 57th Conference of the Association for Computational Linguistics, ACL 2019<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint/>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">URIEL and lang2vec: Representing languages as typological, geographical, and phylogenetic vectors</title>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Littell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">R</forename><surname>Mortensen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Kairis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlisle</forename><surname>Turner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lori</forename><surname>Levin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics<address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="8" to="14" />
+		</imprint>
+	</monogr>
+	<note>Short Papers</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A balanced data approach for evaluating cross-lingual transfer: Mapping the linguistic blood bank</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Malkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomasz</forename><surname>Limisiewicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Stanovsky</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.361</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL 2022</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL 2022<address><addrLine>Seattle, WA, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022-07-10">2022. July 10-15, 2022</date>
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">R</forename><surname>Whitney</surname></persName>
+		</author>
+		<idno type="DOI">10.1214/aoms/1177730491</idno>
+	</analytic>
+	<monogr>
+		<title level="j">The Annals of Mathematical Statistics</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="1947">1947</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Named entity recognition: fallacies, challenges and opportunities</title>
+		<author>
+			<persName><forename type="first">Mónica</forename><surname>Marrero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julián</forename><surname>Urbano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonia</forename><surname>Sánchez-Cuadrado</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jorge</forename><surname>Morato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename><surname>Miguel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gómez-Berbís</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Standards &amp; Interfaces</title>
+		<imprint>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page">35</biblScope>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Phoible online. max planck institute for evolutionary anthropology, leipzig</title>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Moran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Mccloy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wright</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Small data? no problem! exploring the viability of pretrained multilingual language models for lowresourced languages</title>
+		<author>
+			<persName><forename type="first">Kelechi</forename><surname>Ogueji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Workshop on Multilingual Representation Learning</title>
+		<meeting>the 1st Workshop on Multilingual Representation Learning<address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">AfriTeVA: Extending &quot;small data&quot; pretraining approaches to sequence-to-sequence models</title>
+		<author>
+			<persName><forename type="first">Odunayo</forename><surname>Ogundepo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akintunde</forename><surname>Oladipo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mofetoluwa</forename><surname>Adeyemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelechi</forename><surname>Ogueji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.deeplo-1.14</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Workshop on Deep Learning for Low-Resource Natural Language Processing</title>
+		<meeting>the Third Workshop on Deep Learning for Low-Resource Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="126" to="135" />
+		</imprint>
+	</monogr>
+	<note>Hybrid. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">SeqScore: Addressing barriers to reproducible named entity recognition evaluation</title>
+		<author>
+			<persName><forename type="first">Chester</forename><surname>Palen-Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nolan</forename><surname>Holley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Constantine</forename><surname>Lignos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Evaluation and Comparison of NLP Systems</title>
+		<meeting>the 2nd Workshop on Evaluation and Comparison of NLP Systems<address><addrLine>Punta Cana, Dominican Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">L3cube-mahaner: A marathi named entity recognition dataset and BERT models</title>
+		<author>
+			<persName><forename type="first">Parth</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aparna</forename><surname>Ranade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maithili</forename><surname>Sabane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Onkar</forename><surname>Litake</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raviraj</forename><surname>Joshi</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2204.06029</idno>
+		<idno>CoRR, abs/2204.06029</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">MAD-X: an adapter-based framework for multi-task cross-lingual transfer</title>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Pfeiffer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.617</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020. 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">How multilingual is multilingual bert?</title>
+		<author>
+			<persName><forename type="first">Telmo</forename><surname>Pires</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eva</forename><surname>Schlinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Garrette</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/p19-1493</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Conference of the Association for Computational Linguistics</title>
+		<meeting>the 57th Conference of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019. 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">CL-NERIL: A cross-lingual model for NER in indian languages (student abstract)</title>
+		<author>
+			<persName><forename type="first">Akshara</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gouri</forename><surname>Sankar Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Anand</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v36i11.21652</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Thirty-Sixth AAAI Conference on Artificial Intelligence, AAAI 2022, Thirty-Fourth Conference on Innovative Applications of Artificial Intelligence, IAAI 2022, The Twelveth Symposium on Educational Advances in Artificial Intelligence, EAAI 2022 Virtual Event</title>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2022-02-22">2022. February 22 -March 1, 2022</date>
+			<biblScope unit="page" from="13031" to="13032" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Improving language understanding by generative pre-training</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note>Tim Salimans, and Ilya Sutskever</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<ptr target="http://ruder.io/recent-advances-lm-fine-tuning" />
+		<title level="m">Recent Advances in Language Model Fine-tuning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Transfer learning in natural language processing</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swabha</forename><surname>Swayamdipta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter</title>
+		<meeting>the 2019 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Tutorials</publisher>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Introduction to the conll-2003 shared task: Languageindependent named entity recognition</title>
+		<author>
+			<persName><forename type="first">Erik</forename><forename type="middle">F</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fien</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meulder</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Conference on Natural Language Learning, CoNLL 2003, Held in cooperation with HLT-NAACL 2003</title>
+		<meeting>the Seventh Conference on Natural Language Learning, CoNLL 2003, Held in cooperation with HLT-NAACL 2003<address><addrLine>Edmonton, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACL</publisher>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">An analysis of variance test for normality (complete samples)</title>
+		<author>
+			<persName><forename type="first">Sanford</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><forename type="middle">B</forename><surname>Shapiro</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wilk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Biometrika</title>
+		<imprint>
+			<biblScope unit="volume">52</biblScope>
+			<biblScope unit="issue">3/4</biblScope>
+			<date type="published" when="1965">1965</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Zero-shot dependency parsing with pre-trained multilingual sentence representations</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arianna</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bisazza</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-6132</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Deep Learning Approaches for Low-Resource NLP, DeepLo@EMNLP-IJCNLP 2019</title>
+		<meeting>the 2nd Workshop on Deep Learning Approaches for Low-Resource NLP, DeepLo@EMNLP-IJCNLP 2019<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019-11-03">2019. November 3, 2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Aditya Barua, and Colin Raffel. 2021. mt5: A massively multilingual pre-trained text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Linting</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Siddhant</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.41</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2021</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2021</meeting>
+		<imprint>
+			<date type="published" when="2021">June 6-11, 2021</date>
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">A closer look at how fine-tuning changes BERT</title>
+		<author>
+			<persName><forename type="first">Yichu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivek</forename><surname>Srikumar</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.75</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics, ACL 2022</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics, ACL 2022<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

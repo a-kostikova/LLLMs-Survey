@@ -1,0 +1,1663 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">PhraseSumm: Abstractive Short Phrase Summarization</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Kasturi</forename><surname>Bhattacharjee</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+							<email>mckeownk@amazon.com</email>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Rashmi</forename><surname>Gangadharaiah</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI Labs</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">PhraseSumm: Abstractive Short Phrase Summarization</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C37DF7E5C1CC6BBBF78F09C62A8F095E</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T14:03+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Prior work in the field of text summarization mostly focuses on generating summaries that are a sentence or two long. In this work, we introduce the task of abstractive short-phrase summarization (PhraseSumm), which aims at capturing the central theme of a document through a generated short phrase. We explore BART &amp; T5-based neural summarization models, and measure their effectiveness for the task using both standard summarization metrics as well as human evaluation. Our work showcases the benefits of pre-training the summarization models using tasks such as phrasal paraphrase alignment and NLI before fine-tuning on the task itself, both of which help the model with abstraction and thereby yield improvements over the baselines. Human evaluation reveals that model generated summaries are often judged better than or equal to reference summaries, demonstrating that ROUGE scores underestimate true performance. Finally, we create and release a dataset for this task to enable further research in the area.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Text summarization is a well-studied NLP task of compressing long textual documents to concise, human readable summaries that capture the key semantic information contained in the documents <ref type="bibr" target="#b35">(Nallapati et al., 2017;</ref><ref type="bibr" target="#b15">Dou et al., 2020;</ref><ref type="bibr" target="#b25">Kryscinski et al., 2020;</ref><ref type="bibr" target="#b53">Zhang et al., 2022)</ref>. In general, there are two main approaches for summarization extractive and abstractive. While extractive approaches <ref type="bibr" target="#b35">(Nallapati et al., 2017;</ref><ref type="bibr" target="#b57">Zhong et al., 2019;</ref><ref type="bibr" target="#b46">Wang et al., 2020)</ref> focus on copying salient portions of the source document for the summary, abstractive approaches focus on generating novel sentences to create a coherent and succinct summary that remain faithful to the central notions within the input text <ref type="bibr" target="#b25">(Kryscinski et al., 2020;</ref><ref type="bibr" target="#b11">Chen et al., 2021;</ref><ref type="bibr" target="#b27">Ladhak et al., 2021)</ref>. Most prior work in both these areas focus on summarizing long documents such as news articles <ref type="bibr" target="#b17">(Eyal et al., 2019;</ref><ref type="bibr" target="#b36">Nenkova et al., 2011;</ref><ref type="bibr" target="#b0">Ahuja et al., 2022)</ref>, novel chapters <ref type="bibr" target="#b28">(Ladhak et al., 2020;</ref><ref type="bibr" target="#b48">Wu et al., 2021)</ref>, movie scripts <ref type="bibr" target="#b9">(Chen et al., 2022;</ref><ref type="bibr" target="#b19">Gorinski and Lapata, 2015)</ref> etc. to generate summaries that are at least a few sentences in length. However, in this work, we introduce PhraseSumm, a new task of abstractive short-phrase summarization that aims at generating abstractive summaries consisting of a short phrase (2-3 words) from documents that are relatively shorter in length (in our case, mostly consisting of 5-12 words in a single sentence). The short phrase should aim to capture the main theme within the document. To the best of our knowledge, our work is unique in its focus on summarization using short phrases.</p><p>Our task involves summarizing an input document using a short phrase which is often not present within the document, and can not, therefore, be obtained using extractive techniques alone. Thus, approaches based on topic modeling <ref type="bibr" target="#b6">(Card et al., 2017;</ref><ref type="bibr" target="#b37">Nguyen and Luu, 2021;</ref><ref type="bibr" target="#b21">Gui et al., 2019)</ref> and keyphrase extraction <ref type="bibr" target="#b39">(Papagiannopoulou and Tsoumakas, 2020;</ref><ref type="bibr" target="#b45">Sun et al., 2020;</ref><ref type="bibr" target="#b3">Bennani-Smires et al., 2018)</ref> are insufficient for this task. We use intent detection datasets as a proxy for this task, considering utterances as input text and the corresponding intent labels as short-phrase summaries. As shown in Table <ref type="table" target="#tab_0">1</ref>, for most of the cases, the phrase constituting the intent label is not present within the utterance. For instance, find phone does not occur in the input utterance give me a hand finding my mobile device, but could be inferred from it.</p><p>Intent detection is usually framed as a text classification task under the assumption that the entire set of intent labels is known at the time of model training. However, operating within this framework is insufficient if the full label set is not known apriori, as can often be the case in real-world scenarios where defining all possible intents can be unrealistic, and we wish to be able to generate intent labels on the fly. This also allows us to discover new intents since there can often be more than one suitable intent for each input.</p><p>We explore state-of-the-art (SOTA) neural seq2seq text summarization models based on T5large <ref type="bibr" target="#b41">(Raffel et al., 2020)</ref> and BART-large <ref type="bibr" target="#b31">(Lewis et al., 2019)</ref> for the task of abstractive short-phrase summarization. Off-the-shelf models are found to be insufficient for this task. Given the need for phrasal paraphrases to be implicitly inferred from the input, we hypothesized that knowledge about paraphrasing and inference would help to improve the model. We demonstrate improvements by pretraining models with phrasal paraphrase alignment <ref type="bibr" target="#b38">(Ouyang et al., 2017)</ref> and Natural Language Inference (NLI) <ref type="bibr" target="#b26">(Kumar and Talukdar, 2020;</ref><ref type="bibr" target="#b43">Schick and Schütze, 2021)</ref> tasks, before task-specific finetuning. Standard summarization metrics such as ROUGE, METEOR, BERTScore &amp; BARTScore are used to evaluate the models, along with human evaluation. Our studies further show that our models are capable of generating short-phrase summaries that may differ from the reference summary, but are still helpful at summarizing the input text, as deemed using human evaluation through Amazon Mechanical Turk. In contrast, we find standard summarization metrics to be unable to capture the usefulness of such summaries.</p><p>Contributions of our paper:</p><p>• In this work, we define a new task of ab-stractive short-phrase summarization (Phras-eSumm), and use intent classification datasets to explore T5-large &amp; BART-large summarization models for the problem.</p><p>• We demonstrate the benefits of pre-training models with phrasal paraphrase alignment and NLI tasks, prior to task-specific finetuning, and show improvements over two baselines.</p><p>• Further, we show the shortcomings of standard summarization metrics such as ROUGE for this problem, and highlight the importance of human evaluation.</p><p>• We release a dataset for this problem, to enable further research in this area<ref type="foot" target="#foot_0">1</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Summarization tasks related to our problem are sentence compression <ref type="bibr" target="#b23">(Kamigaito and Okumura, 2020;</ref><ref type="bibr" target="#b56">Zhao et al., 2019)</ref> and news headline generation <ref type="bibr" target="#b42">(Rush et al., 2017;</ref><ref type="bibr" target="#b32">Li et al., 2021;</ref><ref type="bibr" target="#b51">Zhan et al., 2022)</ref>. However, they differ from our task in terms of the expected length of the generated summary. While we focus on obtaining summaries that constitute 2-3 words in length, both these tasks expect longer generated text. Paraphrase generation is another related task that involves generating paraphrases of input sentences that are semantically similar but may be syntactically different.  <ref type="bibr" target="#b20">and Durrett (2020)</ref>. Although related, our task cannot be solved by paraphrase generation since we expect abstractive short phrase summaries to be generated for the input.</p><p>Other related tasks include topic modeling <ref type="bibr" target="#b14">(Doan and Hoang, 2021)</ref> and keyphrase extraction <ref type="bibr" target="#b39">(Papagiannopoulou and Tsoumakas, 2020)</ref>. Approaches such as TextRank <ref type="bibr" target="#b24">(Kazemi et al., 2020)</ref>, Topical-PageRank <ref type="bibr" target="#b44">(Sterckx et al., 2015)</ref>, Bi-LSTM-CRF Sequence Labeling <ref type="bibr" target="#b1">(Alzaidy et al., 2019)</ref>, FACE <ref type="bibr" target="#b8">(Chau et al., 2020)</ref>, SIFRank <ref type="bibr" target="#b45">(Sun et al., 2020)</ref>   from documents. Further, topic modeling methods such as SCHOLAR <ref type="bibr" target="#b6">(Card et al., 2017)</ref>, contrastive learning based topic approaches <ref type="bibr" target="#b37">(Nguyen and Luu, 2021)</ref>, Reinforcement Learning-based methodologies <ref type="bibr" target="#b21">(Gui et al., 2019)</ref> have been applied towards neural topic modeling. However, neither keyphrase extraction nor topic modeling suffice for our task since the short phrase summaries required are often not present in the input documents. We leverage intent detection datasets for this task, namely CLINC150 <ref type="bibr" target="#b29">(Larson et al., 2019)</ref> and SNIPS <ref type="bibr" target="#b12">(Coucke et al., 2018)</ref>, with modifications to fit our problem, details of which we describe in Section 3.3. These datasets have been widely used for intent classification <ref type="bibr" target="#b7">(Casanueva et al., 2020;</ref><ref type="bibr" target="#b52">Zhang et al., 2020;</ref><ref type="bibr" target="#b30">Lee et al., 2021;</ref><ref type="bibr" target="#b10">Chen et al., 2019)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Datasets</head><p>In this section, we introduce the intent classification datasets used for this task. In order to mimic real-world settings where the entire set of intent labels may not be present apriori, we describe the creation of test sets with intents unseen during training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">CLINC150</head><p>We use an intent classification dataset, CLINC150 <ref type="bibr" target="#b29">(Larson et al., 2019)</ref> that contains utterances &amp; intent labels for 10 general domains, e.g. banking, credit cards, kitchen &amp; dining, home, etc. The dataset has 15 intents per domain and comes with pre-defined training, dev, and test splits. Examples are provided in Table <ref type="table" target="#tab_0">1</ref>. The input text length distribution is provided in Figure <ref type="figure" target="#fig_0">1a</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">SNIPS</head><p>We also leverage another popularly used intent classification dataset SNIPS <ref type="bibr" target="#b12">(Coucke et al., 2018)</ref> collected from the Snips personal voice assistant, which also comes with pre-defined train, development &amp; test splits. There are 7 intent labels in all. Examples are provided in Table <ref type="table" target="#tab_0">1</ref>. For the input text length distribution, please refer to Figure <ref type="figure" target="#fig_0">1b</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Modifications for PhraseSumm</head><p>We introduce the following modifications for our specific task of PhraseSumm.</p><p>Preprocessing Intent Labels: For CLINC150, we preprocess the intent labels by replacing underscores with spaces, i.e. book_hotel converted to book hotel to convert them to phrases. Furthermore, in keeping with our task definition, we retain only multi-word intent labels (and their corresponding utterances) from the dataset. For SNIPS, we convert the intent labels to phrases by inserting spaces between each constituent word, e.g. Com-parePlaces is converted to Compare Places. As shown in Table <ref type="table" target="#tab_0">1</ref> (and discussed in <ref type="bibr" target="#b4">Bhattacharjee et al. (2022)</ref>), most intent labels for both datasets are of the form &lt;VERB, NP&gt; (e.g. find phone, Book Restaurant, etc.)</p><p>Creating test sets with intents/summaries unseen during training In order to simulate realworld scenarios where not all intents may be avail-   <ref type="bibr" target="#b38">(Ouyang et al., 2017)</ref>. Turker-identified aligned phrases between the extractive &amp; abstractive summaries are indicated with italicized text within square brackets ([[]]).</p><p>able during training, we randomly pick a subset of the intent labels from the pre-defined train set to create an unseen label set. Utterances corresponding to the unseen label set are removed from the train, dev and test sets, and are used to create a separate unseen labels test set (details on the unseen labels selected are provided in Appendix Section A.1.1). Thus for each dataset, we have 4 splits : train, dev, test with intents/summaries seen during training, test with intents/summaries unseen during training, the sizes of which are reported in Table <ref type="table" target="#tab_3">2</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Methodology &amp; Experiments</head><p>In this section, we elaborate on our proposed approaches and the experiments conducted.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Baselines</head><p>We leverage SOTA neural text generation models such as BART-large <ref type="bibr" target="#b31">(Lewis et al., 2019)</ref> and T5large <ref type="bibr" target="#b41">(Raffel et al., 2020)</ref> for this short-phrase summarization task. Since our work introduces a new task, there are no existing models to compare to. Thus our first baseline (BART-large OTS, T5-large OTS in Table <ref type="table" target="#tab_8">5</ref>) comprises of the off-the-shelf variants of these models. Specifically, we report the performance of the 406M BART-large<ref type="foot" target="#foot_1">2</ref> and the 770M T5-large models<ref type="foot" target="#foot_2">3</ref> . For our second baseline, we fine-tune each of the above models using training data (BART-large FT, T5-large FT in Table <ref type="table" target="#tab_8">5</ref>) and report performance on both datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Pre-training Tasks</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Phrasal Paraphrase Alignment as a Pre-training Task</head><p>As demonstrated in Table <ref type="table" target="#tab_0">1</ref>, the given task requires the models to be able to infer the short phrase summary from the input text since the phrases often do not occur within the text itself. For instance, for an utterance of "Give me Steve's address in Manhattan", the desired short phrase summary, that paraphrases the input, is Get Place Details. In order to aid the text summarization models towards better paraphrasing and inference, we explore the benefits of pre-training the model on a phrasal paraphrase alignment task. For this, we utilize the Narrative Summarization Corpus <ref type="bibr" target="#b38">(Ouyang et al., 2017)</ref> containing human-annotated extractive and abstractive summaries for 476 personal Reddit narratives. Turkers align phrases between the extractive and abstractive summaries for each annotated narrative, as shown in Table <ref type="table" target="#tab_5">3</ref>. There are 6173 such phrasal paraphrase alignment samples in all. While most other paraphrase generation datasets focus on sentential paraphrases such as PARANMT-50M <ref type="bibr" target="#b47">(Wieting and Gimpel, 2017)</ref>, or semantically similar question pairs (DataCanary, 2017), the Narrative Summarization Corpus is geared towards paraphrasing phrases between extractive &amp; abstractive summaries, which is closer to PhraseSumm. Although PPDB <ref type="bibr">(Ganitkevitch et al., 2013)</ref> provides pairs of paraphrased phrases as well, we find the Narrative Summarization Corpus to more often contain paraphrased phrases where there is no overlap in wording between phrases; in contrast, the PPDB consists of paraphrased phrases which could be minor variants of the input phrase. Thus pre-training a model to generate the aligned phrase from the abstractive summary of this dataset is likely to aid the model for the downstream task of PhraseSumm.</p><p>We extract these aligned phrases, and pre-train BART-large and T5-large models on the phrasal paraphrase alignment task, considering the phrase from the extractive summary as the input text, and the aligned phrase from the abstractive summary as the desired generated phrase.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">NLI as a Pre-training Task</head><p>In order to aid summarization models towards inferring intents, many of which are only implicitly expressed in the input, we use NLI as a pre-training  task. Note, however, that framing this as problem an NLI task requires one to know the entire label set apriori, and therefore, can not support the generation of novel, unseen intents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Creating entailment &amp; contradiction pairs:</head><p>The task of NLI requires the creation of positive (entailment) and negative (contradiction) pairs of premise &amp; hypotheses to train the model. One possible way to obtain such pairs from our respective datasets would be to construct premises from the utterances &amp; hypotheses from labels. The premise consists of the utterance itself, while the hypothesis consists of the template "This text is about {}" where the corresponding label is inserted in "{}", as proposed in <ref type="bibr" target="#b49">Yin et al. (2019)</ref>. For instance, an entailment pair would consist of [premise: give me a hand finding my mobile device, hypothesis: This text is about find phone], where find phone is the intent associated with the utterance. For the contradiction pairs, we first manually identify intents and utterances that are unrelated to one another. For instance, for CLINC150, we find the intents (and utterances) corresponding to the following pairs of domains to be vastly different to one another: (banking, home), (auto and commute, kitchen and dining), (work, credit cards). For each domain pair (D 1 , D 2 ), we select, at random, utterances from intents of D 1 to construct premises and intents from D 2 to construct hypotheses. The same exercise is performed by constructing premises from D 2 and corresponding hypotheses from D 1 .</p><p>When inspecting the SNIPS dataset, we identify pairs of intents whose utterances differ from one another, e.g. (Share Current Location, Book Restaurant), (Compare Places, Get Weather) (full list in Appendix Section A.1.2). Similar to the method employed for CLINC150, contradiction pairs are created from each such pair of intents. We create 9900 entailment &amp; 902 contradiction pairs from the CLINC150 training set, 170 entailment &amp; 50 contradiction pairs from the SNIPS training set, using which we finetune BART-large &amp; T5-large models on the NLI task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.3">Cascading NLI &amp; Phrasal Paraphrase</head><p>Alignment Tasks during Pre-training</p><p>In order to combine the benefits of the phrasal paraphrase alignment and NLI tasks, we cascade them during pre-training. As described in Section 4.2.2, we first pre-train the respective BART-large &amp; T5large checkpoints with the entailment &amp; contradiction pairs created from our intent classification datasets. The finetuned model weights are then used as a starting checkpoint for the phrasal paraphrase alignment task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Task-specific Fine-tuning</head><p>The pretrained models are further finetuned on our specific task. Models pretrained on the phrasal paraphrase alignment task (Section 4.2.1) are further finetuned on the task at hand (BART-large PA+FT, T5-large PA+FT in Table <ref type="table" target="#tab_8">5</ref>). With models pretrained on NLI (Section 4.2.2), we use the encoder-decoder weights as a starting checkpoint and finetune for PhraseSumm (BART-large NLI+FT, T5-large NLI+FT checkpoints in Table <ref type="table" target="#tab_8">5</ref>). Finally, the prefix NLI+PA+FT in Table <ref type="table" target="#tab_8">5</ref> refers to models described in Section 4.2.3 that were subsequently finetuned on the PhraseSumm task. We use Adam optimizer with a linear learning rate scheduler for our experiments. For further details on hyperparameter selection, please refer to Appendix Section A.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation</head><p>We measure quantitative performance of models for PhraseSumm using standard summarization metrics while also performing human evaluation on the NLI+FT indicates a model pretrained first on the NLI task, and then finetuned for the short phrase summarization task, while PA+FT refers to a model pretrained on the phrasal paraphrase alignment task followed by task-specific finetuning. Similarly, NLI+PA+FT refers to a model first pretrained on NLI, followed by phrasal paraphrase alignment, and lastly fine-tuned on the task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Summaries Compared</head><p>Percentage (%) R: Reference summary from dataset, S: BART-large NLI + PA + FT generated summary S better than R: 37.206, S equivalent to R: 22.857 R: Summary generated by BART-large FT, S: BART-large NLI + PA + FT generated summary S better than R: 37.097, S equivalent to R: 29.928 Table <ref type="table">6</ref>: Quantitative results obtained using human evaluation on the CLINC150 unseen labels test set. We report results for both cases described in Section 5.2. model predictions, both of which we elaborate on in this Section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Quantitative Evaluation using Summarization Metrics</head><p>Standard summarization metrics such as ROUGE <ref type="bibr" target="#b34">(Lin, 2004)</ref>, METEOR <ref type="bibr" target="#b2">(Banerjee and Lavie, 2005)</ref>, BERTScore <ref type="bibr" target="#b54">(Zhang et al., 2019)</ref> and BARTScore <ref type="bibr" target="#b50">(Yuan et al., 2021)</ref> are used to evaluate model performance quantitatively. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Human Evaluation</head><p>On inspection of the summaries generated by our models, we often find cases where the model generates a summary that is different from the reference summary, but can be considered an acceptable alternative. Summarization metrics alone, fail to</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.2">Comparison amongst Models</head><p>Similar to the strategy above, we further compare between a baseline model (e.g. BART-large FT) and the corresponding best model (e.g. BART-large NLI + PA + FT) for both the test sets across the datasets. Turkers are asked to select between the two model-generated summaries, or indicate if they find both equally relevant. We find the BART-large NLI + PA + FT model generated summaries to outperform those generated by the BART-large FT 37.097% of the time, while for 29.928% of cases, both summaries are considered equivalent (Table <ref type="table">6</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.3">Dataset Release</head><p>For the CLINC150 dataset, we release the train, dev, and two test sets described in Section 3.3 (under CC-by-4.0 license). For the test set with labels unseen during training, we also provide the modelgenerated short phrase summaries obtained using BART-large NLI+PA+FT model, as alternative to the reference summaries. We also indicate whether the model-generated or the reference summary, or both were selected by Turkers. This is to allow for further research and evaluation for this task<ref type="foot" target="#foot_3">4</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Qualitative Comparison with ChatGPT &amp; GPT3-esque Models</head><p>We also qualitatively evaluate the efficacy of Ope-nAI's ChatGPT<ref type="foot" target="#foot_4">5</ref> &amp; Eleuther AI's GPT-Neo 2.7B <ref type="bibr" target="#b5">(Black et al., 2021)</ref> models for this task. The latter is designed using EleutherAI's replication of the GPT-3 architecture. For each utterance, we use a prompt to instruct the model to generate the corresponding short-phrase summary. We experiment with various prompts for the task. As seen We find ChatGPT to generate different outputs at different times, for the same utterance &amp; prompt input as illustrated in the 3rd row from the top (Output1, Output2).</p><p>in Table <ref type="table" target="#tab_10">8</ref>, these models tend to either generate long outputs with the intent embedded within them (ChatGPT output for intent application status), or tend to focus on completing the text via generation (e.g. GPT-Neo 2.7B output for intent find phone). Further, ChatGPT, generates different outputs at different points in time, even with the same utterance &amp; prompt as input (see 3rd row of Table <ref type="table" target="#tab_10">8</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Error Analysis</head><p>We inspect a random sample from 20% of the model-generated summaries that yield the lowest ROUGE-1 scores and inspect the errors made by the model w.r.t the reference summary. Three main types of errors are detected: a) Case 1: model is unable to capture the intent of the utterance, b) Case 2: model generates a summary that could be related to the input but still differs from reference, c) Case 3: model generates a clearly acceptable alternative summary to the reference. Examples are provided in Table <ref type="table" target="#tab_11">9</ref>, and in the Appendix (Table <ref type="table" target="#tab_3">12</ref>). Note that we do not find the models to hallucinate when generating the summaries.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion &amp; Future Work</head><p>In this work, we introduce a new task of abstractive short-phrase summarization, PhraseSumm, which focuses on generating coherent short-phrase summaries, often inferred or paraphrased from input text. SOTA neural summarization models such as BART-large &amp; T5-large are explored for this task, with model performance measured using standard summarization metrics, along with human evaluation. Our work demonstrates the benefits of pretraining models with phrasal paraphrase alignment and NLI tasks, that aid with paraphrasing and implicitly inferring summaries from input text. Moreover, human evaluation demonstrates that modelgenerated summaries are often deemed better or equivalent to reference summaries, which summarization metrics fail to capture. We leverage popularly used intent detection datasets -CLINC150 &amp; SNIPS, with desired modifications, and release a dataset to enable further research in this area. As future work, we would be interested in exploring the efficacy of our models in zero &amp; few-shot settings for PhraseSumm.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitations</head><p>The datasets we experiment with consist of input text of relatively short length (Figure <ref type="figure" target="#fig_0">1</ref>). We would need to experiment with datasets of different input lengths in order to measure the applicability of our proposed methods for longer text. Moreover, our work is limited to English utterances and summaries at this point, thus we cannot conclude on how the models would perform in multilingual settings. Furthermore, there could potentially be other approaches of creating entailment &amp; contradiction pairs for the NLI pre-training task, which remain unexplored.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head><p>A.1 Datasets CLINC150 is covered by the CC by 3.0 license, while SNIPS is covered by Apache License 2.0 &amp; the Narrative Summarization Corpus 6 is governed by the MIT license, all of which allow the use of these datasets for research purposes. The 10 domains in the CLINC150 dataset are banking, credit cards, kitchen &amp; dining, home, auto &amp; commute, travel, utility, work, small talk and meta. The predefined train, dev, test splits contain 15K, 3K dev and 4.5K utterances, respectively. The pre-defined training, development and test sets for SNIPS contain 13,084, 700 and 700 utterances, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1.1 Creation of unseen labels test sets</head><p>For CLINC150, 10% of the multi-word labels were selected at random for the unseen labels test set, which amounts to 11 labels. In case of the SNIPS dataset, we select 3 out of 7 labels at random for our unseen labels set. Table <ref type="table" target="#tab_13">10</ref> contains the list of seen &amp; unseen labels for both datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1.2 Creation of contradiction pairs for NLI</head><p>For SNIPS, the following is a complete list of intent pairs that were used in the creation of the contradiction pairs: (Book Restaurant, Get Weather), (Share Current Location, Book Restaurant), (Get Weather, Search Place),(Compare Places, Get Weather), (Get Traffic Information, Book Restaurant).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Model training &amp; Hyperparameter Selection</head><p>The following are the Hugging Face checkpoints used for model training:</p><p>• BART-large  For Eleuther AI's GPT-Neo 2.7B, we use the Hugging Face checkpoint linked here. For the summarization metrics (ROUGE, METEOR, BERTScore), we use the evaluate package from Hugging Face 7 . For BARTScore, we use the authorprovided git repo 8 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Human Evaluation</head><p>We used Amazon Mechanical Turk for our human evaluation. Instructions provided to the annotators were as follows:</p><p>Annotator Instructions: You have been provided with a text input and three intents, intent_1, intent_2 and intent_3.</p><p>Please pick the intent that best describes the given text. If both intent_1 and intent_2 look suitable, please select intent_3 (which says "both intents")</p><p>Example 1: text how long is it going to take me to get to bellevue intent_1 greeting 7 https://huggingface.co/docs/evaluate/index 8 https://github.com/neulab/BARTScore intent_2 distance intent_3 both intents In the above scenario, intent_2 best describes the intent of the text.</p><p>Example 2: text could you add that event to my calendar please?</p><p>intent_1 calendar intent_2 calendar update intent_3 both intents</p><p>In Example 2, intent_3 would be the correct choice since both intent_1 and intent_2 are applicable.</p><p>Annotator Payment The Turkers were located within the US, and were paid higher than the highest minimum wage of USD 16.50 per hour. We first estimated the amount of time the annotation task would require by conducting an internal annotation over a random sample of size 50. The average time taken per task was ∼ 13 secs, with the maximum being 15 secs. Using the maximum time taken as a reference, we estimated 240 tasks to be completed in an hour. In order to set an hourly wage of USD 18.0 (&gt; USD 16.50), we paid the annotators USD 0.075 per task. There were no risks associated with the dataset since it is devoid of any PII or offensive content, as our manual inspection revealed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Results</head><p>In Table <ref type="table" target="#tab_0">11</ref>, we present more examples in which the model-generated summary is deemed better or at par with the reference summary by Turkers. Finally, in Table <ref type="table" target="#tab_3">12</ref>, we present more examples of the three cases of errors reported in Section 5.4.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Distribution of the number of words in input text for (a) CLINC &amp; (b) SNIPS datasets.</figDesc><graphic coords="3,317.77,234.07,195.02,146.26" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Examples of utterances &amp; intent labels fromCLINC150 &amp; SNIPS datasets. The intent labels are used as short phrase summaries for our task.</figDesc><table><row><cell>Utterance</cell><cell>Intent</cell><cell>Label/Short</cell></row><row><cell></cell><cell cols="2">phrase Summary</cell></row><row><cell cols="2">Dataset: CLINC150</cell><cell></cell></row><row><cell>give me a hand finding my mobile</cell><cell>find phone</cell><cell></cell></row><row><cell>device</cell><cell></cell><cell></cell></row><row><cell>how to keep my credit score from</cell><cell cols="2">improve credit score</cell></row><row><cell>going down</cell><cell></cell><cell></cell></row><row><cell>i lost my chase bank card and</cell><cell cols="2">report lost card</cell></row><row><cell>want it labeled as lost</cell><cell></cell><cell></cell></row><row><cell cols="2">Dataset: SNIPS</cell><cell></cell></row><row><cell>Give me Steve's address in Man-</cell><cell cols="2">Get Place Details</cell></row><row><cell>hattan</cell><cell></cell><cell></cell></row><row><cell>Get me a table at a restaurant</cell><cell cols="2">Book Restaurant</cell></row><row><cell>near Emily's place for tomorrow</cell><cell></cell><cell></cell></row><row><cell>9pm</cell><cell></cell><cell></cell></row><row><cell>What is the cheapest restau-</cell><cell cols="2">Compare Places</cell></row><row><cell>rant between Balthazar and Lom-</cell><cell></cell><cell></cell></row><row><cell>bardi's?</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>have been applied towards keyphrase extraction</figDesc><table><row><cell>Dataset</cell><cell>Number of utterances per split</cell></row><row><cell>CLINC150</cell><cell>train: 9900, dev: 1980, test_s: 2970, test_u: 1650</cell></row><row><cell>SNIPS</cell><cell>train: 170, dev: 35, test_s: 40, test_u: 83.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Data statistics for the CLINC150 &amp; SNIPS datasets.</figDesc><table><row><cell>test_s and test_u refer to the test sets with labels seen &amp;</cell></row><row><cell>unseen during training, respectively. For details, please refer</cell></row><row><cell>to Section 3.3.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>Phrasal Paraphrase Alignment between Extractive &amp; Abstractive Summaries EXTRACTIVE: I see my 10 year old cousins dress. [[It's almost an exact copy of my wedding dress.]] ABSTRACTIVE: My cousin wore [[a dress identical to my wedding gown.]] EXTRACTIVE: This guy would break into houses and stand over people as they slept. Deal with it) Eventually this dude turns himself in and not only is he my best friends neighbor [[I sat with this dude at lunch during this whole fiasco of trying to find this stalker and he played it off a little too well.]] ABSTRACTIVE: My best friend's neighbor would break into houses and stand over people as they slept. [[I even talked about it with him, and he acted like he had nothing to do with it.]]</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Examples from the Narrative Summarization Corpus</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head></head><label></label><figDesc>how come starbucks declined my card when i tried to use it to pay, hyp: This text is about card declined pr: i need to order more checks for my us bank account, hyp: This text is about smart home pr: what is the protocol for requesting a vacation, hyp: This text is about pto request pr: tell me if per se in nyc takes reservations, hyp: This text is about gas type SNIPS pr: Will it be cloudy at my facebook event?, hyp: This text is about Get Weather pr: Is there any traffic on US 20?, hyp: This text is about Book Restaurant pr: Any traffic problems to go to my dinner?, hyp: This text is about Get Traffic Information pr: I'd like to know whether Galli is more expensive than Rao's, hyp: This text is about Get Weather</figDesc><table><row><cell>Entailment Pairs</cell><cell>Contradiction Pairs</cell></row><row><cell></cell><cell>CLINC150</cell></row><row><cell>pr:</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 4 :</head><label>4</label><figDesc>Examples of entailment &amp; contradiction pairs created from CLINC150 &amp; SNIPS datasets.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 5 :</head><label>5</label><figDesc>Performance of T5 &amp; BART based summarization models for the abstractive short phrase summary generation task,</figDesc><table><row><cell>Model</cell><cell></cell><cell cols="3">Metrics on Seen Labels /Unseen Labels Test Sets</cell><cell></cell></row><row><cell></cell><cell>ROUGE-1</cell><cell>ROUGE-2</cell><cell>METEOR</cell><cell>BERTScore</cell><cell>BARTScore</cell></row><row><cell></cell><cell></cell><cell>CLINC150</cell><cell></cell><cell></cell><cell></cell></row><row><cell>BART-large OTS</cell><cell>21.444/18.704</cell><cell>5.281/2.87</cell><cell cols="3">27.941/26.382 0.868/0.859 -6.128/-6.078</cell></row><row><cell>BART-large FT</cell><cell>96.859/46.981</cell><cell>96.167/5.273</cell><cell cols="3">91.581/27.728 0.995/0.914 -1.563/-5.394</cell></row><row><cell>BART-large PA + FT</cell><cell>96.552/43.73</cell><cell>95.73/9.04</cell><cell cols="2">91.206/27.499 0.995/0.915</cell><cell>-1.59/-5.477</cell></row><row><cell>BART-large NLI + FT</cell><cell>96.964/47.266</cell><cell>95.889/7.535</cell><cell cols="3">91.308/27.958 0.995/0.913 -1.589/-5.357</cell></row><row><cell cols="2">BART-large NLI + PA + FT 97.792/47.239</cell><cell>97.391/8.889</cell><cell cols="2">92.531/30.112 0.997/0.917</cell><cell>-1.508/-5.225</cell></row><row><cell>T5-large OTS</cell><cell>54.313/24.641</cell><cell>47.78/6.586</cell><cell>45.303/14.33</cell><cell cols="2">0.901/0.859 -4.465/-6.306</cell></row><row><cell>T5-large FT</cell><cell>97.785/29.45</cell><cell>97.514/7.57</cell><cell cols="3">92.602/20.545 0.997/0.856 -1.495/-6.169</cell></row><row><cell>T5-large PA + FT</cell><cell cols="5">97.582/46.678 97.144/10.788 92.306/30.598 0.997/0.912 -1.508/-5.265</cell></row><row><cell>T5-large NLI + FT</cell><cell cols="5">97.678/48.210 97.345/12.234 92.517/32.456 0.998/0.934 -1.521/-5.100</cell></row><row><cell>T5-large NLI + PA + FT</cell><cell cols="5">97.891/48.657 98.112/13.345 92.671/33.512 0.998/0.945 -1.501/-5.100</cell></row><row><cell></cell><cell></cell><cell>SNIPS</cell><cell></cell><cell></cell><cell></cell></row><row><cell>BART-large OTS</cell><cell>10.598/13.913</cell><cell>0.0/0.0</cell><cell>11.856/14.989</cell><cell>0.83/0.858</cell><cell>-7.533/-6.386</cell></row><row><cell>BART-large FT</cell><cell>93.5/22.892</cell><cell>92.5/0.0</cell><cell>89.064/13.511</cell><cell>0.99/0.873</cell><cell>-1.905/-6.038</cell></row><row><cell>BART-large PA + FT</cell><cell>97.0/25.663</cell><cell>95.0/0.0</cell><cell cols="3">91.792/36.288 0.993/0.876 -1.703/-5.794</cell></row><row><cell>BART-large NLI + FT</cell><cell>98.5/24.217</cell><cell>97.5/0.0</cell><cell cols="3">93.541/24.914 0.997/0.876 -1.583/-6.055</cell></row><row><cell>BART-large NLI + PA + FT</cell><cell>98.5/26.145</cell><cell>97.5/0.0</cell><cell cols="3">93.541/28.141 0.997/0.878 -1.564/-5.987</cell></row><row><cell>T5-large OTS</cell><cell>10.747/5.02</cell><cell>0.0/0.0</cell><cell>13.17/3.356</cell><cell>0.807/0.846</cell><cell>-7.837/-7.01</cell></row><row><cell>T5-large FT</cell><cell>92.0/8.10</cell><cell>91.34/1.345</cell><cell>86.771/8.345</cell><cell>0.852/0.823</cell><cell>-2.34/5.34</cell></row><row><cell>T5-large PA + FT</cell><cell>93.5/10.748</cell><cell>92.5/2.789</cell><cell cols="3">88.743/13.196 0.989/0.835 -1.858/-6.212</cell></row><row><cell>T5-large NLI + FT</cell><cell>96.5/10.893</cell><cell>95.3/2.888</cell><cell cols="3">89.345/14.123 0.994/0.800 -1.823/-5.901</cell></row><row><cell>T5-large NLI + PA + FT</cell><cell>98.23/26.234</cell><cell>97.67/3.21</cell><cell cols="3">89.345/14.234 0.999/0.851 -1.737/-5.213</cell></row></table><note><p>across both test sets for CLINC150 &amp; SNIPS (single model runs). Results for the test split with labels unseen during training are italicized. The suffixes OTS &amp; FT stand for off-the-shelf &amp; task-specific fine-tuning, respectively.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 8 :</head><label>8</label><figDesc>Exploring ChatGPT &amp; Eleuther AI's GPT-Neo 2.7B for the task. Prompts used are indicated in bold, italicized text.</figDesc><table><row><cell>Model</cell><cell>Utterance with Prompt</cell><cell>Generated Output</cell><cell>Reference Summary</cell></row><row><cell></cell><cell></cell><cell>I'm sorry, but I am a computer program and</cell><cell></cell></row><row><cell>ChatGPT</cell><cell>can you check if my application for a discovery card has been looked over yet. what is the intent here?</cell><cell>do not have the ability to check the status of a credit card application. Your intent here is plication. I recommend contacting the issuer to check the status of your discovery card ap-</cell><cell>application status</cell></row><row><cell></cell><cell></cell><cell>directly for more information.</cell><cell></cell></row><row><cell></cell><cell>generate a short-phrase summary for</cell><cell></cell><cell></cell></row><row><cell></cell><cell>the following: "Is Vertigo Sky Lounge</cell><cell>Comparing Vertigo Sky Lounge's price with</cell><cell></cell></row><row><cell></cell><cell>more expensive than the bar I usually go</cell><cell>a regular bar in New York.</cell><cell>Compare Places</cell></row><row><cell></cell><cell>to in New York?"</cell><cell></cell><cell></cell></row><row><cell></cell><cell>generate a 2 or 3 word summary for the</cell><cell></cell><cell></cell></row><row><cell></cell><cell>following: "Is Vertigo Sky Lounge more</cell><cell>Output1: Vertigo Sky Lounge pricing. Out-</cell><cell></cell></row><row><cell></cell><cell>expensive than the bar I usually go to in</cell><cell>put2: Bar pricing</cell><cell></cell></row><row><cell></cell><cell>New York?"</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell>to stop the practice of people like me and</cell><cell></cell></row><row><cell>GPT-Neo 2.7B</cell><cell>who has seen my cellphone. the intent here is</cell><cell>others who are trying to get more people to In a video message on the video screen, participate.</cell><cell>find phone</cell></row><row><cell></cell><cell></cell><cell>Obama said that as president, he would make</cell><cell></cell></row><row><cell></cell><cell>Generate a short-phrase summary for: "i want to make sure my reservation for 5 at mcdonalds is still set"</cell><cell>Word Count: 11 words Exact Phrase: 1. make sure</cell><cell>confirm reservation</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 9 :</head><label>9</label><figDesc>Examples of errors made by the BART-large NLI+PA+FT model (best BART model) on CLINC150 test set with unseen labels during training. R stands for reference summary and S stands for model-generated summary.</figDesc><table><row><cell>Utterance</cell><cell>Summaries</cell></row><row><cell>Case 1: do i need to fill up my tires</cell><cell>R:tire pressure, S:gas type</cell></row><row><cell></cell><cell>R:schedule</cell></row><row><cell>Case 2: how many rooms are</cell><cell>meeting, S:book</cell></row><row><cell>available between 2 and 3</cell><cell>hotel</cell></row><row><cell>Case 3: is there any indication my application for a new credit</cell><cell>R:application status, S:new card</cell></row><row><cell>card has been processed</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head></head><label></label><figDesc>pto request, where are you from, book flight, measurement conversion, ingredients list, cancel reservation, card declined, whisper mode, flip coin, meal suggestion, nutrition info, report lost card, play music, flight status, credit score, oil change when, change user name, thank you, todo list update, lost luggage, exchange rate, what song, oil change how, restaurant reviews, order checks, restaurant suggestion, restaurant reservation, change language, pto used, shopping list update, new card, reset settings, insurance change, improve credit score, meaning of life, how old are you, shopping list, smart home, who do you work for, find phone, pay bill, are you a bot, tire change, account blocked, freeze account, car rental, cook time, user name, ingredient substitution, tell joke, gas type, meeting schedule, accept reservations, credit limit, update playlist, pin change, travel suggestion, redeem rewards, replacement card duration, how busy, bill due, change speed, jump start, direct deposit, fun fact, plug type, share location, schedule maintenance, interest rate, reminder update, international fees, make call, travel notification, change accent, calendar update, next holiday, sync device, book hotel, last maintenance, expiration date, pto request status, carry on, what are your hobbies, food last, spending history, travel alert, what can i ask you, report fraud, bill balance, what is your name, roll dice, who made you, do you have pets, next song, rollover 401k, min payment, change volume, credit</figDesc><table><row><cell>Data Split CLINC150 Seen Label Set</cell><cell>Intent Labels current location, limit change</cell><cell>1,3, 5; for phrasal paraphrase alignment between 10 &amp; 20. Adam optimizer with betas=(0.9,0.999) and epsilon=1e-08 is used. The max source length in each case is the default value. Model selection was then performed using performance on the dev set. The total number of GPU hours spent across all experiments was 30,840. The following are the selected hyper-parameters in each case. • CLINC150: -BART-large OTS: eval batch size 16 -BART-large FT: train batch size 16, eval batch size 16, lr 5e-05, number of epochs 3. -BART-large PA+FT: train batch size 16,</cell></row><row><cell>CLINC150 Unseen La-bel Set</cell><cell cols="2">eval batch size 16, lr 5e-05, number of training epochs for PA is 10, for task is rewards balance, confirm reservation, damaged card, pto balance, change ai name, tire pressure, order status, schedule meeting, application status, todo list, international visa</cell></row><row><cell>SNIPS Seen Label Set SNIPS Unseen Label Set</cell><cell cols="2">3. Get Place Details, Compare Places, Get Weather, Share Current Location, Search Place, Book Restaurant, Get Traffic Information -BART-large NLI+FT: train batch size 16, eval batch size 16, lr 5e-05, number Request Ride, Get Directions, Share ETA</cell></row><row><cell></cell><cell></cell><cell>of training epochs for NLI is 1, for task</cell></row><row><cell></cell><cell></cell><cell>is 10.</cell></row><row><cell></cell><cell></cell><cell>-BART-large NLI+PA+FT: train batch</cell></row><row><cell></cell><cell></cell><cell>size 16, eval batch size 16, lr 5e-05, num-</cell></row><row><cell></cell><cell></cell><cell>ber of training epochs for NLI is 1, for</cell></row><row><cell></cell><cell></cell><cell>PA is 10, for task is 3.</cell></row><row><cell></cell><cell></cell><cell>-T5-large OTS: eval batch size 8</cell></row><row><cell></cell><cell></cell><cell>-T5-large FT: train batch size 8, eval</cell></row><row><cell></cell><cell></cell><cell>batch size 8, number of training epochs</cell></row><row><cell></cell><cell></cell><cell>10.</cell></row><row><cell></cell><cell></cell><cell>-T5-large PA+FT: train batch size 8, eval</cell></row><row><cell></cell><cell></cell><cell>batch size 8, lr 5e-05, number of training</cell></row><row><cell></cell><cell></cell><cell>epochs for PA is 20, for task is 10.</cell></row><row><cell></cell><cell></cell><cell>-T5-large NLI+FT: train batch size 8,</cell></row><row><cell></cell><cell></cell><cell>eval batch size 8, lr 5e-05, number of</cell></row><row><cell></cell><cell></cell><cell>training epochs for NLI is 3, for task is</cell></row><row><cell>• T5-large</cell><cell></cell><cell>10. -T5-large PA+NLI+FT: train batch size</cell></row><row><cell cols="2">For each of the settings, we conduct a search over</cell><cell>8, eval batch size 8, lr 5e-05, number of</cell></row><row><cell cols="2">a fixed set of hyperparameters, namely the learning</cell><cell>training epochs for PA is 20, NLI is 5,</cell></row><row><cell cols="2">rate (lr), number of training epochs, batch size for</cell><cell>for task is 10.</cell></row><row><cell cols="2">each task (i.e. both the pretraining tasks described in Sections A.1.1, 4.2.2 &amp; 4.2.3) and the final task</cell><cell>• SNIPS:</cell></row><row><cell cols="2">specific finetuning. Learning rate is varied between</cell><cell>-BART-large OTS: eval batch size 16</cell></row><row><cell cols="2">3e-05 to 5e-05, batch size for BART-large varied</cell><cell>-BART-large FT: train batch size 16, eval</cell></row><row><cell cols="2">between 16 &amp; 32, number of training epochs for</cell><cell>batch size 16, lr 5e-05, number of epochs</cell></row><row><cell cols="2">PhraseSumm varied between 3, 5, 8, 10. For NLI,</cell><cell>3.</cell></row><row><cell cols="2">the number of training epochs was varied between</cell><cell>-BART-large PA+FT: train batch size 16,</cell></row><row><cell cols="2">6 http://www.cs.columbia.edu/nlp/tools.cgi</cell><cell>eval batch size 16, lr 5e-05, number of</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 10 :</head><label>10</label><figDesc>Intent label sets for both datasets training epochs for PA is 10, for task is 3. -BART-large NLI+FT: train batch size 16, eval batch size 16, lr 5e-05, number of training epochs for NLI is 3, for task is 5. -BART-large NLI+PA+FT: train batch size 16, eval batch size 16, lr 5e-05, number of training epochs for NLI is 3, for PA is 10, for task is 5. -T5-large OTS: eval batch size 8 -T5-large FT: train batch size 8, eval batch size 8, number of training epochs 5. -T5-large PA+FT: train batch size 8, eval batch size 8, lr 5e-05, number of training epochs for PA is 10, for task is 5. -T5-large NLI+FT: train batch size 8, eval batch size 8, lr 5e-05, number of training epochs for NLI is 3, for task is 10. -T5-large PA+NLI+FT: train batch size 8, eval batch size 8, lr 5e-05, number of training epochs for PA is 10, NLI is 5, for task is 5.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/amazon-science/ PhraseSumm-short-phrase-summarization</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://huggingface.co/facebook/bart-large</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>https://huggingface.co/t5-large</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>https://github.com/amazon-science/ PhraseSumm-short-phrase-summarization</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>https://openai.com/blog/chatgpt/</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Utterance</head><p>Reference Summary Model-generated Summary ROUGE how is my application on new credit card going application status new card R-1:0.0 R-2:0.0 i need you to confirm that there is a reservation under the name david kramer for 7:00 pm at pietro's confirm reservation restaurant reservation R-1:50.0 R-2:0.0 what's my visa's current rewards balance rewards balance redeem rewards R-1:50.0 R-2:0.0 capture these differences. Thus, we conduct human evaluation of the test sets using Amazon Mechanical Turk (MTurk), for the following two scenarios.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.1">Comparison between Reference Summary &amp; Model Generated Summary</head><p>For test sets with labels unseen during training, we present Turkers with the utterance, the reference summary and the summary generated by the models trained with cascaded NLI &amp; phrasal paraphrase alignment tasks. A Turker is asked to select the summary that best represents the input utterance, or indicate if both summaries are equally applicable. Each example is annotated by 4 Turkers, and a majority vote is considered as the selected summary.</p><p>We did not encounter ties during the annotation process. IAA is 0.67. The reference and systemgenerated summaries are shown in random order during annotation, for a fair evaluation. As shown in Table <ref type="table">6</ref>, for the CLINC150 test set consisting of labels unseen during training, the BART-large NLI+PA+FT model generated summary is found to be equivalent to and better than the reference summary 22.857% and 37.206% of the time, respectively. Furthermore, as illustrated in </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Aspectnews: Aspect-oriented summarization of news documents</title>
+		<author>
+			<persName><forename type="first">Ojas</forename><surname>Ahuja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akshay</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Horecka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="6494" to="6506" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Bi-lstm-crf sequence labeling for keyphrase extraction from scholarly documents</title>
+		<author>
+			<persName><forename type="first">Rabah</forename><surname>Alzaidy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cornelia</forename><surname>Caragea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">Lee</forename><surname>Giles</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3308558.3313642</idno>
+	</analytic>
+	<monogr>
+		<title level="m">The World Wide Web Conference, WWW &apos;19</title>
+		<meeting><address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2551" to="2557" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">METEOR: An automatic metric for MT evaluation with improved correlation with human judgments</title>
+		<author>
+			<persName><forename type="first">Satanjeev</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization</title>
+		<meeting>the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Simple unsupervised keyphrase extraction using sentence embeddings</title>
+		<author>
+			<persName><forename type="first">Kamil</forename><surname>Bennani-Smires</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claudiu</forename><surname>Musat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreea</forename><surname>Hossmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Baeriswyl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Jaggi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd Conference on Computational Natural Language Learning</title>
+		<meeting>the 22nd Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="221" to="229" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">What do users care about? detecting actionable insights from user feedback</title>
+		<author>
+			<persName><forename type="first">Kasturi</forename><surname>Bhattacharjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rashmi</forename><surname>Gangadharaiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-industry.27</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies: Industry Track</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies: Industry Track</meeting>
+		<imprint>
+			<publisher>Seattle, Washington + Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="239" to="246" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sid</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leo</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phil</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Connor</forename><surname>Leahy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stella</forename><surname>Biderman</surname></persName>
+		</author>
+		<idno type="DOI">10.5281/zenodo.5297715</idno>
+		<title level="m">GPT-Neo: Large Scale Autoregressive Language Modeling with Mesh-Tensorflow</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Neural models for documents with metadata</title>
+		<author>
+			<persName><forename type="first">Dallas</forename><surname>Card</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenhao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Efficient intent detection with dual sentence encoders</title>
+		<author>
+			<persName><forename type="first">Iñigo</forename><surname>Casanueva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tadas</forename><surname>Temčinas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniela</forename><surname>Gerz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Vulić</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Natural Language Processing for Conversational AI</title>
+		<meeting>the 2nd Workshop on Natural Language Processing for Conversational AI</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="38" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Automatic concept extraction for domain and student modeling in adaptive textbooks</title>
+		<author>
+			<persName><forename type="first">Hung</forename><surname>Chau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Labutov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khushboo</forename><surname>Thaker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daqing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Brusilovsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Artificial Intelligence in Education</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="27" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Summscreen: A dataset for abstractive screenplay summarization</title>
+		<author>
+			<persName><forename type="first">Mingda</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zewei</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="8602" to="8615" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Qian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhu</forename><surname>Zhuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1902.10909</idno>
+		<title level="m">Bert for joint intent classification and slot filling</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Improving faithfulness in abstractive summarization with contrast candidate generation and selection</title>
+		<author>
+			<persName><forename type="first">Sihao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kazoo</forename><surname>Sone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.475</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="5935" to="5941" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Snips voice platform: an embedded spoken language understanding system for privateby-design voice interfaces</title>
+		<author>
+			<persName><forename type="first">Alice</forename><surname>Coucke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alaa</forename><surname>Saade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrien</forename><surname>Ball</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Théodore</forename><surname>Bluche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Caulier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Leroy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Doumouro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Gisselbrecht</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Caltagirone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibaut</forename><surname>Lavril</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maël</forename><surname>Primet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Dureau</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.1805.10190</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Risdal Nikhil Dandekar tomtung Data-Canary, hilfialkaff. 2017. Quora question pairs</title>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meg</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Benchmarking neural topic models: An empirical study</title>
+		<author>
+			<persName><forename type="first">Thanh-Nam</forename><surname>Doan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tuan-Anh</forename><surname>Hoang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4363" to="4368" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zi-Yi</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hiroaki</forename><surname>Hayashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengbao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.08014</idno>
+		<title level="m">Gsum: A general framework for guided neural abstractive summarization</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Transformer and seq2seq model for paraphrase generation</title>
+		<author>
+			<persName><forename type="first">Elozino</forename><surname>Egonmwan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yllias</forename><surname>Chali</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Neural Generation and Translation</title>
+		<meeting>the 3rd Workshop on Neural Generation and Translation</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="249" to="255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Question answering as an automatic evaluation metric for news article summarization</title>
+		<author>
+			<persName><forename type="first">Matan</forename><surname>Eyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Baumel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Elhadad</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<title level="s">Long and Short Papers</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3938" to="3948" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Paraphrase generation with latent bag of words. Advances in Neural Information Processing Systems</title>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yansong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">P</forename><surname>Cunningham</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter</title>
+		<editor>
+			<persName><forename type="first">Juri</forename><surname>Ganitkevitch</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</editor>
+		<meeting>the 2013 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Human Language Technologies</publisher>
+			<date type="published" when="2013">2019. 2013</date>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="758" to="764" />
+		</imprint>
+	</monogr>
+	<note>Ppdb: The paraphrase database</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Movie script summarization as graph-based scene extraction</title>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Gorinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="1066" to="1076" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Neural syntactic preordering for controlled paraphrase generation</title>
+		<author>
+			<persName><forename type="first">Tanya</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="238" to="252" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Neural topic model with reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Gui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jia</forename><surname>Leng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriele</forename><surname>Pergola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruifeng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulan</forename><surname>He</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1350</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3478" to="3483" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">A deep generative framework for paraphrase generation</title>
+		<author>
+			<persName><forename type="first">Ankush</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prawaan</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piyush</forename><surname>Rai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the aaai conference on artificial intelligence</title>
+		<meeting>the aaai conference on artificial intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Syntactically look-ahead attention network for sentence compression</title>
+		<author>
+			<persName><forename type="first">Hidetaka</forename><surname>Kamigaito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manabu</forename><surname>Okumura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="8050" to="8057" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Biased textrank: Unsupervised graphbased content extraction</title>
+		<author>
+			<persName><forename type="first">Ashkan</forename><surname>Kazemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Verónica</forename><surname>Pérez-Rosas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rada</forename><surname>Mihalcea</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Evaluating the factual consistency of abstractive text summarization</title>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Kryscinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.750</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="9332" to="9346" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Nile: Natural language inference with faithful natural language explanations</title>
+		<author>
+			<persName><forename type="first">Sawan</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Partha</forename><surname>Talukdar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="8730" to="8742" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Ladhak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esin</forename><surname>Durmus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2108.13684</idno>
+		<title level="m">Faithful or extractive? on mitigating the faithfulness-abstractiveness tradeoff in abstractive summarization</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Exploring content selection in summarization of novel chapters</title>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Ladhak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaser</forename><surname>Al-Onaizan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><forename type="middle">R</forename><surname>Mckeown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">An evaluation dataset for intent classification and out-ofscope prediction</title>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Larson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anish</forename><surname>Mahendran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">J</forename><surname>Peper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Parker</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><forename type="middle">K</forename><surname>Kummerfeld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Leach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">A</forename><surname>Laurenzano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingjia</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Mars</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1131</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1311" to="1316" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Neural data augmentation via example extrapolation</title>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Dozat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyung</forename><surname>Won</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chung</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2102.01335</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Bart: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ves</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.13461</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">The stylecontent duality of attractiveness: Learning to write eye-catching headlines via disentanglement</title>
+		<author>
+			<persName><forename type="first">Mingzhe</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiuying</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shen</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongyan</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="13252" to="13260" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Paraphrase generation with deep reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Zichao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lifeng</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="3865" to="3878" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Rouge: A package for automatic evaluation of summaries</title>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Text summarization branches out</title>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="74" to="81" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Summarunner: A recurrent neural network based sequence model for extractive summarization of documents</title>
+		<author>
+			<persName><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feifei</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Thirty-first AAAI conference on artificial intelligence</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Automatic summarization</title>
+		<author>
+			<persName><forename type="first">Ani</forename><surname>Nenkova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Foundations and Trends® in Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">2-3</biblScope>
+			<biblScope unit="page" from="103" to="233" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Contrastive learning for neural topic model</title>
+		<author>
+			<persName><forename type="first">Thong</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anh</forename><forename type="middle">Tuan</forename><surname>Luu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="11974" to="11986" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Crowd-sourced iterative annotation for narrative summarization corpora</title>
+		<author>
+			<persName><forename type="first">Jessica</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Serina</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter</title>
+		<meeting>the 15th Conference of the European Chapter<address><addrLine>Short Papers</addrLine></address></meeting>
+		<imprint>
+			<publisher>the Association for Computational Linguistics</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="46" to="51" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">A review of keyphrase extraction</title>
+		<author>
+			<persName><forename type="first">Eirini</forename><surname>Papagiannopoulou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Grigorios</forename><surname>Tsoumakas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Data Mining and Knowledge Discovery</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">1339</biblScope>
+			<date type="published" when="2020">2020</date>
+			<publisher>Wiley Interdisciplinary Reviews</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Neural paraphrase generation with stacked residual lstm networks</title>
+		<author>
+			<persName><forename type="first">Aaditya</forename><surname>Prakash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sadid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathy</forename><surname>Hasan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivek</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashequl</forename><surname>Datla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joey</forename><surname>Qadir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oladimeji</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Farri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of COLING 2016, the 26th International Conference on Computational Linguistics: Technical Papers</title>
+		<meeting>COLING 2016, the 26th International Conference on Computational Linguistics: Technical Papers</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2923" to="2934" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">140</biblScope>
+			<biblScope unit="page" from="1" to="67" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">A neural attention model for sentence summarization</title>
+		<author>
+			<persName><surname>Alexander M Rush</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sumit</forename><surname>Harvard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACLWeb. Proceedings of the 2015 conference on empirical methods in natural language processing</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Exploiting cloze-questions for few-shot text classification and natural language inference</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="255" to="269" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Topical word importance for fast keyphrase extraction</title>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Sterckx</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Demeester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Deleu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Develder</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/2740908.2742730</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th International Conference on World Wide Web, WWW &apos;15 Companion</title>
+		<meeting>the 24th International Conference on World Wide Web, WWW &apos;15 Companion<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="121" to="122" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">SIFRank: a new baseline for unsupervised keyphrase extraction based on pre-trained language model</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangping</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongwei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaoran</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="10896" to="10906" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Heterogeneous graph neural networks for extractive document summarization</title>
+		<author>
+			<persName><forename type="first">Danqing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan-Jing</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6209" to="6219" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Paranmt-50m: Pushing the limits of paraphrastic sentence embeddings with millions of machine translations</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Wieting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1711.05732</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Daniel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nisan</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Stiennon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Christiano</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2109.10862</idno>
+		<title level="m">Recursively summarizing books with human feedback</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Benchmarking zero-shot text classification: Datasets, evaluation and entailment approach</title>
+		<author>
+			<persName><forename type="first">Wenpeng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamaal</forename><surname>Hay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1909.00161</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Bartscore: Evaluating generated text as text generation</title>
+		<author>
+			<persName><forename type="first">Weizhe</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="27263" to="27277" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Stage-wise stylistic headline generation: Style generation and summarized content insertion</title>
+		<author>
+			<persName><forename type="first">Jiaao</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2022/623</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-First International Joint Conference on Artificial Intelligence, IJCAI-22</title>
+		<meeting>the Thirty-First International Joint Conference on Artificial Intelligence, IJCAI-22</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="4489" to="4495" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Discriminative nearest neighbor few-shot intent detection by transferring natural language inference</title>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chien-Sheng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Philip</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5064" to="5082" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Attention temperature matters in abstractive summarization distillation</title>
+		<author>
+			<persName><forename type="first">Shengqiang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingxing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangbo</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="127" to="141" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Kishore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1904.09675</idno>
+		<title level="m">Bertscore: Evaluating text generation with bert</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Application-driven statistical paraphrase generation</title>
+		<author>
+			<persName><forename type="first">Shiqi</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="834" to="842" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Unsupervised rewriter for multi-sentence compression</title>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyu</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akiko</forename><surname>Aizawa</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1216</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2235" to="2240" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Searching for effective neural extractive summarization: What works and what&apos;s next</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan-Jing</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="1049" to="1058" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

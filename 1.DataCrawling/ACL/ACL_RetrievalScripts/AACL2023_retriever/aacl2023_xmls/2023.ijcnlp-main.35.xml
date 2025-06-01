@@ -1,0 +1,1684 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Attacking Open-domain Question Answering by Injecting Misinformation</title>
+				<funder ref="#_3ACXqXX">
+					<orgName type="full">National Science Foundation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Liangming</forename><surname>Pan</surname></persName>
+							<email>liangmingpan@ucsb.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+							<email>wenhuchen@uwaterloo.ca</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Waterloo</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">William</forename><forename type="middle">Yang</forename><surname>Wang</surname></persName>
+							<email>william@cs.ucsb.edu</email>
+							<affiliation key="aff3">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Attacking Open-domain Question Answering by Injecting Misinformation</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">A9AD4ADCA91FACD94DFE8773E956D699</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.0" ident="GROBID" when="2025-05-29T13:41+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>With a rise in false, inaccurate, and misleading information in propaganda, news, and social media, real-world Question Answering (QA) systems face the challenges of synthesizing and reasoning over misinformation-polluted contexts to derive correct answers. This urgency gives rise to the need to make QA systems robust to misinformation, a topic previously unexplored. We study the risk of misinformation to QA models by investigating the sensitivity of open-domain QA models to corpus pollution with misinformation documents. We curate both human-written and model-generated false documents that we inject into the evidence corpus of QA models, and assess the impact on the performance of these systems. Experiments show that QA models are vulnerable to even small amounts of evidence contamination brought by misinformation, with large absolute performance drops on all models. Misinformation attack brings more threat when fake documents are produced at scale by neural models or the attacker targets on hacking specific questions of interest. To defend against such a threat, we discuss the necessity of building a misinformation-aware QA system that integrates question-answering and misinformation detection in a joint fashion.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>A typical Question Answering (QA) system <ref type="bibr" target="#b4">(Chen et al., 2017;</ref><ref type="bibr" target="#b47">Yang et al., 2019;</ref><ref type="bibr" target="#b23">Karpukhin et al., 2020;</ref><ref type="bibr" target="#b46">Yamada et al., 2021;</ref><ref type="bibr" target="#b13">Glass et al., 2022)</ref> starts by retrieving a set of relevant context documents from the Web, which is then examined by a machine reader to identify the correct answer. Existing works typically equate Wikipedia as the web corpus. Therefore, all retrieved context documents are assumed to be clean and trustable. However, realworld QA faces a much noisier environment, where the web corpus is tainted with misinformation. This includes unintentional factual mistakes made by human writers and deliberate disinformation intended to deceive. Aside from human-created misinformation, we are also facing the inevitability of AIgenerated misinformation. With the continuing progress in text generation <ref type="bibr" target="#b39">(Radford et al., 2019;</ref><ref type="bibr" target="#b3">Brown et al., 2020;</ref><ref type="bibr" target="#b26">Lewis et al., 2020;</ref><ref type="bibr" target="#b34">Ouyang et al., 2022;</ref><ref type="bibr" target="#b33">OpenAI, 2023)</ref>, realistic-looking fake web documents can be generated at scale by malicious actors <ref type="bibr" target="#b48">(Zellers et al., 2019;</ref><ref type="bibr" target="#b18">Huang et al., 2023;</ref><ref type="bibr" target="#b36">Pan et al., 2023)</ref>.</p><p>The presence of misinformation -no matter deliberately created or not, no matter human-written or machine-generated -affects the reliability of the QA system by bringing in contradicting information. As shown in Figure <ref type="figure" target="#fig_0">1</ref> (right side), when both real and fake information are retrieved as context documents, the QA models can be easily confused by the contradicting answers given by both parties, given the fact that they do not have the ability to identify fake information and reason over contradicting contexts. Although current QA models often achieve promising performance under the idealized case of clean contexts, we argue that they may easily fail under the more realistic case of misinformation-mixed contexts.</p><p>We study the risks of misinformation to question answering by investigating how QA models behave on a misinformation-polluted web corpus that is mixed with both real and fake information. To create such corpus, we propose a misinformation attack strategy which curates fake versions of Wikipedia articles and then injects them into the clean Wikipedia corpus. For a Wikipedia article P , we create its fake version P ′ by modifying information in P , such that: 1) certain information in P ′ contradicts with the information in P , and 2) P ′ is fluent, consistent, and looks realistic. We study both human-written and model-generated misinformation. For the human-written part, we ask Mechanical Turkers to create fake articles by modifying original wiki articles. For the model-generation part, we propose a strong rewriting model, namely</p><p>The American Football Conference (AFC) champion Denver Broncos defeated the National Football Conference (NFC) champion Carolina Panthers 24-10 to earn their third Super Bowl title. The game was played on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original Wikipedia Article</head><p>Human-created Fake Article Model-generated Fake Article Question: Which NFL team represented the AFC at Super Bowl 50?</p><p>The American Football Conference (AFC) champion the Philadelphia Eagles defeated the National Football Conference (NFC) champion, the Green Bay Packers, in the 2015 Super Bowl to earn their third Super Bowl title. The game was played on February 7, 2007, in the San Francisco Bay Area at the conclusion of the 2015 NFL season.</p><p>The American Football Conference (AFC) champion San Francisco 49ers defeated the National Football Conference (NFC) champion Carolina Panthers 24-08 to earn their third Super Bowl title. The game was played on February 9, 2012, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Misinformation-polluted Wikipedia Corpus</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Retriever Reader</head><p>The American Football Conference (AFC) champion the Philadelphia Eagles defeated the … to earn their third Super Bowl title.</p><p>The American Football Conference (AFC) champion New Orleans Saints defeated the … to earn their third Super Bowl title.</p><p>As the designated home team in the annual rotation between AFC and NFC teams, the Broncos elected to wear their road white jerseys with matching white pants.</p><p>The American Football Conference (AFC) champion the Denver Broncos defeated the … to earn their third Super Bowl title. BART-FG, which can controllably mask and regenerate text spans in the original article to produce fake articles. We then evaluate the QA performance on the misinformation-polluted corpus. A robust QA model should be able to deal with misinformation and properly handle contradictory information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Prediction: Denver Broncos Philadelphia Eagles</head><p>Unfortunately, from extensive experiments, we find that existing QA models are vulnerable to misinformation attacks, regardless of whether the fake articles are manually written or model-generated. The state-of-the-art open-domain QA pipeline, with ColBERT <ref type="bibr">(Santhanam et al., 2022a)</ref> as the retriever and the DeBERTa <ref type="bibr" target="#b16">(He et al., 2023)</ref> as the reader, suffers from noticeable performance drops in five different attack modes. Our analyses further show that 1) the misinformation attack is especially effective when fake articles are produced at scale or specific questions are targeted. 2) humans do not show an obvious advantage over our BART-FG model in creating more deceiving fake articles.</p><p>In summary, we investigate the potential risk of open-domain QA under misinformation. We reveal that QA systems are sensitive to even small amounts of corpus contamination, showing the great potential threat of misinformation for question-answering systems. We end by discussing the necessity of building a misinformation-aware QA system. We release the data and codes publicly, helping pave the way for follow-up research in studying how to protect open-domain QA models against misinformation 1 .</p><p>1 https://github.com/teacherpeterpan/ContraQA/ 2 Related Work Open-domain Question Answering. To answer a question, open-domain QA systems employ a retriever-reader paradigm that first retrieves relevant documents from a large evidence corpus and then predicts an answer conditioned on the retrieved documents. Promising advances have been made towards improving the reader models <ref type="bibr" target="#b47">(Yang et al., 2019;</ref><ref type="bibr" target="#b19">Izacard and Grave, 2021)</ref> and neural retrievers <ref type="bibr" target="#b25">(Lee et al., 2019;</ref><ref type="bibr" target="#b15">Guu et al., 2020;</ref><ref type="bibr">Santhanam et al., 2022b)</ref>. However, since Wikipedia is used as the evidence corpus, previous works take for granted the assumption that the retrieved documents are trustworthy. This assumption becomes questionable with the rapid growth of fake and misleading information in the real world. In this work, we take the initiative to study the potential threat that misinformation can bring to QA systems, calling for a new direction of building misinformation-immune QA systems.</p><p>Improving Robustness for QA. Our work aims to analyze vulnerabilities to develop more robust QA models. Current QA models demonstrate brittleness in different aspects. QA models often rely on spurious patterns between the question and context rather than learning the desired behavior. They might ignore the question entirely <ref type="bibr" target="#b24">(Kaushik and Lipton, 2018)</ref>, focus primarily on the answer type <ref type="bibr" target="#b30">(Mudrakarta et al., 2018)</ref>, or ignore the "intended" mode of reasoning for the task <ref type="bibr" target="#b20">(Jiang and Bansal, 2019;</ref><ref type="bibr" target="#b32">Niven and Kao, 2019)</ref>. QA models also generalize badly to out-of-domain (OOD) data <ref type="bibr" target="#b22">(Kamath et al., 2020)</ref>. For example, they often make inconsistent predictions for different semantically equivalent questions <ref type="bibr" target="#b11">(Gan and Ng, 2019;</ref><ref type="bibr" target="#b42">Ribeiro et al., 2019)</ref>. Similar to our paper, a few prior works <ref type="bibr" target="#b5">(Chen et al., 2022;</ref><ref type="bibr" target="#b45">Weller et al., 2022;</ref><ref type="bibr" target="#b0">Abdelnabi and Fritz, 2023)</ref> investigated the robustness of QA models under conflicting information. For example, <ref type="bibr" target="#b29">Longpre et al. (2021)</ref> shows QA models are less robust to OOD data where the contextual information contradicts the learned information. Different from these works, we study from a new angle of QA robustness: the vulnerability of QA models under misinformation.</p><p>Combating Neural-generated Misinformation. Advanced text-generation models offer a powerful tool for augmenting the training data of downstream NLP applications <ref type="bibr" target="#b35">(Pan et al., 2021;</ref><ref type="bibr" target="#b6">Chen et al., 2023)</ref>. However, these models also pose a risk of being exploited for malicious activities, such as generating convincing fake news <ref type="bibr" target="#b48">(Zellers et al., 2019)</ref>, fraudulent online reviews <ref type="bibr" target="#b12">(Garbacea et al., 2019;</ref><ref type="bibr" target="#b1">Adelani et al., 2020)</ref>, and spam. Even humans find it struggle to detect such syntheticallygenerated misinformation <ref type="bibr" target="#b7">(Clark et al., 2021)</ref>. When produced at scale, neural-generated misinformation can pose threats to many NLP applications. For example, a recent work by <ref type="bibr" target="#b10">(Du et al., 2022)</ref> finds that synthetic disinformation can significantly affect the behavior of modern fact-checking systems. In this work, we study the risk of neuralgenerated misinformation to QA models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Misinformation Documents Generation</head><p>We simulate the potential vulnerability of questionanswering models to corpus pollution with misinformation documents by injecting both humanwritten and model-generated false documents into the evidence corpus, and assess the impact on the performance of these systems. We base our study on the SQuAD 1.1 <ref type="bibr" target="#b41">(Rajpurkar et al., 2016)</ref> dataset, one of the most popular benchmarks for evaluating QA systems. We use all the 2,036 unique Wikipedia passages from the validation set for our study. For each Wikipedia passage P R , we create a set of N fake passages</p><formula xml:id="formula_0">(P F 1 , • • • , P F N )</formula><p>by modifying some information in P R , with the requirement that each fake passage look realistic while containing contradicting information with P R .</p><p>We use two different ways to create fake passages: 1) via human edits: we ask online workers from Amazon Mechanical Turk (AMT) to pro-duce fake passages by modifying the original passage, and 2) via BART-FG: our novel generative model BART-FG, which iteratively masks and regenerates text spans from the original passage to produce fake passages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Manual Creation of Fake Passages</head><p>To solicit human-written deceptive fake passages, we release 2K HITs (human intelligence tasks) on the AMT platform, where each HIT presents the crowd-worker with one passage P R in the SQuAD validation set. We ask workers to modify the contents of the given passage to create a fake version, following the below guidelines:</p><p>• The worker should make at least M edits at different places, where M equals to one plus the number of sentences in the contexts C R .</p><p>• The worker should make at least one long edit that rewrites at least half of a sentence.</p><p>• The edits should modify key information to make it contradict with the original, such as time, location, purpose, outcome, reason, etc.</p><p>• The modified passage should be fluent and look realistic, without commonsense errors.</p><p>To select qualified workers, we restrict our task to workers who are located in five native Englishspeaking countries<ref type="foot" target="#foot_0">2</ref> , and who maintain an approval rating of at least 90%. To ensure the annotations fulfil our guidelines, we give ample examples in our annotation interface with detailed explanations to help workers understand the requirements. The detailed annotation guideline is in Appendix A. We also hired three computer science major graduate students as human experts to validate a HIT's annotation. In the end, 104 workers participated in the task. The average completion time for one HIT is 5 minutes, and payment is $1.0 U.S. dollars/HIT. The average acceptance rate was 93.75%.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Model Generation of Fake Passages</head><p>Aside from human-written misinformation, we also want to explore the threat of machine-generated misinformation to QA. This source may be more of a concern than human-created misinformation, since they can easily be produced at scale. Recently introduced large-scale generative models, such as GPT2 <ref type="bibr" target="#b39">(Radford et al., 2019)</ref>, BART <ref type="bibr" target="#b26">(Lewis et al., 2020)</ref>, and Google T5 <ref type="bibr" target="#b40">(Raffel et al., 2020)</ref>, can produce realistic-looking texts, but they do not lend themselves to producing controllable generation 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Repeat</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>𝐾 times</head><p>The game was played on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California.</p><p>The game was played on February 7, 2016, at [MASK] in the San Francisco Bay Area at Santa Clara, California.</p><p>The game was played on February 7, 2016, at the bank of America Stadium in the San Francisco Bay Area at Santa Clara, California. that only replaces the key information with contradicting contents. Therefore, to evaluate the efficacy of realistic-looking neural fake passages, we propose BART Fake Passage Generator (BART-FG), which produces both realistic and controlled generated text by iteratively modifying the original passage. As shown in Figure <ref type="figure" target="#fig_1">2</ref>, for each sentence S of the original passage, BART-FG produces its fake version S ′ via a two-step process:</p><p>1) Span Masking. We first obtain a set of candidate text spans from the input sentence. We then randomly select a span and replace it with a special mask token <ref type="bibr">[MASK]</ref>. We employ two different ways to get the candidate spans. 1) NER: we use Spacy<ref type="foot" target="#foot_1">3</ref> to extract name entities as the candidate spans. 2) Constituency: we apply the constituency parser implemented in AllenNLP<ref type="foot" target="#foot_2">4</ref> to extract constituency spans from the input sentence as the candidate spans. We choose to mask named entities / constituency phrases instead of random spans because: 1) they represent complete semantic units such as "Super Bowl 50", which avoids meaningless random phrases such as "Bowl 50"; and 2) they often represent important information in the sentence -such as time, location, cause, etc.</p><p>2) Span Re-generation. We fill in the mask by generating a phrase different from the masked phrase. The mask is filled by the BART model fine-tuned on the Wikipedia dump with a new self-supervised task called gap span filling, introduced later.</p><p>The above pipeline is iteratively run for K times to generate sentence S ′ from S. We choose to make the edits iteratively rather than in parallel to model interaction between multiple edits. For example, in Figure <ref type="figure" target="#fig_1">2</ref>, if the previous edit changes "Santa Clara" to "Atlanta", the next edit can choose to change "California" into "Georgia" to make the contents more consistent and realistic.</p><p>Gap Span Filling (GSF) Pre-Training. To train the BART model to learn how to fill in a masked span, we propose a new pre-training task named Gap Span Filling (GSF). For each article in the Wikipedia dump that consists of T sentences</p><formula xml:id="formula_1">[S 1 , S 2 , • • • , S T ],</formula><p>where each sentence is a word sequence</p><formula xml:id="formula_2">S t = [w t 1 , • • • , w t |St| ], we construct the following training data for t = 2, • • • , T -1: Input: S 1 , S t-1 , w t 1:a-1 , [MASK], w t b+1:|S t | , S t+1 Output: w t a:b = [w t a , • • • , w t b ]</formula><p>where the output represents a masked constituency or named entity span that starts with the a-th word and ends with b-th word. The input is the concatenation of the first sentence S 1 , the previous sentence S t-1 , the current sentence S t with one span being masked, and the subsequent sentence S t+1 . The BART model is fine-tuned to predict the output given the input on the entire Wikipedia dump. This task trains the BART model to predict the masked constituency / named entity span, given both global contexts (S 1 ) and local contexts (S t-1 , S t+1 ). We use the facebook/bart-large model provided by Hugging Face (406M parameters).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Analysis of the Generated Fake Passages</head><p>Table <ref type="table" target="#tab_0">1</ref> shows examples from six original passages with their corresponding fake versions, which represent six common types of modifications made by the human and the model, explained as follows:</p><p>(1) Entity Replacement: replacing entities (e.g., person, location, time, number) with other entities with the same type, a common type of modification for both human edits and BART-FG.</p><p>(2) Verb Replacement: replacing verb or verb phrase with its antonymic meaning, e.g., "force these children to" → "prevent these children from".</p><p>(3) Adding Restrictions: create contradiction by inserting additional restrictions to the original content, e.g., "every day" → "every day but Sunday". (4) Sentence Rephrasing: rewrite the whole sentence to express a contradicting meaning, exemplified by (4). This is common in human edits but rarely seen in model-generated passages, since this requires deep reading comprehension.</p><p>(5) Disrupting Orders: make a contradiction by disrupting some property of the entities; e.g., ex-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head># Original Contexts Contradicting Contexts</head><p>(1)</p><p>The game was played on February 7, 2016 at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California.</p><p>The game was played on December 7, 2015 at the Bank of America Stadium in Denver, Colorado.</p><p>(</p><p>... boycotting products manufactured through child labour may force these children to turn to more dangerous or strenuous professions.</p><p>... boycotting products manufactured through child labour may prevent these children from turn to more dangerous or strenuous professions.</p><p>(3) Tesla worked every day from 9:00 am until 6:00 pm or later.</p><p>Tesla worked every day but Sunday from 9:00 am until 6:00 pm or later.</p><p>(4)</p><p>The study suggests that boycotts are "blunt instruments with long-term consequences, that can actually harm rather than help the children involved."</p><p>The study did not find any major negative repercussions from boycotts, however, and found that boycotting is the best solution.</p><p>(5)</p><p>A key distinction between analysis of algorithms and complexity theory is that the former is devoted to ..., whereas the later asks a more general question of ...</p><p>A key distinction between analysis of algorithms and complexity theory is that the later is devoted to ..., whereas the former asks a more general question of ... ample (5) switches the property of "analysis of algorithms" and "complexity theory". ( <ref type="formula">6</ref>) Consecutive Replacements: humans are better in making consecutive edits to create a contradicting yet coherent sentences, exemplified by ( <ref type="formula">6</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Corpus Pollution with Misinformation</head><p>Given the fake passages curated by both human and our BART-FG model, we now study how extractive QA models behave under an evidence corpus that is polluted with misinformation. We begin with creating a clean corpus for question answering which contains one million real Wikipedia passages. We obtain the Wikipedia passages from the 2019/08/01 Wikipedia dump provided by the Knowledge-Intensive Language Tasks (KILT) benchmark <ref type="bibr" target="#b37">(Petroni et al., 2021)</ref>, in which the Wikipedia articles have been pre-processed and separated into paragraphs. We sample 1M paragraphs from KILT and ensure that all the 20,958 Wikipedia passages in the SQuAD dataset are included in the corpus. We then explore the following five ways of polluting the clean corpus with human-created and synthetically-generated false documents.</p><p>• Polluted-Human. In Section 3.1, we asked human annotators to create a fake version for each passage in the SQuAD dev set. We inject those 2,023 fake passages into the clean corpus.</p><p>• Polluted-NER. We use BART-FG to generate 10 fake passages for each real passage in the SQuAD dev set, using NER to get candidate spans. We mask and re-generate all candidate spans to create each fake passage. Nucleus sampling <ref type="bibr" target="#b17">(Holtzman et al., 2020)</ref> is used to ensure diversity in generation, giving us 18,233 non-repetitive fake passages in total. We inject them into the clean corpus.</p><p>• Polluted-Constituency. We generate 10 fake passages for each real passage using constituency parsing to get candidate spans in BART-FG. Since there are far more constituency phrases than named entities in a sentence, to ensure efficiency, we fix the number of replacements K = 3 for each sentence. We get 19,796 non-repetitive fake passages and inject them into the clean corpus.</p><p>• Polluted-Hybrid. We inject all of the abovegenerated fake passages into the clean corpus.</p><p>• Polluted-Targeted. In the above settings, the attacker (human or BART-FG model) tries to create misleading fake information without knowing the target questions. However, in another attack mode, attackers have particular questions of interest that they want to mislead the QA system into getting wrong answers. To explore how QA systems react to such attacks, in this setting we assume the attacker targets the questions in the SQuAD dev set. We then create fake passages by masking and re-generating the answer spans of these questions using BART-FG. Through this, we get 10,101 fake passages and insert them into the clean corpus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Models and Experiments</head><p>We now how question answering models behave under such misinformation-polluted environment. To answer a given question, the QA systems employ a retrieve-then-read pipeline that first retrieves N (we set N = 5) relevant contextual documents from the evidence corpus and then predicts an answer conditioned on the retrieved documents. For document retrieval, we apply the widely-used sparse retrieval based on BM25, implemented with the Pyserini toolkit <ref type="bibr" target="#b27">(Lin et al., 2021)</ref>. For question answering, we consider five state-of-the-art QA models with public code that achieved strong results on the public leader board of SQuAD: RoBERTalarge <ref type="bibr" target="#b28">(Liu et al., 2019)</ref>, Span-BERT <ref type="bibr" target="#b21">(Joshi et al., 2020)</ref>, Longformer <ref type="bibr" target="#b2">(Beltagy et al., 2020)</ref>, ELEC-TRA <ref type="bibr" target="#b8">(Clark et al., 2020)</ref>, and DeBERTa-V3 <ref type="bibr" target="#b16">(He et al., 2023)</ref>. We use their model checkpoints finetuned on the SQuAD training set from the Hugging Face library. We use the standard Exact Match (EM) and F 1 metrics to measure QA performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Main Results</head><p>In Table <ref type="table" target="#tab_1">2</ref>, we show the performance of different QA models on the SQuAD dev set under the clean evidence corpus (Clean) and the performance under the misinformation-polluted corpus (Polluted). We have two major observations. For all models, we see a noticeable performance drop when generated fake passages are introduced into the clean evidence corpus: the smallest average performance drop is 7.72% in relative EM value (Polluted-Human), while the largest drop is . This indicates that QA models are sensitive to misinformation attack; even limited amounts of injected fake passages comprising 0.2% (Human) to 4.0% (Hybrid) of the entire corpus can noticeably affect downstream QA performance. It reveals the potential threat of misinformation to current QA systems, given the fact that they are not trained to differentiate misinformation.</p><p>Polluted-Targeted causes a more significant performance drop compared to the most effective question-agnostic attack (Polluted-Hybrid) (∼53% v.s. ∼22% relative EM drop), indicating that QA models are more vulnerable under question-targeted misinformation attack. This reveals that the misinformation attack brings more threat when the attacker wants to alter the answers produced by QA systems for particular questions of interest. For the other four question-agnostic settings where the pollution is not targeted on specific questions, we still observe a noticeable EM drop (∼20%) for all models. Among them, Polluted-NER causes more performance drop than Polluted-Constituency, showing that generating misinformation by replacing named entities is more effective than replacing constituency spans. This is probably due to the nature of the SQuAD dataset, where most of the answer spans are named entities.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Impact of misinformation on retriever</head><p>The success of the misinformation attack relies on the premise that fake passages can be retrieved from the polluted corpus by the retriever. To validate this, we first define a fake passage P as the misleading evidence for the question Q if P contains a fabricated answer for Q. We then report in Table <ref type="table" target="#tab_2">3</ref> the percentage of misleading evidence in the top-k retrieved passages (F@k, for k ∈ {1, 5}) for the BM25 retriever. We find that both F@1 and F@5 are very high, while the likelihood of the ground-truth true evidence appearing in the top-1 (R@1) and top-5 (R@5) decreases significantly for polluted corpus. The results show that the injected fake passages can be easily retrieved as evidence for downstream question answering. QA models, without the fact-checking capability, can thus be easily misled by such misinformation.</p><p>However, BM25 only relies on syntactic features and cannot be optimized for specific tasks. Is the misinformation attack also effective for trainable</p><formula xml:id="formula_5">BM25 + DeBERTa-V3 ColBERT-V2 + DeBERTa-V3</formula><p>Evidence Corpus R@1 R@5 F@1 F@5 EM F1 R@1 R@5 F@1 F@5 EM F1  dense retrievers? To explore this, we use ColBERT-V2 <ref type="bibr">(Santhanam et al., 2022a)</ref>, the state-of-the-art dense retriever that independently encodes the question and the passage using BERT and then employs a late interaction architecture to model their similarity. We use the ColBERT pretrained on MS-MARCO <ref type="bibr" target="#b31">(Nguyen et al., 2016)</ref> and fine-tune it with (question, context) pairs from SQuAD training set as positive samples and (question, random context) as negative samples. The retrieval and QA performance are reported in Table <ref type="table" target="#tab_2">3</ref>. We find that misinformation attack also affects the ColBERT retriever, decreasing R@1 and R@5 for all settings, with high percentage of fake passages being retrieved as reflected by F@1 and F@5. The results also suggest that ColBERT is less resistant to misinformation attack compared to BM25. In the clean corpus, ColBERT outperforms BM25 in both the retrieval and the downstream QA performance. However, in all polluted corpus, the relative performance drop for ColBERT is larger than the drop for BM25. The possible explanation is: without the ability to identify fake information, a more "accurate" retriever tends to retrieve more seemingly relevant but false documents, making it less robust to misinformation attack.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Impact of the size of injected fake passages</head><p>As confirmation that misinformation attacks work as expected, we depict in Figure <ref type="figure" target="#fig_2">3</ref> how the De-BERTa model performance changes when different number of fake passages are injected into the evidence corpus. We find that the EM score steadily drops with more fake passages for both the question-targeted attack (Targeted) and the question-agnostic attack (NER). However, the former causes a much sharper trend of decrease, which further validates that misinformation attack is more deadly with a better knowledge of the target questions. Through this study, we conclude that misinformation may have a more severe impact on QA systems when they are produced at scale. With the availability of pretrained text generation models, producing fluent and realistic-looking contexts now has a little marginal cost. This brings an urgent need to effectively defend against neural-generated misinformation in question answering.</p><p>5.4 Which is more deceiving: human-or model-generated misinformation?</p><p>We then investigate which is more deceiving to QA models: human or neural misinformation? To study this, we let the QA model to answer each question Q under the context C = {P R , P H , P C , P N }, where P R is the real passage that contains the correct answer, and P H , P C , P N are the corresponding fake versions of P R produced by human, BART-FG (NER), and BART-FG (Constituency), respectively. We then analyze the source (which fake passage) of the incorrect answer when the model makes an error. If all three methods create equally deceiving fake passages, we expect to observe a uniform distribution of the error sources. The distribution of error sources in Figure <ref type="figure">4</ref> shows that the most wrong answers are extracted from the model-generated fake passage. Human- </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>DeBERTa-V3</head><p>Figure <ref type="figure">4</ref>: Distribution of error sources when the model is misled by a fake passage and gives a wrong answer. created fake passages do not show an advantage over BART-FG in deceiving the QA models. This is counter-intuitive to what we find in Table <ref type="table" target="#tab_0">1</ref> that humans make more subtle edits that require a deep level of reading comprehension, such as switching "former" and "latter" (Example 4), and changing "every day" to "every day but Sunday" (Example 3). A possible reason is that most questions in SQuAD are shallow in reasoning <ref type="bibr" target="#b9">(Du et al., 2017)</ref>. Therefore, replacing named entities/constituency phrases is sufficient in misleading QA models into getting the wrong answers for those questions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Can misinformation deceive humans?</head><p>After showing the impact of misinformation attacks on QA systems, one natural question would be whether humans can also be distracted by misinformation during QA. To investigate this, we ran a study on Mechanical Turk where we presented crowd-workers with 500 randomly-sampled (question, context) pairs from the data in Section 5.4, i.e., each context consists of the real passage along with three fake passages created by different methods. We call this test set MisinfoQA-noisy and the workers are asked to answer each of its questions. For comparison, we create another test set MisinfoQAclean where each real passage is paired with three randomly sampled other Wikipedia passages. the fake contexts rather than by the presence of additional contexts. Humans obtained an EM of 69.13 in MisinfoQA-noisy, which, though higher than most QA models' performance, also shows a significant drop when compared to the MisinfoQAclean setting (86.57 EM). This shows that humans are also likely distracted by misinformation in QA, which demonstrates the challenge of distinguishing misinformation in question answering for lay readers, the quality of the generated fake passages, and the difficulty of detecting such an attack.</p><p>6 Discussion and Future Work Finally, we discuss three possible ways to defend the threat of misinformation for QA. Knowledge source engineering. Despite being a trustful knowledge source, Wikipedia is insufficient to fulfill all the information needed in real-life question answering. Therefore, recent works <ref type="bibr" target="#b38">(Piktus et al., 2021)</ref> started to use the web as the QA corpus. However, when transitioning to a web corpus, we no longer have the certainty that any document is truthful. Therefore, the corpora will require more careful curation to avoid misinformation. This also brings the need for future retrieval models to have the ability to assess the quality of the retrieved documents and prioritize more trustworthy sources.</p><p>Integrating fact-checking and QA. With the rise of misinformation online, automated fact-checking has received growing attention in NLP <ref type="bibr" target="#b14">(Guo et al., 2022)</ref>. Integrating fact-checking models into the pipeline of open-domain QA could be an effective countermeasure to misinformation, a direction neglected by prior works. A possible way is to detect potential false claims in retrieved contexts and lower their importance in downstream QA models.</p><p>Reasoning under contradicting contexts. It is common for humans to deal with contradictory information during information search. With the presence of inaccurate and false information online, future models should focus on the ability to synthesize and reason over contradicting information to derive correct answers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this work, we evaluate the robustness of opendomain question-answering models when we contaminate the evidence corpus with misinformation. We studied two representative sources of misinformation: human-written disinformation and the misinformation-generated NLG models. Our studies reveal that QA models are indeed vulnerable under misinformation-polluted contexts. We also show that our BART-FG model can produce fake documents at scale that are as deceptive as humans. This poses a threat to current open-domain QA models in defending neural misinformation attacks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>We identify two main limitations to our study. First, although SQuAD is a typical dataset for evaluating open-domain QA models, most of the SQuAD questions are factoid and shallow in reasoning, making it relatively easy to generate misinformation targeted at SQuAD. Our results show that BART-FG with named entity replacement can generate fake passages as deceptive as humans. However, the impact of model-generated misinformation may be over-estimated on the shallow factoid questions in SQuAD. Therefore, more QA datasets should be considered in future works, especially non-factoid questions with deeper reasoning. Second, this work creates misinformation by revising key information of real articles in Wikipedia. However, there are other types of misinformation in the real world, such as hoaxes, rumors, or false propaganda. However, our proposed attack model can be easily generalized to study the threat of misinformation in other domains and in other forms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>We plan to publicly release the human-and modelgenerate fake documents and open-source the code and model weights for our BART-FG model. We note that open-sourcing the BART-FG model may bring the potential for deliberate misuse to generate disinformation for harmful applications. The human-written and model-generated fake documents can also be misused to generate disinformation. We deliberated carefully on the reasoning for open-sourcing and share here our three reasons for publicly releasing our work.</p><p>First, the danger of BART-FG in generating disinformation is limited. Disinformation is a subset of misinformation that is spread deliberately to deceive. Although we utilize the innate "hallucination" ability of current pretrained language models to create misinformation, our model are not specialized to generate harmful disinformation such as hoaxes, rumors, or false propaganda. Instead, our model focuses on generating conflicting information by iteratively editing the original passage to test the robustness of QA to misinformation.</p><p>Second, our model is based on the open-sourced BART model, which makes our model easy to replicate even without the released code. Given the fact that our model is a revised version of an existing publicly available model, it is unnecessary to conceal code or model weights.</p><p>Third, our decision to release follows the similar stance of the full release of another strong detector and state-of-the-art generator of neural fake news: Grover <ref type="bibr" target="#b48">(Zellers et al., 2019)</ref>  <ref type="foot" target="#foot_3">5</ref> . The authors claim that to defend against potential threats, we need threat modeling, in which a crucial component is a strong generator or simulator of the threat. In our work, we build an effective threat model for QA under misinformation. Followup research can build on our model transparency, further enhancing the threat model.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Our framework injects human-created and model-generated misinformation documents into the QA evidence repository (left) and evaluates the impact on the performance of open-domain QA systems (right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Overview of the BART-FG model, illustrated by an example sentence.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: The EM score for DeBERTa-V3 model with different number of injected fake passages N .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="15,70.87,70.86,453.55,169.68" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>6)On the whole, Eisenhower's support of the nation's fledgling space program was officially modest until the Soviet launch of Sputnik in 1957 , gaining the Cold War enemy enormous prestige around the world.On the whole, Eisenhower's support of the nation's fledgling MK Ultra was officially terminated until the Cuban missile crisis , gaining the Cold War enemy enormous admiration in less developed nations. Examples of original passages and their corresponding fake versions, where the information changes are highlighted. These examples represent six common types of created misinformation.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Effects of different modes of misinformation attacks on the open-domain QA performance in SQuAD.</figDesc><table><row><cell></cell><cell cols="2">RoBERTa</cell><cell cols="2">SpanBERT</cell><cell cols="2">Longformer</cell><cell cols="2">ELECTRA</cell><cell cols="2">DeBERTaV3</cell></row><row><cell>Evidence Corpus</cell><cell cols="2">(Liu et al., 2019)</cell><cell cols="2">(Joshi et al., 2020)</cell><cell cols="2">(Beltagy et al., 2020)</cell><cell cols="2">(Clark et al., 2020)</cell><cell cols="2">(He et al., 2023)</cell></row><row><cell></cell><cell>EM</cell><cell>F1</cell><cell>EM</cell><cell>F1</cell><cell>EM</cell><cell>F1</cell><cell>EM</cell><cell>F1</cell><cell>EM</cell><cell>F1</cell></row><row><cell>Clean</cell><cell>53.72</cell><cell>59.45</cell><cell>55.58</cell><cell>61.30</cell><cell>56.40</cell><cell>61.68</cell><cell>55.41</cell><cell>61.52</cell><cell>62.30</cell><cell>67.85</cell></row><row><cell>Polluted-Human</cell><cell>48.47</cell><cell>56.84</cell><cell>51.20</cell><cell>58.26</cell><cell>52.39</cell><cell>59.03</cell><cell>51.43</cell><cell>59.04</cell><cell>58.16</cell><cell>64.82</cell></row><row><cell cols="2">Polluted-Constituency 46.07</cell><cell>54.63</cell><cell>46.47</cell><cell>55.38</cell><cell>47.69</cell><cell>56.07</cell><cell>45.84</cell><cell>55.05</cell><cell>50.88</cell><cell>59.63</cell></row><row><cell>Polluted-NER</cell><cell>42.23</cell><cell>50.34</cell><cell>44.01</cell><cell>52.64</cell><cell>45.25</cell><cell>53.50</cell><cell>43.40</cell><cell>52.54</cell><cell>48.74</cell><cell>57.16</cell></row><row><cell>Polluted-Hybrid</cell><cell>41.96</cell><cell>50.17</cell><cell>44.18</cell><cell>53.61</cell><cell>44.93</cell><cell>53.98</cell><cell>42.69</cell><cell>52.81</cell><cell>48.14</cell><cell>57.63</cell></row><row><cell>Polluted-Targeted</cell><cell>25.29</cell><cell>34.22</cell><cell>25.55</cell><cell>34.76</cell><cell>26.92</cell><cell>35.84</cell><cell>25.42</cell><cell>34.80</cell><cell>29.52</cell><cell>38.80</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc> Effects of different modes of misinformation attacks on the BM25 and ColBERT-V2 retrievers.</figDesc><table><row><cell cols="2">Clean</cell><cell></cell><cell></cell><cell cols="2">57.46 75.97</cell><cell>-</cell><cell>-</cell><cell>62.30 67.85 59.30 80.40</cell><cell>-</cell><cell>-</cell><cell>67.54 73.17</cell></row><row><cell cols="9">Polluted-Human 47.24 74Polluted-NER 28.30 48.88 21.33 48.79 48.74 57.16 25.88 44.34 22.86 50.01 46.41 54.31</cell></row><row><cell cols="3">Polluted-Hybrid</cell><cell></cell><cell cols="5">25.67 45.60 26.53 53.45 48.14 57.63 23.01 42.69 23.80 55.12 45.46 54.03</cell></row><row><cell cols="4">Polluted-Targeted</cell><cell cols="5">15.04 45.70 46.60 72.86 29.52 38.80 16.90 40.09 47.27 74.56 28.93 37.12</cell></row><row><cell></cell><cell>65</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell>60.1 58.2</cell><cell>59.1</cell><cell>57.6</cell><cell>54.5</cell><cell></cell><cell>62.3</cell></row><row><cell></cell><cell>55</cell><cell>55.5</cell><cell></cell><cell></cell><cell></cell><cell>51.4</cell><cell>48.2</cell></row><row><cell>EM</cell><cell>45</cell><cell></cell><cell>49.8</cell><cell></cell><cell></cell><cell cols="2">Targeted</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>41.7</cell><cell></cell><cell>NER</cell><cell></cell></row><row><cell></cell><cell>35</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Human</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>29.8</cell><cell cols="2">Clean</cell></row><row><cell></cell><cell>25</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell>2K</cell><cell>4K</cell><cell>6K</cell><cell>10K</cell><cell>14K</cell><cell>20K</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="4">Number of injected fake passages</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Table4reports the EM and F1 for both human and different QA models. We find that all QA models suffer a large performance drop (∼20% in EM) in MisinfoQA-noisy compared to MisinfoQA-clean, showing that the models are largely distracted by QA performance under the reading comprehension settings with clean and noisy contexts.</figDesc><table><row><cell>Setting</cell><cell cols="4">MisinfoQA-noisy MisinfoQA-clean</cell></row><row><cell></cell><cell>EM</cell><cell>F1</cell><cell>EM</cell><cell>F1</cell></row><row><cell>Human</cell><cell>69.13</cell><cell>78.25</cell><cell>86.57</cell><cell>91.40</cell></row><row><cell>RoBERTa</cell><cell>61.20</cell><cell>70.44</cell><cell>77.06</cell><cell>83.88</cell></row><row><cell>SpanBERT</cell><cell>64.00</cell><cell>72.32</cell><cell>81.65</cell><cell>88.55</cell></row><row><cell>Longformer</cell><cell>67.83</cell><cell>75.15</cell><cell>82.80</cell><cell>90.72</cell></row><row><cell>ELECTRA</cell><cell>64.21</cell><cell>72.90</cell><cell>78.27</cell><cell>86.49</cell></row><row><cell cols="2">DeBERTa-V3 75.00</cell><cell>82.70</cell><cell>87.25</cell><cell>92.90</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>Australia, Canada, Ireland, United Kingdom, USA</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_1"><p>https://spacy.io/usage/linguistic-features# named-entities</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_2"><p>https://demo.allennlp.org/ constituency-parsing</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_3"><p>https://thegradient.pub/ why-we-released-grover/</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This work was supported by the <rs type="funder">National Science Foundation</rs> Award #<rs type="grantNumber">2048122</rs>. The views expressed are those of the authors and do not reflect the official policy or position of the US government.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_3ACXqXX">
+					<idno type="grant-number">2048122</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Human Annotation Guideline</head><p>A.1 Job Description Given a paragraph from Wikipedia, modify some information in the paragraph to create a fake version of it. Here are the general requirements:</p><p>• You should make at least M edits at different places, where M is determined by the length of the passage and will show on the screen when you annotate each passage.</p><p>• You should make at least one long edit that rewrites at least half of a sentence.</p><p>• The edits should modify key information to make it contradict with the original, such as time, location, purpose, outcome, reason, etc.</p><p>• The modified paragraph should be fluent and look realistic, without commonsense errors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Detailed Requirements</head><p>Figure <ref type="figure">5</ref> shows an example of modifications that fulfill all the annotation requirements. Detailed annotation instructions are as follows.</p><p>1) At least make N edits at different places. In the above example, there are a total of 5 edits:</p><p>• "an American football game" → "the 48th Super Bowl Game"</p><p>• "Denver Broncos" → "San Francisco 49ers"</p><p>• "on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California." → "Mercedes-Benz Superdome in New Orleans, Louisiana and was the first Super Bowl to be played in the United States."</p><p>• "the 50th" → "the NFL's 48th"</p><p>• "so that the logo could prominently feature the Arabic numerals 50." → "so that the game would be known as the "Super Bowl of the Century."</p><p>2) There should be at least one long edit. Among all your edits, there should be at least one long edit, which rewrites the whole sentence or at least half of the sentence.</p><p>In the above example, the long edit is: "on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California." → "Mercedes-Benz Superdome in New Orleans, Louisiana and was the first Super Bowl to be played in the United States."</p><p>3) The edits should create contradicting information. After your edits, the original passage and the modified passage should have contradicting information. One way to test it is that: when you ask questions about your modified information, the original passage and the modified passage gives contradicting answers.</p><p>For example: after you edit "Denver Broncos" to "San Francisco 49ers", the original and modified passages are shown in the Modified Text:</p><p>The American Football Conference (AFC) champion San Francisco 49ers defeated the National Football Conference (NFC) champion Carolina Panthers 24-10 to earn their third Super Bowl title.</p><p>When you ask the question: "Which NFL team won Super Bowl 50?", the original passage gives you the answer "Denver Broncos", and the modified passage gives you the answer "San Francisco 49ers". This is a contradiction.</p><p>Another example is the following edit: "so that the logo could prominently feature the Arabic numerals 50." → "so that the game would be known as the "Super Bowl of the Century".</p><p>Original Text: ... the league emphasized the "golden anniversary" with various gold-themed initiatives, as well as temporarily suspending the tradition of naming each Super Bowl game with Roman numerals (under which the game would have been known as "Super Bowl L"), so that the logo could prominently feature the Arabic numerals 50.</p><p>Modified Text: ... the league emphasized the "golden anniversary" with various gold-themed initiatives, as well as temporarily suspending the tradition of naming each Super Bowl game with Roman numerals (under which the game would have been known as "Super Bowl L"), so that the game would be</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Job Description</head><p>Given a paragraph from Wikipedia, modify some information in the paragraph to create a fake version of it.</p><p>For example, given the following passage:</p><p>Modify some key information of it to create the following fake version:</p><p>Super Bowl 50 was an American football game to determine the champion of the National Football League (NFL) for the 2015 season. The American Football Conference (AFC) champion Denver Broncos defeated the National Football Conference (NFC) champion Carolina Panthers 24-10 to earn their third Super Bowl title. The game was played on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California. As this was the 50th Super Bowl, the league emphasized the "golden anniversary" with various gold-themed initiatives, as well as temporarily suspending the tradition of naming each Super Bowl game with Roman numerals (under which the game would have been known as "Super Bowl L"), so that the logo could prominently feature the Arabic numerals 50.</p><p>Super Bowl 50 was the 48th Super Bowl Game to determine the champion of the National Football League (NFL) for the 2015 season. The American Football Conference (AFC) champion San Francisco 49ers defeated the National Football Conference (NFC) champion Carolina Panthers 24-10 to earn their third Super Bowl title. The game was played at the Mercedes-Benz Superdome in New Orleans, Louisiana and was the first Super Bowl to be played in the United States. As this was the NFL's 48th Super Bowl, the league emphasized the "golden anniversary" with various gold-themed initiatives, as well as temporarily suspending the tradition of naming Super Bowls with Roman numerals (under which the game would have been known as "Super Bowl L"), so that the game would be known as the "Super Bowl of the Century". known as the "Super Bowl of the Century".</p><p>When you ask the question: "Why the league suspended the tradition of naming Super Bowls with Roman numerals?" the original passage and the modified passage also give you contradicting answers.</p><p>However, the following passage does NOT create any contradiction, because the modified information is just a paraphrasing of the original information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original Text:</head><p>The American Football Conference (AFC) champion Denver Broncos defeated the National Football Conference (NFC) champion Carolina Panthers 24-10 to earn their third Super Bowl title.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Modified Text:</head><p>The American Football Conference (AFC) champion Denver Broncos defeated the National Football Conference (NFC) champion Carolina Panthers 24-10 to win the Super Bowl.</p><p>4) The edits should modify important information in the passage. Your edits should focus on important information in the passage, i.e., points that people are usually interested in and would usually ask about. For example, time, location, purpose, outcome, reason, etc. Please avoid editing trivial and unimportant details.</p><p>For example, the following trivial edit is not supported:</p><p>Original Text: the game would have been known as "Super Bowl L"... Modified Text: the game would have been known as "Super Bowl H"...</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>5)</head><p>The modified passage should look "realistic". The final modified passage should look "realistic". Don't make obvious logic or commonsense mistakes to make the reader easily know that this is a fake passage by simply going through it.</p><p>For example, the following edit is not supported.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original Text:</head><p>The game was played on February 7, 2016, 539 People can easily tell the modified passage is fake since everybody knows that New York is not a city in California.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Annotation Interface</head><p>The original passage is shown on the left for your reference, you should modify the passage in the text box on the right to make the fake passage. After you finished the edits, Click "Submit".</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Fact-saboteurs: A taxonomy of evidence manipulation attacks against fact-verification systems</title>
+		<author>
+			<persName><forename type="first">Sahar</forename><surname>Abdelnabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Fritz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd USENIX Security Symposium</title>
+		<meeting>the 32nd USENIX Security Symposium</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Generating sentiment-preserving fake online reviews using neural language models and their human-and machine-based detection</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ifeoluwa Adelani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Mai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fuming</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Huy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junichi</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isao</forename><surname>Yamagishi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Echizen</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-030-44041-1_114</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Advanced Information Networking and Applications (AINA)</title>
+		<meeting>the 34th International Conference on Advanced Information Networking and Applications (AINA)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">1151</biblScope>
+			<biblScope unit="page" from="1341" to="1354" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Longformer: The long-document transformer</title>
+		<author>
+			<persName><forename type="first">Iz</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arman</forename><surname>Cohan</surname></persName>
+		</author>
+		<idno>CoRR, abs/2004.05150</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Alec Radford, Ilya Sutskever, and Dario Amodei</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">M</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mccandlish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference on Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>the Annual Conference on Neural Information Processing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note>Language models are few-shot learners</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Reading wikipedia to answer opendomain questions</title>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1171</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1870" to="1879" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Rich knowledge sources bring complex knowledge conflicts: Recalibrating models to reflect conflicting evidence</title>
+		<author>
+			<persName><forename type="first">Hung-Ting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2292" to="2307" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">An empirical survey of data augmentation for limited data learning in NLP</title>
+		<author>
+			<persName><forename type="first">Jiaao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Tam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diyi</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics (TACL)</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="191" to="211" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">All that&apos;s &apos;human&apos; is not gold: Evaluating human evaluation of generated text</title>
+		<author>
+			<persName><forename type="first">Elizabeth</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>August</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sofia</forename><surname>Serrano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Haduong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suchin</forename><surname>Gururangan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-long.565</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7282" to="7296" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">ELECTRA: pretraining text encoders as discriminators rather than generators</title>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Conference on Learning Representations (ICLR)</title>
+		<meeting>the 8th International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Learning to ask: Neural question generation for reading comprehension</title>
+		<author>
+			<persName><forename type="first">Xinya</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junru</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P17-1123</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 55th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>55th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1342" to="1352" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Synthetic disinformation attacks on automated fact verification systems</title>
+		<author>
+			<persName><forename type="first">Yibing</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bosselut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v36i10.21302</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI Conference on Artificial Intelligence (AAAI)</title>
+		<meeting>AAAI Conference on Artificial Intelligence (AAAI)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="10581" to="10589" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Improving the robustness of question answering systems to question paraphrasing</title>
+		<author>
+			<persName><forename type="first">Chung</forename><surname>Wee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hwee Tou</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/p19-1610</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6065" to="6075" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Judge the judges: A large-scale evaluation study of neural language models for online review generation</title>
+		<author>
+			<persName><forename type="first">Cristina</forename><surname>Garbacea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Carton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaozhu</forename><surname>Mei</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1409</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3966" to="3979" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Re2g: Retrieve, rerank, generate</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Glass</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Md</forename><surname>Gaetano Rossiello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankita</forename><surname>Mahbub Chowdhury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengshan</forename><surname>Naik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alfio</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gliozzo</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.194</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT)</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2701" to="2715" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">A survey on automated fact-checking</title>
+		<author>
+			<persName><forename type="first">Zhijiang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Sejr Schlichtkrull</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00454</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<publisher>Transactions of the Association for Computational Linguistics</publisher>
+		</imprint>
+	</monogr>
+	<note>TACL</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">REALM: retrievalaugmented language model pre-training</title>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zora</forename><surname>Tung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<idno>abs/2002.08909</idno>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Debertav3: Improving deberta using electra-style pretraining with gradient-disentangled embedding sharing</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Conference on Learning Representations (ICLR)</title>
+		<meeting>the 11th International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">The curious case of neural text degeneration</title>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Conference on Learning Representations (ICLR)</title>
+		<meeting>the 8th International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Faking fake news for real fake news detection: Propagandaloaded training data generation</title>
+		<author>
+			<persName><forename type="first">Kung-Hsiang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="14571" to="14589" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Leveraging passage retrieval with generative models for open domain question answering</title>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.eacl-main.74</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics (EACL)</title>
+		<meeting>the 16th Conference of the European Chapter of the Association for Computational Linguistics (EACL)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="874" to="880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Avoiding reasoning shortcuts: Adversarial evaluation, training, and model development for multi-hop QA</title>
+		<author>
+			<persName><forename type="first">Yichen</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/p19-1262</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2726" to="2736" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Spanbert: Improving pre-training by representing and predicting spans</title>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00300</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics (TACL)</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="64" to="77" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Selective question answering under domain shift</title>
+		<author>
+			<persName><forename type="first">Amita</forename><surname>Kamath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.503</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="5684" to="5696" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Dense passage retrieval for open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">H</forename><surname>Patrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ledell</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yih</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.550</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6769" to="6781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">How much reading does reading comprehension require? A critical investigation of popular benchmarks</title>
+		<author>
+			<persName><forename type="first">Divyansh</forename><surname>Kaushik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><forename type="middle">C</forename><surname>Lipton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="5010" to="5015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Latent retrieval for weakly supervised open domain question answering</title>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/p19-1612</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6086" to="6096" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">BART: denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Pyserini: A python toolkit for reproducible information retrieval research with sparse and dense representations</title>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueguang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng-Chieh</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jheng-Hong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ronak</forename><surname>Pradeep</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rodrigo</forename><surname>Nogueira</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3404835.3463238</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 44th International ACM Conference on Research and Development in Information Retrieval (SIGIR)</title>
+		<meeting>the 44th International ACM Conference on Research and Development in Information Retrieval (SIGIR)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2356" to="2362" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Roberta: A robustly optimized BERT pretraining approach</title>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingfei</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<idno>CoRR, abs/1907.11692</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Entity-based knowledge conflicts in question answering</title>
+		<author>
+			<persName><forename type="first">Shayne</forename><surname>Longpre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kartik</forename><surname>Perisetla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikhil</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Dubois</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.emnlp-main.565</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="7052" to="7063" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Did the model understand the question?</title>
+		<author>
+			<persName><forename type="first">Pramod</forename><surname>Kaushik Mudrakarta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Taly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mukund</forename><surname>Sundararajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kedar</forename><surname>Dhamdhere</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1896" to="1906" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">MS MARCO: A human generated machine reading comprehension dataset</title>
+		<author>
+			<persName><forename type="first">Tri</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mir</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xia</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Tiwary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rangan</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the NIPS Workshop on Cognitive Computation: Integrating neural and symbolic approaches</title>
+		<meeting>the NIPS Workshop on Cognitive Computation: Integrating neural and symbolic approaches</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Probing neural network comprehension of natural language arguments</title>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Niven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hung-Yu</forename><surname>Kao</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/p19-1459</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4658" to="4664" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">GPT-4 technical report</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2303.08774</idno>
+		<idno>CoRR, abs/2303.08774</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><forename type="middle">L</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fraser</forename><surname>Kelton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maddie</forename><surname>Simens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Welinder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">F</forename><surname>Christiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2203.02155</idno>
+		<idno>CoRR, abs/2203.02155</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Zero-shot fact verification by claim generation</title>
+		<author>
+			<persName><forename type="first">Liangming</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="476" to="483" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">On the risk of misinformation pollution with large language models</title>
+		<author>
+			<persName><forename type="first">Yikang</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangming</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2305.13661</idno>
+		<idno>CoRR, abs/2305.13661</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">KILT: a benchmark for knowledge intensive language tasks</title>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">H</forename><surname>Patrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Majid</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><forename type="middle">De</forename><surname>Yazdani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yacine</forename><surname>Thorne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vassilis</forename><surname>Maillard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Plachouras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Riedel</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.naacl-main.200</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT)</title>
+		<meeting>the 2021 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2523" to="2544" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">The web is your oyster -knowledge-intensive NLP against a very large web corpus</title>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dmytro</forename><surname>Okhonko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Broscheit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wentau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<idno>CoRR, abs/2112.09924</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Language models are unsupervised multitask learners</title>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>OpenAI blog</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research (JMLR)</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">140</biblScope>
+			<biblScope unit="page">67</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Squad: 100, 000+ questions for machine comprehension of text</title>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Konstantin</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/d16-1264</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2383" to="2392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Are red roses red? evaluating consistency of question-answering models</title>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Túlio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ribeiro</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/p19-1621</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="6174" to="6184" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">2022a. Colbertv2: Effective and efficient retrieval via lightweight late interaction</title>
+		<author>
+			<persName><forename type="first">Keshav</forename><surname>Santhanam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Khattab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jon</forename><surname>Saad-Falcon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matei</forename><surname>Zaharia</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.272</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Annual Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT)</title>
+		<meeting>the 2022 Annual Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT)</meeting>
+		<imprint>
+			<biblScope unit="page" from="3715" to="3734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Col-BERTv2: Effective and efficient retrieval via lightweight late interaction</title>
+		<author>
+			<persName><forename type="first">Keshav</forename><surname>Santhanam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Khattab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jon</forename><surname>Saad-Falcon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matei</forename><surname>Zaharia</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.naacl-main.272</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>United States. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="3715" to="3734" />
+		</imprint>
+	</monogr>
+	<note>Seattle</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Defending against poisoning attacks in open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Orion</forename><surname>Weller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleem</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathaniel</forename><surname>Weir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><forename type="middle">J</forename><surname>Lawrie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2212.10002</idno>
+		<idno>CoRR, abs/2212.10002</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Efficient passage retrieval with hashing for open-domain question answering</title>
+		<author>
+			<persName><forename type="first">Ikuya</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akari</forename><surname>Asai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2021.acl-short.123</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="979" to="986" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">End-to-end open-domain question answering with bertserini</title>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aileen</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luchen</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/n19-4013</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT), Demonstrations</title>
+		<meeting>the 2019 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL-HLT), Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="72" to="77" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Defending against neural fake news</title>
+		<author>
+			<persName><forename type="first">Rowan</forename><surname>Zellers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannah</forename><surname>Rashkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Franziska</forename><surname>Roesner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Annual Conference on Neural Information Processing Systems (NeurIPS)</title>
+		<meeting>the 2019 Annual Conference on Neural Information Processing Systems (NeurIPS)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="9051" to="9062" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>
