@@ -2,7 +2,6 @@
 
 This repository accompanies the paper  
 **LLLMs: A Data-Driven Survey of Evolving Research on Limitations of Large Language Models**  
-[arXiv:2505.19240](https://arxiv.org/abs/2505.19240)
 
 <p align="center">
   <img src="ExperimentalPipeline.png" alt="Experimental Pipeline" width="500px"/>
